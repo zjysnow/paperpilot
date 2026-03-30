@@ -3,7 +3,6 @@
   "name": "Paper Pilot",
   "version": "0.0.1",
   "description": "A Zotero plugin to help research paper with flowise agent",
-  "homepage_url": "https://github.com/zjysnow/paperpilot",
   "author": "Albert Zou",
   "applications": {
     "zotero": {
