@@ -1,3 +1,77 @@
+async function saveTxtToItem(content) {
+    const path = "/Users/albert/Workspace/debug.txt";
+    await Zotero.File.putContentsAsync(path, content);
+    return path;
+}
+
+async function uploadPDFToFlowise(filePath, apiKey) {
+    const binaryStr = await Zotero.File.getBinaryContentsAsync(filePath);
+
+    const boundary = "----ZoteroFlowiseBoundary" + Math.random().toString(16).slice(2);
+    const fileName = filePath.split(/[\\/]/).pop() || "paper.pdf";
+
+    // const docId = "e36f8444-fdd0-4a15-aa81-4d606716a001"; // 必须一致
+
+    const encoder = new TextEncoder();
+
+    function part(name, value) {
+        return (
+            `--${boundary}\r\n` +
+            `Content-Disposition: form-data; name="${name}"\r\n\r\n` +
+            `${value}\r\n`
+        );
+    }
+
+    let header = "";
+    header += part("docId", "730f686d-3399-45cd-b578-14905c1c07eb");
+    header += part("loaderName", "PDF Loader");
+    header += part("splitter", JSON.stringify({ config: { chunkSize: 256 } }));
+    header += part("metadata", "{}");
+    header += part("replaceExisting", "true");
+    header += part("createNewDocStore", "false");
+
+    header +=
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="files"; filename="${fileName}"\r\n` +
+        `Content-Type: application/pdf\r\n\r\n`;
+
+    const footer = `\r\n--${boundary}--\r\n`;
+
+    const headerBytes = encoder.encode(header);
+    const footerBytes = encoder.encode(footer);
+
+    const fileBytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+        fileBytes[i] = binaryStr.charCodeAt(i) & 0xff;
+    }
+
+    const bodyBytes = new Uint8Array(
+        headerBytes.length + fileBytes.length + footerBytes.length
+    );
+    bodyBytes.set(headerBytes, 0);
+    bodyBytes.set(fileBytes, headerBytes.length);
+    bodyBytes.set(footerBytes, headerBytes.length + fileBytes.length);
+
+    const res = await fetch(`http://localhost:3000/api/v1/document-store/upsert/e36f8444-fdd0-4a15-aa81-4d606716a001`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        },
+        body: bodyBytes,
+    });
+	const raw = await res.text();
+	return raw;
+    // const text = await res.text(); // 不要用 res.json()
+
+    // try {
+    //     return JSON.parse(text);
+    // } catch {
+    //     return text; // Flowise 错误时会返回纯文本
+    // }
+}
+
+
 PaperPilot = {
 	id: null,
 	version: null,
@@ -66,8 +140,8 @@ PaperPilot = {
 							menuType: "menuitem",
 							l10nID: "flowise-show-title",
 							
-							onCommand: (_event, context) => {
-								this._getTitle(context.items);
+							onCommand: async (_event, context) => {
+								await this._getTitle(context.items);
 								// this._showPaperTitle(context.items);
 							},
 						},
@@ -105,7 +179,7 @@ PaperPilot = {
 		this.addedElementIDs.push(submenu.id);
 	},
 
-	_getTitle(items) {
+	async _getTitle(items) {
 		if (!items || items.length === 0) {
 			this.log("No items selected");
 			return;
@@ -115,40 +189,41 @@ PaperPilot = {
 			throw new Error("必须传入 PDF 附件条目");
 		}
 
-		const parentID = items[0].parentItemID;
-		if (!parentID) {
-			throw new Error("该 PDF 没有父条目");
-		}
+		// const parentID = items[0].parentItemID;
+		// if (!parentID) {
+		// 	throw new Error("该 PDF 没有父条目");
+		// }
 
-		const parent = Zotero.Items.get(parentID);
+		// const parent = Zotero.Items.get(parentID);
 
-		// 2. 获取标题
-		const title = parent.getField("title") || "(untitled)";
+		// // 2. 获取标题
+		// const title = parent.getField("title") || "(untitled)";
 
-		// 3. 获取作者
-		const creators = parent.getCreators();
-		let firstAuthor = "";
-		if (creators.length > 0) {
-			let c = creators[0];
-			firstAuthor = c.lastName || c.name || "";
-			if (creators.length > 1) firstAuthor += " et al.";
-		}
+		// // 3. 获取作者
+		// const creators = parent.getCreators();
+		// let firstAuthor = "";
+		// if (creators.length > 0) {
+		// 	let c = creators[0];
+		// 	firstAuthor = c.lastName || c.name || "";
+		// 	if (creators.length > 1) firstAuthor += " et al.";
+		// }
 
-		// 4. 获取年份
-		const year = parent.getField("year") || parent.getField("date") || "";
+		// // 4. 获取年份
+		// const year = parent.getField("year") || parent.getField("date") || "";
 
-		let parts = [];
-		if (firstAuthor) parts.push(firstAuthor);
-		if (year) parts.push(year);
-		let meta = parts.length > 0 ? " (" + parts.join(", ") + ")" : "";
+		// let parts = [];
+		// if (firstAuthor) parts.push(firstAuthor);
+		// if (year) parts.push(year);
+		// let meta = parts.length > 0 ? " (" + parts.join(", ") + ")" : "";
 
-		const message = title + meta;
+		// const message = title + meta;
 
-		Services.prompt.alert(
-			null,
-			"Flowise — Paper Info",
-			message
-		);
+		
+    	const filePath = await items[0].getFilePathAsync();
+
+		const result = await uploadPDFToFlowise(filePath, "sEvSONlaZ1JnnSm45ovu3Z-I__25UsPB57B61wAiFaQ")
+
+		await saveTxtToItem(result)
 		
 	},
 
@@ -186,29 +261,6 @@ PaperPilot = {
 			message
 		);
 	},
-
-	async _getBibTeXFromPDFItem(pdfItem) {
-		if (!pdfItem || !pdfItem.isAttachment) {
-			throw new Error("必须传入 PDF 附件条目");
-		}
-
-		// 1. 获取父条目 ID
-		const parentID = pdfItem.parentItemID;
-		if (!parentID) {
-			throw new Error("该 PDF 没有父条目");
-		}
-
-		// 2. 获取父条目对象
-		const parent = Zotero.Items.get(parentID);
-		if (!parent) {
-			throw new Error("无法获取父条目");
-		}
-
-		// 3. 获取标题
-		const title = parent.getField("title") || "(无标题)";
-		return title;
-	},
-
 
 	addToAllWindows() {
 		var windows = Zotero.getMainWindows();
