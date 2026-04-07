@@ -1,4 +1,4 @@
 flowise-menu =
-    .label = Flowise
+    .label = Paper Pilot
 flowise-show-title =
-    .label = Show Paper Title
+    .label = AI Summary

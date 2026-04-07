@@ -11,6 +11,18 @@ function install() {
 async function startup({ id, version, rootURI }) {
 	log("Starting");
 
+	Zotero.PreferencePanes.register({
+		id: "zotero-flowise-prefs",
+		label: "Flowise",
+		image: null,
+		src: "chrome://zotero-flowise/content/prefs.xhtml",
+		scripts: ["chrome://zotero-flowise/content/prefs.js"],
+		onLoad: (win) => {
+			// 这里就是 addToWindow 的等价物
+			addToWindow(win);
+		}
+	});
+
 	Services.scriptloader.loadSubScript(rootURI + "main.js");
 	PaperPilot.init({ id, version, rootURI });
 	PaperPilot.addToAllWindows();

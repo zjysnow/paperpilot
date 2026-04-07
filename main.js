@@ -4,13 +4,35 @@ async function saveTxtToItem(content) {
     return path;
 }
 
+async function query(data) {
+	const json = JSON.stringify(data);
+
+	const encoder = new TextEncoder();
+    const bodyBytes = encoder.encode(json);
+
+    const response = await fetch(
+        "http://localhost:3000/api/v1/prediction/1cf19a51-0d66-4ef6-8645-88a47d42f656",
+        {
+            method: "POST",
+            headers: {
+				Authorization: "Bearer sEvSONlaZ1JnnSm45ovu3Z-I__25UsPB57B61wAiFaQ",
+                "Content-Type": "application/json",
+				"Content-Length": bodyBytes.length.toString()
+            },
+            body: bodyBytes,
+        }
+    );
+    const result = await response.text();
+    return result;
+}
+
+
+
 async function uploadPDFToFlowise(filePath, apiKey) {
     const binaryStr = await Zotero.File.getBinaryContentsAsync(filePath);
 
     const boundary = "----ZoteroFlowiseBoundary" + Math.random().toString(16).slice(2);
     const fileName = filePath.split(/[\\/]/).pop() || "paper.pdf";
-
-    // const docId = "e36f8444-fdd0-4a15-aa81-4d606716a001"; // 必须一致
 
     const encoder = new TextEncoder();
 
@@ -23,9 +45,9 @@ async function uploadPDFToFlowise(filePath, apiKey) {
     }
 
     let header = "";
-    header += part("docId", "730f686d-3399-45cd-b578-14905c1c07eb");
-    header += part("loaderName", "PDF Loader");
-    header += part("splitter", JSON.stringify({ config: { chunkSize: 256 } }));
+    header += part("docId", "f8755353-c1ad-4225-bd84-fbc72178701c");
+    header += part("loaderName", "zotero pdf loader");
+    header += part("splitter", JSON.stringify({ config: { chunkSize: 2048 } }));
     header += part("metadata", "{}");
     header += part("replaceExisting", "true");
     header += part("createNewDocStore", "false");
@@ -52,7 +74,7 @@ async function uploadPDFToFlowise(filePath, apiKey) {
     bodyBytes.set(fileBytes, headerBytes.length);
     bodyBytes.set(footerBytes, headerBytes.length + fileBytes.length);
 
-    const res = await fetch(`http://localhost:3000/api/v1/document-store/upsert/e36f8444-fdd0-4a15-aa81-4d606716a001`, {
+    const res = await fetch(`http://localhost:3000/api/v1/document-store/upsert/5a5209a5-9926-4673-a1c5-1a19fe354b55`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -62,13 +84,6 @@ async function uploadPDFToFlowise(filePath, apiKey) {
     });
 	const raw = await res.text();
 	return raw;
-    // const text = await res.text(); // 不要用 res.json()
-
-    // try {
-    //     return JSON.parse(text);
-    // } catch {
-    //     return text; // Flowise 错误时会返回纯文本
-    // }
 }
 
 
@@ -98,11 +113,7 @@ PaperPilot = {
 		window.MozXULElement.insertFTLIfNeeded("paperpilot.ftl");
 
 		// 优先使用 Zotero 8 MenuManager API
-		if (Zotero.MenuManager) {
-			this._registerMenuManager();
-		} else {
-			this._addMenuManually(doc);
-		}
+		this._registerMenuManager();
 	},
 
 	// Zotero 8 推荐方式：MenuManager API
@@ -142,7 +153,6 @@ PaperPilot = {
 							
 							onCommand: async (_event, context) => {
 								await this._getTitle(context.items);
-								// this._showPaperTitle(context.items);
 							},
 						},
 					],
@@ -150,117 +160,22 @@ PaperPilot = {
 			],
 		});
 		this.log("MenuManager registered: " + this.registeredMenuID);
-	},
 
-	// Zotero 7 兼容回退：手动操作 DOM
-	_addMenuManually(doc) {
-		let popup = doc.getElementById("zotero-itemmenu");
-		if (!popup) return;
-
-		let submenu = doc.createXULElement("menu");
-		submenu.id = "flowise-submenu";
-		submenu.setAttribute("data-l10n-id", "flowise-menu");
-
-		let menupopup = doc.createXULElement("menupopup");
-		menupopup.id = "flowise-submenu-popup";
-
-		let showItem = doc.createXULElement("menuitem");
-		showItem.id = "flowise-show-title-item";
-		showItem.setAttribute("data-l10n-id", "flowise-show-title");
-		showItem.addEventListener("command", () => {
-			let items = Zotero.getActiveZoteroPane().getSelectedItems();
-			this._getBibTeXFromPDFItem(items);
-		});
-
-		menupopup.appendChild(showItem);
-		submenu.appendChild(menupopup);
-		popup.appendChild(submenu);
-
-		this.addedElementIDs.push(submenu.id);
 	},
 
 	async _getTitle(items) {
-		if (!items || items.length === 0) {
-			this.log("No items selected");
-			return;
-		}
-
-		if (!items[0] || !items[0].isAttachment) {
-			throw new Error("必须传入 PDF 附件条目");
-		}
-
-		// const parentID = items[0].parentItemID;
-		// if (!parentID) {
-		// 	throw new Error("该 PDF 没有父条目");
-		// }
-
-		// const parent = Zotero.Items.get(parentID);
-
-		// // 2. 获取标题
-		// const title = parent.getField("title") || "(untitled)";
-
-		// // 3. 获取作者
-		// const creators = parent.getCreators();
-		// let firstAuthor = "";
-		// if (creators.length > 0) {
-		// 	let c = creators[0];
-		// 	firstAuthor = c.lastName || c.name || "";
-		// 	if (creators.length > 1) firstAuthor += " et al.";
-		// }
-
-		// // 4. 获取年份
-		// const year = parent.getField("year") || parent.getField("date") || "";
-
-		// let parts = [];
-		// if (firstAuthor) parts.push(firstAuthor);
-		// if (year) parts.push(year);
-		// let meta = parts.length > 0 ? " (" + parts.join(", ") + ")" : "";
-
-		// const message = title + meta;
-
-		
     	const filePath = await items[0].getFilePathAsync();
 
 		const result = await uploadPDFToFlowise(filePath, "sEvSONlaZ1JnnSm45ovu3Z-I__25UsPB57B61wAiFaQ")
 
-		await saveTxtToItem(result)
-		
+		// await saveTxtToItem(result)
+		const response = await query({"question": "总结论文"});
+		await saveTxtToItem(response);
+		// query({"question": "总结论文"}).then((response) => {
+		// 	this.log(response);
+		// });
 	},
 
-	_showPaperTitle(items) {
-		if (!items || items.length === 0) {
-			this.log("No items selected");
-			return;
-		}
-
-		let lines = items.map((item, i) => {
-			let title = item.getField("title") || "(untitled)";
-			let year = item.getField("year") || item.getField("date") || "";
-			let creators = item.getCreators();
-			let firstAuthor = "";
-			if (creators.length > 0) {
-				let c = creators[0];
-				firstAuthor = c.lastName || c.name || "";
-				if (creators.length > 1) firstAuthor += " et al.";
-			}
-
-			let parts = [];
-			if (firstAuthor) parts.push(firstAuthor);
-			if (year) parts.push(year);
-			let meta = parts.length > 0 ? " (" + parts.join(", ") + ")" : "";
-
-			return (items.length > 1 ? (i + 1) + ". " : "") + title + meta;
-		});
-
-		let message = lines.join("\n\n");
-		this.log("Show title:\n" + message);
-
-		Services.prompt.alert(
-			null,
-			"Flowise — Paper Info",
-			message
-		);
-	},
 
 	addToAllWindows() {
 		var windows = Zotero.getMainWindows();
