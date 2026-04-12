@@ -12,7 +12,7 @@ zip -r "$XPI_FILE" \
   bootstrap.js \
   main.js \
   prefs.js \
-  style.css \
+  preferences.xhtml \
   locale/ \
   -x "*.DS_Store" "build.sh" "*.xpi" "README.md"
 

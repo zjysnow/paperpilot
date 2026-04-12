@@ -1,21 +1,22 @@
-async function saveTxtToItem(content) {
-    const path = "/Users/albert/Workspace/debug.txt";
-    await Zotero.File.putContentsAsync(path, content);
+async function saveTxtToItem(content, title) {
+	data = JSON.parse(content);
+    const path = "/Users/albert/Workspace/" + title + ".md";
+    await Zotero.File.putContentsAsync(path, data.text);
     return path;
 }
 
-async function query(data) {
+async function query(data, url, apiKey, flowID) {
 	const json = JSON.stringify(data);
 
 	const encoder = new TextEncoder();
     const bodyBytes = encoder.encode(json);
-
+	query_url = `${url}/api/v1/prediction/${flowID}`
     const response = await fetch(
-        "http://localhost:3000/api/v1/prediction/1cf19a51-0d66-4ef6-8645-88a47d42f656",
+        query_url,
         {
             method: "POST",
             headers: {
-				Authorization: "Bearer sEvSONlaZ1JnnSm45ovu3Z-I__25UsPB57B61wAiFaQ",
+				Authorization: `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
 				"Content-Length": bodyBytes.length.toString()
             },
@@ -28,7 +29,7 @@ async function query(data) {
 
 
 
-async function uploadPDFToFlowise(filePath, apiKey) {
+async function uploadPDFToFlowise(filePath, url, apiKey, docID) {
     const binaryStr = await Zotero.File.getBinaryContentsAsync(filePath);
 
     const boundary = "----ZoteroFlowiseBoundary" + Math.random().toString(16).slice(2);
@@ -45,7 +46,7 @@ async function uploadPDFToFlowise(filePath, apiKey) {
     }
 
     let header = "";
-    header += part("docId", "f8755353-c1ad-4225-bd84-fbc72178701c");
+    header += part("docId", docID);
     header += part("loaderName", "zotero pdf loader");
     header += part("splitter", JSON.stringify({ config: { chunkSize: 2048 } }));
     header += part("metadata", "{}");
@@ -74,7 +75,8 @@ async function uploadPDFToFlowise(filePath, apiKey) {
     bodyBytes.set(fileBytes, headerBytes.length);
     bodyBytes.set(footerBytes, headerBytes.length + fileBytes.length);
 
-    const res = await fetch(`http://localhost:3000/api/v1/document-store/upsert/5a5209a5-9926-4673-a1c5-1a19fe354b55`, {
+	document_url = `${url}/api/v1/document-store/upsert/${docID}`
+    const res = await fetch(document_url, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -93,6 +95,15 @@ PaperPilot = {
 	rootURI: null,
 	initialized: false,
 	addedElementIDs: [],
+
+	// ======== Preference 读取辅助函数 ========
+	getPref(key) {
+		return Zotero.Prefs.get("paperpilot." + key);
+	},
+
+	setPref(key, value) {
+		return Zotero.Prefs.set("paperpilot." + key, value);
+	},
 
 	init({ id, version, rootURI }) {
 		if (this.initialized) return;
@@ -166,14 +177,17 @@ PaperPilot = {
 	async _getTitle(items) {
     	const filePath = await items[0].getFilePathAsync();
 
-		const result = await uploadPDFToFlowise(filePath, "sEvSONlaZ1JnnSm45ovu3Z-I__25UsPB57B61wAiFaQ")
+		const result = await uploadPDFToFlowise(filePath, this.getPref("flowiseURL"), this.getPref("apiKey"), this.getPref("docID"));
+
+		const parentID = items[0].parentItemID;
+		const parent = Zotero.Items.get(parentID);
+		// 2. 获取标题
+		const title = parent.getField("title") || "(untitled)";
 
 		// await saveTxtToItem(result)
-		const response = await query({"question": "总结论文"});
-		await saveTxtToItem(response);
-		// query({"question": "总结论文"}).then((response) => {
-		// 	this.log(response);
-		// });
+		const response = await query({"question": "总结论文"}, this.getPref("flowiseURL"), this.getPref("apiKey"), this.getPref("flowID"));
+		await saveTxtToItem(response, title);
+
 	},
 
 
@@ -212,7 +226,7 @@ PaperPilot = {
 		window.alert("Hello from My Zotero Plugin! (v" + this.version + ")");
 	},
 
-	async main() {
-		this.log("Plugin loaded successfully. Version: " + this.version);
-	},
+	// async main() {
+	// 	this.log("Plugin loaded successfully. Version: " + this.version);
+	// },
 };

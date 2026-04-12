@@ -1,0 +1,40 @@
+<vbox xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+      xmlns:html="http://www.w3.org/1999/xhtml">
+
+  <groupbox>
+    <label><html:h2>Flowise Settings</html:h2></label>
+
+    <hbox align="center">
+      <label value="API URL:" style="width: 100px;" />
+      <html:input id="flowise-url"
+                  type="text"
+                  preference="extensions.zotero.paperpilot.flowiseURL"
+                  style="flex: 1;" />
+    </hbox>
+
+    <hbox align="center">
+      <label value="API Key:" style="width: 100px;" />
+      <html:input id="flowise-apiKey"
+                  type="text"
+                  preference="extensions.zotero.paperpilot.apiKey"
+                  style="flex: 1;" />
+    </hbox>
+
+    <hbox align="center">
+      <label value="Flow ID:" style="width: 100px;" />
+      <html:input id="flowise-flowID"
+                  type="text"
+                  preference="extensions.zotero.paperpilot.flowID"
+                  style="flex: 1;" />
+    </hbox>
+
+    <hbox align="center">
+      <label value="Doc ID:" style="width: 100px;" />
+      <html:input id="flowise-docID"
+                  type="text"
+                  preference="extensions.zotero.paperpilot.docID"
+                  style="flex: 1;" />
+    </hbox>
+  </groupbox>
+
+</vbox>

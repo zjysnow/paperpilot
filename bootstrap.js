@@ -11,22 +11,30 @@ function install() {
 async function startup({ id, version, rootURI }) {
 	log("Starting");
 
+	// Zotero.PreferencePanes.register({
+	// 	id: "zotero-flowise-prefs@example.com",
+	// 	label: "Flowise",
+	// 	image: null,
+	// 	src: rootURI + "preferences.xhtml",
+	// 	// scripts: ["chrome://zotero-flowise/content/prefs.js"],
+	// 	// onLoad: (win) => {
+	// 	// 	// 这里就是 addToWindow 的等价物
+	// 	// 	addToWindow(win);
+	// 	// }
+	// });
+
+	// 注册 Preference Pane
 	Zotero.PreferencePanes.register({
-		id: "zotero-flowise-prefs",
+		pluginID: "paperpilot@zjysnow",
+		src: rootURI + "preferences.xhtml",
 		label: "Flowise",
-		image: null,
-		src: "chrome://zotero-flowise/content/prefs.xhtml",
-		scripts: ["chrome://zotero-flowise/content/prefs.js"],
-		onLoad: (win) => {
-			// 这里就是 addToWindow 的等价物
-			addToWindow(win);
-		}
+		image: "chrome://zotero/skin/16/universal/zotero.svg",
 	});
 
 	Services.scriptloader.loadSubScript(rootURI + "main.js");
 	PaperPilot.init({ id, version, rootURI });
 	PaperPilot.addToAllWindows();
-	await PaperPilot.main();
+	// await PaperPilot.main();
 }
 
 function onMainWindowLoad({ window }) {
