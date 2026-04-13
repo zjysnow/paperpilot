@@ -1,6 +1,6 @@
-async function saveTxtToItem(content, title) {
+async function saveTxtToItem(content, title, path) {
 	data = JSON.parse(content);
-    const path = "/Users/albert/Workspace/" + title + ".md";
+    path = `${path}/${title}.md` // "/Users/albert/Workspace/" + title + ".md";
     await Zotero.File.putContentsAsync(path, data.text);
     return path;
 }
@@ -186,7 +186,7 @@ PaperPilot = {
 
 		// await saveTxtToItem(result)
 		const response = await query({"question": "总结论文"}, this.getPref("flowiseURL"), this.getPref("apiKey"), this.getPref("flowID"));
-		await saveTxtToItem(response, title);
+		await saveTxtToItem(response, title, this.getPref("obsidianPath"));
 
 	},
 

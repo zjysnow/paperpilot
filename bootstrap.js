@@ -11,18 +11,6 @@ function install() {
 async function startup({ id, version, rootURI }) {
 	log("Starting");
 
-	// Zotero.PreferencePanes.register({
-	// 	id: "zotero-flowise-prefs@example.com",
-	// 	label: "Flowise",
-	// 	image: null,
-	// 	src: rootURI + "preferences.xhtml",
-	// 	// scripts: ["chrome://zotero-flowise/content/prefs.js"],
-	// 	// onLoad: (win) => {
-	// 	// 	// 这里就是 addToWindow 的等价物
-	// 	// 	addToWindow(win);
-	// 	// }
-	// });
-
 	// 注册 Preference Pane
 	Zotero.PreferencePanes.register({
 		pluginID: "paperpilot@zjysnow",
