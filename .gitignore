@@ -1,0 +1,9 @@
+node_modules
+
+package-lock.json
+i10n.d.ts
+
+.env
+.scaffold
+
+.DS_Store
