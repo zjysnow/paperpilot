@@ -1,7 +1,33 @@
+import type {
+  ChatRuntimeMode,
+  SelectedTextContext,
+} from "./types"
+import { TTLMap } from "./contexts/ttlMap";
 
+// =============================================================================
+// Module State
+// =============================================================================
 
+export const selectedModelCache = new Map<number, string>();
+
+export const selectedRuntimeModeCache = new Map<number, ChatRuntimeMode>();
 
 export const activeContextPanels = new Map<Element, () => Zotero.Item | null>();
+/** Raw Zotero item (from onRender) per body — used to recover the original
+ *  paper item when clearing a global lock. */
+export const activeContextPanelRawItems = new Map<
+  Element,
+  Zotero.Item | null
+>();
+export const activeContextPanelStateSync = new Map<Element, () => void>();
+
+export const activeGlobalConversationByLibrary = new Map<number, number>();
+export const activeConversationModeByLibrary = new Map<
+  number,
+  "paper" | "global"
+>();
+
+export const activePaperConversationByPaper = new Map<string, number>();
 
 
 export let readerContextPanelRegistered = false;
@@ -72,14 +98,109 @@ export function initFontScale(): void {
  * memory leaks across hot-reloads.
  */
 export function clearAllState(): void {
-    // Disconnect any ResizeObservers stored on panel bodies before clearing.
-    for (const [panelBody] of activeContextPanels) {
-        const obs = (panelBody as any).__paperpilotResizeObservers as
-        | ResizeObserver[]
-        | undefined;
-        if (obs) {
-        for (const o of obs) o.disconnect();
-        delete (panelBody as any).__paperpilotResizeObservers;
-        }
-    }
+  // Disconnect any ResizeObservers stored on panel bodies before clearing.
+  for (const [panelBody] of activeContextPanels) {
+      const obs = (panelBody as any).__paperpilotResizeObservers as
+      | ResizeObserver[]
+      | undefined;
+      if (obs) {
+      for (const o of obs) o.disconnect();
+      delete (panelBody as any).__paperpilotResizeObservers;
+      }
+  }
+
+  // chatHistory.clear();
+  // conversationForkLinks.clear();
+  // loadedConversationKeys.clear();
+  // loadingConversationTasks.clear();
+  // webChatForceNewChatConversationKeys.clear();
+  // webChatPdfUploadedConversationKeys.clear();
+  selectedModelCache.clear();
+  // selectedReasoningCache.clear();
+  // selectedReasoningProviderCache.clear();
+  selectedRuntimeModeCache.clear();
+  // pdfTextCache.clear();
+  // pdfTextLoadingTasks.clear();
+  // shortcutTextCache.clear();
+  activeContextPanels.clear();
+  activeContextPanelRawItems.clear();
+  activeContextPanelStateSync.clear();
+  // selectedImageCache.clear();
+  // selectedFileAttachmentCache.clear();
+  // selectedFilePreviewExpandedCache.clear();
+  // selectedPaperContextCache.clear();
+  // selectedOtherRefContextCache.clear();
+  // selectedCollectionContextCache.clear();
+  // paperContextModeOverrides.clear();
+  // paperContentSourceOverrides.clear();
+  selectedPaperPreviewExpandedCache.clear();
+  // selectedPaperContextListExpandedCache.clear();
+  activeGlobalConversationByLibrary.clear();
+  activeConversationModeByLibrary.clear();
+  // draftInputCache.clear();
+  selectedTextCache.clear();
+  selectedTextPreviewExpandedCache.clear();
+  selectedNotePreviewExpandedCache.clear();
+  selectedImagePreviewExpandedCache.clear();
+  selectedImagePreviewActiveIndexCache.clear();
+  pinnedSelectedTextKeys.clear();
+  pinnedImageKeys.clear();
+  pinnedFileKeys.clear();
+  pinnedPaperKeys.clear();
+  recentReaderSelectionCache.clear();
+  activePaperConversationByPaper.clear();
+  pendingRequestIds.clear();
+  cancelledRequestIds.clear();
+  abortControllers.clear();
+  autoLockedGlobalConversationKeys.clear();
 }
+
+
+
+export const selectedTextCache = new Map<number, SelectedTextContext[]>();
+export const selectedTextPreviewExpandedCache = new Map<number, number>();
+export const selectedNotePreviewExpandedCache = new Map<number, boolean>();
+export const selectedImagePreviewExpandedCache = new Map<number, boolean>();
+export const selectedImagePreviewActiveIndexCache = new Map<number, number>();
+export const pinnedSelectedTextKeys = new Map<number, Set<string>>();
+export const pinnedImageKeys = new Map<number, Set<string>>();
+export const pinnedFileKeys = new Map<number, Set<string>>();
+export const pinnedPaperKeys = new Map<number, Set<string>>();
+// Recent reader text selections — capped (5-min TTL, max 50).
+export const recentReaderSelectionCache = new TTLMap<number, string>(
+  5 * 60 * 1000,
+  50,
+);
+
+const pendingRequestIds = new Map<number, number>();
+const cancelledRequestIds = new Map<number, number>();
+const abortControllers = new Map<number, AbortController | null>();
+
+
+/** Returns true if the given conversation has an in-flight request. */
+export function isRequestPending(conversationKey: number): boolean {
+  return (pendingRequestIds.get(conversationKey) || 0) > 0;
+}
+
+
+
+// ── Auto-lock state (open chat locks during generation) ─────────────────────
+// Multiple conversations can be auto-locked simultaneously.
+const autoLockedGlobalConversationKeys = new Set<number>();
+export function addAutoLockedGlobalConversationKey(key: number): void {
+  autoLockedGlobalConversationKeys.add(key);
+}
+export function removeAutoLockedGlobalConversationKey(key: number): void {
+  autoLockedGlobalConversationKeys.delete(key);
+}
+export function isAutoLockedGlobalConversation(key: number): boolean {
+  return autoLockedGlobalConversationKeys.has(key);
+}
+
+
+// Stores the contextItemId of the currently expanded (sticky) paper chip, or false/undefined if none
+export const selectedPaperPreviewExpandedCache = new Map<
+  number,
+  number | false
+>();
+

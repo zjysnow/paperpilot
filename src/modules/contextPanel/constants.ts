@@ -1,18 +1,18 @@
 import { config } from "../../../package.json";
 import { t } from "../../utils/i18n";
 // import { ReasoningLevel as LLMReasoningLevel } from "../../utils/llmClient";
-// import {
-//   buildDefaultUpstreamGlobalConversationKey,
-//   isConversationKeyForKind,
-//   UPSTREAM_GLOBAL_CONVERSATION_KEY_BASE,
-//   UPSTREAM_PAPER_CONVERSATION_KEY_BASE,
-// } from "../../shared/conversationKeySpace";
-// export { buildDefaultUpstreamGlobalConversationKey };
-// export {
-//   COLLECTION_RETRIEVAL_MAX_PAPERS,
-//   MAX_FULL_TEXT_PAPER_CONTEXTS,
-//   MAX_SELECTED_PAPER_CONTEXTS,
-// } from "../../shared/contextLimits";
+import {
+  buildDefaultUpstreamGlobalConversationKey,
+  isConversationKeyForKind,
+  UPSTREAM_GLOBAL_CONVERSATION_KEY_BASE,
+  UPSTREAM_PAPER_CONVERSATION_KEY_BASE,
+} from "../../shared/conversationKeySpace";
+export { buildDefaultUpstreamGlobalConversationKey };
+export {
+  COLLECTION_RETRIEVAL_MAX_PAPERS,
+  MAX_FULL_TEXT_PAPER_CONTEXTS,
+  MAX_SELECTED_PAPER_CONTEXTS,
+} from "../../shared/contextLimits";
 
 // =============================================================================
 // Constants
@@ -54,13 +54,13 @@ export const MAX_EDITABLE_SHORTCUTS = 20;
 export const MAX_SELECTED_IMAGES = 50;
 export const MAX_UPLOAD_PDF_SIZE_BYTES = 50 * 1024 * 1024;
 export const CHAT_ATTACHMENTS_DIR_NAME = "chat-attachments";
-// export const PAPER_CONVERSATION_KEY_BASE = UPSTREAM_PAPER_CONVERSATION_KEY_BASE;
-// export const GLOBAL_CONVERSATION_KEY_BASE = UPSTREAM_GLOBAL_CONVERSATION_KEY_BASE;
+export const PAPER_CONVERSATION_KEY_BASE = UPSTREAM_PAPER_CONVERSATION_KEY_BASE;
+export const GLOBAL_CONVERSATION_KEY_BASE = UPSTREAM_GLOBAL_CONVERSATION_KEY_BASE;
 export const GLOBAL_HISTORY_LIMIT = 50;
 
-// export function isUpstreamGlobalConversationKey(conversationKey: number): boolean {
-//   return isConversationKeyForKind("upstream", "global", conversationKey);
-// }
+export function isUpstreamGlobalConversationKey(conversationKey: number): boolean {
+  return isConversationKeyForKind("upstream", "global", conversationKey);
+}
 
 export function formatFigureCountLabel(
   count: number,

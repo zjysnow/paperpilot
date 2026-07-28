@@ -10,7 +10,7 @@ import {
   // unregisterAllNoteEditingSelectionTracking,
   // unregisterNoteEditingSelectionTracking,
   // unregisterReaderSelectionTracking,
-  // openStandaloneChat,
+  openStandaloneChat,
 } from "./modules/contextPanel";
 // import { resolveActiveLibraryID } from "./modules/contextPanel/portalScope";
 // import { invalidatePaperSearchCache } from "./modules/contextPanel/paperSearch";
@@ -218,20 +218,21 @@ function scheduleMineruAutoWatchRegistration(): void {
     startAutoWatch();
   });
 }
+
+function scheduleDeferredStartupWork(
+  readiness: ConversationStoreReadiness,
+): void {
+  runDeferredStartupTask("legacy cache migrations", runDeferredLegacyMigrations);
+  scheduleConversationMaintenance(readiness);
+  scheduleConversationIntegrityAudit();
+  scheduleClaudeProjectBootstrapIfEnabled();
+  scheduleAgentSubsystemStartup();
+  scheduleUserSkillsLoad();
+  scheduleAttachmentMaintenance();
+  scheduleWebChatRelayRegistration();
+  scheduleMineruAutoWatchRegistration();
+}
 */
-// function scheduleDeferredStartupWork(
-//   readiness: ConversationStoreReadiness,
-// ): void {
-//   runDeferredStartupTask("legacy cache migrations", runDeferredLegacyMigrations);
-//   scheduleConversationMaintenance(readiness);
-//   scheduleConversationIntegrityAudit();
-//   scheduleClaudeProjectBootstrapIfEnabled();
-//   scheduleAgentSubsystemStartup();
-//   scheduleUserSkillsLoad();
-//   scheduleAttachmentMaintenance();
-//   scheduleWebChatRelayRegistration();
-//   scheduleMineruAutoWatchRegistration();
-// }
 
 async function onStartup() {
   await measureStartupPhase("Zotero readiness", () =>
@@ -338,7 +339,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
       //   openStandaloneChat();
       //   return;
       // }
-      // openStandaloneChat({ initialItem });
+      openStandaloneChat({ initialItem });
     });
     keyset.appendChild(key);
   }

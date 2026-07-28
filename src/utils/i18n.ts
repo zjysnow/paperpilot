@@ -1,5 +1,5 @@
 /**
- * Centralized i18n module for LLM-for-Zotero.
+ * Centralized i18n module for Paper Pilot.
  *
  * Design: English is the source of truth. All UI strings stay hardcoded in
  * English throughout the codebase. The `t()` function wraps them — when the
@@ -96,7 +96,7 @@ export function getPaperChatStartPageHtml(): string {
   if (getEffectiveLocale().startsWith("zh")) {
     return `
       <div class="paperpilot-start-page">
-        <div class="paperpilot-start-page-title">LLM-for-Zotero</div>
+        <div class="paperpilot-start-page-title">Paper Pilot</div>
         <div class="paperpilot-start-page-subtitle">从这里开始，读懂这篇论文的一切</div>
         <div class="paperpilot-start-page-desc">
           <p>论文对话回答关于当前活跃论文的问题。论文将在你提问前预加载到上下文中。</p>
@@ -108,7 +108,7 @@ export function getPaperChatStartPageHtml(): string {
   }
   return `
     <div class="paperpilot-start-page">
-      <div class="paperpilot-start-page-title">LLM-for-Zotero</div>
+      <div class="paperpilot-start-page-title">Paper Pilot</div>
       <div class="paperpilot-start-page-subtitle">Understand everything of this paper, from here</div>
       <div class="paperpilot-start-page-desc">
         <p>Paper chat answers questions about your current active paper. The paper will be pre-loaded into context before your first question.</p>
@@ -123,7 +123,7 @@ export function getNoteEditingStartPageHtml(): string {
   if (getEffectiveLocale().startsWith("zh")) {
     return `
       <div class="paperpilot-start-page">
-        <div class="paperpilot-start-page-title">LLM-for-Zotero</div>
+        <div class="paperpilot-start-page-title">Paper Pilot</div>
         <div class="paperpilot-start-page-subtitle">一起写笔记，让想法进化</div>
         <div class="paperpilot-start-page-desc">
           <p>选中一段文字，我可以帮你<strong>重写润色</strong>。</p>
@@ -135,7 +135,7 @@ export function getNoteEditingStartPageHtml(): string {
   }
   return `
     <div class="paperpilot-start-page">
-      <div class="paperpilot-start-page-title">LLM-for-Zotero</div>
+      <div class="paperpilot-start-page-title">Paper Pilot</div>
       <div class="paperpilot-start-page-subtitle">Write with me, evolve your ideas</div>
       <div class="paperpilot-start-page-desc">
         <p>Select a text snippet, and I can <strong>rewrite</strong> it for you.</p>
@@ -150,7 +150,7 @@ export function getStandaloneLibraryChatStartPageHtml(): string {
   if (getEffectiveLocale().startsWith("zh")) {
     return `
       <div class="paperpilot-standalone-start-page">
-        <div class="paperpilot-start-page-title">LLM-for-Zotero Agent</div>
+        <div class="paperpilot-start-page-title">Paper Pilot Agent</div>
         <div class="paperpilot-start-page-subtitle">为你和你的文献库服务</div>
         <div class="paperpilot-start-page-recommendations">
           <div class="paperpilot-start-page-rec-title">推荐设置以获得最佳体验</div>
@@ -166,12 +166,12 @@ export function getStandaloneLibraryChatStartPageHtml(): string {
   }
   return `
     <div class="paperpilot-standalone-start-page">
-      <div class="paperpilot-start-page-title">LLM-for-Zotero Agent</div>
+      <div class="paperpilot-start-page-title">Paper Pilot Agent</div>
       <div class="paperpilot-start-page-subtitle">serve you and your library</div>
       <div class="paperpilot-start-page-recommendations">
         <div class="paperpilot-start-page-rec-title">Recommended settings for the best experience</div>
         <ol class="paperpilot-start-page-rec-list">
-          <li><strong>Preferences → MinerU</strong>: parse your PDFs to Markdown + images<span class="paperpilot-rec-reason"> (MD is the language of LLMs; enables better notes with parsed images; saves tokens)</span></li>
+          <li><strong>Preferences → MinerU</strong>: parse your PDFs to Markdown + images<span class="paperpilot-rec-reason"> (MD is the language of s; enables better notes with parsed images; saves tokens)</span></li>
           <li>Activate <strong>Agent mode</strong> for autonomous research</li>
           <li>Use an <strong>intelligent model</strong>: Codex, GPT-5.4, or similar high-intelligence models</li>
           <li>Set up <strong>Notes directory</strong> in Preferences (Settings → Agent tab)</li>

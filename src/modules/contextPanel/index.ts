@@ -1,7 +1,7 @@
 /**
  * Context Panel Module
  *
- * This is the main entry point for the LLM context panel, which provides
+ * This is the main entry point for the Paper Pilot context panel, which provides
  * a chat interface in Zotero's reader/library side panel.
  *
  * The module is split into focused sub-modules:
@@ -28,17 +28,78 @@ import { config, PANE_ID } from "./constants";
 import {
     readerContextPanelRegistered,
     setReaderContextPanelRegistered,
+    activeContextPanels,
+    activeContextPanelRawItems,
+    activeContextPanelStateSync,
 } from "./state"
 
 import { buildUI } from "./buildUI";
 import { setupHandlers } from "./setupHandlers";
 
+import {
+  clearCompletedPanelLifecycleSignature,
+  hasCompletedPanelLifecycleSignature,
+  markCompletedPanelLifecycleSignature,
+  type PanelLifecycleSignature,
+} from "./panelLifecycleSignature";
+import {
+  hasPanelContextOwnerChanged,
+  shouldRefreshContextSourceWithoutPanelRebuild,
+} from "./panelContextLifecycle";
+
+import {
+  // getActiveContextAttachmentFromTabs,
+  // getActiveReaderForSelectedTab,
+  refreshLastKnownSelectedTabId,
+  // getItemSelectionCacheKeys,
+  // resolvePanelContextLifecycleState,
+  // appendSelectedTextContextForItem,
+  // applySelectedTextPreview,
+  // getSelectedTextContextEntries,
+} from "./contextResolution";
+
+import {
+  resolveInitialPanelItemState,
+  resolveActiveLibraryID,
+  resolveConversationSystemForItem,
+  resolveDisplayConversationKind,
+  // resolveShortcutMode,
+} from "./portalScope";
+import { getLockedGlobalConversationKey } from "./prefHelpers";
+
 import { freshStartupConversationSession } from "./freshStartupConversation";
+
+export { openStandaloneChat } from "./standaloneWindow";
+import {
+  isStandaloneWindowActive,
+  notifyStandaloneItemChanged,
+  renderStandalonePlaceholder,
+} from "./standaloneWindow";
 
 // =============================================================================
 // Public API
 // =============================================================================
 
+function isPanelRootInitialized(
+  panelRoot: HTMLElement | null | undefined,
+): boolean {
+  return Boolean(panelRoot?.dataset?.handlersInitialized);
+}
+
+function writePanelContextDataset(
+  panelRoot: HTMLElement | null | undefined,
+  rawItem: Zotero.Item | null | undefined,
+) {
+  if (!panelRoot) return;
+  const rawContextItemKey = rawItem
+    ? String(Number(rawItem.id || 0) || "")
+    : "";
+  // panelRoot.dataset.contextItemId = getPanelContextItemIdKey(rawItem);
+  // panelRoot.dataset.contextOwnerItemId = getPanelContextOwnerItemIdKey(rawItem);
+  // panelRoot.dataset.contextSourceStateKey =
+  //   getPanelContextSourceStateKey(rawItem);
+  panelRoot.dataset.rawContextItemId = rawContextItemKey;
+}
 
 export function registerPaperPilotStyles(win: _ZoteroTypes.MainWindow) {
   const doc = win.document;
@@ -61,6 +122,29 @@ export function registerPaperPilotStyles(win: _ZoteroTypes.MainWindow) {
   doc.documentElement?.appendChild(katexLink);
 }
 
+// function getPanelContextOwnerItemIdKey(
+//   item: Zotero.Item | null | undefined,
+// ): string {
+//   const id = resolvePanelContextLifecycleState(item)?.ownerItemId || 0;
+//   return id > 0 ? `${id}` : "";
+// }
+
+
+// function buildPanelLifecycleSignature(
+//   rawItem: Zotero.Item | null | undefined,
+//   resolvedItem: Zotero.Item | null | undefined,
+// ): PanelLifecycleSignature {
+//   const rawContextItem = rawItem || resolvedItem;
+//   return {
+//     conversationKey: resolvedItem ? `${getConversationKey(resolvedItem)}` : "0",
+//     rawContextItemId: getPanelContextOwnerItemIdKey(rawContextItem),
+//     contextItemId: "",
+//     conversationSystem:
+//       resolveConversationSystemForItem(resolvedItem) || "upstream",
+//     conversationKind: resolveDisplayConversationKind(resolvedItem) || "",
+//     shortcutMode: resolveShortcutMode(resolvedItem),
+//   };
+// }
 
 export function registerReaderContextPanel() {
     if (readerContextPanelRegistered) return;
@@ -103,10 +187,10 @@ export function registerReaderContextPanel() {
         },
         onItemChange: ({ setEnabled, tabType, item }) => {
             setEnabled(true);
-            // if (isStandaloneWindowActive()) {
-            //     notifyStandaloneItemChanged(item || null);
-            //     return true;
-            // }
+            if (isStandaloneWindowActive()) {
+                notifyStandaloneItemChanged(item || null);
+                return true;
+            }
             // const selectedTabId = refreshLastKnownSelectedTabId();
             // const itemChangeSignature = [
             //     tabType || "",
@@ -121,172 +205,169 @@ export function registerReaderContextPanel() {
         },
         onRender: ({ body, item }) => {
             // When standalone window is open, show placeholder instead of full UI
-            // if (isStandaloneWindowActive()) {
-            //     clearCompletedPanelLifecycleSignature(body);
-            //     void releaseClaudeRuntimeForBody(body);
-            //     renderStandalonePlaceholder(body);
-            //     const resolvedState = resolveInitialPanelItemState(item);
-            //     activeContextPanels.set(body, () => resolvedState.item);
-            //     activeContextPanelRawItems.set(body, item || null);
-            //     (body as any).__paperpilotSyncRendered = true;
-            //     return;
-            // }
-            // try {
-            //     const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
-            //     // Treat missing panel root as needing a full render — the body may
-            //     // belong to a tab that onAsyncRender never fired for.
-            //     // Also treat an uninitialized shell as incomplete.  Zotero can fire a
-            //     // superseded async render after buildUI() but before setupHandlers();
-            //     // that leaves a blank chat box and default "Model: ..." controls.
-            //     const needsFullRender =
-            //         !activeContextPanels.has(body) ||
-            //         !panelRoot ||
-            //         !isPanelRootInitialized(panelRoot);
+            if (isStandaloneWindowActive()) {
+                clearCompletedPanelLifecycleSignature(body);
+                // void releaseClaudeRuntimeForBody(body);
+                renderStandalonePlaceholder(body);
+                const resolvedState = resolveInitialPanelItemState(item);
+                activeContextPanels.set(body, () => resolvedState.item);
+                activeContextPanelRawItems.set(body, item || null);
+                (body as any).__paperpilotSyncRendered = true;
+                return;
+            }
+            try {
+                const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
+                // Treat missing panel root as needing a full render — the body may
+                // belong to a tab that onAsyncRender never fired for.
+                // Also treat an uninitialized shell as incomplete.  Zotero can fire a
+                // superseded async render after buildUI() but before setupHandlers();
+                // that leaves a blank chat box and default "Model: ..." controls.
+                const needsFullRender =
+                    !activeContextPanels.has(body) ||
+                    !panelRoot ||
+                    !isPanelRootInitialized(panelRoot);
 
-            //     const resolvedState = resolveInitialPanelItemState(item);
-            //     const expectedSystem =
-            //     resolveConversationSystemForItem(resolvedState.item) || "upstream";
+                const resolvedState = resolveInitialPanelItemState(item);
+                const expectedSystem =
+                    resolveConversationSystemForItem(resolvedState.item) || "upstream";
 
-            //     // Also check if a global lock requires switching to open chat
-            //     const libraryID =
-            //     resolveActiveLibraryID() ||
-            //         (resolvedState.item
-            //             ? Number(resolvedState.item.libraryID || 0)
-            //             : 0) ||
-            //         (item ? Number(item.libraryID || 0) : 0);
-            //     const lockedKey =
-            //     expectedSystem === "claude_code" || expectedSystem === "codex"
-            //         ? null
-            //         : libraryID > 0
-            //         ? getLockedGlobalConversationKey(libraryID)
-            //         : null;
-            //     const currentKind = panelRoot?.dataset?.conversationKind;
-            //     const currentItemKey = panelRoot?.dataset?.itemId;
-            //     const currentSystem = panelRoot?.dataset?.conversationSystem || "";
-            //     const currentContextItemKey = panelRoot?.dataset?.contextItemId || "";
-            //     const currentRawContextItemKey =
-            //     panelRoot?.dataset?.rawContextItemId || "";
-            //     const currentContextOwnerItemKey =
-            //     panelRoot?.dataset?.contextOwnerItemId || "";
-            //     const currentContextSourceStateKey =
-            //     panelRoot?.dataset?.contextSourceStateKey || "";
-            //     // Lock is stale if:
-            //     // - lock active + panel in paper mode (need to switch to global)
-            //     // - lock active + panel shows different global conversation
-            //     // - lock cleared + panel still in global mode (need to switch back to paper)
-            //     const lockStale =
-            //         (lockedKey !== null &&
-            //             (currentKind === "paper" ||
-            //             (currentItemKey !== undefined &&
-            //                 currentItemKey !== String(lockedKey)))) ||
-            //         (lockedKey === null && currentKind === "global" && !needsFullRender);
+                // Also check if a global lock requires switching to open chat
+                const libraryID =
+                    resolveActiveLibraryID() ||
+                        (resolvedState.item
+                            ? Number(resolvedState.item.libraryID || 0)
+                            : 0) ||
+                        (item ? Number(item.libraryID || 0) : 0);
+                const lockedKey = libraryID > 0
+                    ? getLockedGlobalConversationKey(libraryID)
+                    : null;
+                const currentKind = panelRoot?.dataset?.conversationKind;
+                const currentItemKey = panelRoot?.dataset?.itemId;
+                const currentSystem = panelRoot?.dataset?.conversationSystem || "";
+                const currentContextItemKey = panelRoot?.dataset?.contextItemId || "";
+                const currentRawContextItemKey =
+                panelRoot?.dataset?.rawContextItemId || "";
+                const currentContextOwnerItemKey =
+                panelRoot?.dataset?.contextOwnerItemId || "";
+                const currentContextSourceStateKey =
+                panelRoot?.dataset?.contextSourceStateKey || "";
+                // Lock is stale if:
+                // - lock active + panel in paper mode (need to switch to global)
+                // - lock active + panel shows different global conversation
+                // - lock cleared + panel still in global mode (need to switch back to paper)
+                const lockStale =
+                    (lockedKey !== null &&
+                        (currentKind === "paper" ||
+                        (currentItemKey !== undefined &&
+                            currentItemKey !== String(lockedKey)))) ||
+                    (lockedKey === null && currentKind === "global" && !needsFullRender);
 
-            //     // Detect if the active item has changed (e.g. user switched reader tabs).
-            //     // If so, the panel must fully re-render to switch conversations.
-            //     const storedItemKey = panelRoot?.dataset?.itemId;
-            //     const newItemKey = resolvedState.item
-            //         ? String(getConversationKey(resolvedState.item))
-            //         : "0";
-            //     const rawContextItem = item || resolvedState.item;
-            //     const rawContextItemKey = rawContextItem
-            //         ? String(Number(rawContextItem.id || 0) || "")
-            //         : "";
-            //     const newContextOwnerItemKey =
-            //         getPanelContextOwnerItemIdKey(rawContextItem);
-            //     const newContextSourceStateKey =
-            //         getPanelContextSourceStateKey(rawContextItem);
-            //     const itemChanged =
-            //         !needsFullRender &&
-            //         storedItemKey !== undefined &&
-            //         storedItemKey !== newItemKey;
-            //     const contextDecision = {
-            //         needsFullRender,
-            //         storedItemKey,
-            //         newItemKey,
-            //         currentKind,
-            //         currentRawContextItemKey,
-            //         rawContextItemKey,
-            //         currentContextOwnerItemKey,
-            //         newContextOwnerItemKey,
-            //         currentContextSourceStateKey:
-            //             currentContextSourceStateKey || currentContextItemKey,
-            //         newContextSourceStateKey,
-            //     };
-            //     const contextOwnerChanged =
-            //         hasPanelContextOwnerChanged(contextDecision);
-            //     const sameOwnerContextSourceChanged =
-            //         shouldRefreshContextSourceWithoutPanelRebuild(contextDecision);
-            //     const systemChanged =
-            //         !needsFullRender && currentSystem !== expectedSystem;
+                // Detect if the active item has changed (e.g. user switched reader tabs).
+                // If so, the panel must fully re-render to switch conversations.
+                const storedItemKey = panelRoot?.dataset?.itemId;
+                // const newItemKey = resolvedState.item
+                //     ? String(getConversationKey(resolvedState.item))
+                //     : "0";
+                const rawContextItem = item || resolvedState.item;
+                const rawContextItemKey = rawContextItem
+                    ? String(Number(rawContextItem.id || 0) || "")
+                    : "";
+                // const newContextOwnerItemKey =
+                //     getPanelContextOwnerItemIdKey(rawContextItem);
+                // const newContextSourceStateKey =
+                //     getPanelContextSourceStateKey(rawContextItem);
+                // const itemChanged =
+                //     !needsFullRender &&
+                //     storedItemKey !== undefined &&
+                //     storedItemKey !== newItemKey;
+                // const contextDecision = {
+                //     needsFullRender,
+                //     storedItemKey,
+                //     newItemKey,
+                //     currentKind,
+                //     currentRawContextItemKey,
+                //     rawContextItemKey,
+                //     currentContextOwnerItemKey,
+                //     newContextOwnerItemKey,
+                //     currentContextSourceStateKey:
+                //         currentContextSourceStateKey || currentContextItemKey,
+                //     newContextSourceStateKey,
+                // };
+                // const contextOwnerChanged =
+                //     hasPanelContextOwnerChanged(contextDecision);
+                // const sameOwnerContextSourceChanged =
+                //     shouldRefreshContextSourceWithoutPanelRebuild(contextDecision);
+                const systemChanged =
+                    !needsFullRender && currentSystem !== expectedSystem;
 
-            //     if (
-            //         needsFullRender ||
-            //         lockStale ||
-            //         itemChanged ||
-            //         contextOwnerChanged ||
-            //         systemChanged
-            //     ) {
-            //         clearCompletedPanelLifecycleSignature(body);
-            //         persistPendingChatScrollRestoreFromBody(body);
-            //         // Build UI synchronously so panel data attributes (basePaperItemId,
-            //         // conversationKind, etc.) are immediately correct.  The reader popup
-            //         // "Add Text" path reads these attributes to decide paper-mismatch —
-            //         // if we defer buildUI, the stale panel from the previous tab wins.
-            //         buildUI(body, resolvedState.item);
-            //         const nextPanelRoot = body.querySelector(
-            //             "#paperpilot-main",
-            //         ) as HTMLElement | null;
-            //         writePanelContextDataset(nextPanelRoot, rawContextItem);
-            //         activeContextPanels.set(body, () => resolvedState.item);
-            //         activeContextPanelRawItems.set(body, item || null);
-            //         void retainClaudeRuntimeForBody(body, resolvedState.item);
-            //         // Attach handlers synchronously so buttons are
-            //         // immediately interactive — don't gate on ensureConversationLoaded.
-            //         setupEmbeddedPanelHandlers(body, item, resolvedState.item);
-            //         // Flag: onAsyncRender can skip the duplicate buildUI + setupHandlers.
-            //         (body as any).__paperpilotSyncRendered = true;
-            //         // Defer conversation loading and chat rendering
-            //         void (async () => {
-            //             try {
-            //             if ((body as any).__paperpilotFreshStartupConversationInFlight) return;
-            //             if (resolvedState.item)
-            //                 await ensureConversationLoaded(resolvedState.item);
-            //                 if (isStandaloneWindowActive()) return;
-            //             refreshChat(body, resolvedState.item);
-            //             } catch (err) {
-            //             ztoolkit.log("LLM: onRender async setup failed", err);
-            //             }
-            //         })();   
-            //     } else {
-            //         // Same item — keep item reference current so delegated handlers
-            //         // (e.g. Add Text) always resolve the active item.
-            //         activeContextPanels.set(body, () => resolvedState.item);
-            //         activeContextPanelRawItems.set(body, item || null);
-            //         writePanelContextDataset(panelRoot, rawContextItem);
-            //         void retainClaudeRuntimeForBody(body, resolvedState.item);
-            //         if (sameOwnerContextSourceChanged) {
-            //             persistPendingChatScrollRestoreFromBody(body);
-            //             (body as any).__paperpilotContextRefreshOnly = true;
-            //             const refreshContextSource = (body as any)
-            //             .__paperpilotRefreshContextSourceForCurrentItem;
-            //             if (typeof refreshContextSource === "function") {
-            //             refreshContextSource();
-            //             } else {
-            //             activeContextPanelStateSync.get(body)?.();
-            //             }
-            //         }
-            //     }
-            // } catch {
-            //     /* ignore */
-            // }
+                if (
+                    needsFullRender ||
+                    lockStale ||
+                    // itemChanged ||
+                    // contextOwnerChanged ||
+                    systemChanged
+                ) {
+                    clearCompletedPanelLifecycleSignature(body);
+                    // persistPendingChatScrollRestoreFromBody(body);
+                    // Build UI synchronously so panel data attributes (basePaperItemId,
+                    // conversationKind, etc.) are immediately correct.  The reader popup
+                    // "Add Text" path reads these attributes to decide paper-mismatch —
+                    // if we defer buildUI, the stale panel from the previous tab wins.
+                    buildUI(body, resolvedState.item);
+                    const nextPanelRoot = body.querySelector(
+                        "#paperpilot-main",
+                    ) as HTMLElement | null;
+                    writePanelContextDataset(nextPanelRoot, rawContextItem);
+                    activeContextPanels.set(body, () => resolvedState.item);
+                    activeContextPanelRawItems.set(body, item || null);
+                    // void retainClaudeRuntimeForBody(body, resolvedState.item);
+                    // Attach handlers synchronously so buttons are
+                    // immediately interactive — don't gate on ensureConversationLoaded.
+                    setupEmbeddedPanelHandlers(body, item, resolvedState.item);
+                    // Flag: onAsyncRender can skip the duplicate buildUI + setupHandlers.
+                    (body as any).__paperpilotSyncRendered = true;
+                    // Defer conversation loading and chat rendering
+                    void (async () => {
+                        try {
+                            if ((body as any).__paperpilotFreshStartupConversationInFlight) return;
+                            // if (resolvedState.item)
+                            //     await ensureConversationLoaded(resolvedState.item);
+                            if (isStandaloneWindowActive()) return;
+                            // refreshChat(body, resolvedState.item);
+                        } catch (err) {
+                            ztoolkit.log("Paper Pilot: onRender async setup failed", err);
+                        }
+                    })();   
+                } else {
+                    // Same item — keep item reference current so delegated handlers
+                    // (e.g. Add Text) always resolve the active item.
+                    activeContextPanels.set(body, () => resolvedState.item);
+                    activeContextPanelRawItems.set(body, item || null);
+                    writePanelContextDataset(panelRoot, rawContextItem);
+                    // void retainClaudeRuntimeForBody(body, resolvedState.item);
+                    // if (sameOwnerContextSourceChanged) {
+                    //     persistPendingChatScrollRestoreFromBody(body);
+                    //     (body as any).__paperpilotContextRefreshOnly = true;
+                    //     const refreshContextSource = (body as any)
+                    //     .__paperpilotRefreshContextSourceForCurrentItem;
+                    //     if (typeof refreshContextSource === "function") {
+                    //         refreshContextSource();
+                    //     } else {
+                    //         activeContextPanelStateSync.get(body)?.();
+                    //     }
+                    // }
+                }
+            } catch {
+                /* ignore */
+            }
         },
         onAsyncRender: async ({ body, item, setEnabled }) => {
             setEnabled(true);
             // Skip full render when standalone window is active
-            // if (isStandaloneWindowActive()) return;
+            if (isStandaloneWindowActive()) return;
 
-            // const resolvedInitialState = resolveInitialPanelItemState(item);
-            // const resolvedItem = resolvedInitialState.item;
+            const resolvedInitialState = resolveInitialPanelItemState(item);
+            const resolvedItem = resolvedInitialState.item;
             // const lifecycleSignature = buildPanelLifecycleSignature(
             //     item || null,
             //     resolvedItem,
@@ -300,58 +381,57 @@ export function registerReaderContextPanel() {
             //     return;
             // }
 
-            // const thisGeneration = ++renderGeneration;
+            const thisGeneration = ++renderGeneration;
 
             // // If onRender already did the synchronous buildUI + setupHandlers for
             // // this render cycle, skip the duplicate work.  We still run the
             // // async-only steps: ensureConversationLoaded (properly awaited),
             // // renderShortcuts, refreshChat (after data ready), and content caching.
-            // const syncAlreadyRendered = (body as any).__paperpilotSyncRendered === true;
-            // if (syncAlreadyRendered) {
-            //     delete (body as any).__paperpilotSyncRendered;
-            // }
-            // const contextRefreshOnly =
-            //     (body as any).__paperpilotContextRefreshOnly === true &&
-            //     Boolean(body.querySelector("#paperpilot-main"));
-            // if (contextRefreshOnly) {
-            //     delete (body as any).__paperpilotContextRefreshOnly;
-            //     activeContextPanels.set(body, () => resolvedItem);
-            //     activeContextPanelRawItems.set(body, item || null);
-            // } else if (!syncAlreadyRendered) {
-            //     persistPendingChatScrollRestoreFromBody(body);
-            //     buildUI(body, resolvedItem);
-            //     const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
-            //     writePanelContextDataset(panelRoot, item || resolvedItem);
-            //     activeContextPanelRawItems.set(body, item || null);
-            // }
+            const syncAlreadyRendered = (body as any).__paperpilotSyncRendered === true;
+            if (syncAlreadyRendered) {
+                delete (body as any).__paperpilotSyncRendered;
+            }
+            const contextRefreshOnly =
+                (body as any).__paperpilotContextRefreshOnly === true &&
+                Boolean(body.querySelector("#paperpilot-main"));
+            if (contextRefreshOnly) {
+                delete (body as any).__paperpilotContextRefreshOnly;
+                activeContextPanels.set(body, () => resolvedItem);
+                activeContextPanelRawItems.set(body, item || null);
+            } else if (!syncAlreadyRendered) {
+                // persistPendingChatScrollRestoreFromBody(body);
+                buildUI(body, resolvedItem);
+                const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
+                writePanelContextDataset(panelRoot, item || resolvedItem);
+                activeContextPanelRawItems.set(body, item || null);
+            }
 
-            // if (resolvedItem) {
-            //     if ((body as any).__paperpilotFreshStartupConversationInFlight) return;
-            //     await ensureConversationLoaded(resolvedItem);
-            // }
-            // // Bail if a newer render has started while we were awaiting,
-            // // or if the standalone window was opened during the await.
-            // if (renderGeneration !== thisGeneration) return;
-            // if (isStandaloneWindowActive()) return;
+            if (resolvedItem) {
+                if ((body as any).__paperpilotFreshStartupConversationInFlight) return;
+                // await ensureConversationLoaded(resolvedItem);
+            }
+            // Bail if a newer render has started while we were awaiting,
+            // or if the standalone window was opened during the await.
+            if (renderGeneration !== thisGeneration) return;
+            if (isStandaloneWindowActive()) return;
             // await renderShortcuts(
             //     body,
             //     resolvedItem,
             //     resolveShortcutMode(resolvedItem),
             // );
-            // if (renderGeneration !== thisGeneration) return;
-            // if (isStandaloneWindowActive()) return;
-            // if (!syncAlreadyRendered && !contextRefreshOnly) {
-            //     setupEmbeddedPanelHandlers(body, item, resolvedItem);
-            // }
-            // if (contextRefreshOnly) {
-            //     const refreshContextSource = (body as any)
-            //     .__paperpilotRefreshContextSourceForCurrentItem;
-            //     if (typeof refreshContextSource === "function") {
-            //     refreshContextSource();
-            //     } else {
-            //     activeContextPanelStateSync.get(body)?.();
-            //     }
-            // }
+            if (renderGeneration !== thisGeneration) return;
+            if (isStandaloneWindowActive()) return;
+            if (!syncAlreadyRendered && !contextRefreshOnly) {
+                setupEmbeddedPanelHandlers(body, item, resolvedItem);
+            }
+            if (contextRefreshOnly) {
+                const refreshContextSource = (body as any).__paperpilotRefreshContextSourceForCurrentItem;
+                if (typeof refreshContextSource === "function") {
+                    refreshContextSource();
+                } else {
+                    activeContextPanelStateSync.get(body)?.();
+                }
+            }
             // refreshChat(body, resolvedItem);
             // markCompletedPanelLifecycleSignature(body, lifecycleSignature);
             // // Defer content extraction so the panel becomes interactive sooner.
@@ -364,5 +444,6 @@ export function registerReaderContextPanel() {
         },
     });
 }
+
 
 

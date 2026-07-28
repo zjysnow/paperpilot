@@ -1,0 +1,1002 @@
+import {
+  buildQuoteTextIndex,
+  countCanonicalTextMatches,
+  extractQuoteTextTokens,
+  normalizeQuoteTextCanonical,
+} from "./quoteTextNormalization";
+
+const SEARCH_BOUNDARY_PUNCTUATION_RE =
+  /^[\s"'`“”‘’([{<]+|[\s"'`“”‘’)\]}>.,;:!?]+$/g;
+const SEARCH_WORD_PATTERN = /[\p{L}\p{N}]+/gu;
+const PLAIN_ASCII_WORD_PATTERN = /^[a-z]+$/;
+const NUMERIC_TOKEN_PATTERN = /^\p{N}+$/u;
+const NON_ASCII_PATTERN = /[^\x00-\x7F]/;
+const COMMON_SEARCH_STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "by",
+  "for",
+  "from",
+  "in",
+  "into",
+  "is",
+  "it",
+  "of",
+  "on",
+  "or",
+  "that",
+  "the",
+  "their",
+  "then",
+  "these",
+  "this",
+  "those",
+  "to",
+  "was",
+  "we",
+  "were",
+  "with",
+]);
+
+const ELLIPSIS_RE = /(?:\.{2,}|\u2026|\[\s*\.{2,}\s*\]|\[\s*\u2026\s*\])/;
+const ELLIPSIS_RE_G = /(?:\.{2,}|\u2026|\[\s*\.{2,}\s*\]|\[\s*\u2026\s*\])/g;
+const NORMALIZED_QUERY_LENGTHS = [100, 80, 60, 40, 30, 25, 20, 15];
+const FIND_CONTROLLER_HYPHEN_RE = /[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g;
+const FIND_CONTROLLER_TOKEN_RE =
+  /[A-Za-z0-9]+(?:[-\u2010-\u2015][A-Za-z0-9]+)*/g;
+
+function sanitizeText(text: string): string {
+  let out = "";
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    if (
+      code <= 0x08 ||
+      code === 0x0b ||
+      code === 0x0c ||
+      (code >= 0x0e && code <= 0x1f)
+    ) {
+      continue;
+    }
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = text.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        out += text[i] + text[i + 1];
+        i += 1;
+      } else {
+        out += "\uFFFD";
+      }
+      continue;
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      out += "\uFFFD";
+      continue;
+    }
+    out += text[i];
+  }
+  return out;
+}
+
+export type QuoteTextSearchQueryKind =
+  | "exact"
+  | "ellipsis-segment"
+  | "raw-prefix"
+  | "raw-suffix"
+  | "raw-middle"
+  | "progressive";
+
+export type QuoteTextSearchQuery = {
+  query: string;
+  kind: QuoteTextSearchQueryKind;
+  confidence: "high" | "medium";
+};
+
+export type QuoteTextSearchEntry = {
+  id: string;
+  text: string;
+  normalizedText?: string;
+  debugLabel?: string;
+};
+
+export type QuoteTextSearchMatch = {
+  entryId: string;
+  query: string;
+  normalizedQuery: string;
+  matchKind: QuoteTextSearchQueryKind;
+  confidence: "high" | "medium";
+  totalOccurrences: number;
+  matchedEntryIds: string[];
+  debugSummary: string[];
+};
+
+type NormalizedQuoteTextSearchEntry = {
+  id: string;
+  normalizedText: string;
+  debugLabel: string;
+};
+
+export type QuoteTextSearchOptions = {
+  minQueryLength?: number;
+  maxSameEntryOccurrences?: number;
+  rejectWeakQueries?: boolean;
+  includeProgressiveQueries?: boolean;
+  debugLabel?: string;
+};
+
+export function normalizeLocatorText(value: string): string {
+  return normalizeQuoteTextCanonical(value || "");
+}
+
+function hasNonAsciiToken(token: string): boolean {
+  return NON_ASCII_PATTERN.test(token);
+}
+
+function tokenCharLength(token: string): number {
+  return Array.from(token).length;
+}
+
+function locatorTokensFromNormalizedText(value: string): string[] {
+  return value.match(SEARCH_WORD_PATTERN) || [];
+}
+
+export function extractLocatorTokens(value: string): string[] {
+  return extractQuoteTextTokens(value || "");
+}
+
+export function isLocatorQueryLongEnough(
+  value: string,
+  minQueryLength: number,
+): boolean {
+  const normalized = normalizeLocatorText(value);
+  if (!normalized) return false;
+  if (normalized.length >= minQueryLength) return true;
+  const tokens = locatorTokensFromNormalizedText(normalized);
+  if (!tokens.some(hasNonAsciiToken)) return false;
+  const nonAsciiTokenChars = tokens
+    .filter(hasNonAsciiToken)
+    .reduce((sum, token) => sum + tokenCharLength(token), 0);
+  const nonAsciiMinLength = Math.min(
+    12,
+    Math.max(6, Math.ceil(minQueryLength / 2)),
+  );
+  return nonAsciiTokenChars >= nonAsciiMinLength;
+}
+
+/**
+ * Strip leading and trailing ellipsis from a quote while preserving the
+ * interior. Returns the trimmed string.
+ */
+export function stripBoundaryEllipsis(text: string): string {
+  return text
+    .replace(new RegExp("^\\s*" + ELLIPSIS_RE.source + "\\s*"), "")
+    .replace(new RegExp("\\s*" + ELLIPSIS_RE.source + "\\s*$"), "")
+    .trim();
+}
+
+/**
+ * Split a quote at internal ellipsis markers, returning the segments sorted by
+ * descending length. Segments shorter than 30 chars are too weak for reliable
+ * reader or citation matching.
+ */
+export function splitQuoteAtEllipsis(text: string): string[] {
+  const cleaned = stripBoundaryEllipsis(text);
+  if (!ELLIPSIS_RE.test(cleaned)) return [cleaned];
+  return cleaned
+    .split(ELLIPSIS_RE_G)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 30)
+    .sort((a, b) => b.length - a.length);
+}
+
+export function stripInlineLocatorNoise(value: string): string {
+  const cleaned = sanitizeText(value || "");
+  return cleaned
+    .replace(/\(([^)]{0,160})\)/gi, (_match, inner: string) =>
+      /\b(fig|figure|table|appendix|supp|supplement|eq|equation|section|sec\.?|et al|19\d{2}|20\d{2})\b/i.test(
+        inner,
+      )
+        ? " "
+        : ` ${inner} `,
+    )
+    .replace(/\[([^\]]{0,160})\]/gi, (_match, inner: string) =>
+      /\b(fig|figure|table|appendix|supp|supplement|eq|equation|section|sec\.?|et al|19\d{2}|20\d{2})\b/i.test(
+        inner,
+      )
+        ? " "
+        : ` ${inner} `,
+    );
+}
+
+export function extractSearchTokens(value: string): string[] {
+  return extractLocatorTokens(stripInlineLocatorNoise(value));
+}
+
+export function scoreSearchToken(token: string): number {
+  if (!token) return Number.NEGATIVE_INFINITY;
+  const length = tokenCharLength(token);
+  if (
+    PLAIN_ASCII_WORD_PATTERN.test(token) &&
+    COMMON_SEARCH_STOP_WORDS.has(token)
+  ) {
+    return 0.5;
+  }
+  if (NUMERIC_TOKEN_PATTERN.test(token)) return 0.2;
+  if (hasNonAsciiToken(token)) return Math.min(16, length * 2);
+  if (length <= 2) return 0.2;
+  if (length === 3) return 1.5;
+  return Math.min(8, length + (/[a-z]/.test(token) ? 1 : 0));
+}
+
+export function formatQuoteSearchQuerySnippet(
+  query: string,
+  maxLength = 72,
+): string {
+  if (query.length <= maxLength) return query;
+  return `${query.slice(0, maxLength - 3)}...`;
+}
+
+export function getProgressiveStartOffsets(tokens: string[]): number[] {
+  const offsets = [0];
+  if (tokens.length > 6 && scoreSearchToken(tokens[0]) < 2) {
+    offsets.push(1);
+  }
+  if (
+    tokens.length > 8 &&
+    scoreSearchToken(tokens[0]) < 1 &&
+    scoreSearchToken(tokens[1]) < 2
+  ) {
+    offsets.push(2);
+  }
+  if (tokens.length >= 10) {
+    offsets.push(Math.floor(tokens.length / 2));
+  }
+  if (tokens.length >= 16) {
+    offsets.push(Math.floor(tokens.length / 3));
+    offsets.push(Math.floor((tokens.length * 2) / 3));
+  }
+  return Array.from(new Set(offsets));
+}
+
+/** Count all overlapping occurrences of `needle` in `haystack`. */
+export function countOccurrences(haystack: string, needle: string): number {
+  return countCanonicalTextMatches(haystack, needle);
+}
+
+function pushUniqueQuery(
+  queries: QuoteTextSearchQuery[],
+  seen: Set<string>,
+  query: string,
+  kind: QuoteTextSearchQueryKind,
+  confidence: "high" | "medium",
+  minQueryLength: number,
+): void {
+  const normalized = normalizeLocatorText(query);
+  if (
+    !isLocatorQueryLongEnough(normalized, minQueryLength) ||
+    seen.has(normalized)
+  )
+    return;
+  seen.add(normalized);
+  queries.push({ query: normalized, kind, confidence });
+}
+
+function pushNormalizedWindowQueries(params: {
+  queries: QuoteTextSearchQuery[];
+  seen: Set<string>;
+  normalized: string;
+  kind: "raw-prefix" | "raw-suffix" | "raw-middle";
+  minQueryLength: number;
+}): void {
+  const { queries, seen, normalized, kind, minQueryLength } = params;
+  for (const len of NORMALIZED_QUERY_LENGTHS) {
+    if (normalized.length <= len) continue;
+    const query =
+      kind === "raw-prefix"
+        ? normalized
+            .slice(0, len)
+            .replace(/\s\S*$/, "")
+            .trim()
+        : normalized
+            .slice(-len)
+            .replace(/^\S*\s/, "")
+            .trim();
+    pushUniqueQuery(
+      queries,
+      seen,
+      query,
+      kind,
+      len >= 25 ? "high" : "medium",
+      minQueryLength,
+    );
+  }
+}
+
+function pushNormalizedMiddleQueries(params: {
+  queries: QuoteTextSearchQuery[];
+  seen: Set<string>;
+  normalized: string;
+  minQueryLength: number;
+}): void {
+  const { queries, seen, normalized, minQueryLength } = params;
+  if (normalized.length < 40) return;
+  for (const fraction of [1 / 3, 1 / 2]) {
+    const midStart = Math.floor(normalized.length * fraction);
+    for (const len of [60, 40, 30, 20]) {
+      if (midStart + len > normalized.length) continue;
+      const query = normalized
+        .slice(midStart, midStart + len)
+        .replace(/^\S*\s/, "")
+        .replace(/\s\S*$/, "")
+        .trim();
+      pushUniqueQuery(
+        queries,
+        seen,
+        query,
+        "raw-middle",
+        len >= 30 ? "high" : "medium",
+        minQueryLength,
+      );
+    }
+  }
+}
+
+export function buildQuoteTextSearchQueries(
+  quoteText: string,
+  options?: { minQueryLength?: number; includeProgressiveQueries?: boolean },
+): QuoteTextSearchQuery[] {
+  const minQueryLength = Math.max(1, options?.minQueryLength ?? 10);
+  const includeProgressiveQueries = options?.includeProgressiveQueries ?? true;
+  const clean = stripBoundaryEllipsis(sanitizeText(quoteText || "").trim());
+  const queries: QuoteTextSearchQuery[] = [];
+  const seen = new Set<string>();
+  const normalized = normalizeLocatorText(clean);
+  if (!normalized) return queries;
+
+  pushUniqueQuery(queries, seen, normalized, "exact", "high", minQueryLength);
+
+  const segments = splitQuoteAtEllipsis(clean);
+  for (const segment of segments) {
+    const normalizedSegment = normalizeLocatorText(segment);
+    if (!normalizedSegment || normalizedSegment === normalized) continue;
+    pushUniqueQuery(
+      queries,
+      seen,
+      normalizedSegment,
+      "ellipsis-segment",
+      "high",
+      minQueryLength,
+    );
+    for (const charLen of [120, 80, 50]) {
+      if (normalizedSegment.length <= charLen) continue;
+      const prefix = normalizedSegment
+        .slice(0, charLen)
+        .replace(/\s\S*$/, "")
+        .trim();
+      pushUniqueQuery(
+        queries,
+        seen,
+        prefix,
+        "ellipsis-segment",
+        "high",
+        minQueryLength,
+      );
+    }
+  }
+
+  if (normalized.length <= 200) {
+    pushUniqueQuery(
+      queries,
+      seen,
+      normalized,
+      "raw-prefix",
+      "high",
+      minQueryLength,
+    );
+  }
+  pushNormalizedWindowQueries({
+    queries,
+    seen,
+    normalized,
+    kind: "raw-prefix",
+    minQueryLength,
+  });
+  pushNormalizedWindowQueries({
+    queries,
+    seen,
+    normalized,
+    kind: "raw-suffix",
+    minQueryLength,
+  });
+  pushNormalizedMiddleQueries({ queries, seen, normalized, minQueryLength });
+
+  if (includeProgressiveQueries) {
+    const tokens = extractSearchTokens(clean);
+    const minTokenQueryLength = tokens.length >= 12 ? 4 : 3;
+    const maxTokenQueryLength = Math.min(tokens.length, 14);
+    for (const offset of getProgressiveStartOffsets(tokens)) {
+      for (
+        let queryLength = minTokenQueryLength;
+        queryLength <= maxTokenQueryLength &&
+        offset + queryLength <= tokens.length;
+        queryLength += 1
+      ) {
+        pushUniqueQuery(
+          queries,
+          seen,
+          tokens.slice(offset, offset + queryLength).join(" "),
+          "progressive",
+          queryLength >= 6 ? "high" : "medium",
+          minQueryLength,
+        );
+      }
+    }
+  }
+
+  return queries;
+}
+
+/**
+ * Build raw-text prefix queries from the original quote, trimmed at word
+ * boundaries. These are passed to PDF.js FindController as-is.
+ */
+export function buildRawPrefixQueries(text: string): string[] {
+  const clean = sanitizeText(text || "").trim();
+  if (clean.length < 12) return [];
+  const queries: string[] = [];
+  const pushQuery = (query: string) => {
+    const normalizedQuery = sanitizeText(query || "").trim();
+    if (normalizedQuery.length < 12 || queries.includes(normalizedQuery))
+      return;
+    queries.push(normalizedQuery);
+  };
+
+  for (const segment of splitQuoteAtEllipsis(clean)) {
+    if (segment === clean) continue;
+    if (segment.length <= 220) {
+      pushQuery(segment);
+    }
+    for (const charLen of [120, 80, 50]) {
+      if (segment.length <= charLen) continue;
+      const prefix = segment
+        .slice(0, charLen)
+        .replace(/\s\S*$/, "")
+        .trim();
+      pushQuery(prefix);
+    }
+  }
+
+  const stripped = clean.replace(SEARCH_BOUNDARY_PUNCTUATION_RE, "").trim();
+  const bases = Array.from(
+    new Set(
+      [stripped || clean, stripped === clean ? clean : ""].filter(
+        (value) => value.length >= 12,
+      ),
+    ),
+  );
+
+  for (const base of bases) {
+    if (base.length <= 220) {
+      pushQuery(base);
+    }
+    for (const charLen of [50, 30, 18]) {
+      if (base.length <= charLen) continue;
+      const prefix = base
+        .slice(0, charLen)
+        .replace(/\s\S*$/, "")
+        .trim();
+      pushQuery(prefix);
+    }
+    for (const charLen of [50, 30, 18]) {
+      if (base.length <= charLen) continue;
+      const suffix = base
+        .slice(-charLen)
+        .replace(/^\S*\s/, "")
+        .trim();
+      pushQuery(suffix);
+    }
+  }
+  return queries;
+}
+
+function normalizeFindControllerQueryText(value: string): string {
+  return sanitizeText(value || "")
+    .normalize("NFKC")
+    .replace(/\u00ad/g, "")
+    .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, " ")
+    .replace(FIND_CONTROLLER_HYPHEN_RE, "-")
+    .replace(/[“”„‟]/g, '"')
+    .replace(/[‘’‚‛]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeFindControllerRawQueryText(value: string): string {
+  return sanitizeText(value || "")
+    .replace(/\u00ad/g, "")
+    .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripFindControllerQueryBoundary(value: string): string {
+  return value
+    .replace(/^[\s"'`“”‘’([{<.,;:!?-]+/, "")
+    .replace(/[\s"'`“”‘’)\]}>.,;:!?-]+$/, "")
+    .trim();
+}
+
+function stripFindControllerRawQueryBoundary(value: string): string {
+  return value
+    .replace(/^[\s"'`“”‘’([{<]+/, "")
+    .replace(/[\s"'`“”‘’)\]}>]+$/, "")
+    .trim();
+}
+
+function pushFindControllerRawQuery(
+  queries: string[],
+  seen: Set<string>,
+  query: string,
+): void {
+  const rawQuery = stripFindControllerRawQueryBoundary(
+    normalizeFindControllerRawQueryText(query),
+  );
+  if (rawQuery.length < 12) return;
+  if (isWeakQuoteSearchQuery(normalizeLocatorText(rawQuery))) return;
+  const key = rawQuery.toLowerCase();
+  if (seen.has(key)) return;
+  seen.add(key);
+  queries.push(rawQuery);
+}
+
+function pushFindControllerQuery(
+  queries: string[],
+  seen: Set<string>,
+  query: string,
+): void {
+  const normalizedQuery = stripFindControllerQueryBoundary(
+    normalizeFindControllerQueryText(query),
+  );
+  if (normalizedQuery.length < 12) return;
+  if (isWeakQuoteSearchQuery(normalizeLocatorText(normalizedQuery))) return;
+  const key = normalizedQuery.toLowerCase();
+  if (seen.has(key)) return;
+  seen.add(key);
+  queries.push(normalizedQuery);
+}
+
+function pushFindControllerQueryVariants(
+  queries: string[],
+  seen: Set<string>,
+  query: string,
+): void {
+  pushFindControllerRawQuery(queries, seen, query);
+  const normalized = normalizeFindControllerQueryText(query);
+  pushFindControllerQuery(queries, seen, normalized);
+  const asciiHyphen = normalized.replace(FIND_CONTROLLER_HYPHEN_RE, "-");
+  pushFindControllerQuery(queries, seen, asciiHyphen);
+  const spacedHyphen = asciiHyphen.replace(
+    /([A-Za-z0-9])-([A-Za-z0-9])/g,
+    "$1 $2",
+  );
+  pushFindControllerQuery(queries, seen, spacedHyphen);
+}
+
+function pushFindControllerHighlightQuery(
+  queries: string[],
+  seen: Set<string>,
+  query: string,
+): void {
+  const normalizedQuery = normalizeFindControllerQueryText(query);
+  if (normalizedQuery.length < 12) return;
+  if (isWeakQuoteSearchQuery(normalizeLocatorText(normalizedQuery))) return;
+  const key = normalizedQuery.toLowerCase();
+  if (seen.has(key)) return;
+  seen.add(key);
+  queries.push(normalizedQuery);
+}
+
+function pushFindControllerHighlightQueryVariants(
+  queries: string[],
+  seen: Set<string>,
+  query: string,
+): void {
+  pushFindControllerRawQuery(queries, seen, query);
+  const normalized = normalizeFindControllerQueryText(query);
+  pushFindControllerHighlightQuery(queries, seen, normalized);
+  pushFindControllerQueryVariants(queries, seen, normalized);
+}
+
+function findControllerTokenSpans(text: string): Array<{
+  start: number;
+  end: number;
+  text: string;
+}> {
+  return Array.from(text.matchAll(FIND_CONTROLLER_TOKEN_RE)).map((match) => ({
+    start: match.index || 0,
+    end: (match.index || 0) + match[0].length,
+    text: match[0],
+  }));
+}
+
+function scoreFindControllerWindow(tokens: string[]): number {
+  let score = 0;
+  for (const token of tokens) {
+    const normalized = normalizeLocatorText(token);
+    const parts = normalized.match(SEARCH_WORD_PATTERN) || [];
+    for (const part of parts) score += scoreSearchToken(part);
+    if (/[-\u2010-\u2015]/.test(token)) score += 4;
+  }
+  return score;
+}
+
+function buildFindControllerWindowQueries(text: string): string[] {
+  const clean = stripBoundaryEllipsis(sanitizeText(text || "").trim());
+  const spans = findControllerTokenSpans(clean);
+  if (spans.length < 4) return [];
+  const candidates: Array<{ query: string; score: number; index: number }> = [];
+  for (const windowSize of [10, 8, 6, 5, 4]) {
+    if (spans.length < windowSize) continue;
+    for (let start = 0; start <= spans.length - windowSize; start += 1) {
+      const end = start + windowSize - 1;
+      const query = stripFindControllerQueryBoundary(
+        clean.slice(spans[start].start, spans[end].end),
+      );
+      if (query.length < 24 || query.length > 140) continue;
+      const tokens = spans
+        .slice(start, start + windowSize)
+        .map((span) => span.text);
+      const score =
+        scoreFindControllerWindow(tokens) -
+        (start === 0 ? 3 : 0) +
+        (start > 0 && start < spans.length - windowSize ? 2 : 0);
+      candidates.push({ query, score, index: start });
+    }
+  }
+  return candidates
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .slice(0, 16)
+    .map((candidate) => candidate.query);
+}
+
+function buildFindControllerMiddleQueries(text: string): string[] {
+  const clean = stripBoundaryEllipsis(sanitizeText(text || "").trim());
+  if (clean.length < 48) return [];
+  const queries: string[] = [];
+  for (const fraction of [1 / 3, 1 / 2, 2 / 3]) {
+    const midStart = Math.floor(clean.length * fraction);
+    for (const len of [90, 70, 50, 36]) {
+      if (midStart + len > clean.length) continue;
+      const query = clean
+        .slice(midStart, midStart + len)
+        .replace(/^\S*\s/, "")
+        .replace(/\s\S*$/, "")
+        .trim();
+      if (query.length >= 24) queries.push(query);
+    }
+  }
+  return queries;
+}
+
+function buildFindControllerLongHighlightChunks(
+  text: string,
+  maxChunkLength: number,
+): string[] {
+  const clean = stripBoundaryEllipsis(sanitizeText(text || "").trim());
+  if (clean.length < 24 || clean.length <= maxChunkLength) return [];
+  const chunks: string[] = [];
+  const pushChunk = (start: number, length: number) => {
+    const boundedStart = Math.max(
+      0,
+      Math.min(clean.length - length, Math.floor(start)),
+    );
+    let chunk = clean.slice(boundedStart, boundedStart + length);
+    if (boundedStart > 0) chunk = chunk.replace(/^\S*\s/, "");
+    if (boundedStart + length < clean.length) {
+      chunk = chunk.replace(/\s\S*$/, "");
+    }
+    chunk = stripFindControllerQueryBoundary(chunk);
+    if (chunk.length >= 24) chunks.push(chunk);
+  };
+
+  for (const length of [
+    maxChunkLength,
+    Math.floor(maxChunkLength * 0.8),
+    Math.floor(maxChunkLength * 0.6),
+  ]) {
+    if (length < 80 || clean.length <= length) continue;
+    pushChunk(0, length);
+    pushChunk(clean.length / 2 - length / 2, length);
+    pushChunk(clean.length - length, length);
+  }
+  return chunks;
+}
+
+function buildFindControllerLongHighlightPrefixes(
+  text: string,
+  maxPrefixLength: number,
+): string[] {
+  const clean = stripBoundaryEllipsis(sanitizeText(text || "").trim());
+  if (clean.length < 24 || clean.length <= maxPrefixLength) return [];
+  const prefixes: string[] = [];
+  for (const length of [
+    maxPrefixLength,
+    Math.floor(maxPrefixLength * 0.85),
+    Math.floor(maxPrefixLength * 0.7),
+    Math.floor(maxPrefixLength * 0.55),
+  ]) {
+    if (length < 180 || clean.length <= length) continue;
+    const prefix = stripFindControllerQueryBoundary(
+      clean.slice(0, length).replace(/\s\S*$/, ""),
+    );
+    if (prefix.length >= 120) prefixes.push(prefix);
+  }
+  return prefixes;
+}
+
+function buildFindControllerHighCoverageHighlightFallbacks(
+  text: string,
+): string[] {
+  const clean = stripBoundaryEllipsis(sanitizeText(text || "").trim());
+  if (clean.length < 160) return [];
+  const fallbacks: string[] = [];
+  const pushFallback = (query: string) => {
+    const normalized = stripFindControllerQueryBoundary(query);
+    if (normalized.length < 80 || normalized.length >= clean.length - 24) {
+      return;
+    }
+    fallbacks.push(normalized);
+  };
+
+  const sentenceMatch = clean.match(/^.{80,360}?[.!?。！？](?=\s|$)/u);
+  if (sentenceMatch) {
+    pushFallback(sentenceMatch[0]);
+  }
+
+  for (const fraction of [0.75, 0.6, 0.45]) {
+    const length = Math.floor(clean.length * fraction);
+    if (length < 120 || clean.length - length < 40) continue;
+    pushFallback(clean.slice(0, length).replace(/\s\S*$/, ""));
+  }
+
+  return fallbacks;
+}
+
+export function buildFindControllerHighlightQueries(
+  text: string,
+  options?: {
+    maxQueries?: number;
+    maxFullQueryLength?: number;
+    maxChunkLength?: number;
+  },
+): string[] {
+  const maxQueries = Math.max(2, options?.maxQueries ?? 18);
+  const maxFullQueryLength = Math.max(80, options?.maxFullQueryLength ?? 1200);
+  const maxChunkLength = Math.max(80, options?.maxChunkLength ?? 900);
+  const clean = stripBoundaryEllipsis(sanitizeText(text || "").trim());
+  if (clean.length < 12) return [];
+
+  const queries: string[] = [];
+  const seen = new Set<string>();
+  const pushGroup = (group: string[]) => {
+    for (const query of group) {
+      if (queries.length >= maxQueries) return;
+      pushFindControllerHighlightQueryVariants(queries, seen, query);
+      if (queries.length >= maxQueries) return;
+    }
+  };
+
+  if (clean.length <= maxFullQueryLength) {
+    pushGroup([clean]);
+  }
+
+  pushGroup(buildFindControllerHighCoverageHighlightFallbacks(clean));
+  pushGroup(
+    buildFindControllerLongHighlightPrefixes(clean, maxFullQueryLength),
+  );
+
+  for (const segment of splitQuoteAtEllipsis(clean)) {
+    if (segment === clean) continue;
+    if (segment.length <= maxFullQueryLength) {
+      pushGroup([segment]);
+    }
+    pushGroup(
+      buildFindControllerLongHighlightPrefixes(segment, maxFullQueryLength),
+    );
+    pushGroup(buildFindControllerLongHighlightChunks(segment, maxChunkLength));
+  }
+
+  pushGroup(buildFindControllerLongHighlightChunks(clean, maxChunkLength));
+  return queries.slice(0, maxQueries);
+}
+
+export function buildFindControllerQuoteQueries(
+  text: string,
+  options?: { maxQueries?: number },
+): string[] {
+  const maxQueries = Math.max(4, options?.maxQueries ?? 28);
+  const clean = stripBoundaryEllipsis(sanitizeText(text || "").trim());
+  const queries: string[] = [];
+  const seen = new Set<string>();
+  const pushGroup = (group: string[]) => {
+    for (const query of group) {
+      if (queries.length >= maxQueries) return;
+      pushFindControllerQueryVariants(queries, seen, query);
+      if (queries.length >= maxQueries) return;
+    }
+  };
+
+  if (clean.length <= 220) {
+    pushGroup([clean]);
+  }
+  pushGroup(buildRawPrefixQueries(text));
+  pushGroup(buildFindControllerMiddleQueries(text));
+  pushGroup(buildFindControllerWindowQueries(text));
+  return queries.slice(0, maxQueries);
+}
+
+function isWeakQuoteSearchQuery(normalizedQuery: string): boolean {
+  const tokens = locatorTokensFromNormalizedText(normalizedQuery);
+  if (!tokens.length) return true;
+  const hasNonAscii = tokens.some(hasNonAsciiToken);
+  if (!hasNonAscii && tokens.length < 3) return true;
+  const informativeTokens = tokens.filter(
+    (token) =>
+      tokenCharLength(token) >= 4 &&
+      !(
+        PLAIN_ASCII_WORD_PATTERN.test(token) &&
+        COMMON_SEARCH_STOP_WORDS.has(token)
+      ) &&
+      !NUMERIC_TOKEN_PATTERN.test(token),
+  );
+  const score = tokens.reduce((sum, token) => sum + scoreSearchToken(token), 0);
+  if (
+    !hasNonAscii &&
+    informativeTokens.length < 2 &&
+    normalizedQuery.length < 36
+  )
+    return true;
+  return score < 9;
+}
+
+function normalizeEntries(
+  entries: QuoteTextSearchEntry[],
+): NormalizedQuoteTextSearchEntry[] {
+  return entries
+    .map((entry) => {
+      const normalizedText =
+        entry.normalizedText !== undefined
+          ? normalizeLocatorText(entry.normalizedText)
+          : buildQuoteTextIndex(entry.text).canonicalText;
+      return {
+        id: String(entry.id || ""),
+        normalizedText,
+        debugLabel: entry.debugLabel || String(entry.id || ""),
+      };
+    })
+    .filter((entry) => entry.id && entry.normalizedText);
+}
+
+function hasNonBoundaryCanonicalOccurrence(
+  haystack: string,
+  needle: string,
+): boolean {
+  return Boolean(haystack && needle && haystack.includes(needle));
+}
+
+export function findUniqueQuoteTextSearchMatch(
+  entries: QuoteTextSearchEntry[],
+  quoteText: string,
+  options?: QuoteTextSearchOptions,
+): QuoteTextSearchMatch | null {
+  const minQueryLength = Math.max(1, options?.minQueryLength ?? 24);
+  const maxSameEntryOccurrences = Math.max(
+    1,
+    options?.maxSameEntryOccurrences ?? 6,
+  );
+  const rejectWeakQueries = options?.rejectWeakQueries ?? true;
+  const normalizedEntries = normalizeEntries(entries);
+  if (!normalizedEntries.length) return null;
+
+  const queries = buildQuoteTextSearchQueries(quoteText, {
+    minQueryLength,
+    includeProgressiveQueries: options?.includeProgressiveQueries ?? true,
+  });
+  const debugSummary: string[] = [];
+  let bestMatch: QuoteTextSearchMatch | null = null;
+
+  for (const query of queries) {
+    const normalizedQuery = normalizeLocatorText(query.query);
+    if (!isLocatorQueryLongEnough(normalizedQuery, minQueryLength)) continue;
+    if (rejectWeakQueries && isWeakQuoteSearchQuery(normalizedQuery)) {
+      debugSummary.push(
+        `${options?.debugLabel || "Quote"} ${query.kind} "${formatQuoteSearchQuerySnippet(
+          normalizedQuery,
+        )}" -> skipped weak query`,
+      );
+      continue;
+    }
+    const matchedEntryIds: string[] = [];
+    let totalOccurrences = 0;
+    let hasNonBoundaryExactOccurrence = false;
+    for (const entry of normalizedEntries) {
+      const occurrences = countOccurrences(
+        entry.normalizedText,
+        normalizedQuery,
+      );
+      if (occurrences <= 0) {
+        if (
+          query.kind === "exact" &&
+          hasNonBoundaryCanonicalOccurrence(
+            entry.normalizedText,
+            normalizedQuery,
+          )
+        ) {
+          hasNonBoundaryExactOccurrence = true;
+        }
+        continue;
+      }
+      matchedEntryIds.push(entry.id);
+      totalOccurrences += occurrences;
+    }
+    debugSummary.push(
+      `${options?.debugLabel || "Quote"} ${query.kind} "${formatQuoteSearchQuerySnippet(
+        normalizedQuery,
+      )}" -> ${matchedEntryIds.length ? matchedEntryIds.join(", ") : "none"} (${totalOccurrences} total)`,
+    );
+    if (
+      query.kind === "exact" &&
+      !matchedEntryIds.length &&
+      hasNonBoundaryExactOccurrence
+    ) {
+      debugSummary.push(
+        `${options?.debugLabel || "Quote"} exact "${formatQuoteSearchQuerySnippet(
+          normalizedQuery,
+        )}" -> skipped non-boundary canonical match`,
+      );
+      return null;
+    }
+    if (
+      matchedEntryIds.length === 1 &&
+      totalOccurrences <= maxSameEntryOccurrences
+    ) {
+      if (totalOccurrences === 1) {
+        return {
+          entryId: matchedEntryIds[0],
+          query: query.query,
+          normalizedQuery,
+          matchKind: query.kind,
+          confidence: query.confidence,
+          totalOccurrences,
+          matchedEntryIds,
+          debugSummary,
+        };
+      }
+      if (
+        !bestMatch ||
+        normalizedQuery.length > bestMatch.normalizedQuery.length
+      ) {
+        bestMatch = {
+          entryId: matchedEntryIds[0],
+          query: query.query,
+          normalizedQuery,
+          matchKind: query.kind,
+          confidence: "medium",
+          totalOccurrences,
+          matchedEntryIds,
+          debugSummary: debugSummary.slice(),
+        };
+      }
+    }
+  }
+
+  return bestMatch
+    ? {
+        ...bestMatch,
+        debugSummary,
+      }
+    : null;
+}
