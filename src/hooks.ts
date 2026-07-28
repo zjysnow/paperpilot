@@ -1,6 +1,6 @@
 // import { initLocale } from "./utils/locale";
-// import { initI18n } from "./utils/i18n";
-// import { registerPrefsScripts } from "./modules/preferenceScript";
+import { initI18n } from "./utils/i18n";
+import { registerPrefsScripts } from "./modules/preferenceScript";
 // import { config, PREFERENCES_PANE_ID } from "./modules/contextPanel/constants";
 // import {
 //   registerReaderContextPanel,
@@ -22,7 +22,7 @@
 //   runDeferredLegacyMigrations,
 //   runStartupPreferenceMigrations,
 // } from "./utils/migrations";
-// import { createZToolkit } from "./utils/ztoolkit";
+import { createZToolkit } from "./utils/ztoolkit";
 // import { clearAllState, initFontScale } from "./modules/contextPanel/state";
 // import { clearQueuedFollowUpState } from "./modules/contextPanel/queuedFollowUps";
 
@@ -252,7 +252,7 @@ async function onStartup() {
   // }
 
   // initLocale();
-  // initI18n();
+  initI18n();
   // initFontScale();
 
   // const conversationStoreReadiness =
@@ -453,13 +453,13 @@ async function onNotify(
  * @param data event data
  */
 async function onPrefsEvent(type: string, data: { [key: string]: any }) {
-  // switch (type) {
-  //   case "load":
-  //     registerPrefsScripts(data.window);
-  //     break;
-  //   default:
-  //     return;
-  // }
+  switch (type) {
+    case "load":
+      registerPrefsScripts(data.window);
+      break;
+    default:
+      return;
+  }
 }
 
 function onDialogEvents(_type: string) {
