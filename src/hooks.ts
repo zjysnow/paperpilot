@@ -1,17 +1,17 @@
-// import { initLocale } from "./utils/locale";
+import { initLocale } from "./utils/locale";
 import { initI18n } from "./utils/i18n";
 import { registerPrefsScripts } from "./modules/preferenceScript";
-// import { config, PREFERENCES_PANE_ID } from "./modules/contextPanel/constants";
-// import {
-//   registerReaderContextPanel,
-//   registerLLMStyles,
-//   registerNoteEditingSelectionTracking,
-//   registerReaderSelectionTracking,
-//   unregisterAllNoteEditingSelectionTracking,
-//   unregisterNoteEditingSelectionTracking,
-//   unregisterReaderSelectionTracking,
-//   openStandaloneChat,
-// } from "./modules/contextPanel";
+import { config, PREFERENCES_PANE_ID } from "./modules/contextPanel/constants";
+import {
+  registerReaderContextPanel,
+  registerPaperPilotStyles,
+  // registerNoteEditingSelectionTracking,
+  // registerReaderSelectionTracking,
+  // unregisterAllNoteEditingSelectionTracking,
+  // unregisterNoteEditingSelectionTracking,
+  // unregisterReaderSelectionTracking,
+  // openStandaloneChat,
+} from "./modules/contextPanel";
 // import { resolveActiveLibraryID } from "./modules/contextPanel/portalScope";
 // import { invalidatePaperSearchCache } from "./modules/contextPanel/paperSearch";
 // import { registerZoteroItemContextMenu } from "./modules/contextPanel/zoteroItemContextMenu";
@@ -23,7 +23,7 @@ import { registerPrefsScripts } from "./modules/preferenceScript";
 //   runStartupPreferenceMigrations,
 // } from "./utils/migrations";
 import { createZToolkit } from "./utils/ztoolkit";
-// import { clearAllState, initFontScale } from "./modules/contextPanel/state";
+import { clearAllState, initFontScale } from "./modules/contextPanel/state";
 // import { clearQueuedFollowUpState } from "./modules/contextPanel/queuedFollowUps";
 
 type ConversationStoreReadiness = {
@@ -35,8 +35,7 @@ type ConversationStoreReadiness = {
 let startupUserSkillsLoadTask: Promise<void> | null = null;
 
 function getStartupPrefKey(key: string): string {
-  // return `${config.prefsPrefix}.${key}`;
-  return "";
+  return `${config.prefsPrefix}.${key}`;
 }
 
 function getStartupBoolPref(key: string, defaultValue = false): boolean {
@@ -219,21 +218,21 @@ function scheduleMineruAutoWatchRegistration(): void {
     startAutoWatch();
   });
 }
-
-function scheduleDeferredStartupWork(
-  readiness: ConversationStoreReadiness,
-): void {
-  runDeferredStartupTask("legacy cache migrations", runDeferredLegacyMigrations);
-  scheduleConversationMaintenance(readiness);
-  scheduleConversationIntegrityAudit();
-  scheduleClaudeProjectBootstrapIfEnabled();
-  scheduleAgentSubsystemStartup();
-  scheduleUserSkillsLoad();
-  scheduleAttachmentMaintenance();
-  scheduleWebChatRelayRegistration();
-  scheduleMineruAutoWatchRegistration();
-}
 */
+// function scheduleDeferredStartupWork(
+//   readiness: ConversationStoreReadiness,
+// ): void {
+//   runDeferredStartupTask("legacy cache migrations", runDeferredLegacyMigrations);
+//   scheduleConversationMaintenance(readiness);
+//   scheduleConversationIntegrityAudit();
+//   scheduleClaudeProjectBootstrapIfEnabled();
+//   scheduleAgentSubsystemStartup();
+//   scheduleUserSkillsLoad();
+//   scheduleAttachmentMaintenance();
+//   scheduleWebChatRelayRegistration();
+//   scheduleMineruAutoWatchRegistration();
+// }
+
 async function onStartup() {
   await measureStartupPhase("Zotero readiness", () =>
     Promise.all([
@@ -251,9 +250,9 @@ async function onStartup() {
   //   ztoolkit.log("Paper Pilot: Failed to run legacy migration", err);
   // }
 
-  // initLocale();
+  initLocale();
   initI18n();
-  // initFontScale();
+  initFontScale();
 
   // const conversationStoreReadiness =
   //   await initializeConversationStoresForStartup();
@@ -279,14 +278,14 @@ async function onStartup() {
 
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   // Create ztoolkit for every window
-  // addon.data.ztoolkit = createZToolkit();
+  addon.data.ztoolkit = createZToolkit();
 
   win.MozXULElement.insertFTLIfNeeded(
     `${addon.data.config.addonRef}-mainWindow.ftl`,
   );
 
-  // registerLLMStyles(win);
-  // registerReaderContextPanel();
+  registerPaperPilotStyles(win);
+  registerReaderContextPanel();
   // registerReaderSelectionTracking();
   // registerNoteEditingSelectionTracking(win);
   // registerZoteroItemContextMenu({
@@ -346,13 +345,13 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
 }
 
 function registerPrefsPane() {
-  // Zotero.PreferencePanes.register({
-  //   pluginID: addon.data.config.addonID,
-  //   id: PREFERENCES_PANE_ID,
-  //   src: `chrome://${addon.data.config.addonRef}/content/preferences.xhtml`,
-  //   label: "paperpilot-for-zotero",
-  //   image: `chrome://${addon.data.config.addonRef}/content/icons/icon.svg`,
-  // });
+  Zotero.PreferencePanes.register({
+    pluginID: addon.data.config.addonID,
+    id: PREFERENCES_PANE_ID,
+    src: `chrome://${addon.data.config.addonRef}/content/preferences.xhtml`,
+    label: "Paper Pilot",
+    image: `chrome://${addon.data.config.addonRef}/content/icons/icon.svg`,
+  });
 }
 
 async function onMainWindowUnload(win: Window): Promise<void> {
@@ -374,32 +373,32 @@ function onShutdown(): void {
   // unregisterAllNoteEditingSelectionTracking();
   addon.data.dialog?.window?.close();
   addon.data.standaloneWindow?.close();
-  try {
-    const { unregisterWebChatRelay } = require("./webchat/relayServer");
-    unregisterWebChatRelay();
-  } catch {
-    /* ignore if module not loaded */
-  }
-  try {
-    const { pauseBatchProcessing } = require("./modules/mineruBatchProcessor");
-    pauseBatchProcessing();
-  } catch {
-    /* ignore if module not loaded */
-  }
-  try {
-    const { stopAutoWatch } = require("./modules/mineruAutoWatch");
-    stopAutoWatch();
-  } catch {
-    /* ignore if module not loaded */
-  }
-  try {
-    const { shutdownAgentSubsystem } = require("./agent");
-    shutdownAgentSubsystem();
-  } catch {
-    /* ignore if module not loaded */
-  }
+  // try {
+  //   const { unregisterWebChatRelay } = require("./webchat/relayServer");
+  //   unregisterWebChatRelay();
+  // } catch {
+  //   /* ignore if module not loaded */
+  // }
+  // try {
+  //   const { pauseBatchProcessing } = require("./modules/mineruBatchProcessor");
+  //   pauseBatchProcessing();
+  // } catch {
+  //   /* ignore if module not loaded */
+  // }
+  // try {
+  //   const { stopAutoWatch } = require("./modules/mineruAutoWatch");
+  //   stopAutoWatch();
+  // } catch {
+  //   /* ignore if module not loaded */
+  // }
+  // try {
+  //   const { shutdownAgentSubsystem } = require("./agent");
+  //   shutdownAgentSubsystem();
+  // } catch {
+  //   /* ignore if module not loaded */
+  // }
   // clearQueuedFollowUpState();
-  // clearAllState();
+  clearAllState();
   // Remove addon object
   addon.data.alive = false;
   // @ts-expect-error - Plugin instance is not typed
