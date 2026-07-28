@@ -1,6 +1,10 @@
 import type {
+  Message,
   ChatRuntimeMode,
   SelectedTextContext,
+  PaperContextRef,
+  QuoteCitation,
+  GeneratedChatImage,
 } from "./types"
 import { TTLMap } from "./contexts/ttlMap";
 
@@ -8,6 +12,10 @@ import { TTLMap } from "./contexts/ttlMap";
 // Module State
 // =============================================================================
 
+export const chatHistory = new Map<number, Message[]>();
+// export const conversationForkLinks = new Map<number, ConversationForkLink>();
+export const loadedConversationKeys = new Set<number>();
+export const loadingConversationTasks = new Map<number, Promise<void>>();
 export const selectedModelCache = new Map<number, string>();
 
 export const selectedRuntimeModeCache = new Map<number, ChatRuntimeMode>();
@@ -203,4 +211,26 @@ export const selectedPaperPreviewExpandedCache = new Map<
   number,
   number | false
 >();
+
+
+
+
+export type ResponseActionTarget = {
+  item: Zotero.Item;
+  contentText: string;
+  queryText?: string;
+  modelName: string;
+  conversationKey?: number;
+  userTimestamp?: number;
+  assistantTimestamp?: number;
+  paperContexts?: PaperContextRef[];
+  quoteCitations?: QuoteCitation[];
+  generatedImages?: GeneratedChatImage[];
+};
+
+export let responseMenuTarget: ResponseActionTarget | null = null;
+export function setResponseMenuTarget(value: typeof responseMenuTarget) {
+  responseMenuTarget = value;
+}
+
 

@@ -366,7 +366,7 @@ export function setStatus(
   variant: "ready" | "sending" | "error" | "warning",
 ) {
   statusEl.textContent = text;
-  statusEl.className = `llm-status llm-status-${variant}`;
+  statusEl.className = `paperpilot-status paperpilot-status-${variant}`;
 }
 
 export function formatTokenCount(tokens: number): string {
@@ -545,7 +545,7 @@ export function getSelectedTextWithinBubble(
 
     return sanitizeText(temp.textContent || "").trim();
   } catch (err) {
-    ztoolkit.log("LLM: Selected text extraction failed:", err);
+    ztoolkit.log("Paper Pilot: Selected text extraction failed:", err);
     return "";
   }
 }

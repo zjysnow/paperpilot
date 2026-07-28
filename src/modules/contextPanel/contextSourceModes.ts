@@ -21,7 +21,7 @@ const CONTEXT_SOURCE_MODE_DESCRIPTORS: Record<
     badgeLabel: "PDF",
     humanLabel: "PDF file",
     sourceTitle: "Source: PDF file",
-    cssClassName: "llm-paper-context-chip-pdf",
+    cssClassName: "paperpilot-paper-context-chip-pdf",
     attachmentSourceTypeLabel: "PDF attachment",
     isPdfBacked: true,
     isReaderNavigable: true,
@@ -32,7 +32,7 @@ const CONTEXT_SOURCE_MODE_DESCRIPTORS: Record<
     badgeLabel: "Text",
     humanLabel: "extracted text",
     sourceTitle: "Source: Extracted text",
-    cssClassName: "llm-paper-context-chip-text",
+    cssClassName: "paperpilot-paper-context-chip-text",
     attachmentSourceTypeLabel: "extracted text",
     isPdfBacked: true,
     isReaderNavigable: true,
@@ -43,7 +43,7 @@ const CONTEXT_SOURCE_MODE_DESCRIPTORS: Record<
     badgeLabel: "MD",
     humanLabel: "MinerU",
     sourceTitle: "Source: MinerU (enhanced markdown)",
-    cssClassName: "llm-paper-context-chip-mineru",
+    cssClassName: "paperpilot-paper-context-chip-mineru",
     attachmentSourceTypeLabel: "MinerU markdown",
     isPdfBacked: true,
     isReaderNavigable: true,
@@ -54,7 +54,7 @@ const CONTEXT_SOURCE_MODE_DESCRIPTORS: Record<
     badgeLabel: "MD",
     humanLabel: "Markdown attachment",
     sourceTitle: "Source: Markdown attachment",
-    cssClassName: "llm-paper-context-chip-mineru",
+    cssClassName: "paperpilot-paper-context-chip-mineru",
     attachmentSourceTypeLabel: "Markdown attachment",
     isPdfBacked: false,
     isReaderNavigable: false,
@@ -65,7 +65,7 @@ const CONTEXT_SOURCE_MODE_DESCRIPTORS: Record<
     badgeLabel: "HTML",
     humanLabel: "HTML attachment",
     sourceTitle: "Source: HTML attachment",
-    cssClassName: "llm-paper-context-chip-html",
+    cssClassName: "paperpilot-paper-context-chip-html",
     attachmentSourceTypeLabel: "HTML attachment",
     isPdfBacked: false,
     isReaderNavigable: false,
@@ -76,7 +76,7 @@ const CONTEXT_SOURCE_MODE_DESCRIPTORS: Record<
     badgeLabel: "TXT",
     humanLabel: "TXT attachment",
     sourceTitle: "Source: TXT attachment",
-    cssClassName: "llm-paper-context-chip-text",
+    cssClassName: "paperpilot-paper-context-chip-text",
     attachmentSourceTypeLabel: "TXT attachment",
     isPdfBacked: false,
     isReaderNavigable: false,
@@ -87,7 +87,7 @@ const CONTEXT_SOURCE_MODE_DESCRIPTORS: Record<
     badgeLabel: "DOCX",
     humanLabel: "Word attachment",
     sourceTitle: "Source: Word attachment",
-    cssClassName: "llm-paper-context-chip-text",
+    cssClassName: "paperpilot-paper-context-chip-text",
     attachmentSourceTypeLabel: "DOCX attachment",
     isPdfBacked: false,
     isReaderNavigable: false,
@@ -112,7 +112,7 @@ export function getContextSourceModeCssClassName(
 ): string {
   return (
     getContextSourceModeDescriptor(mode)?.cssClassName ||
-    "llm-paper-context-chip-text"
+    "paperpilot-paper-context-chip-text"
   );
 }
 

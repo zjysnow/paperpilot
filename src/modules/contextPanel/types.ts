@@ -173,3 +173,17 @@ export type ResolvedContextSource = {
 };
 
 
+
+export type ContextSourceLifecycleState = {
+  rawItem: Zotero.Item | null;
+  ownerItem: Zotero.Item | null;
+  contextItem: Zotero.Item | null;
+  rawItemId: number;
+  ownerItemId: number;
+  contextItemId: number;
+  sourceKind: NonNullable<ResolvedContextSource["sourceKind"]>;
+  supportKind?: "pdf" | "text";
+  contentSourceMode?: PaperContentSourceMode;
+  requiresAsyncResolution: boolean;
+  isAsyncFinal: boolean;
+};

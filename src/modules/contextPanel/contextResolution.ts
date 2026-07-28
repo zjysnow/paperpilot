@@ -25,6 +25,7 @@ import type {
   SelectedTextSource,
   PaperContextRef,
   ResolvedContextSource,
+  ContextSourceLifecycleState,
 } from "./types"
 import {
   isGlobalPortalItem,
@@ -1349,3 +1350,30 @@ export function setSelectedTextExpandedIndex(
   }
   selectedTextPreviewExpandedCache.set(itemId, Math.floor(index));
 }
+
+
+
+export function resolvePanelContextLifecycleState(
+  rawItem: Zotero.Item | null | undefined,
+): ContextSourceLifecycleState | null {
+  if (!rawItem) return null;
+  const source = resolveContextSourceItem(rawItem);
+  const contextItem = source.contextItem || null;
+  const support = source.support || null;
+  const ownerItem = source.ownerItem || null;
+  const requiresAsyncResolution = source.requiresAsyncResolution === true;
+  return {
+    rawItem: source.rawItem || rawItem,
+    ownerItem,
+    contextItem,
+    rawItemId: normalizeItemId(rawItem),
+    ownerItemId: normalizeItemId(ownerItem),
+    contextItemId: normalizeItemId(contextItem),
+    sourceKind: source.sourceKind || "none",
+    supportKind: support?.kind,
+    contentSourceMode: source.contentSourceMode,
+    requiresAsyncResolution,
+    isAsyncFinal: source.isAsyncFinal !== false,
+  };
+}
+

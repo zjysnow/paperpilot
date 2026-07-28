@@ -36,6 +36,10 @@ import {
 import { buildUI } from "./buildUI";
 import { setupHandlers } from "./setupHandlers";
 
+import { refreshChat } from "./chat";
+
+import { ensureConversationLoaded, getConversationKey } from "./chat";
+
 import {
   clearCompletedPanelLifecycleSignature,
   hasCompletedPanelLifecycleSignature,
@@ -52,7 +56,7 @@ import {
   // getActiveReaderForSelectedTab,
   refreshLastKnownSelectedTabId,
   // getItemSelectionCacheKeys,
-  // resolvePanelContextLifecycleState,
+  resolvePanelContextLifecycleState,
   // appendSelectedTextContextForItem,
   // applySelectedTextPreview,
   // getSelectedTextContextEntries,
@@ -122,29 +126,29 @@ export function registerPaperPilotStyles(win: _ZoteroTypes.MainWindow) {
   doc.documentElement?.appendChild(katexLink);
 }
 
-// function getPanelContextOwnerItemIdKey(
-//   item: Zotero.Item | null | undefined,
-// ): string {
-//   const id = resolvePanelContextLifecycleState(item)?.ownerItemId || 0;
-//   return id > 0 ? `${id}` : "";
-// }
+function getPanelContextOwnerItemIdKey(
+  item: Zotero.Item | null | undefined,
+): string {
+  const id = resolvePanelContextLifecycleState(item)?.ownerItemId || 0;
+  return id > 0 ? `${id}` : "";
+}
 
 
-// function buildPanelLifecycleSignature(
-//   rawItem: Zotero.Item | null | undefined,
-//   resolvedItem: Zotero.Item | null | undefined,
-// ): PanelLifecycleSignature {
-//   const rawContextItem = rawItem || resolvedItem;
-//   return {
-//     conversationKey: resolvedItem ? `${getConversationKey(resolvedItem)}` : "0",
-//     rawContextItemId: getPanelContextOwnerItemIdKey(rawContextItem),
-//     contextItemId: "",
-//     conversationSystem:
-//       resolveConversationSystemForItem(resolvedItem) || "upstream",
-//     conversationKind: resolveDisplayConversationKind(resolvedItem) || "",
-//     shortcutMode: resolveShortcutMode(resolvedItem),
-//   };
-// }
+function buildPanelLifecycleSignature(
+  rawItem: Zotero.Item | null | undefined,
+  resolvedItem: Zotero.Item | null | undefined,
+): PanelLifecycleSignature {
+  const rawContextItem = rawItem || resolvedItem;
+  return {
+    conversationKey: resolvedItem ? `${getConversationKey(resolvedItem)}` : "0",
+    rawContextItemId: getPanelContextOwnerItemIdKey(rawContextItem),
+    contextItemId: "",
+    conversationSystem:
+      resolveConversationSystemForItem(resolvedItem) || "upstream",
+    conversationKind: resolveDisplayConversationKind(resolvedItem) || "",
+    shortcutMode: "", //resolveShortcutMode(resolvedItem),
+  };
+}
 
 export function registerReaderContextPanel() {
     if (readerContextPanelRegistered) return;
@@ -265,9 +269,9 @@ export function registerReaderContextPanel() {
                 // Detect if the active item has changed (e.g. user switched reader tabs).
                 // If so, the panel must fully re-render to switch conversations.
                 const storedItemKey = panelRoot?.dataset?.itemId;
-                // const newItemKey = resolvedState.item
-                //     ? String(getConversationKey(resolvedState.item))
-                //     : "0";
+                const newItemKey = resolvedState.item
+                    ? String(getConversationKey(resolvedState.item))
+                    : "0";
                 const rawContextItem = item || resolvedState.item;
                 const rawContextItemKey = rawContextItem
                     ? String(Number(rawContextItem.id || 0) || "")
@@ -276,10 +280,10 @@ export function registerReaderContextPanel() {
                 //     getPanelContextOwnerItemIdKey(rawContextItem);
                 // const newContextSourceStateKey =
                 //     getPanelContextSourceStateKey(rawContextItem);
-                // const itemChanged =
-                //     !needsFullRender &&
-                //     storedItemKey !== undefined &&
-                //     storedItemKey !== newItemKey;
+                const itemChanged =
+                    !needsFullRender &&
+                    storedItemKey !== undefined &&
+                    storedItemKey !== newItemKey;
                 // const contextDecision = {
                 //     needsFullRender,
                 //     storedItemKey,
@@ -303,7 +307,7 @@ export function registerReaderContextPanel() {
                 if (
                     needsFullRender ||
                     lockStale ||
-                    // itemChanged ||
+                    itemChanged ||
                     // contextOwnerChanged ||
                     systemChanged
                 ) {
@@ -333,7 +337,7 @@ export function registerReaderContextPanel() {
                             // if (resolvedState.item)
                             //     await ensureConversationLoaded(resolvedState.item);
                             if (isStandaloneWindowActive()) return;
-                            // refreshChat(body, resolvedState.item);
+                            refreshChat(body, resolvedState.item);
                         } catch (err) {
                             ztoolkit.log("Paper Pilot: onRender async setup failed", err);
                         }
@@ -368,14 +372,14 @@ export function registerReaderContextPanel() {
 
             const resolvedInitialState = resolveInitialPanelItemState(item);
             const resolvedItem = resolvedInitialState.item;
-            // const lifecycleSignature = buildPanelLifecycleSignature(
-            //     item || null,
-            //     resolvedItem,
-            // );
+            const lifecycleSignature = buildPanelLifecycleSignature(
+                item || null,
+                resolvedItem,
+            );
             // if (
             //     isPanelBodyInitialized(body) &&
             //     hasCompletedPanelLifecycleSignature(body, lifecycleSignature, {
-            //     conversationLoaded: isPanelConversationLoaded(resolvedItem),
+            //         conversationLoaded: isPanelConversationLoaded(resolvedItem),
             //     })
             // ) {
             //     return;
@@ -432,8 +436,8 @@ export function registerReaderContextPanel() {
                     activeContextPanelStateSync.get(body)?.();
                 }
             }
-            // refreshChat(body, resolvedItem);
-            // markCompletedPanelLifecycleSignature(body, lifecycleSignature);
+            refreshChat(body, resolvedItem);
+            markCompletedPanelLifecycleSignature(body, lifecycleSignature);
             // // Defer content extraction so the panel becomes interactive sooner.
             // const activeContextItem = getActiveContextAttachmentFromTabs();
             // if (activeContextItem) {
