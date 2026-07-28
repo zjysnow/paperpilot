@@ -90,6 +90,21 @@ function isPanelRootInitialized(
   return Boolean(panelRoot?.dataset?.handlersInitialized);
 }
 
+function getPanelContextSourceStateKey(
+  item: Zotero.Item | null | undefined,
+): string {
+  const state = resolvePanelContextLifecycleState(item);
+  if (!state) return "";
+  const contextItemId = state.requiresAsyncResolution ? 0 : state.contextItemId;
+  return [
+    state.sourceKind,
+    contextItemId > 0 ? `${contextItemId}` : "",
+    state.supportKind || "",
+    state.contentSourceMode || "",
+    state.requiresAsyncResolution ? "async" : "sync",
+  ].join(":");
+}
+
 function writePanelContextDataset(
   panelRoot: HTMLElement | null | undefined,
   rawItem: Zotero.Item | null | undefined,
@@ -133,6 +148,10 @@ function getPanelContextOwnerItemIdKey(
   return id > 0 ? `${id}` : "";
 }
 
+function getPanelItemIdKey(item: Zotero.Item | null | undefined): string {
+  const id = Math.floor(Number((item as any)?.id || 0));
+  return Number.isFinite(id) && id > 0 ? `${id}` : "";
+}
 
 function buildPanelLifecycleSignature(
   rawItem: Zotero.Item | null | undefined,
@@ -195,16 +214,16 @@ export function registerReaderContextPanel() {
                 notifyStandaloneItemChanged(item || null);
                 return true;
             }
-            // const selectedTabId = refreshLastKnownSelectedTabId();
-            // const itemChangeSignature = [
-            //     tabType || "",
-            //     selectedTabId ?? "",
-            //     getPanelItemIdKey(item || null),
-            // ].join("|");
-            // if (itemChangeSignature === lastItemChangeSignature) {
-            //     return true;
-            // }
-            // lastItemChangeSignature = itemChangeSignature;
+            const selectedTabId = refreshLastKnownSelectedTabId();
+            const itemChangeSignature = [
+                tabType || "",
+                selectedTabId ?? "",
+                getPanelItemIdKey(item || null),
+            ].join("|");
+            if (itemChangeSignature === lastItemChangeSignature) {
+                return true;
+            }
+            lastItemChangeSignature = itemChangeSignature;
             return true;
         },
         onRender: ({ body, item }) => {
@@ -276,31 +295,31 @@ export function registerReaderContextPanel() {
                 const rawContextItemKey = rawContextItem
                     ? String(Number(rawContextItem.id || 0) || "")
                     : "";
-                // const newContextOwnerItemKey =
-                //     getPanelContextOwnerItemIdKey(rawContextItem);
-                // const newContextSourceStateKey =
-                //     getPanelContextSourceStateKey(rawContextItem);
+                const newContextOwnerItemKey =
+                    getPanelContextOwnerItemIdKey(rawContextItem);
+                const newContextSourceStateKey =
+                    getPanelContextSourceStateKey(rawContextItem);
                 const itemChanged =
                     !needsFullRender &&
                     storedItemKey !== undefined &&
                     storedItemKey !== newItemKey;
-                // const contextDecision = {
-                //     needsFullRender,
-                //     storedItemKey,
-                //     newItemKey,
-                //     currentKind,
-                //     currentRawContextItemKey,
-                //     rawContextItemKey,
-                //     currentContextOwnerItemKey,
-                //     newContextOwnerItemKey,
-                //     currentContextSourceStateKey:
-                //         currentContextSourceStateKey || currentContextItemKey,
-                //     newContextSourceStateKey,
-                // };
-                // const contextOwnerChanged =
-                //     hasPanelContextOwnerChanged(contextDecision);
-                // const sameOwnerContextSourceChanged =
-                //     shouldRefreshContextSourceWithoutPanelRebuild(contextDecision);
+                const contextDecision = {
+                    needsFullRender,
+                    storedItemKey,
+                    newItemKey,
+                    currentKind,
+                    currentRawContextItemKey,
+                    rawContextItemKey,
+                    currentContextOwnerItemKey,
+                    newContextOwnerItemKey,
+                    currentContextSourceStateKey:
+                        currentContextSourceStateKey || currentContextItemKey,
+                    newContextSourceStateKey,
+                };
+                const contextOwnerChanged =
+                    hasPanelContextOwnerChanged(contextDecision);
+                const sameOwnerContextSourceChanged =
+                    shouldRefreshContextSourceWithoutPanelRebuild(contextDecision);
                 const systemChanged =
                     !needsFullRender && currentSystem !== expectedSystem;
 
@@ -308,7 +327,7 @@ export function registerReaderContextPanel() {
                     needsFullRender ||
                     lockStale ||
                     itemChanged ||
-                    // contextOwnerChanged ||
+                    contextOwnerChanged ||
                     systemChanged
                 ) {
                     clearCompletedPanelLifecycleSignature(body);
@@ -349,17 +368,17 @@ export function registerReaderContextPanel() {
                     activeContextPanelRawItems.set(body, item || null);
                     writePanelContextDataset(panelRoot, rawContextItem);
                     // void retainClaudeRuntimeForBody(body, resolvedState.item);
-                    // if (sameOwnerContextSourceChanged) {
-                    //     persistPendingChatScrollRestoreFromBody(body);
-                    //     (body as any).__paperpilotContextRefreshOnly = true;
-                    //     const refreshContextSource = (body as any)
-                    //     .__paperpilotRefreshContextSourceForCurrentItem;
-                    //     if (typeof refreshContextSource === "function") {
-                    //         refreshContextSource();
-                    //     } else {
-                    //         activeContextPanelStateSync.get(body)?.();
-                    //     }
-                    // }
+                    if (sameOwnerContextSourceChanged) {
+                        // persistPendingChatScrollRestoreFromBody(body);
+                        (body as any).__paperpilotContextRefreshOnly = true;
+                        const refreshContextSource = (body as any)
+                        .__paperpilotRefreshContextSourceForCurrentItem;
+                        if (typeof refreshContextSource === "function") {
+                            refreshContextSource();
+                        } else {
+                            activeContextPanelStateSync.get(body)?.();
+                        }
+                    }
                 }
             } catch {
                 /* ignore */
@@ -412,7 +431,7 @@ export function registerReaderContextPanel() {
 
             if (resolvedItem) {
                 if ((body as any).__paperpilotFreshStartupConversationInFlight) return;
-                // await ensureConversationLoaded(resolvedItem);
+                await ensureConversationLoaded(resolvedItem);
             }
             // Bail if a newer render has started while we were awaiting,
             // or if the standalone window was opened during the await.
