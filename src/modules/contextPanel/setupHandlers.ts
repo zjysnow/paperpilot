@@ -1,7 +1,6 @@
 import { createElement } from "../../utils/domHelpers";
 import { t } from "../../utils/i18n";
 
-
 import type { RuntimeModelEntry } from "../../utils/modelProviders";
 import type { ConversationSystem } from "../../shared/types";
 
@@ -50,10 +49,10 @@ import {
   activeContextPanelStateSync,
 } from "./state"
 import {
-  // getAvailableModelEntries,
+  getAvailableModelEntries,
   getStringPref,
   // getAgentModeEnabled,
-  // getSelectedModelEntryForItem,
+  getSelectedModelEntryForItem,
   applyPanelFontScale,
   // getAdvancedModelParamsForEntry,
   // setSelectedModelEntryForItem,
@@ -132,6 +131,41 @@ import {
   getAttachmentTypeLabel,
   normalizeSelectedTextSource,
 } from "./textUtils";
+
+import {
+  MODEL_MENU_OPEN_CLASS,
+  REASONING_MENU_OPEN_CLASS,
+  RETRY_MODEL_MENU_OPEN_CLASS,
+  SLASH_MENU_OPEN_CLASS,
+  isFloatingMenuOpen,
+  positionFloatingMenu,
+  setFloatingMenuOpen,
+} from "./setupHandlers/controllers/menuController";
+
+import {
+  // sendQuestion,
+  refreshChat,
+  syncUserContextAlignmentWidths,
+  getConversationKey,
+  ensureConversationLoaded,
+  // persistChatScrollSnapshot,
+  isScrollUpdateSuspended,
+  // requestChatScrollFollowBottom,
+  // cancelChatScrollFollowBottomRequest,
+  withScrollGuard,
+  // copyTextToClipboard,
+  // refreshConversationPanels,
+  // clearPendingRequestIdAndSync,
+  // detectReasoningProvider,
+  // getReasoningOptions,
+  // getSelectedReasoningForItem,
+  // retryLatestAssistantResponse,
+  // editLatestUserMessageAndRetry,
+  // editUserTurnAndRetry,
+  findLatestRetryPair,
+  // type EditLatestTurnMarker,
+} from "./chat";
+
 import type { SetupHandlersContext } from "./setupHandlers/types";
 
 /** Monotonic counter incremented every time setupHandlers rebuilds a panel. */
@@ -1283,9 +1317,9 @@ export function setupHandlers(
     // const scheduleResponsiveLayoutSync = () => {
     //   responsiveLayoutScheduler.schedule();
     // };
-    // const flushResponsiveLayoutSyncNow = () => {
-    //   responsiveLayoutScheduler.flush();
-    // };
+    const flushResponsiveLayoutSyncNow = () => {
+      // responsiveLayoutScheduler.flush();
+    };
     let pendingChatBoxResizePreviousState: ChatBoxViewportState | null = null;
     // const chatBoxViewportResizeScheduler = createCoalescedFrameScheduler({
     //   getWindow: () => body.ownerDocument?.defaultView || null,
@@ -3620,9 +3654,9 @@ export function setupHandlers(
     // const schedulePanelStateRefresh = () => {
     //   panelStateRefreshScheduler.schedule();
     // };
-    // const flushPanelStateRefreshNow = () => {
-    //   panelStateRefreshScheduler.flush();
-    // };
+    const flushPanelStateRefreshNow = () => {
+      // panelStateRefreshScheduler.flush();
+    };
     // const updatePaperPreviewPreservingScroll = () => {
     //   schedulePanelStateRefresh();
     // };
@@ -3807,77 +3841,73 @@ export function setupHandlers(
     };
     maybeStartWithFreshConversation();
     
-    // const getModelChoices = () => {
-    //   const choices = getAvailableModelEntries();
-    //   const groupedChoices: Array<{
-    //     providerLabel: string;
-    //     entries: RuntimeModelEntry[];
-    //   }> = [];
-    //   const groupedByProvider = new Map<string, RuntimeModelEntry[]>();
+    const getModelChoices = () => {
+      const choices = getAvailableModelEntries();
+      const groupedChoices: Array<{
+        providerLabel: string;
+        entries: RuntimeModelEntry[];
+      }> = [];
+      const groupedByProvider = new Map<string, RuntimeModelEntry[]>();
 
-    //   for (const entry of choices) {
-    //     const existing = groupedByProvider.get(entry.providerLabel);
-    //     if (existing) {
-    //       existing.push(entry);
-    //       continue;
-    //     }
-    //     const entries = [entry];
-    //     groupedByProvider.set(entry.providerLabel, entries);
-    //     groupedChoices.push({
-    //       providerLabel: entry.providerLabel,
-    //       entries,
-    //     });
-    //   }
+      for (const entry of choices) {
+        const existing = groupedByProvider.get(entry.providerLabel);
+        if (existing) {
+          existing.push(entry);
+          continue;
+        }
+        const entries = [entry];
+        groupedByProvider.set(entry.providerLabel, entries);
+        groupedChoices.push({
+          providerLabel: entry.providerLabel,
+          entries,
+        });
+      }
 
-    //   return { choices, groupedChoices };
-    // };
+      return { choices, groupedChoices };
+    };
 
-    // getSelectedModelInfo = () => {
-    //   const { choices, groupedChoices } = getModelChoices();
-    //   const selectedEntry = isClaudeConversationSystem()
-    //     ? getSelectedClaudeRuntimeEntry()
-    //     : isCodexConversationSystem()
-    //       ? getSelectedCodexRuntimeEntry()
-    //       : item
-    //         ? getSelectedModelEntryForItem(item.id)
-    //         : null;
-    //   const currentModel =
-    //     selectedEntry?.model ||
-    //     choices[0]?.model ||
-    //     getStringPref("modelPrimary") ||
-    //     getStringPref("model") ||
-    //     "default";
-    //   const currentModelDisplay =
-    //     selectedEntry?.displayModelLabel || currentModel;
-    //   const currentModelHint = selectedEntry
-    //     ? `${selectedEntry.providerLabel} · ${selectedEntry.displayModelLabel || selectedEntry.model}`
-    //     : currentModel;
-    //   return {
-    //     selectedEntryId: selectedEntry?.entryId || "",
-    //     selectedEntry,
-    //     choices,
-    //     groupedChoices,
-    //     currentModel,
-    //     currentModelDisplay,
-    //     currentModelHint,
-    //   };
-    // };
+    getSelectedModelInfo = () => {
+      const { choices, groupedChoices } = getModelChoices();
+      const selectedEntry =  item
+        ? getSelectedModelEntryForItem(item.id)
+        : null;
+      const currentModel =
+        selectedEntry?.model ||
+        choices[0]?.model ||
+        getStringPref("modelPrimary") ||
+        getStringPref("model") ||
+        "default";
+      const currentModelDisplay =
+        selectedEntry?.displayModelLabel || currentModel;
+      const currentModelHint = selectedEntry
+        ? `${selectedEntry.providerLabel} · ${selectedEntry.displayModelLabel || selectedEntry.model}`
+        : currentModel;
+      return {
+        selectedEntryId: selectedEntry?.entryId || "",
+        selectedEntry,
+        choices,
+        groupedChoices,
+        currentModel,
+        currentModelDisplay,
+        currentModelHint,
+      };
+    };
 
-    // updateModelButton = () => {
-    //   if (!item || !modelBtn) return;
-    //   withScrollGuard(chatBox, conversationKey, () => {
-    //     const { choices, currentModel, currentModelDisplay, currentModelHint } =
-    //       getSelectedModelInfo();
-    //     const hasSecondary = choices.length > 1;
-    //     modelBtn.dataset.modelLabel = `${currentModelDisplay || currentModel || "default"}`;
-    //     modelBtn.dataset.modelHint = hasSecondary
-    //       ? currentModelHint
-    //       : currentModelHint || "Only one model is configured";
-    //     modelBtn.disabled = !item;
-    //     scheduleResponsiveLayoutSync();
-    //     updateImagePreviewPreservingScroll();
-    //   });
-    // };
+    updateModelButton = () => {
+      if (!item || !modelBtn) return;
+      withScrollGuard(chatBox, conversationKey, () => {
+        const { choices, currentModel, currentModelDisplay, currentModelHint } =
+          getSelectedModelInfo();
+        const hasSecondary = choices.length > 1;
+        modelBtn.dataset.modelLabel = `${currentModelDisplay || currentModel || "default"}`;
+        modelBtn.dataset.modelHint = hasSecondary
+          ? currentModelHint
+          : currentModelHint || "Only one model is configured";
+        modelBtn.disabled = !item;
+        // scheduleResponsiveLayoutSync();
+        // updateImagePreviewPreservingScroll();
+      });
+    };
 
     // const isPrimaryPointerEvent = (e: Event): boolean => {
     //   const me = e as MouseEvent;
@@ -3986,7 +4016,7 @@ export function setupHandlers(
     //   }
     // };
 
-    // const rebuildModelMenu = () => {
+    const rebuildModelMenu = () => {
     //   if (!item || !modelMenu) return;
     //   const { groupedChoices, selectedEntryId } = getSelectedModelInfo();
 
@@ -4181,7 +4211,7 @@ export function setupHandlers(
     //       modelMenu.appendChild(option);
     //     }
     //   }
-    // };
+    };
 
     // const rebuildRetryModelMenu = () => {
     //   if (!item || !retryModelMenu) return;
@@ -6400,29 +6430,29 @@ export function setupHandlers(
     //   },
     // });
 
-    // openModelMenu = () => {
-    //   if (!modelMenu || !modelBtn) return;
-    //   if ((modelBtn as HTMLButtonElement).disabled) return;
-    //   closeSlashMenu();
-    //   closeRetryModelMenu();
-    //   closeReasoningMenu();
-    //   closePromptMenu();
-    //   closeHistoryNewMenu();
-    //   closeHistoryMenu();
-    //   if (isCodexConversationSystem()) {
-    //     void ensureCodexModelCatalogLoaded();
-    //   }
-    //   updateModelButton();
-    //   flushResponsiveLayoutSyncNow();
-    //   flushPanelStateRefreshNow();
-    //   rebuildModelMenu();
-    //   if (!modelMenu.childElementCount) {
-    //     closeModelMenu();
-    //     return;
-    //   }
-    //   positionFloatingMenu(body, modelMenu, modelBtn);
-    //   setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, true);
-    // };
+    openModelMenu = () => {
+      if (!modelMenu || !modelBtn) return;
+      if ((modelBtn as HTMLButtonElement).disabled) return;
+      closeSlashMenu();
+      closeRetryModelMenu();
+      closeReasoningMenu();
+      closePromptMenu();
+      closeHistoryNewMenu();
+      closeHistoryMenu();
+      // if (isCodexConversationSystem()) {
+      //   void ensureCodexModelCatalogLoaded();
+      // }
+      updateModelButton();
+      flushResponsiveLayoutSyncNow();
+      flushPanelStateRefreshNow();
+      rebuildModelMenu();
+      if (!modelMenu.childElementCount) {
+        closeModelMenu();
+        return;
+      }
+      positionFloatingMenu(body, modelMenu, modelBtn);
+      setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, true);
+    };
 
     // closeModelMenu = () => {
     //   setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);

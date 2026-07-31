@@ -15,7 +15,23 @@ import {
   formatFigureCountLabel,
   formatPaperCountLabel,
 } from "./constants";
-
+import {
+  applyChatScrollSnapshot,
+  buildChatScrollSnapshot,
+  buildFollowBottomScrollSnapshot,
+  cancelFollowBottomCatchup,
+  consumePendingChatScrollRestore,
+  getChatScrollSnapshot,
+  hasActiveFollowBottomCatchupRequest,
+  persistChatScrollSnapshotForConversationKey,
+  requestFollowBottomCatchup,
+  setFollowBottomChatScrollSnapshot,
+  withScrollGuard,
+} from "./chatScrollSnapshots";
+export {
+  isScrollUpdateSuspended,
+  withScrollGuard,
+} from "./chatScrollSnapshots";
 
 import type {
   ConversationSystem,
@@ -105,25 +121,6 @@ import {
 } from "./paperAttribution";
 
 export { getConversationKey } from "./conversationIdentity";
-
-import {
-  applyChatScrollSnapshot,
-  buildChatScrollSnapshot,
-  buildFollowBottomScrollSnapshot,
-  cancelFollowBottomCatchup,
-  consumePendingChatScrollRestore,
-  getChatScrollSnapshot,
-  hasActiveFollowBottomCatchupRequest,
-  persistChatScrollSnapshotForConversationKey,
-  requestFollowBottomCatchup,
-  setFollowBottomChatScrollSnapshot,
-  withScrollGuard,
-} from "./chatScrollSnapshots";
-
-export {
-  isScrollUpdateSuspended,
-  withScrollGuard,
-} from "./chatScrollSnapshots";
 
 
 const blockedConversationLoadKeys = new Set<number>();
@@ -414,7 +411,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
     isGlobalPortalItem(item) ||
     panelRoot?.dataset.conversationKind === "global";
   const mutateChatWithScrollGuard = (fn: () => void) => {
-    // withScrollGuard(chatBox, conversationKey, fn);
+    withScrollGuard(chatBox, conversationKey, fn);
   };
   const pendingRestoreSnapshot = consumePendingChatScrollRestore(
     conversationKey,

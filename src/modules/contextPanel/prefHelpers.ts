@@ -26,6 +26,18 @@ import {
   messageFontFamily,
 } from "./state";
 
+import {
+  deriveProviderLabel,
+  getDefaultModelEntry,
+  getLastUsedModelEntryId,
+  getModelEntryById,
+  getModelProviderGroups,
+  getRuntimeModelEntries,
+  setLastUsedModelEntryId,
+  type ModelProviderGroup,
+  type RuntimeModelEntry,
+} from "../../utils/modelProviders";
+
 
 type ZoteroPrefsAPI = {
     get?: (key: string, global?: boolean) => unknown;
@@ -385,4 +397,36 @@ export function setLockedGlobalConversationKey(
   }
 }
 
+
+
+export function getAvailableModelEntries(): RuntimeModelEntry[] {
+  return getRuntimeModelEntries();
+}
+
+
+
+export function getSelectedModelEntryForItem(
+  itemId: number,
+): RuntimeModelEntry | null {
+  const entries = getRuntimeModelEntries();
+  if (!entries.length) {
+    selectedModelCache.delete(itemId);
+    return null;
+  }
+
+  const preferredId =
+    getLastUsedModelEntryId() || selectedModelCache.get(itemId) || "";
+  const selected =
+    entries.find((entry) => entry.entryId === preferredId) ||
+    getDefaultModelEntry() ||
+    entries[0] ||
+    null;
+  if (!selected) {
+    selectedModelCache.delete(itemId);
+    return null;
+  }
+
+  selectedModelCache.set(itemId, selected.entryId);
+  return selected;
+}
 
