@@ -1,18 +1,32 @@
 import {
+  buildDefaultUpstreamGlobalConversationKey,
+  config,
+  GLOBAL_CONVERSATION_KEY_BASE,
+  isUpstreamGlobalConversationKey,
+} from "./constants";
+import {
     activeContextPanels,
     activeContextPanelRawItems,
     activeContextPanelStateSync,
+    selectedRuntimeModeCache,
+    activePaperConversationByPaper,
+    activeGlobalConversationByLibrary,
 } from "./state";
-
+import {
+  ensureConversationLoaded,
+  getConversationKey,
+  refreshChat,
+  // resetSessionTokens,
+} from "./chat";
 import {
   resolveActiveLibraryID,
   resolveConversationSystemForItem,
-  // resolveDisplayConversationKind,
+  resolveDisplayConversationKind,
   resolveInitialPanelItemState,
   resolveConversationBaseItem,
   resolvePaperChatSourceItem,
   // resolveActiveNoteSession,
-  // resolvePreferredConversationSystem,
+  resolvePreferredConversationSystem,
   // resolveNoteFocusSystemSwitch,
   // resolveShortcutMode,
   createGlobalPortalItem,
@@ -26,11 +40,24 @@ import {
   type SetupHandlersHooks,
 } from "./setupHandlers";
 
+import {
+  applyPanelFontScale,
+  buildPaperStateKey,
+  // getClaudeCodeModeEnabled,
+  getLockedGlobalConversationKey,
+  setLockedGlobalConversationKey,
+} from "./prefHelpers";
+
+import { scheduleStandaloneWindowFitForElement } from "./standaloneWindowSizing";
+import { collapseDuplicateReusableConversationDrafts } from "./standaloneConversationResolution";
+
 import type { ConversationSystem } from "../../shared/types";
 import type { ChatRuntimeMode } from "./types";
 
 import { createElement, HTML_NS } from "../../utils/domHelpers";
 import { t } from "../../utils/i18n";
+
+import { setStatus } from "./textUtils";
 
 type StandaloneSessionState = {
   pending: boolean;
@@ -289,6 +316,13 @@ type StandaloneCreateConversationOptions = {
 // Standalone window
 // ---------------------------------------------------------------------------
 
+/** Returns true when the standalone chat window is open or being opened. */
+export function isStandaloneWindowActive(): boolean {
+  if (standaloneSessionState.pending) return true;
+  return Boolean(getStandaloneSessionWindow());
+}
+
+
 /**
  * Open the Paper Pilot chat in a standalone window. If already open, focuses it.
  */
@@ -298,14 +332,3651 @@ export function openStandaloneChat(options?: {
   initialRuntimeMode?: ChatRuntimeMode | null;
   sourceBody?: Element | null;
 }): void {
+  const existingWin = getStandaloneSessionWindow();
+  if (existingWin) {
+    existingWin.focus();
+    return;
+  }
 
+  const mainWin = Zotero.getMainWindow();
+  if (!mainWin) return;
+
+  const sourceRawContextItem =
+    options?.sourceBody && options.sourceBody.isConnected
+      ? activeContextPanelRawItems.get(options.sourceBody) || null
+      : null;
+  const sourceItem = sourceRawContextItem || options?.initialItem || null;
+  const explicitConversationSystem = options?.initialConversationSystem
+    ? resolvePreferredConversationSystem({
+        item: null,
+        preferredSystem: options.initialConversationSystem,
+      })
+    : null;
+  // const storedConversationSystem = getStoredConversationSystemPref();
+  const preferredConversationSystem = explicitConversationSystem;
+    // explicitConversationSystem ||
+    // storedConversationSystem ||
+    // getConversationSystemPref();
+  const initialRuntimeMode =
+    options?.initialRuntimeMode === "agent"
+      ? "agent"
+      : options?.initialRuntimeMode === "chat"
+        ? "chat"
+        : null;
+  const sourceItemSystem = resolveConversationSystemForItem(sourceItem);
+  const sourceItemForResolution =
+    explicitConversationSystem &&
+    sourceItemSystem &&
+    sourceItemSystem !== explicitConversationSystem
+      ? resolveConversationBaseItem(sourceItem)
+      : sourceItem;
+  const sourceConversationSystem: ConversationSystem = "upstream";
+    // explicitConversationSystem ||
+    // (sourceItemForResolution
+    //   ? resolvePreferredConversationSystem({
+    //       item: sourceItemForResolution,
+    //       preferredSystem: preferredConversationSystem,
+    //     })
+    //   : preferredConversationSystem === "codex" && isCodexAppServerModeEnabled()
+    //     ? "codex"
+    //     : preferredConversationSystem === "claude_code" &&
+    //         getClaudeCodeModeEnabled()
+    //       ? "claude_code"
+    //       : "upstream");
+  const resolvedSourceState = resolveInitialPanelItemState(
+    sourceItemForResolution,
+    {
+      conversationSystem: sourceConversationSystem,
+    },
+  );
+  let currentConversationSystem: ConversationSystem =
+    explicitConversationSystem ||
+    resolvePreferredConversationSystem({
+      item: resolvedSourceState.item,
+      preferredSystem: sourceConversationSystem,
+    });
+  const initialBasePaperItem =
+    resolvedSourceState.basePaperItem ||
+    resolvePaperChatSourceItem(sourceItemForResolution || sourceItem) ||
+    null;
+  const initialDisplayConversationKind = resolveDisplayConversationKind(
+    resolvedSourceState.item || sourceItem,
+  );
+  // const isClaudeConversationSystem = () =>
+  //   currentConversationSystem === "claude_code";
+  // const isCodexConversationSystem = () => currentConversationSystem === "codex";
+  // const isRuntimeConversationSystem = () =>
+  //   isClaudeConversationSystem() || isCodexConversationSystem();
+  const isRuntimeConversationSystem = () => false;
+  const initialLibraryID =
+    Number(
+      resolvedSourceState.item?.libraryID ||
+        initialBasePaperItem?.libraryID ||
+        sourceItem?.libraryID ||
+        resolveActiveLibraryID() ||
+        1,
+    ) || 1;
+
+  const libraryID = initialLibraryID > 0 ? Math.floor(initialLibraryID) : 1;
+  const initialRememberedRuntimeMode = null;
+    // currentConversationSystem === "claude_code"
+    //   ? getLastUsedClaudeConversationMode(libraryID)
+    //   : currentConversationSystem === "codex"
+    //     ? getLastUsedCodexConversationMode(libraryID)
+    //     : null;
+  const initialMode: "open" | "paper" =
+    initialDisplayConversationKind === "global"
+      ? "open"
+      : initialDisplayConversationKind === "paper" && initialBasePaperItem
+        ? "paper"
+        : initialRememberedRuntimeMode === "global"
+          ? "open"
+          : initialBasePaperItem
+            ? "paper"
+            : "open";
+  // const lockedKey = isRuntimeConversationSystem()
+  //   ? null
+  //   : getLockedGlobalConversationKey(libraryID);
+  const lockedKey = getLockedGlobalConversationKey(libraryID);
+  const sourceClaudeGlobalKey =
+    resolvedSourceState.item &&
+    (resolvedSourceState.item as any).__paperpilotClaudeGlobalPortalItem === true
+      ? Number(resolvedSourceState.item.id || 0)
+      : sourceItem && (sourceItem as any).__paperpilotClaudeGlobalPortalItem === true
+        ? Number(sourceItem.id || 0)
+        : 0;
+  const sourceCodexGlobalKey =
+    resolvedSourceState.item &&
+    (resolvedSourceState.item as any).__paperpilotCodexGlobalPortalItem === true
+      ? Number(resolvedSourceState.item.id || 0)
+      : sourceItem && (sourceItem as any).__paperpilotCodexGlobalPortalItem === true
+        ? Number(sourceItem.id || 0)
+        : 0;
+  const conversationKey = buildDefaultUpstreamGlobalConversationKey(libraryID);
+  // const conversationKey = isClaudeConversationSystem()
+  //   ? sourceClaudeGlobalKey > 0
+  //     ? sourceClaudeGlobalKey
+  //     : resolveRememberedClaudeConversationKey({
+  //         libraryID,
+  //         kind: "global",
+  //       }) || buildDefaultClaudeGlobalConversationKey(libraryID)
+  //   : isCodexConversationSystem()
+  //     ? sourceCodexGlobalKey > 0
+  //       ? sourceCodexGlobalKey
+  //       : activeCodexGlobalConversationByLibrary.get(
+  //           buildCodexLibraryStateKey(libraryID),
+  //         ) ||
+  //         getLastUsedCodexGlobalConversationKey(libraryID) ||
+  //         buildDefaultCodexGlobalConversationKey(libraryID)
+  //     : (lockedKey ??
+  //       (activeGlobalConversationByLibrary.get(libraryID) ===
+  //       GLOBAL_CONVERSATION_KEY_BASE
+  //         ? buildDefaultUpstreamGlobalConversationKey(libraryID)
+  //         : activeGlobalConversationByLibrary.get(libraryID)) ??
+  //       buildDefaultUpstreamGlobalConversationKey(libraryID));
+  const globalPortalItem = createGlobalPortalItem(libraryID, conversationKey);
+  // const globalPortalItem = isClaudeConversationSystem()
+  //   ? createClaudeGlobalPortalItem(libraryID, conversationKey)
+  //   : isCodexConversationSystem()
+  //     ? createCodexGlobalPortalItem(libraryID, conversationKey)
+  //     : createGlobalPortalItem(libraryID, conversationKey);
+  const initialPaperItem =
+    initialMode === "paper"
+      ? resolvedSourceState.item || initialBasePaperItem
+      : null;
+  // const initialNoteSession = resolveActiveNoteSession(resolvedSourceState.item);
+  const initialMountedItem = initialPaperItem || globalPortalItem;
+  // const initialMountedItem = initialNoteSession
+  //   ? resolvedSourceState.item
+  //   : initialPaperItem || globalPortalItem;
+
+  // Set flag BEFORE openDialog — keeps isStandaloneWindowActive() true
+  // throughout the entire openDialog + load cycle so any onRender calls
+  // in the sidepanel will show the placeholder.
+  setStandalonePending(true);
+
+  const newWin = mainWin.openDialog(
+    `chrome://${config.addonRef}/content/standaloneChat.xhtml`,
+    "paperpilot-standalone-chat",
+    STANDALONE_WINDOW_FEATURES,
+  ) as Window | null;
+  if (!newWin) {
+    setStandalonePending(false);
+    return;
+  }
+
+  if (options?.sourceBody && options.sourceBody.isConnected) {
+    renderStandalonePlaceholder(options.sourceBody);
+  }
+  renderStandalonePlaceholdersInEmbeddedPanels(options?.sourceBody || null);
+
+  setStandaloneSessionWindow(newWin);
+  // Keep standalonePending = true until initWindow runs — see below
+  let cancelled = false;
+
+  // Mutable state for the standalone window
+  let standaloneMode: "open" | "paper" = initialMode;
+  let activeConversationKey = getConversationKey(initialMountedItem);
+  let activeItem: Zotero.Item = initialMountedItem;
+  let currentPaperItem: Zotero.Item | null = initialPaperItem;
+  let currentBasePaperItem: Zotero.Item | null = initialBasePaperItem;
+  let currentRawContextItem: Zotero.Item | null =
+    sourceItemForResolution || sourceItem || initialMountedItem;
+  let isInWebChatMode = false;
+  let currentChatHooks: SetupHandlersHooks | null = null;
+  let standaloneSidebarRenderQueued = false;
+  let explicitNewChatInFlight = false;
+  let initialRuntimeModeSeeded = false;
+  let standaloneAttachmentGcTimer: number | null = null;
+  let themeObserver: {
+    observe(target: Node, options: MutationObserverInit): void;
+    disconnect(): void;
+  } | null = null;
+  let darkMQ: MediaQueryList | null = null;
+  let onSchemeChange: (() => void) | null = null;
+  let cleanupStandalonePrefObserver: (() => void) | null = null;
+  let enforceStandaloneMinimumSize: (() => void) | null = null;
+
+  const initWindow = () => {
+    // Now the window is loaded — safe to clear the pending flag.
+    // isStandaloneWindowActive() will still return true because
+    // addon.data.standaloneWindow is set and not closed.
+    setStandalonePending(false);
+    // Reset cancelled — the about:blank → XHTML transition in XUL may
+    // fire an early unload that sets cancelled=true before load fires.
+    cancelled = false;
+    // Re-store the window reference for the same reason.
+    setStandaloneSessionWindow(newWin);
+    // Register the real unload handler now that the document is loaded.
+    newWin.addEventListener("unload", cleanupWindow, { once: true });
+    ztoolkit.log("LLM: standalone initWindow start");
+
+    const scheduleStandaloneAttachmentGc = (delayMs = 5_000) => {
+      const clearTimer = () => {
+        if (standaloneAttachmentGcTimer === null) return;
+        newWin.clearTimeout(standaloneAttachmentGcTimer);
+        standaloneAttachmentGcTimer = null;
+      };
+      clearTimer();
+      standaloneAttachmentGcTimer = newWin.setTimeout(() => {
+        standaloneAttachmentGcTimer = null;
+        // void collectAndDeleteUnreferencedBlobs(ATTACHMENT_GC_MIN_AGE_MS).catch(
+        //   (err) => {
+        //     ztoolkit.log("LLM: standalone attachment GC failed", err);
+        //   },
+        // );
+      }, delayMs);
+    };
+
+    try {
+      const doc = newWin.document;
+      doc.documentElement?.setAttribute(
+        "minwidth",
+        `${STANDALONE_MIN_WIDTH_PX}`,
+      );
+      doc.documentElement?.setAttribute(
+        "minheight",
+        `${STANDALONE_MIN_HEIGHT_PX}`,
+      );
+      if (doc.documentElement) {
+        // doc.documentElement.style.minWidth = `${STANDALONE_MIN_WIDTH_PX}px`;
+        // doc.documentElement.style.minHeight = `${STANDALONE_MIN_HEIGHT_PX}px`;
+      }
+      enforceStandaloneMinimumSize = () => clampStandaloneWindowSize(newWin);
+      newWin.addEventListener("resize", enforceStandaloneMinimumSize);
+      newWin.setTimeout(enforceStandaloneMinimumSize, 0);
+
+      // Inject Zotero CSS variables that the standalone window doesn't inherit.
+      const zoteroVars = [
+        "--fill-primary",
+        "--fill-secondary",
+        "--fill-tertiary",
+        "--fill-quaternary",
+        "--fill-quinary",
+        "--stroke-primary",
+        "--stroke-secondary",
+        "--material-background",
+        "--material-sidepane",
+        "--material-toolbar",
+        "--color-accent",
+        "--accent-blue",
+      ];
+      const mainDocEl = mainWin.document.documentElement;
+      let styleEl: HTMLStyleElement | null = null;
+
+      function parseCssRgbChannel(channel: string): number | null {
+        const trimmed = channel.trim();
+        if (!trimmed) return null;
+        const value = Number.parseFloat(trimmed);
+        if (!Number.isFinite(value)) return null;
+        if (trimmed.endsWith("%")) {
+          return Math.max(0, Math.min(255, (value / 100) * 255));
+        }
+        return Math.max(0, Math.min(255, value));
+      }
+
+      function parseCssRgbColor(
+        value: string,
+      ): [number, number, number] | null {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        const hex = trimmed.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
+        if (hex) {
+          const full =
+            hex.length === 3
+              ? hex
+                  .split("")
+                  .map((part) => `${part}${part}`)
+                  .join("")
+              : hex;
+          return [
+            Number.parseInt(full.slice(0, 2), 16),
+            Number.parseInt(full.slice(2, 4), 16),
+            Number.parseInt(full.slice(4, 6), 16),
+          ];
+        }
+        const rgb = trimmed.match(/^rgba?\(([^)]+)\)$/i)?.[1];
+        if (!rgb) return null;
+        const parts = rgb
+          .replace(/\s*\/\s*[^, ]+$/, "")
+          .split(/[,\s]+/)
+          .filter(Boolean);
+        if (parts.length < 3) return null;
+        const channels = parts.slice(0, 3).map(parseCssRgbChannel);
+        if (channels.some((channel) => channel === null)) return null;
+        return channels as [number, number, number];
+      }
+
+      function getCssRgbLuminance(color: [number, number, number]): number {
+        const [r, g, b] = color.map((channel) => {
+          const value = channel / 255;
+          return value <= 0.03928
+            ? value / 12.92
+            : ((value + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      }
+
+      function isLightStandaloneTheme(
+        style: CSSStyleDeclaration | null,
+      ): boolean {
+        const background =
+          style?.getPropertyValue("--material-background").trim() ||
+          style?.getPropertyValue("--material-sidepane").trim() ||
+          "";
+        const color = parseCssRgbColor(background);
+        if (color) return getCssRgbLuminance(color) > 0.5;
+        return !mainWin.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+      }
+
+      const syncZoteroVarsToStandalone = () => {
+        if (cancelled || newWin.closed) return;
+        const freshStyle = mainDocEl
+          ? mainWin.getComputedStyle(mainDocEl)
+          : null;
+        const rootEl = doc.getElementById(
+          "paperpilot-standalone-chat-root",
+        ) as HTMLElement | null;
+        if (rootEl) {
+          rootEl.dataset.standaloneTheme = isLightStandaloneTheme(freshStyle)
+            ? "light"
+            : "dark";
+        }
+        const decls = zoteroVars
+          .map((v) => {
+            const val = freshStyle?.getPropertyValue(v).trim();
+            return val ? `${v}: ${val};` : "";
+          })
+          .filter(Boolean)
+          .join("\n  ");
+        if (!decls) return;
+        if (!styleEl) {
+          styleEl = doc.createElementNS(HTML_NS, "style") as HTMLStyleElement;
+          doc.documentElement?.prepend(styleEl);
+        }
+        styleEl.textContent = `:root {\n  ${decls}\n}`;
+      };
+
+      // Initial injection
+      syncZoteroVarsToStandalone();
+
+      // Re-sync when Zotero's theme changes (attribute changes on root element).
+      // Access MutationObserver from the main window — it's not a global in the
+      // standalone window's Gecko execution context.
+      const MO = (mainWin as any).MutationObserver as
+        | typeof MutationObserver
+        | undefined;
+      if (MO && mainDocEl) {
+        themeObserver = new MO(() => syncZoteroVarsToStandalone());
+        themeObserver.observe(mainDocEl, {
+          attributes: true,
+          attributeFilter: ["style", "class"],
+        });
+      }
+
+      // Re-sync on OS-level dark/light switch
+      const mq = mainWin.matchMedia?.("(prefers-color-scheme: dark)") ?? null;
+      darkMQ = mq;
+      onSchemeChange = () => {
+        newWin.setTimeout(() => syncZoteroVarsToStandalone(), 100);
+      };
+      if (mq) mq.addEventListener("change", onSchemeChange);
+
+      // Inject CSS
+      const mainCSS = doc.createElementNS(HTML_NS, "link") as HTMLLinkElement;
+      mainCSS.rel = "stylesheet";
+      mainCSS.type = "text/css";
+      mainCSS.href = `chrome://${config.addonRef}/content/zoteroPane.css`;
+      doc.documentElement?.appendChild(mainCSS);
+
+      const katexCSS = doc.createElementNS(HTML_NS, "link") as HTMLLinkElement;
+      katexCSS.rel = "stylesheet";
+      katexCSS.type = "text/css";
+      katexCSS.href = `chrome://${config.addonRef}/content/vendor/katex/katex.min.css`;
+      doc.documentElement?.appendChild(katexCSS);
+
+      const rerenderStandaloneShellAfterStylesReady = () => {
+        if (cancelled || newWin.closed) return;
+        const mountedItem = activeItem;
+        if (!mountedItem) return;
+        const paperpilotMain = contentArea.querySelector(
+          "#paperpilot-main",
+        ) as HTMLElement | null;
+        applyPanelFontScale(paperpilotMain);
+        applyPanelFontScale(root);
+        const shortcutMode = standaloneMode === "open" ? "library" : "paper";
+        // void renderShortcuts(contentArea, mountedItem, shortcutMode);
+        refreshChat(contentArea, mountedItem);
+      };
+      mainCSS.addEventListener(
+        "load",
+        rerenderStandaloneShellAfterStylesReady,
+        {
+          once: true,
+        },
+      );
+
+      // Mount into the root div
+      const root = doc.getElementById(
+        "paperpilot-standalone-chat-root",
+      ) as HTMLElement | null;
+      if (!root) return;
+
+      root.dataset.standalone = "true";
+
+      // -----------------------------------------------------------------------
+      // Build the shell layout:
+      //   topbar (full width)
+      //   lowerArea: sidebar (icon strip + panel) | content
+      // -----------------------------------------------------------------------
+
+      // Switch root from row to column
+      root.style.flexDirection = "column";
+
+      // -- Sidebar toggle button (lives in icon strip) --
+      const iconSidebarToggle = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      iconSidebarToggle.className =
+        "paperpilot-standalone-icon-btn paperpilot-standalone-topbar-toggle";
+      iconSidebarToggle.type = "button";
+      iconSidebarToggle.title = t("Toggle sidebar");
+
+      // -- Tab group (centered at top of content area) --
+      const paperTab = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      paperTab.className = "paperpilot-standalone-tab";
+      paperTab.type = "button";
+      paperTab.textContent = "Paper chat"; // resolveStandalonePaperTabLabel();
+      paperTab.dataset.tab = "paper";
+
+      const openTab = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      openTab.className = "paperpilot-standalone-tab";
+      openTab.type = "button";
+      openTab.textContent = t("Library chat");
+      openTab.dataset.tab = "open";
+
+      paperTab.classList.toggle("active", standaloneMode === "paper");
+      openTab.classList.toggle("active", standaloneMode === "open");
+
+      const tabGroup = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      tabGroup.className = "paperpilot-standalone-tab-group";
+      tabGroup.append(paperTab, openTab);
+
+      const systemToggleBtn = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      systemToggleBtn.className = "paperpilot-standalone-claude-toggle";
+      systemToggleBtn.type = "button";
+      systemToggleBtn.setAttribute("aria-label", "Conversation runtime");
+
+      const getPreferredRuntimeSystem = (): ConversationSystem => {
+        // if (resolveActiveNoteSession(activeItem)) {
+        //   return isCodexAppServerModeEnabled() ? "codex" : "upstream";
+        // }
+        // const preferred = getConversationSystemPref();
+        // if (preferred === "codex" && isCodexAppServerModeEnabled())
+        //   return "codex";
+        // if (preferred === "claude_code" && getClaudeCodeModeEnabled())
+        //   return "claude_code";
+        // if (isCodexAppServerModeEnabled()) return "codex";
+        // if (getClaudeCodeModeEnabled()) return "claude_code";
+        return "upstream";
+      };
+
+      const updateStandaloneSystemToggle = () => {
+        const targetSystem = getPreferredRuntimeSystem();
+        const enabled = true;
+          // !isInWebChatMode &&
+          // (resolveActiveNoteSession(activeItem)
+          //   ? targetSystem === "codex" || isCodexConversationSystem()
+          //   : getClaudeCodeModeEnabled() || isCodexAppServerModeEnabled());
+        systemToggleBtn.style.display = enabled ? "inline-flex" : "none";
+        const active = isRuntimeConversationSystem();
+        const iconSystem = active ? currentConversationSystem : targetSystem;
+        systemToggleBtn.dataset.active = active ? "true" : "false";
+        systemToggleBtn.title = "Switch to upstream mode";
+        // systemToggleBtn.title = active
+        //   ? "Switch to upstream mode"
+        //   : iconSystem === "codex"
+        //     ? "Switch to Codex mode"
+        //     : "Switch to Claude Code mode";
+        // if (iconSystem === "codex") {
+        //   systemToggleBtn.innerHTML = `<span class="paperpilot-codex-system-toggle-icon" aria-hidden="true"></span>`;
+        //   return;
+        // }
+        systemToggleBtn.innerHTML = active
+          ? `<svg height="1em" style="flex:none;line-height:1" viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z" fill="#D97757" fill-rule="evenodd"></path></svg>`
+          : `<svg fill="currentColor" fill-rule="evenodd" height="1em" style="flex:none;line-height:1" viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"></path></svg>`;
+      };
+
+      const tabRow = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      tabRow.className = "paperpilot-standalone-tab-row";
+      tabRow.append(systemToggleBtn, tabGroup);
+
+      // -- Lower area: sidebar + content side by side --
+      const lowerArea = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      lowerArea.className = "paperpilot-standalone-lower";
+
+      // -- Sidebar: icon strip (always visible) + panel (collapsible) --
+      const sidebar = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      sidebar.className = "paperpilot-standalone-sidebar";
+      sidebar.dataset.sidebarState = "expanded";
+
+      // Icon strip — always visible vertical column with text-based icons
+      const iconStrip = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      iconStrip.className = "paperpilot-standalone-icon-strip";
+
+      const iconNewChat = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      iconNewChat.className =
+        "paperpilot-standalone-icon-btn paperpilot-standalone-icon-plus";
+      iconNewChat.type = "button";
+      iconNewChat.title = t("New chat");
+      iconNewChat.textContent = "+";
+
+      const iconSearch = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      iconSearch.className =
+        "paperpilot-standalone-icon-btn paperpilot-standalone-icon-search";
+      iconSearch.type = "button";
+      iconSearch.title = t("Search history");
+
+      const iconSkill = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      iconSkill.className = "paperpilot-standalone-icon-btn paperpilot-standalone-icon-skill";
+      iconSkill.type = "button";
+      iconSkill.title = t("Skills");
+
+      const iconStripSpacer = doc.createElementNS(
+        HTML_NS,
+        "div",
+      ) as HTMLDivElement;
+      iconStripSpacer.style.flex = "1";
+
+      const iconSettings = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      iconSettings.className =
+        "paperpilot-standalone-icon-btn paperpilot-standalone-icon-settings";
+      iconSettings.type = "button";
+      iconSettings.title = t("Settings");
+
+      const iconExport = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      iconExport.className =
+        "paperpilot-standalone-icon-btn paperpilot-standalone-icon-export";
+      iconExport.type = "button";
+      iconExport.title = t("Export");
+
+      const iconClear = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      iconClear.className = "paperpilot-standalone-icon-btn paperpilot-standalone-icon-clear";
+      iconClear.type = "button";
+      iconClear.title = t("Clear");
+
+      iconStrip.append(
+        iconSidebarToggle,
+        iconNewChat,
+        iconSearch,
+        iconSkill,
+        iconStripSpacer,
+        iconSettings,
+        iconExport,
+        iconClear,
+      );
+
+      // Export popup — floating menu from sidebar export icon
+      const exportPopup = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      exportPopup.className = "paperpilot-standalone-export-popup";
+      exportPopup.style.display = "none";
+
+      const exportPopupCopyBtn = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      exportPopupCopyBtn.className = "paperpilot-standalone-popup-item";
+      exportPopupCopyBtn.type = "button";
+      exportPopupCopyBtn.textContent = t("Copy chat as md");
+
+      const exportPopupNoteBtn = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      exportPopupNoteBtn.className = "paperpilot-standalone-popup-item";
+      exportPopupNoteBtn.type = "button";
+      exportPopupNoteBtn.textContent = t("Save chat as note");
+
+      exportPopup.append(exportPopupCopyBtn, exportPopupNoteBtn);
+
+      // Panel — the expandable conversation list
+      const sidebarPanel = doc.createElementNS(
+        HTML_NS,
+        "div",
+      ) as HTMLDivElement;
+      sidebarPanel.className = "paperpilot-standalone-sidebar-panel";
+
+      const sidebarHeader = doc.createElementNS(
+        HTML_NS,
+        "div",
+      ) as HTMLDivElement;
+      sidebarHeader.className = "paperpilot-standalone-sidebar-header";
+
+      const sidebarTitle = doc.createElementNS(
+        HTML_NS,
+        "span",
+      ) as HTMLSpanElement;
+      sidebarTitle.className = "paperpilot-standalone-sidebar-title";
+      sidebarTitle.textContent = t("History");
+
+      const sidebarHeaderActions = doc.createElementNS(
+        HTML_NS,
+        "div",
+      ) as HTMLDivElement;
+      sidebarHeaderActions.className = "paperpilot-standalone-sidebar-actions";
+
+      const webHistoryRefreshBtn = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      webHistoryRefreshBtn.className = "paperpilot-standalone-sidebar-refresh";
+      webHistoryRefreshBtn.type = "button";
+      webHistoryRefreshBtn.textContent = "\u21BB";
+      webHistoryRefreshBtn.title = t("Refresh web history");
+      webHistoryRefreshBtn.setAttribute("aria-label", t("Refresh web history"));
+      webHistoryRefreshBtn.style.display = "none";
+
+      sidebarHeaderActions.append(webHistoryRefreshBtn);
+      sidebarHeader.append(sidebarTitle, sidebarHeaderActions);
+
+      const standaloneHistoryUndo = doc.createElementNS(
+        HTML_NS,
+        "div",
+      ) as HTMLDivElement;
+      standaloneHistoryUndo.className =
+        "paperpilot-history-undo paperpilot-standalone-history-undo";
+      standaloneHistoryUndo.style.display = "none";
+
+      const standaloneHistoryUndoText = doc.createElementNS(
+        HTML_NS,
+        "span",
+      ) as HTMLSpanElement;
+      standaloneHistoryUndoText.className = "paperpilot-history-undo-text";
+
+      const standaloneHistoryUndoBtn = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      standaloneHistoryUndoBtn.className = "paperpilot-history-undo-btn";
+      standaloneHistoryUndoBtn.type = "button";
+      standaloneHistoryUndoBtn.textContent = t("Undo");
+      standaloneHistoryUndoBtn.title = t("Restore deleted conversation");
+      standaloneHistoryUndo.append(
+        standaloneHistoryUndoText,
+        standaloneHistoryUndoBtn,
+      );
+
+      const sidebarList = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      sidebarList.className = "paperpilot-standalone-sidebar-list";
+
+      sidebarPanel.append(sidebarHeader, standaloneHistoryUndo, sidebarList);
+      sidebar.append(iconStrip, sidebarPanel);
+      const pendingStandaloneDeletionKeys = new Set<number>();
+      let pendingStandaloneHistoryDeletion: PendingStandaloneHistoryDeletion | null =
+        null;
+      let standaloneSidebarEntriesByKey = new Map<number, SidebarConv>();
+
+      // -- Content area --
+      const contentWrapper = doc.createElementNS(
+        HTML_NS,
+        "div",
+      ) as HTMLDivElement;
+      contentWrapper.className = "paperpilot-standalone-content-wrapper";
+
+      const contentTitleBar = doc.createElementNS(
+        HTML_NS,
+        "div",
+      ) as HTMLDivElement;
+      contentTitleBar.className = "paperpilot-standalone-content-title";
+
+      const contentTitleText = doc.createElementNS(
+        HTML_NS,
+        "span",
+      ) as HTMLSpanElement;
+      contentTitleText.className = "paperpilot-standalone-content-title-text";
+
+      const contentTitleBarSpacer = doc.createElementNS(
+        HTML_NS,
+        "div",
+      ) as HTMLDivElement;
+      contentTitleBarSpacer.className = "paperpilot-standalone-content-title-actions";
+      contentTitleBar.append(contentTitleText, contentTitleBarSpacer);
+
+      const contentArea = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      contentArea.className = "paperpilot-standalone-content";
+      contentArea.dataset.standalone = "true";
+
+      contentWrapper.append(tabRow, contentTitleBar, contentArea);
+      lowerArea.append(sidebar, contentWrapper);
+
+      // -- Skills overlay (popup for managing agent skills) --
+      const skillOverlay = doc.createElementNS(
+        HTML_NS,
+        "div",
+      ) as HTMLDivElement;
+      skillOverlay.className = "paperpilot-standalone-skill-overlay";
+      skillOverlay.style.display = "none";
+
+      const skillPopup = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      skillPopup.className = "paperpilot-standalone-skill-popup";
+
+      const skillHeader = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      skillHeader.className = "paperpilot-standalone-skill-header";
+
+      const skillTitle = doc.createElementNS(
+        HTML_NS,
+        "span",
+      ) as HTMLSpanElement;
+      skillTitle.className = "paperpilot-standalone-skill-title";
+      skillTitle.textContent = t("Skills");
+
+      const skillRefreshBtn = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      skillRefreshBtn.className = "paperpilot-outline-btn";
+      skillRefreshBtn.type = "button";
+      skillRefreshBtn.textContent = t("Check for updates");
+      skillRefreshBtn.title = t(
+        "Re-seed built-in skills and refresh the list. Customized files are kept — use the right-click menu to restore individual skills to default.",
+      );
+
+      const skillCloseBtn = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      skillCloseBtn.className = "paperpilot-standalone-search-close";
+      skillCloseBtn.type = "button";
+      skillCloseBtn.textContent = "\u00D7";
+
+      skillHeader.append(skillTitle, skillRefreshBtn, skillCloseBtn);
+
+      const skillGrid = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      skillGrid.className = "paperpilot-standalone-skill-grid";
+
+      skillPopup.append(skillHeader, skillGrid);
+      skillOverlay.appendChild(skillPopup);
+
+      // Skills context menu (right-click)
+      const skillCtxMenu = doc.createElementNS(
+        HTML_NS,
+        "div",
+      ) as HTMLDivElement;
+      skillCtxMenu.className = "paperpilot-standalone-skill-ctx-menu";
+      skillCtxMenu.style.display = "none";
+
+      const skillCtxShowInFs = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      skillCtxShowInFs.className = "paperpilot-standalone-skill-ctx-item";
+      skillCtxShowInFs.type = "button";
+      skillCtxShowInFs.textContent = t("Show in file system");
+
+      const skillCtxRestore = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      skillCtxRestore.className = "paperpilot-standalone-skill-ctx-item";
+      skillCtxRestore.type = "button";
+      skillCtxRestore.textContent = t("Restore to default");
+      skillCtxRestore.style.display = "none"; // only shown for customized built-ins
+
+      const skillCtxDelete = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      skillCtxDelete.className =
+        "paperpilot-standalone-skill-ctx-item paperpilot-standalone-skill-ctx-delete";
+      skillCtxDelete.type = "button";
+      skillCtxDelete.textContent = t("Delete");
+
+      skillCtxMenu.append(skillCtxShowInFs, skillCtxRestore, skillCtxDelete);
+
+      root.append(lowerArea, exportPopup, skillOverlay, skillCtxMenu);
+
+      // -- Sidebar state management --
+      let userManualSidebarState: "expanded" | "collapsed" | null = null;
+
+      const setSidebarState = (state: "expanded" | "collapsed") => {
+        sidebar.dataset.sidebarState = state;
+      };
+
+      const toggleSidebar = () => {
+        const current = sidebar.dataset.sidebarState || "expanded";
+        const next = current === "expanded" ? "collapsed" : "expanded";
+        userManualSidebarState = next;
+        setSidebarState(next);
+      };
+
+      // -----------------------------------------------------------------------
+      // Helpers
+      // -----------------------------------------------------------------------
+      const clearContent = () => {
+        if (typeof (contentArea as any).replaceChildren === "function") {
+          (contentArea as any).replaceChildren();
+        } else {
+          contentArea.textContent = "";
+        }
+      };
+
+      const clearSidebarList = () => {
+        if (typeof (sidebarList as any).replaceChildren === "function") {
+          (sidebarList as any).replaceChildren();
+        } else {
+          sidebarList.textContent = "";
+        }
+      };
+
+      const getSelectedZoteroItem = (): Zotero.Item | null => {
+        try {
+          const activePane = Zotero.getActiveZoteroPane?.() as any;
+          const activeItems = activePane?.getSelectedItems?.();
+          if (activeItems?.[0]) {
+            return activeItems[0];
+          }
+        } catch {
+          void 0;
+        }
+        try {
+          const mainPane = (mainWin as any)?.ZoteroPane;
+          const mainItems = mainPane?.getSelectedItems?.();
+          return mainItems?.[0] || null;
+        } catch {
+          return null;
+        }
+      };
+
+      const syncPaperTabLabel = () => {
+        // paperTab.textContent = resolveStandalonePaperTabLabel({
+        //   isWebChat: isInWebChatMode,
+        // });
+        paperTab.textContent = "Paper chat";
+      };
+
+      const getCurrentLibraryScopeID = (): number => {
+        const activeLibraryID = Number(activeItem?.libraryID || 0);
+        if (Number.isFinite(activeLibraryID) && activeLibraryID > 0) {
+          return Math.floor(activeLibraryID);
+        }
+        const paperLibraryID = Number(
+          currentBasePaperItem?.libraryID || currentPaperItem?.libraryID || 0,
+        );
+        if (Number.isFinite(paperLibraryID) && paperLibraryID > 0) {
+          return Math.floor(paperLibraryID);
+        }
+        return libraryID;
+      };
+
+      const getLibraryIDForPaperItem = (
+        paperItem: Zotero.Item | null | undefined,
+      ): number => {
+        const value = Number(paperItem?.libraryID || 0);
+        return Number.isFinite(value) && value > 0
+          ? Math.floor(value)
+          : getCurrentLibraryScopeID();
+      };
+
+      const getCurrentPaperLibraryID = (): number => {
+        const value = Number(
+          currentBasePaperItem?.libraryID ||
+            currentPaperItem?.libraryID ||
+            getCurrentLibraryScopeID(),
+        );
+        return Number.isFinite(value) && value > 0
+          ? Math.floor(value)
+          : getCurrentLibraryScopeID();
+      };
+
+      // const ensureConversationCatalogEntry = async (params: {
+      //   conversationKey?: number;
+      //   libraryID: number;
+      //   kind: "global" | "paper";
+      //   paperItemID?: number;
+      // }) =>
+      //   conversationRepository.ensureCatalogEntry({
+      //     system: currentConversationSystem,
+      //     conversationKey: params.conversationKey,
+      //     libraryID: params.libraryID,
+      //     kind: params.kind,
+      //     paperItemID: params.paperItemID,
+      //   });
+
+      // const toSidebarConversation = (
+      //   entry: ConversationCatalogEntry,
+      // ): SidebarConv => ({
+      //   conversationID: entry.conversationID,
+      //   conversationKey: entry.conversationKey,
+      //   kind: entry.kind,
+      //   libraryID: entry.libraryID,
+      //   lastActivityAt: entry.lastActivityAt || entry.createdAt || 0,
+      //   title: entry.title,
+      //   userTurnCount: entry.userTurnCount,
+      //   sessionVersion: entry.sessionVersion,
+      //   paperItemID: entry.paperItemID,
+      //   providerSessionId: entry.providerSessionId,
+      //   scopedConversationKey: entry.scopedConversationKey,
+      //   conversationSystem: entry.system,
+      //   mode: entry.kind === "paper" ? "paper" : "open",
+      // });
+
+      // -----------------------------------------------------------------------
+      // Webchat mode UI updates for standalone window
+      // -----------------------------------------------------------------------
+      const updateStandaloneWebChatUI = (isWebChat: boolean) => {
+        if (cancelled) return;
+        isInWebChatMode = isWebChat;
+        updateStandaloneSystemToggle();
+
+        // Tab labels
+        if (isWebChat) {
+          syncPaperTabLabel();
+          paperTab.classList.add("active");
+          openTab.classList.remove("active");
+          // Force paper tab active since webchat uses that slot
+          if (standaloneMode !== "paper") {
+            standaloneMode = "paper";
+          }
+        } else {
+          // Restore the paper-slot label, not the currently mounted panel item.
+          syncPaperTabLabel();
+          paperTab.classList.toggle("active", standaloneMode === "paper");
+          openTab.classList.toggle("active", standaloneMode === "open");
+        }
+
+        // Clear/Exit icon — show "Exit" text, hide the trash icon via CSS class
+        iconClear.title = isWebChat
+          ? t("Exit webchat and return to previous model")
+          : t("Clear");
+        iconClear.textContent = isWebChat ? t("Exit") : "";
+        iconClear.classList.toggle("paperpilot-standalone-icon-exit", isWebChat);
+
+        // Keep original paper title — webchat mode is already indicated by tabs/mode chip
+        updateContentTitle();
+        webHistoryRefreshBtn.style.display = isWebChat ? "inline-flex" : "none";
+
+        // Sidebar: populate with webchat history, or restore local history
+        if (isWebChat) {
+          // sidebarTitle.textContent = t("Web History");
+          // void renderWebChatSidebar();
+        } else {
+          sidebarTitle.textContent = t("History");
+          scheduleStandaloneSidebarRender();
+        }
+      };
+
+      // const resolveActiveWebChatHostname = async (): Promise<string | null> => {
+      //   const [
+      //     { relayGetStateSnapshot },
+      //     { getWebChatTargetByModelName, WEBCHAT_TARGETS },
+      //   ] = await Promise.all([
+      //     import("../../webchat/relayServer"),
+      //     import("../../webchat/types"),
+      //   ]);
+      //   const currentModelName =
+      //     currentChatHooks?.getCurrentModelName?.() || null;
+      //   const currentTargetHostname =
+      //     getWebChatTargetByModelName(currentModelName || "")?.modelName ||
+      //     null;
+      //   if (currentTargetHostname) {
+      //     return currentTargetHostname;
+      //   }
+      //   const activeTarget = relayGetStateSnapshot().active_target || null;
+      //   return (
+      //     WEBCHAT_TARGETS.find((target) => target.id === activeTarget)
+      //       ?.modelName || null
+      //   );
+      // };
+
+      // Render webchat history items directly into the sidebar list
+      // let webChatSidebarRenderSeq = 0;
+      // const renderWebChatSidebar = async () => {
+      //   if (cancelled || !isInWebChatMode) return;
+      //   const mySeq = ++webChatSidebarRenderSeq;
+      //   webHistoryRefreshBtn.disabled = true;
+      //   clearSidebarList();
+
+      //   // Loading indicator
+      //   const loadingEl = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      //   loadingEl.className = "paperpilot-standalone-sidebar-empty";
+      //   loadingEl.textContent = t("Fetching…");
+      //   sidebarList.appendChild(loadingEl);
+
+      //   try {
+      //     const requestedAt = Date.now();
+      //     const [
+      //       { relaySetCommand },
+      //       {
+      //         filterWebChatHistorySessionsForHostname,
+      //         getWebChatHistorySiteSyncEntry,
+      //         isWebChatHistorySiteFailure,
+      //         waitForFreshChatHistorySnapshot,
+      //       },
+      //     ] = await Promise.all([
+      //       import("../../webchat/relayServer"),
+      //       import("../../webchat/client"),
+      //     ]);
+      //     const targetHostname = await resolveActiveWebChatHostname();
+
+      //     relaySetCommand({ type: "SCRAPE_HISTORY" });
+
+      //     let sessions: Array<{
+      //       id: string;
+      //       title: string;
+      //       chatUrl: string | null;
+      //     }> = [];
+      //     let historyFetchFailed = false;
+      //     try {
+      //       const snapshot = await waitForFreshChatHistorySnapshot(
+      //         "",
+      //         targetHostname,
+      //         requestedAt,
+      //       );
+      //       sessions = filterWebChatHistorySessionsForHostname(
+      //         snapshot.sessions,
+      //         targetHostname,
+      //       );
+      //       historyFetchFailed = isWebChatHistorySiteFailure(
+      //         getWebChatHistorySiteSyncEntry(snapshot, targetHostname),
+      //       );
+      //     } catch {
+      //       /* relay not reachable */
+      //     }
+
+      //     if (
+      //       cancelled ||
+      //       !isInWebChatMode ||
+      //       mySeq !== webChatSidebarRenderSeq
+      //     )
+      //       return;
+      //     loadingEl.remove();
+
+      //     if (!sessions.length) {
+      //       const emptyEl = doc.createElementNS(
+      //         HTML_NS,
+      //         "div",
+      //       ) as HTMLDivElement;
+      //       emptyEl.className = "paperpilot-standalone-sidebar-empty";
+      //       emptyEl.textContent = historyFetchFailed
+      //         ? t("Failed to fetch history")
+      //         : t("No conversations yet");
+      //       sidebarList.appendChild(emptyEl);
+      //       return;
+      //     }
+
+      //     for (const session of sessions) {
+      //       const row = doc.createElementNS(
+      //         HTML_NS,
+      //         "button",
+      //       ) as HTMLButtonElement;
+      //       row.className = "paperpilot-standalone-conv-item";
+      //       row.type = "button";
+      //       row.title = session.title || "Untitled";
+
+      //       const titleEl = doc.createElementNS(
+      //         HTML_NS,
+      //         "span",
+      //       ) as HTMLSpanElement;
+      //       titleEl.className = "paperpilot-standalone-conv-title";
+      //       titleEl.textContent = session.title || "Untitled";
+
+      //       row.appendChild(titleEl);
+      //       row.addEventListener("click", () => {
+      //         if (!activeItem) return;
+      //         // Load the webchat conversation
+      //         void (async () => {
+      //           const key = getConversationKey(activeItem);
+      //           const isDeepSeekSession =
+      //             typeof session.chatUrl === "string" &&
+      //             /chat\.deepseek\.com/i.test(session.chatUrl);
+      //           try {
+      //             let loadModelName = "chatgpt.com";
+      //             try {
+      //               if (session.chatUrl) {
+      //                 const loadUrl = new URL(session.chatUrl);
+      //                 const { WEBCHAT_TARGETS: targets } =
+      //                   await import("../../webchat/types");
+      //                 const matched = targets.find(
+      //                   (wt) =>
+      //                     loadUrl.hostname === wt.modelName ||
+      //                     loadUrl.hostname === `www.${wt.modelName}`,
+      //                 );
+      //                 if (matched) loadModelName = matched.modelName;
+      //               }
+      //             } catch {
+      //               /* default */
+      //             }
+
+      //             webChatIsolatedConversationKeys.add(key);
+      //             loadedConversationKeys.add(key);
+      //             chatHistory.set(key, [
+      //               {
+      //                 role: "assistant" as const,
+      //                 text: `Loading conversation: **${session.title || "Untitled"}**\n\nFetching messages…`,
+      //                 timestamp: Date.now(),
+      //                 modelName: loadModelName,
+      //                 modelProviderLabel: "WebChat",
+      //                 streaming: true,
+      //               },
+      //             ]);
+      //             refreshChat(contentArea, activeItem);
+
+      //             // Clear force-new-chat intent so follow-up sends
+      //             // continue in the loaded conversation, not start fresh.
+      //             currentChatHooks?.clearWebChatNewChatIntent?.();
+
+      //             const { loadChatSession } =
+      //               await import("../../webchat/client");
+      //             const result = await loadChatSession("", session.id);
+
+      //             if (cancelled || !isInWebChatMode) return;
+
+      //             const messages: Array<{
+      //               role: "user" | "assistant";
+      //               text: string;
+      //               timestamp: number;
+      //               modelName?: string;
+      //               modelProviderLabel?: string;
+      //               reasoningDetails?: string;
+      //             }> = [];
+
+      //             if (result?.messages?.length) {
+      //               for (const m of result.messages) {
+      //                 messages.push({
+      //                   role: m.kind === "user" ? "user" : "assistant",
+      //                   text: m.text || "",
+      //                   timestamp: m.timestamp
+      //                     ? new Date(m.timestamp).getTime()
+      //                     : Date.now(),
+      //                   modelName: m.kind === "bot" ? loadModelName : undefined,
+      //                   modelProviderLabel:
+      //                     m.kind === "bot" ? "WebChat" : undefined,
+      //                   reasoningDetails: m.thinking || undefined,
+      //                 });
+      //               }
+      //             }
+
+      //             chatHistory.set(key, messages);
+      //             loadedConversationKeys.add(key);
+      //             webChatIsolatedConversationKeys.add(key);
+      //             refreshChat(contentArea, activeItem);
+      //           } catch (err) {
+      //             ztoolkit.log(
+      //               "LLM: standalone webchat sidebar load failed",
+      //               err,
+      //             );
+      //             chatHistory.set(key, [
+      //               {
+      //                 role: "assistant" as const,
+      //                 text: isDeepSeekSession
+      //                   ? t("Failed to load selected DeepSeek conversation")
+      //                   : t("Failed to load selected conversation"),
+      //                 timestamp: Date.now(),
+      //                 modelProviderLabel: "WebChat",
+      //               },
+      //             ]);
+      //             loadedConversationKeys.add(key);
+      //             webChatIsolatedConversationKeys.add(key);
+      //             refreshChat(contentArea, activeItem);
+      //           }
+      //         })();
+      //       });
+
+      //       sidebarList.appendChild(row);
+      //     }
+      //   } catch (err) {
+      //     ztoolkit.log("LLM: standalone webchat sidebar fetch failed", err);
+      //     loadingEl.textContent = t("Failed to fetch history");
+      //   } finally {
+      //     webHistoryRefreshBtn.disabled = false;
+      //   }
+      // };
+
+      // webHistoryRefreshBtn.addEventListener("click", () => {
+      //   if (cancelled || !isInWebChatMode || webHistoryRefreshBtn.disabled)
+      //     return;
+      //   void renderWebChatSidebar();
+      // });
+
+      // -----------------------------------------------------------------------
+      // Mount chat UI into contentArea
+      // -----------------------------------------------------------------------
+      const updateContentTitle = () => {
+        if (standaloneMode === "paper" && currentBasePaperItem) {
+          try {
+            const title =
+              (currentBasePaperItem as any).getField?.("title") || "";
+            contentTitleText.textContent = title || "Paper chat";
+          } catch {
+            contentTitleText.textContent = "Paper chat";
+          }
+        } else {
+          contentTitleText.textContent = "Library chat";
+        }
+      };
+
+      const buildStandalonePortalItem = (params: {
+        mode: "open" | "paper";
+        conversationKey: number;
+        paperItem?: Zotero.Item | null;
+        sessionVersion?: number;
+      }): Zotero.Item | null => {
+        if (params.mode === "open") {
+          // return isClaudeConversationSystem()
+          //   ? (createClaudeGlobalPortalItem(
+          //       getCurrentLibraryScopeID(),
+          //       params.conversationKey,
+          //     ) as Zotero.Item)
+          //   : isCodexConversationSystem()
+          //     ? (createCodexGlobalPortalItem(
+          //         getCurrentLibraryScopeID(),
+          //         params.conversationKey,
+          //       ) as Zotero.Item)
+          //     : createGlobalPortalItem(
+          //         getCurrentLibraryScopeID(),
+          //         params.conversationKey,
+          //       );
+          return createGlobalPortalItem(
+            getCurrentLibraryScopeID(),
+            params.conversationKey,
+          );
+        }
+        if (!params.paperItem) return null;
+        // return isClaudeConversationSystem()
+        //   ? (createClaudePaperPortalItem(
+        //       params.paperItem,
+        //       params.conversationKey,
+        //     ) as Zotero.Item)
+        //   : isCodexConversationSystem()
+        //     ? (createCodexPaperPortalItem(
+        //         params.paperItem,
+        //         params.conversationKey,
+        //       ) as Zotero.Item)
+        //     : createPaperPortalItem(
+        //         params.paperItem,
+        //         params.conversationKey,
+        //         params.sessionVersion || 1,
+        //       );
+        return createPaperPortalItem(
+          params.paperItem,
+          params.conversationKey,
+          params.sessionVersion || 1,
+        );
+      };
+
+      const scheduleStandaloneSidebarRender = () => {
+        if (cancelled || standaloneSidebarRenderQueued) return;
+        standaloneSidebarRenderQueued = true;
+        newWin.setTimeout(() => {
+          standaloneSidebarRenderQueued = false;
+          void renderSidebar();
+        }, 0);
+      };
+
+      const mountChatPanel = (
+        nextItem: Zotero.Item,
+        rawContextItem?: Zotero.Item | null,
+      ) => {
+        const resolvedState = resolveInitialPanelItemState(nextItem, {
+          conversationSystem: currentConversationSystem,
+        });
+        const mountedItem = resolvedState.item || nextItem;
+        const rawItemForPanel =
+          rawContextItem ||
+          currentRawContextItem ||
+          resolveConversationBaseItem(mountedItem) ||
+          mountedItem;
+        try {
+          currentRawContextItem = rawItemForPanel;
+          activeItem = mountedItem;
+          currentConversationSystem =
+            resolveConversationSystemForItem(mountedItem) ||
+            currentConversationSystem;
+          activeConversationKey = getConversationKey(mountedItem);
+          if (
+            initialRuntimeMode &&
+            !initialRuntimeModeSeeded &&
+            !isRuntimeConversationSystem()
+          ) {
+            if (!selectedRuntimeModeCache.has(activeConversationKey)) {
+              selectedRuntimeModeCache.set(
+                activeConversationKey,
+                initialRuntimeMode,
+              );
+            }
+            initialRuntimeModeSeeded = true;
+          } else if (initialRuntimeMode && !initialRuntimeModeSeeded) {
+            initialRuntimeModeSeeded = true;
+          }
+
+          if (standaloneMode === "paper" && currentBasePaperItem) {
+            const paperItemID = Number(currentBasePaperItem.id || 0);
+            if (paperItemID > 0) {
+              const paperLibraryID = getCurrentPaperLibraryID();
+              // if (isClaudeConversationSystem()) {
+              //   activeClaudePaperConversationByPaper.set(
+              //     buildClaudePaperStateKey(paperLibraryID, paperItemID),
+              //     activeConversationKey,
+              //   );
+              // } else if (isCodexConversationSystem()) {
+              //   activeCodexPaperConversationByPaper.set(
+              //     buildCodexPaperStateKey(paperLibraryID, paperItemID),
+              //     activeConversationKey,
+              //   );
+              //   setLastUsedCodexPaperConversationKey(
+              //     paperLibraryID,
+              //     paperItemID,
+              //     activeConversationKey,
+              //   );
+              // } else {
+              //   activePaperConversationByPaper.set(
+              //     buildPaperStateKey(libraryID, paperItemID),
+              //     activeConversationKey,
+              //   );
+              // }
+              activePaperConversationByPaper.set(
+                buildPaperStateKey(libraryID, paperItemID),
+                activeConversationKey,
+              );
+            }
+          }
+
+          clearContent();
+          updateContentTitle();
+
+          buildUI(contentArea, mountedItem);
+
+          // The left tab represents the preserved paper-side slot, so do not
+          // derive its label from a mounted global portal item.
+          syncPaperTabLabel();
+
+          const paperpilotMain = contentArea.querySelector(
+            "#paperpilot-main",
+          ) as HTMLElement | null;
+          if (paperpilotMain) paperpilotMain.dataset.standalone = "true";
+
+          activeContextPanels.set(contentArea, () => activeItem);
+          activeContextPanelRawItems.set(contentArea, rawItemForPanel);
+          // void retainClaudeRuntimeForBody(contentArea, mountedItem);
+          let standaloneInputFitRequestId = 0;
+          const cancelPendingStandaloneInputFit = () => {
+            standaloneInputFitRequestId += 1;
+          };
+          const scheduleStandaloneInputFit = () => {
+            if (cancelled || newWin.closed) return;
+            const fitRequestId = (standaloneInputFitRequestId += 1);
+            const inputSection = contentArea.querySelector(
+              ".paperpilot-input-section",
+            ) as HTMLElement | null;
+            scheduleStandaloneWindowFitForElement(newWin, inputSection, {
+              shouldRun: () => fitRequestId === standaloneInputFitRequestId,
+            });
+          };
+          const scheduleStandaloneInputFitAfterContextPreviewRender = (
+            metrics: ContextPreviewRenderMetrics,
+          ) => {
+            if (metrics.nextHeight <= metrics.previousHeight) {
+              cancelPendingStandaloneInputFit();
+              return;
+            }
+            scheduleStandaloneInputFit();
+          };
+          const chatHooks: SetupHandlersHooks = {
+            onConversationHistoryChanged: () => {
+              if (cancelled) return;
+              scheduleStandaloneSidebarRender();
+            },
+            onDefaultContextRendered: scheduleStandaloneInputFit,
+            onContextPreviewRendered:
+              scheduleStandaloneInputFitAfterContextPreviewRender,
+            // onWebChatModeChanged: (isWebChat) => {
+            //   if (cancelled) return;
+            //   updateStandaloneWebChatUI(isWebChat);
+            // },
+            prepareItemsAsDefaultContextTarget: async () => {
+              if (cancelled || newWin.closed) return;
+              // return await createStandaloneOpenConversationForContext();
+            },
+          };
+          setupHandlers(contentArea, mountedItem as any, chatHooks);
+          // Store hooks reference so webchat load handlers can call clearWebChatNewChatIntent
+          currentChatHooks = chatHooks;
+
+          refreshChat(contentArea, mountedItem);
+          applyPanelFontScale(paperpilotMain);
+          applyPanelFontScale(root);
+          const shortcutMode = standaloneMode === "open" ? "library" : "paper";
+          // void renderShortcuts(contentArea, mountedItem, shortcutMode);
+        } catch (err) {
+          ztoolkit.log("LLM: standalone mountChatPanel sync failed", err);
+        }
+
+        void (async () => {
+          try {
+            if (cancelled) return;
+            await ensureConversationLoaded(mountedItem);
+            if (cancelled) return;
+            refreshChat(contentArea, mountedItem);
+            // Refresh sidebar after conversation is confirmed loaded
+            scheduleStandaloneSidebarRender();
+          } catch (err) {
+            ztoolkit.log("LLM: standalone mount async failed", err);
+          }
+        })();
+      };
+
+      // -----------------------------------------------------------------------
+      // Sidebar rendering — supports both open chat and paper chat
+      // -----------------------------------------------------------------------
+      const renderSidebarItems = (conversations: SidebarConv[]) => {
+        clearSidebarList();
+        const visibleConversations =
+          collapseDuplicateReusableConversationDrafts({
+            entries: conversations,
+            activeConversationKey,
+          }).filter(
+            (conv) => !pendingStandaloneDeletionKeys.has(conv.conversationKey),
+          );
+        standaloneSidebarEntriesByKey = new Map(
+          conversations.map((conv) => [conv.conversationKey, conv]),
+        );
+
+        if (visibleConversations.length === 0) {
+          const emptyMsg = doc.createElementNS(
+            HTML_NS,
+            "div",
+          ) as HTMLDivElement;
+          emptyMsg.className = "paperpilot-standalone-sidebar-empty";
+          emptyMsg.textContent = t("No conversations yet");
+          sidebarList.appendChild(emptyMsg);
+          return;
+        }
+
+        // const groups = groupHistoryEntriesByDay(visibleConversations, {
+        //   translate: t,
+        // });
+        // for (const group of groups) {
+        //   const dayLabel = doc.createElementNS(
+        //     HTML_NS,
+        //     "div",
+        //   ) as HTMLDivElement;
+        //   dayLabel.className = "paperpilot-standalone-day-label";
+        //   dayLabel.textContent = group.label;
+        //   sidebarList.appendChild(dayLabel);
+
+        //   for (const conv of group.items) {
+        //     const btn = doc.createElementNS(
+        //       HTML_NS,
+        //       "button",
+        //     ) as HTMLButtonElement;
+        //     btn.className = "paperpilot-standalone-conv-item";
+        //     if (conv.conversationKey === activeConversationKey) {
+        //       btn.classList.add("active");
+        //     }
+        //     btn.type = "button";
+        //     btn.dataset.conversationKey = String(conv.conversationKey);
+        //     if (conv.sessionVersion !== undefined) {
+        //       btn.dataset.sessionVersion = String(conv.sessionVersion);
+        //     }
+        //     const titleSpan = doc.createElementNS(
+        //       HTML_NS,
+        //       "span",
+        //     ) as HTMLSpanElement;
+        //     titleSpan.className = "paperpilot-standalone-conv-title";
+        //     titleSpan.textContent = conv.title || t("Untitled chat");
+        //     const deleteBtn = doc.createElementNS(
+        //       HTML_NS,
+        //       "span",
+        //     ) as HTMLSpanElement;
+        //     deleteBtn.className = "paperpilot-standalone-conv-delete";
+        //     deleteBtn.setAttribute("role", "button");
+        //     deleteBtn.setAttribute("aria-label", t("Delete conversation"));
+        //     deleteBtn.title = t("Delete conversation");
+        //     deleteBtn.dataset.action = "delete";
+        //     btn.append(titleSpan, deleteBtn);
+        //     btn.title = conv.title || t("Untitled chat");
+        //     sidebarList.appendChild(btn);
+        //   }
+        // }
+      };
+
+      const renderSidebar = async () => {
+        if (cancelled) return;
+        // In webchat mode, sidebar is managed by renderWebChatSidebar() — skip local rendering
+        if (isInWebChatMode) return;
+        ztoolkit.log(
+          "LLM: standalone renderSidebar",
+          "mode=" + standaloneMode,
+          "hasBasePaper=" + Boolean(currentBasePaperItem),
+          "basePaperId=" + (currentBasePaperItem?.id ?? "null"),
+          "activeConvKey=" + activeConversationKey,
+        );
+        try {
+          if (standaloneMode === "open") {
+            const currentLibraryID = getCurrentLibraryScopeID();
+            if (activeConversationKey > 0) {
+              // await ensureConversationCatalogEntry({
+              //   conversationKey: activeConversationKey,
+              //   libraryID: currentLibraryID,
+              //   kind: "global",
+              // });
+            }
+            // const conversations = (
+            //   await conversationRepository.listCatalogEntries({
+            //     system: currentConversationSystem,
+            //     kind: "global",
+            //     libraryID: currentLibraryID,
+            //     limit: 50,
+            //     includeEmpty: true,
+            //   })
+            // ).map(toSidebarConversation);
+            // if (cancelled) return;
+            // sidebarTitle.textContent = t("History");
+            // renderSidebarItems(conversations);
+          } else {
+            if (!currentBasePaperItem) {
+              ztoolkit.log(
+                "Paper Pilot: standalone renderSidebar paper mode — currentBasePaperItem is null",
+              );
+              sidebarTitle.textContent = t("History");
+              clearSidebarList();
+              return;
+            }
+            const paperID = Number(currentBasePaperItem.id || 0);
+            const paperLibID = Number(
+              currentBasePaperItem.libraryID || libraryID,
+            );
+            ztoolkit.log(
+              "Paper Pilot: standalone renderSidebar paper query",
+              "paperID=" + paperID,
+              "libraryID=" + paperLibID,
+            );
+            // await ensureConversationCatalogEntry({
+            //   conversationKey:
+            //     activeConversationKey > 0 ? activeConversationKey : undefined,
+            //   libraryID: paperLibID,
+            //   kind: "paper",
+            //   paperItemID: paperID,
+            // });
+            // const conversations = (
+            //   await conversationRepository.listCatalogEntries({
+            //     system: currentConversationSystem,
+            //     kind: "paper",
+            //     libraryID: paperLibID,
+            //     paperItemID: paperID,
+            //     limit: 50,
+            //     includeEmpty: true,
+            //   })
+            // ).map(toSidebarConversation);
+            if (cancelled) return;
+            sidebarTitle.textContent = t("History");
+            // renderSidebarItems(conversations);
+          }
+        } catch (err) {
+          ztoolkit.log("Paper Pilot: standalone sidebar render failed", err);
+        }
+      };
+
+      // -----------------------------------------------------------------------
+      // Search popup logic
+      // -----------------------------------------------------------------------
+      // const searchDocCache = new Map<
+      //   number,
+      //   { fingerprint: string; document: HistorySearchDocument }
+      // >();
+
+      // const resolvePaperLabel = (paperItemID: number | undefined): string => {
+      //   if (!paperItemID) return t("Library chat");
+      //   try {
+      //     const paperItem = resolveHistoryEntryPaperBaseItem(
+      //       { paperItemID },
+      //       (id) => Zotero.Items.get(id) as Zotero.Item | null,
+      //     );
+      //     if (!paperItem) return t("Paper chat");
+      //     let firstCreator = "";
+      //     let year = "";
+      //     try {
+      //       firstCreator = (paperItem as any).getField("firstCreator") || "";
+      //     } catch {
+      //       /* */
+      //     }
+      //     try {
+      //       year = (paperItem as any).getField("year") || "";
+      //     } catch {
+      //       /* */
+      //     }
+      //     if (firstCreator && year) return `${firstCreator}, ${year}`;
+      //     if (firstCreator) return firstCreator;
+      //     if (year) return year;
+      //     return t("Paper chat");
+      //   } catch {
+      //     return t("Paper chat");
+      //   }
+      // };
+
+      // const resolvePaperSearchScopeLabel = (
+      //   paperItemID: number | undefined,
+      //   sourceState: ConversationHistoryEntry["sourceState"] = "active",
+      // ): string => {
+      //   if (sourceState === "orphan") return t("Orphan");
+      //   if (!paperItemID) return t("Library chat");
+      //   try {
+      //     const paperItem = resolveHistoryEntryPaperBaseItem(
+      //       { paperItemID },
+      //       (id) => Zotero.Items.get(id) as Zotero.Item | null,
+      //     );
+      //     const title = String(paperItem?.getField?.("title") || "").trim();
+      //     return title || resolvePaperLabel(paperItemID);
+      //   } catch {
+      //     return resolvePaperLabel(paperItemID);
+      //   }
+      // };
+
+      // const toStandaloneHistoryEntry = (
+      //   entry: SidebarConv,
+      // ): ConversationHistoryEntry => {
+      //   const isPaper = entry.mode === "paper";
+      //   const title = normalizeHistoryTitle(entry.title) || t("Untitled chat");
+      //   const sourceState = resolveHistoryEntrySourceState(
+      //     {
+      //       kind: isPaper ? "paper" : "global",
+      //       paperItemID: entry.paperItemID,
+      //     },
+      //     (id) => Zotero.Items.get(id) as Zotero.Item | null,
+      //   );
+      //   return {
+      //     kind: isPaper ? "paper" : "global",
+      //     sourceState,
+      //     section: isPaper ? "paper" : "open",
+      //     sectionTitle: isPaper
+      //       ? resolvePaperSearchScopeLabel(entry.paperItemID, sourceState)
+      //       : t("Library chat"),
+      //     conversationID: entry.conversationID,
+      //     conversationKey: entry.conversationKey,
+      //     libraryID: entry.libraryID || getCurrentLibraryScopeID(),
+      //     title,
+      //     timestampText:
+      //       formatGlobalHistoryTimestamp(entry.lastActivityAt) ||
+      //       (isPaper ? t("Paper chat") : t("Library chat")),
+      //     deletable: true,
+      //     isDraft: false,
+      //     isPendingDelete: false,
+      //     lastActivityAt: entry.lastActivityAt,
+      //     userTurnCount: entry.userTurnCount,
+      //     paperItemID: entry.paperItemID,
+      //     sessionVersion: entry.sessionVersion,
+      //     providerSessionId: entry.providerSessionId,
+      //     scopedConversationKey: entry.scopedConversationKey,
+      //   };
+      // };
+
+      // const loadAllStandaloneSearchEntries = async (): Promise<
+      //   ConversationHistoryEntry[]
+      // > => {
+      //   const libraryID = getCurrentLibraryScopeID();
+      //   const limit = 100;
+      //   let entries: SidebarConv[];
+      //   if (isClaudeConversationSystem()) {
+      //     entries = (
+      //       await loadAllClaudeConversationHistory({ libraryID, limit })
+      //     ).map((entry) => ({
+      //       conversationKey: entry.conversationKey,
+      //       conversationID: entry.conversationID,
+      //       libraryID,
+      //       lastActivityAt: entry.lastActivityAt,
+      //       title: entry.title,
+      //       userTurnCount: entry.userTurnCount,
+      //       paperItemID: entry.paperItemID,
+      //       providerSessionId: entry.providerSessionId,
+      //       scopedConversationKey: entry.scopedConversationKey,
+      //       mode: entry.kind === "paper" ? "paper" : "open",
+      //     }));
+      //   } else if (isCodexConversationSystem()) {
+      //     entries = (
+      //       await loadAllCodexConversationHistory({ libraryID, limit })
+      //     ).map((entry) => ({
+      //       conversationKey: entry.conversationKey,
+      //       conversationID: entry.conversationID,
+      //       libraryID,
+      //       lastActivityAt: entry.lastActivityAt,
+      //       title: entry.title,
+      //       userTurnCount: entry.userTurnCount,
+      //       paperItemID: entry.paperItemID,
+      //       providerSessionId: entry.providerSessionId,
+      //       scopedConversationKey: entry.scopedConversationKey,
+      //       mode: entry.kind === "paper" ? "paper" : "open",
+      //     }));
+      //   } else {
+      //     entries = (
+      //       await loadAllConversationHistory({ libraryID, limit })
+      //     ).map((entry) => ({
+      //       conversationKey: entry.conversationKey,
+      //       conversationID: entry.conversationID,
+      //       libraryID,
+      //       lastActivityAt: entry.lastActivityAt,
+      //       title: entry.title,
+      //       userTurnCount: entry.userTurnCount,
+      //       sessionVersion: entry.sessionVersion,
+      //       paperItemID: entry.paperItemID,
+      //       mode: entry.mode,
+      //     }));
+      //   }
+      //   return entries
+      //     .map(toStandaloneHistoryEntry)
+      //     .filter(
+      //       (entry) =>
+      //         !pendingStandaloneDeletionKeys.has(entry.conversationKey),
+      //     );
+      // };
+
+      // const loadStandaloneSearchDocument = async (
+      //   entry: ConversationHistoryEntry,
+      // ): Promise<HistorySearchDocument> => {
+      //   const fingerprint = createHistorySearchDocumentFingerprint(entry);
+      //   const cached = searchDocCache.get(entry.conversationKey);
+      //   if (cached?.fingerprint === fingerprint) return cached.document;
+      //   const messages = await conversationRepository.loadMessages({
+      //     system: currentConversationSystem,
+      //     conversationKey: entry.conversationKey,
+      //     limit: 200,
+      //   });
+      //   const document = createHistorySearchDocument(entry, messages);
+      //   searchDocCache.set(entry.conversationKey, { fingerprint, document });
+      //   return document;
+      // };
+
+      // const getCurrentStandaloneHistoryPaperItemID = (): number => {
+      //   return normalizeHistoryPaperItemID(currentBasePaperItem?.id);
+      // };
+
+      // const maybeSelectStandaloneHistoryPaperItem = async (
+      //   decision: ReturnType<typeof resolvePaperHistoryNavigationDecision>,
+      //   paperItem: Zotero.Item,
+      // ): Promise<boolean> => {
+      //   try {
+      //     return await maybeSelectPaperHistoryTarget({
+      //       decision,
+      //       paperItemID: paperItem.id,
+      //       getPane: () =>
+      //         Zotero.getActiveZoteroPane?.() as
+      //           | HistoryPaperPaneSelector
+      //           | undefined,
+      //     });
+      //   } catch (err) {
+      //     ztoolkit.log("LLM: Failed to select standalone history paper", {
+      //       paperItemID: paperItem.id,
+      //       error: err,
+      //     });
+      //     return false;
+      //   }
+      // };
+
+      // const selectStandaloneSearchEntry = async (
+      //   entry: ConversationHistoryEntry,
+      // ): Promise<boolean> => {
+      //   try {
+      //     if (entry.kind === "paper") {
+      //       if (isOrphanHistoryEntry(entry)) {
+      //         const statusEl = contentArea.querySelector(
+      //           "#paperpilot-status",
+      //         ) as HTMLElement | null;
+      //         if (statusEl) {
+      //           setStatus(
+      //             statusEl,
+      //             t("This chat's source item was deleted"),
+      //             "warning",
+      //           );
+      //         }
+      //         return false;
+      //       }
+      //       const paperItem = resolveHistoryEntryPaperBaseItem(
+      //         entry,
+      //         (id) => Zotero.Items.get(id) as Zotero.Item | null,
+      //       );
+      //       if (!paperItem) {
+      //         const statusEl = contentArea.querySelector(
+      //           "#paperpilot-status",
+      //         ) as HTMLElement | null;
+      //         if (statusEl) {
+      //           setStatus(
+      //             statusEl,
+      //             t("This chat's source item was deleted"),
+      //             "warning",
+      //           );
+      //         }
+      //         return false;
+      //       }
+      //       const navigationDecision = resolvePaperHistoryNavigationDecision({
+      //         entryPaperItemID: paperItem.id,
+      //         currentPaperItemID: getCurrentStandaloneHistoryPaperItemID(),
+      //       });
+      //       if (navigationDecision === "missing-target-paper") {
+      //         const statusEl = contentArea.querySelector(
+      //           "#paperpilot-status",
+      //         ) as HTMLElement | null;
+      //         if (statusEl) {
+      //           setStatus(statusEl, t("Could not find this paper"), "error");
+      //         }
+      //         return false;
+      //       }
+      //       const sessionVersion = Number(entry.sessionVersion || 0);
+      //       const sv = sessionVersion > 0 ? sessionVersion : 1;
+      //       const portalItem = buildStandalonePortalItem({
+      //         mode: "paper",
+      //         conversationKey: entry.conversationKey,
+      //         paperItem,
+      //         sessionVersion: sv,
+      //       });
+      //       if (!portalItem) return false;
+      //       const targetModeSnapshot = primeHistoryNavigationMode({
+      //         system: currentConversationSystem,
+      //         libraryID:
+      //           Number(entry.libraryID || 0) ||
+      //           Number(paperItem.libraryID || 0) ||
+      //           getCurrentLibraryScopeID(),
+      //         mode: "paper",
+      //         conversationKey: entry.conversationKey,
+      //         paperItemID: paperItem.id,
+      //       });
+      //       let mounted = false;
+      //       try {
+      //         if (navigationDecision === "select-target-paper") {
+      //           const selected = await maybeSelectStandaloneHistoryPaperItem(
+      //             navigationDecision,
+      //             paperItem,
+      //           );
+      //           if (!selected) {
+      //             const statusEl = contentArea.querySelector(
+      //               "#paperpilot-status",
+      //             ) as HTMLElement | null;
+      //             if (statusEl) {
+      //               setStatus(
+      //                 statusEl,
+      //                 t("Could not focus this paper"),
+      //                 "error",
+      //               );
+      //             }
+      //             return false;
+      //           }
+      //         }
+      //         standaloneMode = "paper";
+      //         currentPaperItem = paperItem;
+      //         currentBasePaperItem = paperItem;
+      //         currentRawContextItem = paperItem;
+      //         paperTab.classList.add("active");
+      //         openTab.classList.remove("active");
+      //         syncPaperTabLabel();
+      //         mountChatPanel(portalItem, paperItem);
+      //         mounted = true;
+      //       } finally {
+      //         if (!mounted) targetModeSnapshot.restore();
+      //       }
+      //     } else {
+      //       const portalItem = buildStandalonePortalItem({
+      //         mode: "open",
+      //         conversationKey: entry.conversationKey,
+      //       });
+      //       if (!portalItem) return false;
+      //       const targetModeSnapshot = primeHistoryNavigationMode({
+      //         system: currentConversationSystem,
+      //         libraryID:
+      //           Number(entry.libraryID || 0) || getCurrentLibraryScopeID(),
+      //         mode: "global",
+      //         conversationKey: entry.conversationKey,
+      //       });
+      //       let mounted = false;
+      //       try {
+      //         standaloneMode = "open";
+      //         paperTab.classList.remove("active");
+      //         openTab.classList.add("active");
+      //         mountChatPanel(portalItem);
+      //         mounted = true;
+      //       } finally {
+      //         if (!mounted) targetModeSnapshot.restore();
+      //       }
+      //     }
+      //     return true;
+      //   } catch (err) {
+      //     ztoolkit.log("LLM: standalone search navigate failed", err);
+      //     return false;
+      //   }
+      // };
+
+      // const searchPopupController = createHistorySearchPopupController({
+      //   parent: root,
+      //   loadEntries: loadAllStandaloneSearchEntries,
+      //   loadDocument: loadStandaloneSearchDocument,
+      //   onSelect: selectStandaloneSearchEntry,
+      //   onDelete: async (entry) => {
+      //     await queueStandaloneHistoryDeletion(
+      //       toStandaloneDeletionEntry(entry),
+      //     );
+      //   },
+      //   translate: t,
+      //   log: (...args) => ztoolkit.log("LLM: standalone search popup", args),
+      //   resolveLabel: (entry) =>
+      //     isOrphanHistoryEntry(entry)
+      //       ? t("Orphan")
+      //       : entry.kind === "paper"
+      //         ? resolvePaperLabel(entry.paperItemID)
+      //         : t("Library chat"),
+      //   resolveScopeLabel: (entry) =>
+      //     entry.kind === "paper"
+      //       ? resolvePaperSearchScopeLabel(entry.paperItemID, entry.sourceState)
+      //       : t("Library chat"),
+      // });
+
+      // iconSearch.addEventListener("click", () => {
+      //   searchPopupController.toggle();
+      // });
+
+      // ----------------------------------------------------------------
+      // Skills popup — open/close/render/interactions
+      // ----------------------------------------------------------------
+      let skillCtxFilePath = ""; // tracks which file the context menu targets
+      let skillCtxFilename = ""; // basename of ctx target
+      let skillCtxSource: "system" | "customized" | "personal" = "personal";
+
+      /** Reload the in-memory skill list from disk (call after create/delete). */
+      // const reloadRuntimeSkills = async () => {
+      //   const { loadUserSkills } =
+      //     await import("../../agent/skills/userSkills");
+      //   const { setUserSkills } = await import("../../agent/skills");
+      //   const skills = await loadUserSkills();
+      //   setUserSkills(skills);
+      // };
+
+      // const reloadClaudeProjectCommands = async () => {
+      //   try {
+      //     await refreshClaudeSlashCommands(await initAgentSubsystem(), true);
+      //   } catch (err) {
+      //     ztoolkit.log("LLM: Claude project command refresh failed", err);
+      //   }
+      // };
+
+      // const resolveSkillPopupSystem = (): "upstream" | "claude_code" =>
+      //   resolveConversationSystemForItem(activeItem) === "claude_code"
+      //     ? "claude_code"
+      //     : "upstream";
+
+      // let skillRenderSeq = 0;
+      // const renderSkillGrid = async () => {
+      //   const renderSeq = ++skillRenderSeq;
+      //   const skillSystem = "upstream"; // resolveSkillPopupSystem();
+      //   const isClaudeMode = false; // skillSystem === "claude_code";
+      //   try {
+      //     const entries: Array<{
+      //       filePath: string;
+      //       openPath?: string;
+      //       filename: string;
+      //       description: string;
+      //       source: "system" | "customized" | "personal";
+      //       managedBlockOutdated?: boolean;
+      //       shippedVersion?: number | null;
+      //       version?: number;
+      //       id?: string;
+      //     }> = isClaudeMode
+      //       ? (await listClaudeProjectSkillEntries()).map((entry) => ({
+      //           filePath: entry.filePath,
+      //           openPath: entry.openPath,
+      //           filename: `/${entry.name}`,
+      //           description: entry.description,
+      //           source: "personal" as const,
+      //         }))
+      //       : await (
+      //           await import("../../agent/skills/userSkills")
+      //         ).getSkillListing();
+      //     if (
+      //       renderSeq !== skillRenderSeq ||
+      //       skillSystem !== resolveSkillPopupSystem()
+      //     ) {
+      //       return;
+      //     }
+      //     skillGrid.textContent = "";
+
+      //     // "+" add button — first grid item
+      //     const addBtn = doc.createElementNS(
+      //       HTML_NS,
+      //       "button",
+      //     ) as HTMLButtonElement;
+      //     addBtn.className =
+      //       "paperpilot-standalone-skill-item paperpilot-standalone-skill-add";
+      //     addBtn.type = "button";
+      //     const addIcon = doc.createElementNS(
+      //       HTML_NS,
+      //       "span",
+      //     ) as HTMLSpanElement;
+      //     addIcon.className = "paperpilot-standalone-skill-add-icon";
+      //     addIcon.textContent = "+";
+      //     const addLabel = doc.createElementNS(
+      //       HTML_NS,
+      //       "span",
+      //     ) as HTMLSpanElement;
+      //     addLabel.className = "paperpilot-standalone-skill-label";
+      //     addLabel.textContent = t("New skill");
+      //     addBtn.append(addIcon, addLabel);
+      //     addBtn.addEventListener("click", async () => {
+      //       const filePath = isClaudeMode
+      //         ? await createClaudeProjectSkillTemplate()
+      //         : await (
+      //             await import("../../agent/skills/userSkills")
+      //           ).createSkillTemplate();
+      //       if (filePath) {
+      //         try {
+      //           (
+      //             Zotero as unknown as { launchFile?: (p: string) => void }
+      //           ).launchFile?.(filePath);
+      //         } catch {
+      //           /* */
+      //         }
+      //         if (isClaudeMode) {
+      //           await reloadClaudeProjectCommands();
+      //         } else {
+      //           await reloadRuntimeSkills();
+      //         }
+      //         void renderSkillGrid();
+      //       }
+      //     });
+      //     skillGrid.appendChild(addBtn);
+
+      //     // Skill file items
+      //     for (const entry of entries) {
+      //       const item = doc.createElementNS(
+      //         HTML_NS,
+      //         "button",
+      //       ) as HTMLButtonElement;
+      //       item.className = "paperpilot-standalone-skill-item";
+      //       item.type = "button";
+      //       item.dataset.filePath = entry.filePath;
+      //       item.dataset.source = entry.source;
+
+      //       // Customized built-ins get an accent border; outdated-format gets
+      //       // a stronger amber cue so the user notices they should restore.
+      //       if (entry.source === "customized") {
+      //         item.style.borderColor = entry.managedBlockOutdated
+      //           ? "#d97706"
+      //           : "var(--color-accent, #2563eb)";
+      //       }
+
+      //       const icon = doc.createElementNS(
+      //         HTML_NS,
+      //         "span",
+      //       ) as HTMLSpanElement;
+      //       icon.className = "paperpilot-standalone-skill-doc-icon";
+
+      //       const label = doc.createElementNS(
+      //         HTML_NS,
+      //         "span",
+      //       ) as HTMLSpanElement;
+      //       label.className = "paperpilot-standalone-skill-label";
+      //       label.textContent = entry.filename;
+
+      //       item.append(icon, label);
+
+      //       // Tooltip summarizes source + available actions
+      //       const tooltipLines = [entry.description || entry.filename, ""];
+      //       if (entry.source === "system") {
+      //         tooltipLines.push(`Shipped built-in (v${entry.version ?? 0})`);
+      //       } else if (entry.source === "customized") {
+      //         const shippedVersion = entry.shippedVersion ?? null;
+      //         const version = entry.version ?? 0;
+      //         tooltipLines.push(
+      //           entry.managedBlockOutdated
+      //             ? `Customized — shipped v${shippedVersion ?? "unknown"} uses a new format. Right-click → Restore to default to adopt it (overwrites your edits).`
+      //             : typeof shippedVersion === "number" &&
+      //                 version < shippedVersion
+      //               ? `Customized — shipped v${shippedVersion} available. Right-click → Restore to default to adopt it.`
+      //               : `Customized built-in.`,
+      //         );
+      //       } else {
+      //         tooltipLines.push(`Your custom skill.`);
+      //       }
+      //       item.title = tooltipLines.filter(Boolean).join("\n");
+
+      //       // Left click — open in system editor
+      //       item.addEventListener("click", () => {
+      //         try {
+      //           (
+      //             Zotero as unknown as { launchFile?: (p: string) => void }
+      //           ).launchFile?.(entry.openPath || entry.filePath);
+      //         } catch {
+      //           /* */
+      //         }
+      //       });
+
+      //       // Right click — context menu
+      //       item.addEventListener("contextmenu", (e: Event) => {
+      //         e.preventDefault();
+      //         e.stopPropagation();
+      //         const me = e as MouseEvent;
+      //         skillCtxFilePath = entry.filePath;
+      //         skillCtxFilename = entry.filename;
+      //         skillCtxSource = entry.source;
+      //         skillCtxMenu.style.display = "flex";
+
+      //         // Show Restore only for customized built-ins
+      //         skillCtxRestore.style.display =
+      //           entry.source === "customized" ? "flex" : "none";
+      //         // Hide Delete for system built-ins (they'd just be re-seeded)
+      //         skillCtxDelete.style.display =
+      //           entry.source === "system" ? "none" : "flex";
+
+      //         // Position with viewport bounds checking
+      //         const menuW = 200;
+      //         const menuH = 110;
+      //         let x = me.clientX + 4;
+      //         let y = me.clientY + 4;
+      //         if (x + menuW > (doc.documentElement?.clientWidth ?? 9999))
+      //           x = me.clientX - menuW;
+      //         if (y + menuH > (doc.documentElement?.clientHeight ?? 9999))
+      //           y = me.clientY - menuH;
+      //         skillCtxMenu.style.left = `${x}px`;
+      //         skillCtxMenu.style.top = `${y}px`;
+      //       });
+
+      //       skillGrid.appendChild(item);
+      //     }
+      //   } catch (err) {
+      //     if (renderSeq !== skillRenderSeq) return;
+      //     skillGrid.textContent = "";
+      //     const errorEl = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      //     errorEl.className = "paperpilot-standalone-sidebar-empty";
+      //     errorEl.textContent = t("Failed to load skills");
+      //     skillGrid.appendChild(errorEl);
+      //     Zotero.debug?.(
+      //       `[paperpilot-for-zotero] Standalone skill grid render failed: ${
+      //         err instanceof Error ? err.message : String(err)
+      //       }`,
+      //     );
+      //   }
+      // };
+
+      // const openSkillPopup = () => {
+      //   skillOverlay.style.display = "flex";
+      //   skillGrid.textContent = "";
+      //   const loading = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+      //   loading.className = "paperpilot-standalone-sidebar-empty";
+      //   loading.textContent = t("Loading…");
+      //   skillGrid.appendChild(loading);
+      //   if (resolveSkillPopupSystem() === "claude_code") {
+      //     void reloadClaudeProjectCommands();
+      //   } else {
+      //     void reloadRuntimeSkills();
+      //   }
+      //   void renderSkillGrid();
+      // };
+
+      // const closeSkillPopup = () => {
+      //   skillOverlay.style.display = "none";
+      //   skillCtxMenu.style.display = "none";
+      // };
+
+      // // Skill icon toggle
+      // iconSkill.addEventListener("click", () => {
+      //   if (skillOverlay.style.display !== "none") {
+      //     closeSkillPopup();
+      //   } else {
+      //     openSkillPopup();
+      //   }
+      // });
+
+      // skillCloseBtn.addEventListener("click", () => closeSkillPopup());
+
+      // skillOverlay.addEventListener("click", (e: Event) => {
+      //   if (e.target === skillOverlay) closeSkillPopup();
+      // });
+
+      // Escape key — attached at document level so it works regardless of focus
+      doc.addEventListener("keydown", (e: Event) => {
+        if (skillOverlay.style.display === "none") return;
+        if ((e as KeyboardEvent).key === "Escape") {
+          e.preventDefault();
+          // closeSkillPopup();
+        }
+      });
+
+      // Context menu: Show in file system
+      // skillCtxShowInFs.addEventListener("click", async () => {
+      //   skillCtxMenu.style.display = "none";
+      //   const dir =
+      //     resolveSkillPopupSystem() === "claude_code"
+      //       ? getClaudeProjectDir()
+      //       : (
+      //           await import("../../agent/skills/userSkills")
+      //         ).getUserSkillsDir();
+      //   try {
+      //     (
+      //       Zotero as unknown as { launchFile?: (p: string) => void }
+      //     ).launchFile?.(dir);
+      //   } catch {
+      //     /* */
+      //   }
+      // });
+
+      // const refreshSkillPopupForCurrentSystem = async () => {
+      //   if (resolveSkillPopupSystem() === "claude_code") {
+      //     await reloadClaudeProjectCommands();
+      //   } else {
+      //     await reloadRuntimeSkills();
+      //   }
+      //   await renderSkillGrid();
+      // };
+
+      // Context menu: Restore to default (customized built-ins only)
+      // skillCtxRestore.addEventListener("click", async () => {
+      //   skillCtxMenu.style.display = "none";
+      //   if (!skillCtxFilename || skillCtxSource !== "customized") return;
+      //   const { restoreSkillToDefault } =
+      //     await import("../../agent/skills/userSkills");
+      //   const confirmed = await showStandaloneConfirmationDialog(doc, {
+      //     title: t("Restore skill to default?"),
+      //     message: `Restore ${skillCtxFilename} to the shipped default? Your customizations in this file will be lost.`,
+      //     confirmLabel: t("Restore"),
+      //     cancelLabel: t("Cancel"),
+      //     destructive: true,
+      //   });
+      //   if (!confirmed) return;
+      //   const ok = await restoreSkillToDefault(skillCtxFilename);
+      //   skillCtxFilePath = "";
+      //   skillCtxFilename = "";
+      //   if (ok) {
+      //     await refreshSkillPopupForCurrentSystem();
+      //   }
+      // });
+
+      // Context menu: Delete (+ reload runtime skills)
+      // skillCtxDelete.addEventListener("click", async () => {
+      //   skillCtxMenu.style.display = "none";
+      //   if (!skillCtxFilePath) return;
+      //   if (resolveSkillPopupSystem() === "claude_code") {
+      //     await deleteClaudeProjectSkillFile(skillCtxFilePath);
+      //     await reloadClaudeProjectCommands();
+      //   } else {
+      //     const { deleteSkillFile } =
+      //       await import("../../agent/skills/userSkills");
+      //     await deleteSkillFile(skillCtxFilePath);
+      //     await reloadRuntimeSkills();
+      //   }
+      //   skillCtxFilePath = "";
+      //   skillCtxFilename = "";
+      //   await refreshSkillPopupForCurrentSystem();
+      // });
+
+      // Header: Check for updates — re-seed built-ins and refresh the grid
+      // skillRefreshBtn.addEventListener("click", async () => {
+      //   skillRefreshBtn.disabled = true;
+      //   const originalText = skillRefreshBtn.textContent;
+      //   skillRefreshBtn.textContent = t("Checking…");
+      //   try {
+      //     if (resolveSkillPopupSystem() === "claude_code") {
+      //       await reloadClaudeProjectCommands();
+      //     } else {
+      //       const { initUserSkills } =
+      //         await import("../../agent/skills/userSkills");
+      //       await initUserSkills();
+      //       await reloadRuntimeSkills();
+      //     }
+      //     await renderSkillGrid();
+      //     skillRefreshBtn.textContent = t("Up to date");
+      //     doc.defaultView?.setTimeout(() => {
+      //       skillRefreshBtn.textContent = originalText;
+      //       skillRefreshBtn.disabled = false;
+      //     }, 1500);
+      //   } catch (err) {
+      //     Zotero.debug?.(
+      //       `[paperpilot-for-zotero] Skill refresh failed: ${
+      //         err instanceof Error ? err.message : String(err)
+      //       }`,
+      //     );
+      //     skillRefreshBtn.textContent = t("Update failed");
+      //     doc.defaultView?.setTimeout(() => {
+      //       skillRefreshBtn.textContent = originalText;
+      //       skillRefreshBtn.disabled = false;
+      //     }, 2000);
+      //   }
+      // });
+
+      // Dismiss context menu on click outside
+      doc.addEventListener("mousedown", (e: Event) => {
+        const target = e.target as HTMLElement;
+        if (skillCtxMenu.style.display !== "none") {
+          if (!skillCtxMenu.contains(target)) {
+            skillCtxMenu.style.display = "none";
+          }
+        }
+      });
+
+      // Click-outside dismissal for export popup
+      doc.addEventListener("mousedown", (e: Event) => {
+        const target = e.target as HTMLElement;
+        if (exportPopup.style.display !== "none") {
+          if (!exportPopup.contains(target) && !iconExport.contains(target)) {
+            exportPopup.style.display = "none";
+          }
+        }
+      });
+
+      const hideStandaloneHistoryUndoToast = () => {
+        standaloneHistoryUndo.style.display = "none";
+        standaloneHistoryUndoText.textContent = "";
+      };
+
+      const showStandaloneHistoryUndoToast = (title?: string) => {
+        const displayTitle = "Untitled chat";
+          // normalizeHistoryTitle(title || "") ||
+          // normalizeHistoryTitle("Untitled chat");
+        standaloneHistoryUndoText.textContent = `Deleted "${displayTitle}"`;
+        standaloneHistoryUndo.style.display = "flex";
+      };
+
+      const clearStandaloneDeletionTimeout = (timeoutId: number | null) => {
+        if (!Number.isFinite(timeoutId)) return;
+        newWin.clearTimeout(timeoutId as number);
+      };
+
+      const clearPendingStandaloneHistoryDeletion = (
+        restoreRowVisibility: boolean,
+      ): PendingStandaloneHistoryDeletion | null => {
+        if (!pendingStandaloneHistoryDeletion) return null;
+        const pending = pendingStandaloneHistoryDeletion;
+        clearStandaloneDeletionTimeout(pending.timeoutId);
+        pending.timeoutId = null;
+        pendingStandaloneHistoryDeletion = null;
+        if (restoreRowVisibility) {
+          pendingStandaloneDeletionKeys.delete(pending.entry.conversationKey);
+        }
+        hideStandaloneHistoryUndoToast();
+        return pending;
+      };
+
+      const setStandaloneDeletionStatus = (
+        message: string,
+        level: "ready" | "warning" | "error",
+      ) => {
+        const statusEl = contentArea.querySelector(
+          "#paperpilot-status",
+        ) as HTMLElement | null;
+        if (statusEl) setStatus(statusEl, message, level);
+      };
+
+      const normalizeStandaloneCreateConversationOptions = (
+        options: boolean | StandaloneCreateConversationOptions | undefined,
+      ): Required<StandaloneCreateConversationOptions> => {
+        if (typeof options === "boolean") {
+          return { forceFresh: options, excludeConversationKey: 0 };
+        }
+        return {
+          forceFresh: Boolean(options?.forceFresh),
+          excludeConversationKey:
+            Number.isFinite(options?.excludeConversationKey) &&
+            Number(options?.excludeConversationKey) > 0
+              ? Math.floor(Number(options?.excludeConversationKey))
+              : 0,
+        };
+      };
+
+      const switchStandaloneToConversationEntry = async (
+        entry: SidebarConv,
+      ): Promise<boolean> => {
+        const key = Number(entry.conversationKey || 0);
+        if (!key) return false;
+        const entryMode =
+          entry.mode || (entry.kind === "global" ? "open" : "paper");
+        standaloneMode = entryMode === "open" ? "open" : "paper";
+        paperTab.classList.toggle("active", standaloneMode === "paper");
+        openTab.classList.toggle("active", standaloneMode === "open");
+        activeConversationKey = key;
+        if (standaloneMode === "open") {
+          const currentLibraryID = Number(
+            entry.libraryID || getCurrentLibraryScopeID(),
+          );
+          // if (isClaudeConversationSystem()) {
+          //   activeClaudeGlobalConversationByLibrary.set(
+          //     buildClaudeLibraryStateKey(currentLibraryID),
+          //     key,
+          //   );
+          // } else if (isCodexConversationSystem()) {
+          //   activeCodexGlobalConversationByLibrary.set(
+          //     buildCodexLibraryStateKey(currentLibraryID),
+          //     key,
+          //   );
+          //   setLastUsedCodexGlobalConversationKey(currentLibraryID, key);
+          // } else {
+          //   activeGlobalConversationByLibrary.set(currentLibraryID, key);
+          // }
+          activeGlobalConversationByLibrary.set(currentLibraryID, key);
+          const newItem = buildStandalonePortalItem({
+            mode: "open",
+            conversationKey: key,
+          });
+          if (!newItem) return false;
+          mountChatPanel(newItem);
+          return true;
+        }
+        if (!currentBasePaperItem) return false;
+        const newItem = buildStandalonePortalItem({
+          mode: "paper",
+          conversationKey: key,
+          paperItem: currentBasePaperItem,
+          sessionVersion: entry.sessionVersion,
+        });
+        currentPaperItem = currentBasePaperItem;
+        if (!newItem) return false;
+        mountChatPanel(newItem);
+        return true;
+      };
+
+      // const clearStandaloneActiveConversationForPendingDeletion = async (
+      //   entry: SidebarConv,
+      // ): Promise<boolean> => {
+      //   const deletedConversationKey = Number(entry.conversationKey || 0);
+      //   return await clearActiveConversationForPendingDeletion(
+      //     entry.kind || (standaloneMode === "open" ? "global" : "paper"),
+      //     {
+      //       createFreshGlobalConversation: async () => {
+      //         const currentLibraryID = getCurrentLibraryScopeID();
+      //         const newKey = await resolveStandaloneGlobalConversation({
+      //           forceFresh: true,
+      //           excludeConversationKey: deletedConversationKey,
+      //         });
+      //         if (!newKey || cancelled) return false;
+      //         return await switchStandaloneToConversationEntry({
+      //           conversationKey: newKey,
+      //           kind: "global",
+      //           conversationSystem: currentConversationSystem,
+      //           libraryID: currentLibraryID,
+      //           lastActivityAt: Date.now(),
+      //           mode: "open",
+      //         });
+      //       },
+      //       createFreshPaperConversation: async () => {
+      //         if (!currentBasePaperItem) {
+      //           return await restoreStandaloneOpenConversation(false);
+      //         }
+      //         const paperId = Number(currentBasePaperItem.id || 0);
+      //         const paperLibraryID = getCurrentPaperLibraryID();
+      //         const summary = await resolveStandalonePaperConversation({
+      //           forceFresh: true,
+      //           excludeConversationKey: deletedConversationKey,
+      //         });
+      //         const newKey = Number(summary.conversationKey || 0);
+      //         if (!newKey || cancelled) return false;
+      //         return await switchStandaloneToConversationEntry({
+      //           conversationKey: newKey,
+      //           kind: "paper",
+      //           conversationSystem: currentConversationSystem,
+      //           libraryID: paperLibraryID,
+      //           lastActivityAt: Date.now(),
+      //           paperItemID: paperId,
+      //           sessionVersion: summary.sessionVersion,
+      //           mode: "paper",
+      //         });
+      //       },
+      //       log: (message, ...args) => ztoolkit.log(message, ...args),
+      //     },
+      //   );
+      // };
+
+      const finalizePendingStandaloneHistoryDeletion = async (
+        reason: "timeout" | "superseded",
+      ) => {
+        const pending = clearPendingStandaloneHistoryDeletion(false);
+        if (!pending) return;
+        const entry = pending.entry;
+        ztoolkit.log("Paper Pilot: Finalizing standalone history deletion", {
+          reason,
+          conversationKey: entry.conversationKey,
+          kind: entry.kind,
+          conversationSystem: pending.conversationSystem,
+        });
+        // const result = await finalizeConversationDeletion(
+        //   {
+        //     conversationID: entry.conversationID,
+        //     conversationKey: entry.conversationKey,
+        //     kind:
+        //       entry.kind || (standaloneMode === "open" ? "global" : "paper"),
+        //     conversationSystem: pending.conversationSystem,
+        //     libraryID:
+        //       Number(entry.libraryID || 0) ||
+        //       (entry.kind === "paper"
+        //         ? getCurrentPaperLibraryID()
+        //         : getCurrentLibraryScopeID()),
+        //     paperItemID: entry.paperItemID,
+        //     providerSessionId: entry.providerSessionId,
+        //   },
+        //   {
+        //     resetSessionTokens,
+        //     scheduleAttachmentGc: scheduleStandaloneAttachmentGc,
+        //     getCoreAgentRuntime: initAgentSubsystem,
+        //     log: (message, ...args) => ztoolkit.log(message, ...args),
+        //   },
+        // );
+        pendingStandaloneDeletionKeys.delete(entry.conversationKey);
+        // if (!result.ok) {
+        //   if (pending.wasActive) {
+        //     await switchStandaloneToConversationEntry(entry);
+        //   }
+        //   setStandaloneDeletionStatus(
+        //     t(getConversationDeletionFailureMessage(result)),
+        //     "error",
+        //   );
+        // }
+        await renderSidebar();
+      };
+
+      const undoPendingStandaloneHistoryDeletion = async () => {
+        const pending = clearPendingStandaloneHistoryDeletion(true);
+        if (!pending) return;
+        // if (
+        //   pending.wasActive &&
+        //   shouldRestoreActiveConversationOnDeletionUndo()
+        // ) {
+        //   await switchStandaloneToConversationEntry(pending.entry);
+        // }
+        if (pending.wasActive) {
+          await switchStandaloneToConversationEntry(pending.entry);
+        }
+        await renderSidebar();
+        setStandaloneDeletionStatus(t("Conversation restored"), "ready");
+      };
+
+      standaloneHistoryUndoBtn.addEventListener("click", () => {
+        void undoPendingStandaloneHistoryDeletion();
+      });
+
+      // const toStandaloneDeletionEntry = (
+      //   entry: ConversationHistoryEntry,
+      // ): SidebarConv => ({
+      //   conversationID: entry.conversationID,
+      //   conversationKey: entry.conversationKey,
+      //   kind: entry.kind,
+      //   conversationSystem: currentConversationSystem,
+      //   libraryID: entry.libraryID || getCurrentLibraryScopeID(),
+      //   lastActivityAt: entry.lastActivityAt,
+      //   title: entry.title,
+      //   userTurnCount: entry.userTurnCount,
+      //   sessionVersion: entry.sessionVersion,
+      //   paperItemID: entry.paperItemID,
+      //   providerSessionId: entry.providerSessionId,
+      //   scopedConversationKey: entry.scopedConversationKey,
+      //   mode: entry.kind === "paper" ? "paper" : "open",
+      // });
+
+      // const hydrateStandaloneHistoryDeletionEntry = async (
+      //   entry: SidebarConv,
+      // ): Promise<SidebarConv> => {
+      //   const conversationKey = Number(entry.conversationKey || 0);
+      //   const kind =
+      //     entry.kind || (entry.mode === "paper" ? "paper" : "global");
+      //   const conversationSystem =
+      //     entry.conversationSystem || currentConversationSystem;
+      //   if (!conversationKey) {
+      //     return { ...entry, kind, conversationSystem };
+      //   }
+      //   try {
+      //     const summary = await conversationRepository.getCatalogEntry({
+      //       system: conversationSystem,
+      //       kind,
+      //       conversationKey,
+      //     });
+      //     if (!summary || summary.kind !== kind) {
+      //       return {
+      //         ...entry,
+      //         kind,
+      //         conversationSystem,
+      //         libraryID: entry.libraryID || getCurrentLibraryScopeID(),
+      //       };
+      //     }
+      //     return toSidebarConversation(summary);
+      //   } catch (err) {
+      //     ztoolkit.log(
+      //       "LLM: Failed to hydrate standalone history row before deletion",
+      //       { conversationKey, error: err },
+      //     );
+      //     return {
+      //       ...entry,
+      //       kind,
+      //       conversationSystem,
+      //       libraryID: entry.libraryID || getCurrentLibraryScopeID(),
+      //     };
+      //   }
+      // };
+
+      // const queueStandaloneHistoryDeletion = async (rawEntry: SidebarConv) => {
+      //   const entry = await hydrateStandaloneHistoryDeletionEntry(rawEntry);
+      //   const key = Number(entry.conversationKey || 0);
+      //   if (!key) return;
+      //   const isActive = key === activeConversationKey;
+      //   if (pendingStandaloneHistoryDeletion) {
+      //     if (pendingStandaloneHistoryDeletion.entry.conversationKey === key) {
+      //       return;
+      //     }
+      //     await finalizePendingStandaloneHistoryDeletion("superseded");
+      //   }
+
+      //   const deletionConversationSystem =
+      //     entry.conversationSystem || currentConversationSystem;
+      //   try {
+      //     if (isActive) {
+      //       const didClearActiveConversation =
+      //         await clearStandaloneActiveConversationForPendingDeletion(entry);
+      //       if (!didClearActiveConversation) {
+      //         setStandaloneDeletionStatus(
+      //           t("Cannot delete active conversation right now"),
+      //           "error",
+      //         );
+      //         return;
+      //       }
+      //     }
+      //     pendingStandaloneDeletionKeys.add(key);
+      //     pendingStandaloneHistoryDeletion = {
+      //       entry,
+      //       conversationSystem: deletionConversationSystem,
+      //       wasActive: isActive,
+      //       expiresAt: Date.now() + GLOBAL_HISTORY_UNDO_WINDOW_MS,
+      //       timeoutId: null,
+      //     };
+      //     pendingStandaloneHistoryDeletion.timeoutId = newWin.setTimeout(() => {
+      //       void finalizePendingStandaloneHistoryDeletion("timeout");
+      //     }, GLOBAL_HISTORY_UNDO_WINDOW_MS);
+      //     showStandaloneHistoryUndoToast(entry.title);
+      //     await renderSidebar();
+      //     setStandaloneDeletionStatus(
+      //       t("Conversation deleted. Undo available."),
+      //       "ready",
+      //     );
+      //   } catch (err) {
+      //     ztoolkit.log("LLM: standalone delete conversation failed", err);
+      //     pendingStandaloneDeletionKeys.delete(key);
+      //     clearPendingStandaloneHistoryDeletion(true);
+      //     if (isActive) {
+      //       await switchStandaloneToConversationEntry(entry).catch(() => {});
+      //     }
+      //     await renderSidebar().catch(() => {});
+      //   }
+      // };
+
+      // Sidebar click handler — delete conversation
+      sidebarList.addEventListener("click", async (e: Event) => {
+        const deleteTarget = (e.target as HTMLElement).closest(
+          ".paperpilot-standalone-conv-delete",
+        ) as HTMLElement | null;
+        if (deleteTarget) {
+          e.preventDefault();
+          e.stopPropagation();
+          const row = deleteTarget.closest(
+            ".paperpilot-standalone-conv-item",
+          ) as HTMLElement | null;
+          if (!row) return;
+          const key = Number(row.dataset.conversationKey);
+          if (!key) return;
+          const entry = standaloneSidebarEntriesByKey.get(key);
+          if (!entry) return;
+          // await queueStandaloneHistoryDeletion({
+          //   ...entry,
+          //   conversationKey: key,
+          //   lastActivityAt: entry.lastActivityAt,
+          // });
+          return;
+        }
+      });
+
+      // Sidebar click handler — switch conversation
+      sidebarList.addEventListener("click", (e: Event) => {
+        const target = (e.target as HTMLElement).closest(
+          ".paperpilot-standalone-conv-item",
+        ) as HTMLElement | null;
+        if (!target) return;
+        // Ignore if click was on the delete button (handled above)
+        if ((e.target as HTMLElement).closest(".paperpilot-standalone-conv-delete"))
+          return;
+        const key = Number(target.dataset.conversationKey);
+        if (!key || key === activeConversationKey) return;
+
+        activeConversationKey = key;
+
+        // Update active class
+        const conversationItems = Array.from(
+          sidebarList.querySelectorAll(".paperpilot-standalone-conv-item"),
+        ) as HTMLElement[];
+        for (const el of conversationItems) {
+          el.classList.remove("active");
+        }
+        target.classList.add("active");
+
+        if (standaloneMode === "open") {
+          const currentLibraryID = getCurrentLibraryScopeID();
+          // if (isClaudeConversationSystem()) {
+          //   activeClaudeGlobalConversationByLibrary.set(
+          //     buildClaudeLibraryStateKey(currentLibraryID),
+          //     key,
+          //   );
+          // } else if (isCodexConversationSystem()) {
+          //   activeCodexGlobalConversationByLibrary.set(
+          //     buildCodexLibraryStateKey(currentLibraryID),
+          //     key,
+          //   );
+          //   setLastUsedCodexGlobalConversationKey(currentLibraryID, key);
+          // } else {
+          //   activeGlobalConversationByLibrary.set(currentLibraryID, key);
+          // }
+          activeGlobalConversationByLibrary.set(currentLibraryID, key);
+          const newItem = buildStandalonePortalItem({
+            mode: "open",
+            conversationKey: key,
+          });
+          if (newItem) mountChatPanel(newItem);
+        } else {
+          if (currentBasePaperItem) {
+            const sessionVersion = Number(target.dataset.sessionVersion || "0");
+            const newItem = buildStandalonePortalItem({
+              mode: "paper",
+              conversationKey: key,
+              paperItem: currentBasePaperItem,
+              sessionVersion,
+            });
+            currentPaperItem = currentBasePaperItem;
+            if (newItem) mountChatPanel(newItem);
+          }
+        }
+      });
+
+      // const resolveStandaloneGlobalConversation = async (
+      //   options: boolean | StandaloneCreateConversationOptions = false,
+      // ): Promise<number> => {
+      //   const { excludeConversationKey } =
+      //     normalizeStandaloneCreateConversationOptions(options);
+      //   const currentLibraryID = getCurrentLibraryScopeID();
+      //   if (!currentLibraryID) return 0;
+      //   const result = await resolveFreshConversationDraft({
+      //     system: currentConversationSystem,
+      //     kind: "global",
+      //     libraryID: currentLibraryID,
+      //     currentConversationKey: activeConversationKey,
+      //     excludeConversationKey,
+      //   });
+      //   return result.conversationKey;
+      // };
+
+      // const resolveStandalonePaperConversation = async (
+      //   options: boolean | StandaloneCreateConversationOptions = false,
+      //   paperItemOverride?: Zotero.Item | null,
+      // ): Promise<{ conversationKey: number; sessionVersion?: number }> => {
+      //   const { excludeConversationKey } =
+      //     normalizeStandaloneCreateConversationOptions(options);
+      //   const targetPaperItem = paperItemOverride || currentBasePaperItem;
+      //   if (!targetPaperItem) {
+      //     return { conversationKey: 0 };
+      //   }
+      //   const paperLibraryID = getLibraryIDForPaperItem(targetPaperItem);
+      //   const paperId = Number(targetPaperItem.id || 0);
+      //   if (!paperLibraryID || !paperId) {
+      //     return { conversationKey: 0 };
+      //   }
+      //   const result = await resolveFreshConversationDraft({
+      //     system: currentConversationSystem,
+      //     kind: "paper",
+      //     libraryID: paperLibraryID,
+      //     paperItemID: paperId,
+      //     currentConversationKey: activeConversationKey,
+      //     excludeConversationKey,
+      //   });
+      //   return {
+      //     conversationKey: result.conversationKey,
+      //     sessionVersion: result.sessionVersion,
+      //   };
+      // };
+
+      // const touchStandaloneEmptyDraftActivity = async (
+      //   conversationKey: number,
+      //   kind: "global" | "paper",
+      // ): Promise<void> => {
+      //   const normalizedKey = Number.isFinite(conversationKey)
+      //     ? Math.floor(conversationKey)
+      //     : 0;
+      //   if (normalizedKey <= 0) return;
+      //   await conversationRepository.touchEmptyCatalogActivity({
+      //     system: currentConversationSystem,
+      //     kind,
+      //     conversationKey: normalizedKey,
+      //     timestamp: Date.now(),
+      //   });
+      // };
+
+      const mountStandaloneOpenConversation = (
+        conversationKey: number,
+      ): boolean => {
+        const normalizedKey = Number.isFinite(conversationKey)
+          ? Math.floor(conversationKey)
+          : 0;
+        if (normalizedKey <= 0 || cancelled) return false;
+        standaloneMode = "open";
+        paperTab.classList.remove("active");
+        openTab.classList.add("active");
+        activeConversationKey = normalizedKey;
+        const currentLibraryID = getCurrentLibraryScopeID();
+        // if (isClaudeConversationSystem()) {
+        //   activeClaudeGlobalConversationByLibrary.set(
+        //     buildClaudeLibraryStateKey(currentLibraryID),
+        //     normalizedKey,
+        //   );
+        // } else if (isCodexConversationSystem()) {
+        //   activeCodexGlobalConversationByLibrary.set(
+        //     buildCodexLibraryStateKey(currentLibraryID),
+        //     normalizedKey,
+        //   );
+        //   setLastUsedCodexGlobalConversationKey(
+        //     currentLibraryID,
+        //     normalizedKey,
+        //   );
+        // } else {
+        //   activeGlobalConversationByLibrary.set(
+        //     currentLibraryID,
+        //     normalizedKey,
+        //   );
+        // }
+        activeGlobalConversationByLibrary.set(
+            currentLibraryID,
+            normalizedKey,
+          );
+        const nextItem = buildStandalonePortalItem({
+          mode: "open",
+          conversationKey: normalizedKey,
+        });
+        if (!nextItem) {
+          return false;
+        }
+        mountChatPanel(nextItem);
+        scheduleStandaloneSidebarRender();
+        return true;
+      };
+
+      // const createStandaloneOpenConversationForContext =
+      //   async (): Promise<boolean> => {
+      //     const currentLibraryID = getCurrentLibraryScopeID();
+      //     if (!currentLibraryID) return false;
+      //     const summary = await conversationRepository.createCatalogEntry({
+      //       system: currentConversationSystem,
+      //       kind: "global",
+      //       libraryID: currentLibraryID,
+      //     });
+      //     const conversationKey = Number(summary?.conversationKey || 0);
+      //     if (!Number.isFinite(conversationKey) || conversationKey <= 0) {
+      //       return false;
+      //     }
+      //     if (cancelled) return false;
+      //     await touchStandaloneEmptyDraftActivity(conversationKey, "global");
+      //     return mountStandaloneOpenConversation(conversationKey);
+      //   };
+
+      // const restoreStandaloneOpenConversation = async (
+      //   options: boolean | StandaloneCreateConversationOptions = false,
+      // ): Promise<boolean> => {
+      //   const conversationKey =
+      //     await resolveStandaloneGlobalConversation(options);
+      //   if (!conversationKey || cancelled) {
+      //     return false;
+      //   }
+      //   return mountStandaloneOpenConversation(conversationKey);
+      // };
+
+      // Icon strip handlers — new chat
+      // iconNewChat.addEventListener("click", async () => {
+      //   if (explicitNewChatInFlight) return;
+      //   explicitNewChatInFlight = true;
+      //   try {
+      //     // [webchat] In webchat mode, delegate to embedded panel's "+" button.
+      //     // Don't clear sidebar — webchat history stays (conversations live on the web).
+      //     if (isInWebChatMode) {
+      //       const embeddedNewBtn = contentArea.querySelector(
+      //         "#paperpilot-history-new",
+      //       ) as HTMLElement | null;
+      //       if (embeddedNewBtn) embeddedNewBtn.click();
+      //       return;
+      //     }
+
+      //     if (standaloneMode === "open") {
+      //       const currentLibraryID = getCurrentLibraryScopeID();
+      //       // const newKey = await resolveStandaloneGlobalConversation(true);
+      //       // if (!newKey || cancelled) return;
+      //       if (cancelled) return;
+      //       // await touchStandaloneEmptyDraftActivity(newKey, "global");
+      //       // activeConversationKey = newKey;
+      //       if (isClaudeConversationSystem()) {
+      //         activeClaudeGlobalConversationByLibrary.set(
+      //           buildClaudeLibraryStateKey(currentLibraryID),
+      //           newKey,
+      //         );
+      //       } else if (isCodexConversationSystem()) {
+      //         activeCodexGlobalConversationByLibrary.set(
+      //           buildCodexLibraryStateKey(currentLibraryID),
+      //           newKey,
+      //         );
+      //         setLastUsedCodexGlobalConversationKey(currentLibraryID, newKey);
+      //       } else {
+      //         activeGlobalConversationByLibrary.set(currentLibraryID, newKey);
+      //       }
+      //       const newItem = buildStandalonePortalItem({
+      //         mode: "open",
+      //         conversationKey: newKey,
+      //       });
+      //       if (!newItem) return;
+      //       mountChatPanel(newItem);
+      //       await renderSidebar();
+      //     } else {
+      //       if (currentBasePaperItem) {
+      //         const { conversationKey: newKey, sessionVersion } =
+      //           await resolveStandalonePaperConversation(true);
+      //         if (!newKey || cancelled) return;
+      //         await touchStandaloneEmptyDraftActivity(newKey, "paper");
+      //         const newItem = buildStandalonePortalItem({
+      //           mode: "paper",
+      //           conversationKey: newKey,
+      //           paperItem: currentBasePaperItem,
+      //           sessionVersion,
+      //         });
+      //         if (!newItem) return;
+      //         activeConversationKey = newKey;
+      //         currentPaperItem = currentBasePaperItem;
+      //         mountChatPanel(newItem);
+      //         await renderSidebar();
+      //       }
+      //     }
+      //   } catch (err) {
+      //     ztoolkit.log("Paper Pilot: standalone new chat failed", err);
+      //   } finally {
+      //     explicitNewChatInFlight = false;
+      //   }
+      // });
+
+      iconSidebarToggle.addEventListener("click", () => toggleSidebar());
+
+      // Icon strip action buttons
+      iconSettings.addEventListener("click", () => {
+        const btn = contentArea.querySelector(
+          "#paperpilot-settings",
+        ) as HTMLElement | null;
+        if (btn) btn.click();
+      });
+      iconExport.addEventListener("click", (e: Event) => {
+        e.stopPropagation();
+        if (exportPopup.style.display !== "none") {
+          exportPopup.style.display = "none";
+          return;
+        }
+        // Position popup to the right of the icon strip, near the export icon
+        const stripRect = iconStrip.getBoundingClientRect();
+        const iconRect = iconExport.getBoundingClientRect();
+        exportPopup.style.position = "fixed";
+        exportPopup.style.left = `${Math.round(stripRect.right + 4)}px`;
+        exportPopup.style.top = `${Math.round(iconRect.top)}px`;
+        exportPopup.style.display = "flex";
+      });
+      exportPopupCopyBtn.addEventListener("click", () => {
+        exportPopup.style.display = "none";
+        const innerBtn = contentArea.querySelector(
+          "#paperpilot-export-copy",
+        ) as HTMLElement | null;
+        if (innerBtn) innerBtn.click();
+      });
+      exportPopupNoteBtn.addEventListener("click", () => {
+        exportPopup.style.display = "none";
+        const innerBtn = contentArea.querySelector(
+          "#paperpilot-export-note",
+        ) as HTMLElement | null;
+        if (innerBtn) innerBtn.click();
+      });
+      iconClear.addEventListener("click", () => {
+        const btn = contentArea.querySelector(
+          "#paperpilot-clear",
+        ) as HTMLElement | null;
+        if (btn) btn.click();
+      });
+
+      // -----------------------------------------------------------------------
+      // Top bar tab switching
+      // -----------------------------------------------------------------------
+      let systemSwitchSeq = 0;
+      // const switchConversationSystem = async (
+      //   nextSystem: ConversationSystem,
+      //   options?: { forceFresh?: boolean },
+      // ) => {
+      //   const switchSeq = ++systemSwitchSeq;
+      //   const activeNoteItem = resolveActiveNoteSession(activeItem)
+      //     ? activeItem
+      //     : null;
+      //   if (activeNoteItem) {
+      //     const resolvedNextSystem = resolveNoteFocusSystemSwitch({
+      //       nextSystem,
+      //       codexAvailable: isCodexAppServerModeEnabled(),
+      //       claudeAvailable: getClaudeCodeModeEnabled(),
+      //     });
+      //     if (!resolvedNextSystem) return;
+      //     if (resolvedNextSystem === currentConversationSystem) return;
+      //     setConversationSystemPref(resolvedNextSystem);
+      //     currentConversationSystem = resolvedNextSystem;
+      //     activeConversationKey = getConversationKey(activeNoteItem);
+      //     mountChatPanel(activeNoteItem);
+      //     scheduleStandaloneSidebarRender();
+      //     updateStandaloneSystemToggle();
+      //     return;
+      //   }
+      //   const currentSystem = currentConversationSystem;
+      //   if (nextSystem === currentSystem) return;
+      //   const forceFresh = options?.forceFresh === true;
+      //   setConversationSystemPref(nextSystem);
+      //   currentConversationSystem = nextSystem;
+      //   updateStandaloneSystemToggle();
+      //   if (standaloneMode === "open") {
+      //     const libraryID = getCurrentLibraryScopeID();
+      //     const mountOpenConversation = (conversationKey: number) => {
+      //       if (switchSeq !== systemSwitchSeq) return;
+      //       const nextItem =
+      //         nextSystem === "claude_code"
+      //           ? createClaudeGlobalPortalItem(libraryID, conversationKey)
+      //           : nextSystem === "codex"
+      //             ? createCodexGlobalPortalItem(libraryID, conversationKey)
+      //             : createGlobalPortalItem(libraryID, conversationKey);
+      //       activeConversationKey = conversationKey;
+      //       if (nextSystem === "claude_code") {
+      //         activeClaudeGlobalConversationByLibrary.set(
+      //           buildClaudeLibraryStateKey(libraryID),
+      //           conversationKey,
+      //         );
+      //       } else if (nextSystem === "codex") {
+      //         activeCodexGlobalConversationByLibrary.set(
+      //           buildCodexLibraryStateKey(libraryID),
+      //           conversationKey,
+      //         );
+      //         setLastUsedCodexGlobalConversationKey(libraryID, conversationKey);
+      //       } else {
+      //         activeGlobalConversationByLibrary.set(libraryID, conversationKey);
+      //       }
+      //       mountChatPanel(nextItem as Zotero.Item);
+      //       scheduleStandaloneSidebarRender();
+      //       updateStandaloneSystemToggle();
+      //     };
+
+      //     if (forceFresh) {
+      //       const newKey = await resolveStandaloneGlobalConversation(true);
+      //       if (switchSeq !== systemSwitchSeq) return;
+      //       if (newKey > 0) {
+      //         await touchStandaloneEmptyDraftActivity(newKey, "global");
+      //         if (switchSeq !== systemSwitchSeq) return;
+      //         mountOpenConversation(newKey);
+      //       }
+      //       return;
+      //     }
+
+      //     if (nextSystem === "claude_code") {
+      //       const rememberedKey = Number(
+      //         resolveRememberedClaudeConversationKey({
+      //           libraryID,
+      //           kind: "global",
+      //         }) || 0,
+      //       );
+      //       const targetKey =
+      //         Number.isFinite(rememberedKey) && rememberedKey > 0
+      //           ? Math.floor(rememberedKey)
+      //           : buildDefaultClaudeGlobalConversationKey(libraryID);
+      //       if (switchSeq !== systemSwitchSeq) return;
+      //       if (targetKey > 0) {
+      //         mountOpenConversation(targetKey);
+      //       }
+      //       return;
+      //     }
+
+      //     if (nextSystem === "codex") {
+      //       const rememberedKey = Number(
+      //         activeCodexGlobalConversationByLibrary.get(
+      //           buildCodexLibraryStateKey(libraryID),
+      //         ) ||
+      //           getLastUsedCodexGlobalConversationKey(libraryID) ||
+      //           0,
+      //       );
+      //       const targetKey =
+      //         Number.isFinite(rememberedKey) && rememberedKey > 0
+      //           ? Math.floor(rememberedKey)
+      //           : buildDefaultCodexGlobalConversationKey(libraryID);
+      //       if (switchSeq !== systemSwitchSeq) return;
+      //       if (targetKey > 0) {
+      //         mountOpenConversation(targetKey);
+      //       }
+      //       return;
+      //     }
+
+      //     const rememberedUpstreamKey = (() => {
+      //       const lockedKey = getLockedGlobalConversationKey(libraryID);
+      //       if (lockedKey !== null) return lockedKey;
+      //       const activeKey = Number(
+      //         activeGlobalConversationByLibrary.get(libraryID) || 0,
+      //       );
+      //       if (!isUpstreamGlobalConversationKey(activeKey)) return 0;
+      //       return activeKey === GLOBAL_CONVERSATION_KEY_BASE
+      //         ? buildDefaultUpstreamGlobalConversationKey(libraryID)
+      //         : Math.floor(activeKey);
+      //     })();
+      //     const targetKey =
+      //       Number.isFinite(rememberedUpstreamKey) && rememberedUpstreamKey > 0
+      //         ? Math.floor(rememberedUpstreamKey)
+      //         : buildDefaultUpstreamGlobalConversationKey(libraryID);
+      //     if (switchSeq !== systemSwitchSeq) return;
+      //     if (targetKey > 0) {
+      //       mountOpenConversation(targetKey);
+      //     }
+      //     return;
+      //   }
+      //   const nextRawItem =
+      //     getSelectedZoteroItem() || currentBasePaperItem || currentPaperItem;
+      //   const resolved = resolveInitialPanelItemState(nextRawItem, {
+      //     conversationSystem: nextSystem,
+      //   });
+      //   currentRawContextItem = nextRawItem || currentRawContextItem;
+      //   currentBasePaperItem = resolved.basePaperItem || currentBasePaperItem;
+      //   currentPaperItem = resolved.item || currentPaperItem;
+      //   if (forceFresh) {
+      //     const paperItem = currentBasePaperItem;
+      //     if (!paperItem) return;
+      //     const { conversationKey: newKey, sessionVersion } =
+      //       await resolveStandalonePaperConversation(true);
+      //     if (switchSeq !== systemSwitchSeq) return;
+      //     if (!newKey) return;
+      //     await touchStandaloneEmptyDraftActivity(newKey, "paper");
+      //     if (switchSeq !== systemSwitchSeq) return;
+      //     const freshItem =
+      //       nextSystem === "claude_code"
+      //         ? createClaudePaperPortalItem(paperItem, newKey)
+      //         : nextSystem === "codex"
+      //           ? createCodexPaperPortalItem(paperItem, newKey)
+      //           : createPaperPortalItem(paperItem, newKey, sessionVersion || 1);
+      //     activeConversationKey = newKey;
+      //     currentPaperItem = paperItem;
+      //     mountChatPanel(freshItem as Zotero.Item, currentRawContextItem);
+      //     scheduleStandaloneSidebarRender();
+      //     void renderShortcuts(contentArea, freshItem as Zotero.Item, "paper");
+      //     updateStandaloneSystemToggle();
+      //     return;
+      //   }
+      //   if (switchSeq !== systemSwitchSeq) return;
+      //   const nextItem = resolved.item || nextRawItem;
+      //   if (nextItem) {
+      //     mountChatPanel(nextItem, currentRawContextItem);
+      //     scheduleStandaloneSidebarRender();
+      //     void renderShortcuts(
+      //       contentArea,
+      //       nextItem,
+      //       resolveShortcutMode(nextItem),
+      //     );
+      //   }
+      //   updateStandaloneSystemToggle();
+      // };
+
+      // systemToggleBtn.addEventListener("click", () => {
+      //   void switchConversationSystem(
+      //     isRuntimeConversationSystem()
+      //       ? "upstream"
+      //       : getPreferredRuntimeSystem(),
+      //     { forceFresh: true },
+      //   );
+      // });
+      updateStandaloneSystemToggle();
+      {
+        const claudeModePrefKey = `${config.prefsPrefix}.enableClaudeCodeMode`;
+        const codexModePrefKey = `${config.prefsPrefix}.enableCodexAppServerMode`;
+        let claudeObserverId: symbol | undefined;
+        let codexObserverId: symbol | undefined;
+        const unregister = () => {
+          for (const observerId of [claudeObserverId, codexObserverId]) {
+            if (observerId === undefined) continue;
+            try {
+              (Zotero as any).Prefs.unregisterObserver(observerId);
+            } catch {
+              void 0;
+            }
+          }
+          claudeObserverId = undefined;
+          codexObserverId = undefined;
+        };
+        cleanupStandalonePrefObserver = unregister;
+        const onClaudeModePrefChange = () => {
+          if (cancelled) {
+            unregister();
+            return;
+          }
+          // if (!getClaudeCodeModeEnabled()) {
+          //   void releaseClaudeRuntimeForBody(contentArea as Element);
+          //   void initAgentSubsystem()
+          //     .then((coreRuntime) =>
+          //       invalidateAllClaudeHotRuntimes(coreRuntime),
+          //     )
+          //     .catch((err) => {
+          //       ztoolkit.log(
+          //         "LLM: Failed to invalidate all Claude hot runtimes",
+          //         err,
+          //       );
+          //     });
+          //   if (getConversationSystemPref() === "claude_code") {
+          //     setConversationSystemPref("upstream");
+          //   }
+          //   if (isClaudeConversationSystem()) {
+          //     void switchConversationSystem("upstream");
+          //     return;
+          //   }
+          // }
+          updateStandaloneSystemToggle();
+        };
+        const onCodexModePrefChange = () => {
+          if (cancelled) {
+            unregister();
+            return;
+          }
+          // if (!isCodexAppServerModeEnabled()) {
+          //   if (getConversationSystemPref() === "codex") {
+          //     setConversationSystemPref("upstream");
+          //   }
+          //   if (isCodexConversationSystem()) {
+          //     void switchConversationSystem("upstream");
+          //     return;
+          //   }
+          // }
+          updateStandaloneSystemToggle();
+        };
+        try {
+          claudeObserverId = (Zotero as any).Prefs.registerObserver(
+            claudeModePrefKey,
+            onClaudeModePrefChange,
+            true,
+          );
+          codexObserverId = (Zotero as any).Prefs.registerObserver(
+            codexModePrefKey,
+            onCodexModePrefChange,
+            true,
+          );
+        } catch {
+          void 0;
+        }
+      }
+
+      const commitStandaloneMode = (mode: "open" | "paper") => {
+        standaloneMode = mode;
+        // if (isClaudeConversationSystem()) {
+        //   setLastUsedClaudeConversationMode(
+        //     getCurrentLibraryScopeID(),
+        //     mode === "open" ? "global" : "paper",
+        //   );
+        // } else if (isCodexConversationSystem()) {
+        //   setLastUsedCodexConversationMode(
+        //     getCurrentLibraryScopeID(),
+        //     mode === "open" ? "global" : "paper",
+        //   );
+        // }
+        paperTab.classList.toggle("active", mode === "paper");
+        openTab.classList.toggle("active", mode === "open");
+      };
+
+      const showNoPaperChatSourceStatus = () => {
+        setStandaloneDeletionStatus(
+          t("Open a supported Zotero document to start a paper chat"),
+          "error",
+        );
+      };
+
+      const resolvePaperSwitchTarget = (
+        rawItem: Zotero.Item | null,
+      ): { rawItem: Zotero.Item | null; paperItem: Zotero.Item | null } => {
+        const resolved = resolveInitialPanelItemState(rawItem, {
+          conversationSystem: currentConversationSystem,
+        });
+        return {
+          rawItem,
+          paperItem:
+            resolved.basePaperItem ||
+            (rawItem ? resolvePaperChatSourceItem(rawItem) : null),
+        };
+      };
+
+      const mountStandalonePaperConversation = async (params: {
+        paperItem: Zotero.Item;
+        rawItem?: Zotero.Item | null;
+        forceFresh?: boolean;
+      }): Promise<boolean> => {
+        const paperLibraryID = getLibraryIDForPaperItem(params.paperItem);
+        const paperId = Number(params.paperItem.id || 0);
+        if (
+          !Number.isFinite(paperLibraryID) ||
+          paperLibraryID <= 0 ||
+          !Number.isFinite(paperId) ||
+          paperId <= 0
+        ) {
+          return false;
+        }
+        // const { conversationKey: newKey, sessionVersion } =
+        //   await resolveStandalonePaperConversation(
+        //     Boolean(params.forceFresh),
+        //     params.paperItem,
+        //   );
+        // if (!newKey || cancelled) return false;
+        // const nextItem = buildStandalonePortalItem({
+        //   mode: "paper",
+        //   conversationKey: newKey,
+        //   paperItem: params.paperItem,
+        //   sessionVersion,
+        // });
+        // if (!nextItem) return false;
+        // activeConversationKey = newKey;
+        currentRawContextItem = params.rawItem || params.paperItem;
+        currentBasePaperItem = params.paperItem;
+        currentPaperItem = params.paperItem;
+        commitStandaloneMode("paper");
+        // mountChatPanel(nextItem, currentRawContextItem);
+        scheduleStandaloneSidebarRender();
+        return true;
+      };
+
+      const switchToMode = async (mode: "open" | "paper") => {
+        try {
+          // [webchat] If in webchat mode and user clicks "Library chat", exit webchat first
+          if (isInWebChatMode && mode === "open") {
+            const clearBtnEl = contentArea.querySelector(
+              "#paperpilot-clear",
+            ) as HTMLElement | null;
+            if (clearBtnEl) clearBtnEl.click();
+          }
+          if (isInWebChatMode && mode === "paper") return;
+          if (mode === standaloneMode) return;
+
+          // if (mode === "open") {
+          //   const currentLibraryID = getCurrentLibraryScopeID();
+          //   const key = await resolveStandaloneGlobalConversation(false);
+          //   if (!key) return;
+          //   const item = buildStandalonePortalItem({
+          //     mode: "open",
+          //     conversationKey: key,
+          //   });
+          //   if (!item) return;
+          //   activeConversationKey = key;
+          //   if (isClaudeConversationSystem()) {
+          //     activeClaudeGlobalConversationByLibrary.set(
+          //       buildClaudeLibraryStateKey(currentLibraryID),
+          //       key,
+          //     );
+          //   } else if (isCodexConversationSystem()) {
+          //     activeCodexGlobalConversationByLibrary.set(
+          //       buildCodexLibraryStateKey(currentLibraryID),
+          //       key,
+          //     );
+          //     setLastUsedCodexGlobalConversationKey(currentLibraryID, key);
+          //   } else {
+          //     activeGlobalConversationByLibrary.set(currentLibraryID, key);
+          //   }
+          //   commitStandaloneMode("open");
+          //   mountChatPanel(item);
+          //   scheduleStandaloneSidebarRender();
+          //   return;
+          // }
+
+          const rawItem =
+            getSelectedZoteroItem() ||
+            currentRawContextItem ||
+            currentBasePaperItem ||
+            currentPaperItem;
+          const target = resolvePaperSwitchTarget(rawItem);
+          if (!target.paperItem) {
+            showNoPaperChatSourceStatus();
+            return;
+          }
+          const mounted = await mountStandalonePaperConversation({
+            paperItem: target.paperItem,
+            rawItem: target.rawItem,
+          });
+          if (!mounted) {
+            showNoPaperChatSourceStatus();
+          }
+        } catch (err) {
+          ztoolkit.log("LLM: standalone mode switch failed", err);
+          if (mode === "paper") showNoPaperChatSourceStatus();
+        }
+      };
+
+      paperTab.addEventListener("click", () => {
+        void switchToMode("paper");
+      });
+      openTab.addEventListener("click", () => {
+        void switchToMode("open");
+      });
+
+      // Auto-collapse sidebar when window is narrow, respecting manual override.
+      // ResizeObserver is unavailable in some Gecko/XUL window contexts —
+      // fall back to a simple resize event listener.
+      let lastAutoState: "expanded" | "collapsed" | null = null;
+      let lastAutoWidth: number | null = null;
+      const resolveAutoSidebarState = (width: number) => {
+        let autoState: "expanded" | "collapsed" =
+          lastAutoState ||
+          (width < STANDALONE_SIDEBAR_AUTO_COLLAPSE_THRESHOLD_PX
+            ? "collapsed"
+            : "expanded");
+        if (
+          lastAutoWidth !== null &&
+          width < lastAutoWidth &&
+          width < STANDALONE_SIDEBAR_AUTO_COLLAPSE_THRESHOLD_PX
+        ) {
+          autoState = "collapsed";
+        } else if (
+          lastAutoWidth !== null &&
+          width > lastAutoWidth &&
+          width > STANDALONE_SIDEBAR_AUTO_EXPAND_THRESHOLD_PX
+        ) {
+          autoState = "expanded";
+        } else if (
+          lastAutoWidth === null &&
+          width >= STANDALONE_SIDEBAR_AUTO_COLLAPSE_THRESHOLD_PX
+        ) {
+          autoState = "expanded";
+        }
+        lastAutoWidth = width;
+        return autoState;
+      };
+      const applyAutoSidebarState = (width: number) => {
+        const autoState = resolveAutoSidebarState(width);
+        if (userManualSidebarState !== null) {
+          if (lastAutoState !== null && autoState !== lastAutoState) {
+            userManualSidebarState = null;
+            setSidebarState(autoState);
+          }
+        } else {
+          setSidebarState(autoState);
+        }
+        lastAutoState = autoState;
+      };
+      const handleResize = () => {
+        applyAutoSidebarState(root.clientWidth || 0);
+      };
+      const RO =
+        (newWin as any).ResizeObserver || (globalThis as any).ResizeObserver;
+      if (RO) {
+        const resizeObserver = new RO((entries: any[]) => {
+          const width = entries[0]?.contentRect?.width || root.clientWidth || 0;
+          applyAutoSidebarState(width);
+        });
+        resizeObserver.observe(root);
+      } else {
+        newWin.addEventListener("resize", handleResize);
+        handleResize();
+      }
+
+      // Cmd/Ctrl+W to close the standalone window
+      newWin.addEventListener("keydown", (e: KeyboardEvent) => {
+        const isMac = (Zotero as any).isMac;
+        if ((isMac ? e.metaKey : e.ctrlKey) && e.key === "w") {
+          e.preventDefault();
+          newWin.close();
+        }
+      });
+
+      // Listen for paper tab changes in the main Zotero window.
+      // When the user switches to a different paper, update the standalone chat.
+      standaloneItemChangeHandler = (rawItem: Zotero.Item | null) => {
+        if (cancelled || standaloneMode !== "paper") return;
+        const resolved = resolveInitialPanelItemState(rawItem, {
+          conversationSystem:
+            resolveConversationSystemForItem(rawItem) ||
+            currentConversationSystem,
+        });
+        const newBasePaper =
+          resolved.basePaperItem ||
+          (rawItem ? resolvePaperChatSourceItem(rawItem) : null);
+        if (!newBasePaper) {
+          currentRawContextItem = rawItem;
+          currentBasePaperItem = null;
+          currentPaperItem = null;
+          syncPaperTabLabel();
+          // void restoreStandaloneOpenConversation(false).then(() => {
+          //   if (!cancelled) showNoPaperChatSourceStatus();
+          // });
+          return;
+        }
+        // Skip if same paper
+        const newPaperID = Number(newBasePaper.id || 0);
+        const oldPaperID = Number(currentBasePaperItem?.id || 0);
+        if (newPaperID > 0 && newPaperID === oldPaperID) {
+          const newRawContextID = Number(rawItem?.id || 0);
+          const oldRawContextID = Number(currentRawContextItem?.id || 0);
+          if (newRawContextID > 0 && newRawContextID !== oldRawContextID) {
+            currentRawContextItem = rawItem;
+            mountChatPanel(
+              activeItem || currentPaperItem || newBasePaper,
+              rawItem,
+            );
+            scheduleStandaloneSidebarRender();
+          }
+          return;
+        }
+        // Switch to the new paper
+        void mountStandalonePaperConversation({
+          paperItem: newBasePaper,
+          rawItem: rawItem || newBasePaper,
+        }).then((mounted) => {
+          if (!mounted && !cancelled) {
+            // void restoreStandaloneOpenConversation(false).then(() => {
+            //   if (!cancelled) showNoPaperChatSourceStatus();
+            // });
+          }
+        });
+      };
+
+      // Initial mount preserves the current paper/library conversation. The
+      // only automatic blank draft is created once during Zotero startup.
+      ztoolkit.log(
+        "LLM: standalone mounting initial item",
+        "mode=" + standaloneMode,
+        "itemId=" + (initialMountedItem?.id ?? "null"),
+        "convKey=" + getConversationKey(initialMountedItem),
+      );
+      mountChatPanel(initialMountedItem, currentRawContextItem);
+      ztoolkit.log(
+        "LLM: standalone renderSidebar start",
+        "mode=" + standaloneMode,
+      );
+      scheduleStandaloneSidebarRender();
+      renderStandalonePlaceholdersInEmbeddedPanels(contentArea);
+    } catch (err) {
+      ztoolkit.log("LLM: standalone initWindow failed", err);
+      // Show a visible error so the window isn't silently blank
+      try {
+        const root = newWin.document?.getElementById(
+          "paperpilot-standalone-chat-root",
+        );
+        const target = root || newWin.document?.body;
+        if (target) {
+          const msg = newWin.document.createElementNS(
+            HTML_NS,
+            "div",
+          ) as HTMLDivElement;
+          msg.style.cssText =
+            "display:flex;align-items:center;justify-content:center;" +
+            "height:100%;color:#f87171;font-size:14px;padding:24px;text-align:center;";
+          msg.textContent =
+            "Failed to initialize chat window. Check the error console for details.";
+          target.appendChild(msg);
+        }
+      } catch {
+        /* ignore fallback errors */
+      }
+    }
+  };
+
+  const cleanupWindow = () => {
+    cancelled = true;
+    cleanupStandalonePrefObserver?.();
+    standaloneItemChangeHandler = null;
+    themeObserver?.disconnect();
+    themeObserver = null;
+    if (enforceStandaloneMinimumSize) {
+      newWin.removeEventListener("resize", enforceStandaloneMinimumSize);
+    }
+    enforceStandaloneMinimumSize = null;
+    if (darkMQ && onSchemeChange) {
+      darkMQ.removeEventListener("change", onSchemeChange);
+    }
+    darkMQ = null;
+    onSchemeChange = null;
+    if (standaloneAttachmentGcTimer !== null) {
+      newWin.clearTimeout(standaloneAttachmentGcTimer);
+      standaloneAttachmentGcTimer = null;
+    }
+    setStandalonePending(false);
+    // Remove the standalone window's content area from panel tracking
+    const root = newWin.document?.getElementById(
+      "paperpilot-standalone-chat-root",
+    );
+    const contentArea = root?.querySelector(".paperpilot-standalone-content");
+    if (contentArea) {
+      // void releaseClaudeRuntimeForBody(contentArea as Element);
+      activeContextPanels.delete(contentArea);
+      activeContextPanelRawItems.delete(contentArea);
+      activeContextPanelStateSync.delete(contentArea);
+    }
+    const sessionWin = getStandaloneSessionWindow();
+    if (sessionWin === newWin || sessionWin === null) {
+      setStandaloneSessionWindow(null);
+    }
+    restoreEmbeddedPanelsAfterStandaloneClose(contentArea as Element | null);
+  };
+
+  newWin.addEventListener("load", initWindow, { once: true });
+  // Note: unload is registered inside initWindow to avoid the XUL
+  // about:blank → document transition firing a premature unload.
 }
 
 
-/** Returns true when the standalone chat window is open or being opened. */
-export function isStandaloneWindowActive(): boolean {
-  if (standaloneSessionState.pending) return true;
-  return Boolean(getStandaloneSessionWindow());
-}
 
 
