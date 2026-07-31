@@ -3,9 +3,11 @@ node_modules
 package-lock.json
 tsconfig.tsbuildinfo
 i10n.d.ts
+prefs.d.ts
 
 .env
 .scaffold
 
 .DS_Store
+
 
