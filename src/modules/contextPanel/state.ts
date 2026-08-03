@@ -234,3 +234,22 @@ export function setResponseMenuTarget(value: typeof responseMenuTarget) {
 }
 
 
+export type ResponseActionKind = "copy" | "note" | "fork" | "delete";
+export type ResponseActionRunner = (
+  action: ResponseActionKind,
+  target: ResponseActionTarget | null,
+) => Promise<void>;
+
+
+const responseActionRunners = new WeakMap<Element, ResponseActionRunner>();
+export function setResponseActionRunner(
+  body: Element,
+  value: ResponseActionRunner | null,
+): void {
+  if (value) {
+    responseActionRunners.set(body, value);
+  } else {
+    responseActionRunners.delete(body);
+  }
+}
+

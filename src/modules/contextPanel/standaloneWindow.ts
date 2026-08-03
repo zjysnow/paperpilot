@@ -1873,7 +1873,7 @@ export function openStandaloneChat(options?: {
         // In webchat mode, sidebar is managed by renderWebChatSidebar() — skip local rendering
         if (isInWebChatMode) return;
         ztoolkit.log(
-          "LLM: standalone renderSidebar",
+          "Paper Pilot: standalone renderSidebar",
           "mode=" + standaloneMode,
           "hasBasePaper=" + Boolean(currentBasePaperItem),
           "basePaperId=" + (currentBasePaperItem?.id ?? "null"),
@@ -3896,14 +3896,14 @@ export function openStandaloneChat(options?: {
       // Initial mount preserves the current paper/library conversation. The
       // only automatic blank draft is created once during Zotero startup.
       ztoolkit.log(
-        "LLM: standalone mounting initial item",
+        "Paper Pilot: standalone mounting initial item",
         "mode=" + standaloneMode,
         "itemId=" + (initialMountedItem?.id ?? "null"),
         "convKey=" + getConversationKey(initialMountedItem),
       );
       mountChatPanel(initialMountedItem, currentRawContextItem);
       ztoolkit.log(
-        "LLM: standalone renderSidebar start",
+        "Paper Pilot: standalone renderSidebar start",
         "mode=" + standaloneMode,
       );
       scheduleStandaloneSidebarRender();

@@ -1,6 +1,8 @@
 import { createElement } from "../../utils/domHelpers";
 import { t } from "../../utils/i18n";
 
+import { attachMenuActionController } from "./setupHandlers/controllers/menuActionController";
+
 import type { RuntimeModelEntry } from "../../utils/modelProviders";
 import type { ConversationSystem } from "../../shared/types";
 
@@ -1211,49 +1213,49 @@ export function setupHandlers(
     //   isElementNode,
     // });
 
-    // attachMenuActionController({
-    //   body,
-    //   status,
-    //   responseMenu,
-    //   responseMenuCopyBtn,
-    //   responseMenuNoteBtn,
-    //   responseMenuForkBtn,
-    //   responseMenuDeleteBtn,
-    //   promptMenu,
-    //   promptMenuForkBtn,
-    //   promptMenuDeleteBtn,
-    //   exportMenu,
-    //   exportMenuCopyBtn,
-    //   exportMenuNoteBtn,
-    //   exportBtn,
-    //   popoutBtn,
-    //   settingsBtn,
-    //   preferencesPaneId: PREFERENCES_PANE_ID,
-    //   getItem: () => item,
-    //   getResponseMenuTarget: () => responseMenuTarget,
-    //   getPromptMenuTarget: () => promptMenuTarget,
-    //   getCurrentLibraryID,
-    //   getConversationSystem,
-    //   getCurrentRuntimeModeForItem: (targetItem) =>
-    //     selectedRuntimeModeCache.get(getConversationKey(targetItem)) || null,
-    //   isGlobalMode,
-    //   ensureConversationLoaded,
-    //   getConversationKey,
-    //   getHistory: (conversationKey) => chatHistory.get(conversationKey) || [],
-    //   resolveActiveNoteSession,
-    //   closeResponseMenu,
-    //   closePromptMenu,
-    //   closeExportMenu,
-    //   closeRetryModelMenu,
-    //   closeSlashMenu,
-    //   closeHistoryNewMenu,
-    //   closeHistoryMenu,
-    //   queueTurnDeletion: (target) => queueTurnDeletion(target),
-    //   forkConversationFromTurn: (target) => forkConversationFromTurn(target),
-    //   logError: (message, error) => {
-    //     ztoolkit.log(message, error);
-    //   },
-    // });
+    attachMenuActionController({
+      body,
+      status,
+      responseMenu,
+      responseMenuCopyBtn,
+      responseMenuNoteBtn,
+      responseMenuForkBtn,
+      responseMenuDeleteBtn,
+      promptMenu,
+      promptMenuForkBtn,
+      promptMenuDeleteBtn,
+      exportMenu,
+      exportMenuCopyBtn,
+      exportMenuNoteBtn,
+      exportBtn,
+      popoutBtn,
+      settingsBtn,
+      preferencesPaneId: PREFERENCES_PANE_ID,
+      getItem: () => item,
+      // getResponseMenuTarget: () => responseMenuTarget,
+      // getPromptMenuTarget: () => promptMenuTarget,
+      getCurrentLibraryID,
+      getConversationSystem,
+      getCurrentRuntimeModeForItem: (targetItem) =>
+        selectedRuntimeModeCache.get(getConversationKey(targetItem)) || null,
+      isGlobalMode,
+      ensureConversationLoaded,
+      getConversationKey,
+      // getHistory: (conversationKey) => chatHistory.get(conversationKey) || [],
+      // resolveActiveNoteSession,
+      closeResponseMenu,
+      closePromptMenu,
+      closeExportMenu,
+      closeRetryModelMenu,
+      closeSlashMenu,
+      closeHistoryNewMenu,
+      closeHistoryMenu,
+      queueTurnDeletion: (target) => queueTurnDeletion(target),
+      forkConversationFromTurn: (target) => forkConversationFromTurn(target),
+      logError: (message, error) => {
+        ztoolkit.log(message, error);
+      },
+    });
 
     // Clicking non-interactive panel area gives keyboard focus to the panel.
     panelRoot.addEventListener("mousedown", (e: Event) => {
