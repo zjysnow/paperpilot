@@ -7,6 +7,7 @@ import {
   getPaperChatStartPageHtml,
   getNoteEditingStartPageHtml,
 } from "../../utils/i18n";
+import { renderMarkdownInto, createStreamingRenderer } from "./markdownRenderer";
 
 import {
   MAX_FULL_TEXT_PAPER_CONTEXTS,
@@ -478,7 +479,7 @@ export async function sendQuestion(
     const requestBody = isOllama
       ? {
           model: entry.model,
-          stream: false,
+          stream: true,
           think: false,
           messages: [
             ...(systemPrompt
@@ -538,27 +539,47 @@ export async function sendQuestion(
         headers,
         timeout: 120000,
         successCodes: false,
-       cancellerReceiver: (cancelFunc: () => void) => {
-         canceller = cancelFunc;
-       },
-     });
+        cancellerReceiver: (cancelFunc: () => void) => {
+          canceller = cancelFunc;
+        },
+      });
 
-     if (!xhr.responseText) {
-       throw new Error("Empty response from model");
-     }
+      if (!xhr.responseText) {
+        throw new Error("Empty response from model");
+      }
 
-     ztoolkit.log("Paper Pilot: Received response:", xhr.responseText.substring(0, 200));
-     const payload = JSON.parse(xhr.responseText);
-     const text = extractResponseText(payload);
-     if (text) {
-       assistant.text += text;
-       refreshChat(options.body, options.item);
-     }
+      ztoolkit.log("Paper Pilot: Received response:", xhr.responseText.substring(0, 200));
+      
+      // Handle streaming response format (line-delimited JSON for Ollama)
+      if (isOllama && xhr.responseText.includes("\n")) {
+        const lines = xhr.responseText.trim().split("\n");
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const payload = JSON.parse(line);
+            const text = extractResponseText(payload);
+            if (text) {
+              assistant.text += text;
+            }
+          } catch (parseErr) {
+            ztoolkit.log("Failed to parse streaming line:", line, parseErr);
+          }
+        }
+      } else {
+        // Non-streaming response
+        const payload = JSON.parse(xhr.responseText);
+        const text = extractResponseText(payload);
+        if (text) {
+          assistant.text += text;
+        }
+      }
+      
+      refreshChat(options.body, options.item);
     } catch (httpError) {
-     if (httpError instanceof Error && httpError.message.includes("Empty response")) {
-       throw httpError;
-     }
-     throw new Error(`HTTP request failed: ${httpError instanceof Error ? httpError.message : String(httpError)}`);
+      if (httpError instanceof Error && httpError.message.includes("Empty response")) {
+        throw httpError;
+      }
+      throw new Error(`HTTP request failed: ${httpError instanceof Error ? httpError.message : String(httpError)}`);
     }
     assistant.streaming = false;
     if (!assistant.text.trim()) {
@@ -1828,9 +1849,14 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       if (msg.text) {
         const answerText = doc.createElement("div") as HTMLDivElement;
         answerText.className = "paperpilot-message-text";
-        answerText.style.whiteSpace = "pre-wrap";
-        answerText.style.overflowWrap = "anywhere";
-        answerText.textContent = sanitizeText(msg.text);
+        try {
+          renderMarkdownInto(answerText, sanitizeText(msg.text), doc);
+        } catch (error) {
+          ztoolkit.log("Markdown render error, falling back to plain text:", error);
+          answerText.style.whiteSpace = "pre-wrap";
+          answerText.style.overflowWrap = "anywhere";
+          answerText.textContent = sanitizeText(msg.text);
+        }
         bubble.appendChild(answerText);
       }
 

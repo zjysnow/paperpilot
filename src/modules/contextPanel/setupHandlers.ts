@@ -45,6 +45,11 @@ import {
 } from "./portalScope";
 import { getPanelDomRefs } from "./setupHandlers/domRefs";
 import {
+  renderPaperModeContext,
+  renderPaperModeShortcuts,
+  resolvePaperShortcutAttachment,
+} from "./paperModePresentation";
+import {
   activeContextPanelRawItems,
   activeContextPanels,
   chatHistory,
@@ -233,6 +238,7 @@ export function setupHandlers(
     return rawPanelItem;
   };
   let item = resolvedInitialState.item;
+  let pendingShortcutAttachment: ChatAttachment | null = null;
   let basePaperItem =
     resolvedInitialState.basePaperItem ||
     resolveConversationBaseItem(rawPanelItem);
@@ -336,6 +342,43 @@ export function setupHandlers(
     ztoolkit.log("Paper Pilot: Could not find input or send button");
     return;
   }
+
+  const syncPaperModePresentation = () => {
+    const paperMode = isPaperMode();
+    renderPaperModeContext(body, item);
+    renderPaperModeShortcuts(body, paperMode && Boolean(item));
+  };
+
+  const shortcutsRow = body.querySelector("#paperpilot-shortcuts");
+  shortcutsRow?.addEventListener("click", (event: Event) => {
+    const target = event.target as Element | null;
+    const button = target?.closest(
+      "button[data-shortcut-prompt]",
+    ) as HTMLButtonElement | null;
+    if (!button || !item || !isPaperMode()) return;
+    const prompt = button.dataset.shortcutPrompt?.trim();
+    if (!prompt) return;
+    event.preventDefault();
+    inputBox.value = prompt;
+    inputBox.focus();
+    void resolvePaperShortcutAttachment(item).then((attachment) => {
+      if (!attachment) {
+        pendingShortcutAttachment = null;
+        if (status) {
+          setStatus(status, t("No extractable text is available for this PDF"), "error");
+        }
+        return;
+      }
+      pendingShortcutAttachment = attachment;
+      sendBtn.click();
+    }).catch((error) => {
+      ztoolkit.log("Paper Pilot: failed to load PDF text for shortcut", error);
+      pendingShortcutAttachment = null;
+      if (status) {
+        setStatus(status, t("Could not read the selected PDF"), "error");
+      }
+    });
+  });
 
   if (!panelRoot) {
     ztoolkit.log("Paper Pilot: Could not find panel root");
@@ -651,8 +694,12 @@ export function setupHandlers(
           (entry) => entry.source,
         ),
         screenshotImages: selectedImageCache.get(item.id) || [],
-        attachments: selectedFileAttachmentCache.get(item.id) || [],
+        attachments: [
+          ...(selectedFileAttachmentCache.get(item.id) || []),
+          ...(pendingShortcutAttachment ? [pendingShortcutAttachment] : []),
+        ],
       };
+      pendingShortcutAttachment = null;
       chatHistory.set(conversationKey, [...history, userMessage]);
       persistChatHistory();
       inputBox.value = "";
@@ -1097,6 +1144,7 @@ export function setupHandlers(
     if (isGlobalMode()) {
       if (forceFresh) {
         await createAndSwitchGlobalConversation(true);
+        syncPaperModePresentation();
         return;
       }
       const nextConversationKey = (() => {
@@ -1115,6 +1163,7 @@ export function setupHandlers(
       } else {
         await createAndSwitchGlobalConversation();
       }
+      syncPaperModePresentation();
       return;
     }
     if (forceFresh) {
@@ -1126,6 +1175,7 @@ export function setupHandlers(
       item = resolvedState.item || item;
       basePaperItem = resolvedState.basePaperItem || basePaperItem;
       syncConversationIdentity();
+      syncPaperModePresentation();
       if (item) {
         void ensureConversationLoaded(item).then(() => refreshChat(body, item));
       }

@@ -10,6 +10,7 @@ import {
   formatFigureCountLabel,
   formatFileCountLabel,
 } from "./constants";
+import { renderPaperModeContext, renderPaperModeShortcuts } from "./paperModePresentation";
 
 import type { ActionDropdownSpec } from "./types";
 
@@ -284,6 +285,18 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
 
     container.appendChild(header);
 
+    const paperModeContext = createElement(
+        doc,
+        "div",
+        "paperpilot-paper-mode-context",
+        { id: "paperpilot-paper-mode-context" },
+    );
+
+    // Paper-mode shortcuts sit above the composer, like the upstream panel.
+    const shortcutsRow = createElement(doc, "div", "paperpilot-shortcuts", {
+        id: "paperpilot-shortcuts",
+    });
+
     // Chat display area
     const chatShell = createElement(doc, "div", "paperpilot-chat-shell", {
         id: "paperpilot-chat-shell",
@@ -293,11 +306,6 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     });
     chatShell.append(chatBox);
     container.appendChild(chatShell);
-
-    // Shortcuts row
-    const shortcutsRow = createElement(doc, "div", "paperpilot-shortcuts", {
-        id: "paperpilot-shortcuts",
-    });
     container.appendChild(shortcutsRow);
 
     // Shortcut context menu
@@ -521,6 +529,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     const contextPreviews = createElement(doc, "div", "paperpilot-context-previews", {
         id: "paperpilot-context-previews",
     });
+    contextPreviews.appendChild(paperModeContext);
     const selectedContextList = createElement(
         doc,
         "div",
@@ -895,6 +904,8 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     container.appendChild(inputSection);
     container.appendChild(statusBar);
     body.appendChild(container);
+    renderPaperModeContext(container, item);
+    renderPaperModeShortcuts(container, isPaperMode && hasItem);
 }
 
 
