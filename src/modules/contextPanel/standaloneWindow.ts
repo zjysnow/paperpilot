@@ -43,7 +43,6 @@ import {
 import {
   applyPanelFontScale,
   buildPaperStateKey,
-  // getClaudeCodeModeEnabled,
   getLockedGlobalConversationKey,
   setLockedGlobalConversationKey,
 } from "./prefHelpers";
@@ -204,13 +203,10 @@ function restoreEmbeddedPanelsAfterStandaloneClose(
     setupHandlers(body as Element, resolved.item || rawItem);
     void (async () => {
       try {
-        // if (resolved.item) await ensureConversationLoaded(resolved.item);
-        // await renderShortcuts(
-        //   body as Element,
-        //   resolved.item,
-        //   resolveShortcutMode(resolved.item),
-        // );
-        // refreshChat(body as Element, resolved.item);
+        const restoredItem = resolved.item || rawItem;
+        if (!restoredItem) return;
+        await ensureConversationLoaded(restoredItem);
+        refreshChat(body as Element, restoredItem);
       } catch (err) {
         ztoolkit.log("Paper Pilot: side panel restore failed", err);
       }
@@ -357,12 +353,7 @@ export function openStandaloneChat(options?: {
     // explicitConversationSystem ||
     // storedConversationSystem ||
     // getConversationSystemPref();
-  const initialRuntimeMode =
-    options?.initialRuntimeMode === "agent"
-      ? "agent"
-      : options?.initialRuntimeMode === "chat"
-        ? "chat"
-        : null;
+  const initialRuntimeMode = options?.initialRuntimeMode === "chat" ? "chat" : null;
   const sourceItemSystem = resolveConversationSystemForItem(sourceItem);
   const sourceItemForResolution =
     explicitConversationSystem &&
@@ -438,20 +429,6 @@ export function openStandaloneChat(options?: {
   //   ? null
   //   : getLockedGlobalConversationKey(libraryID);
   const lockedKey = getLockedGlobalConversationKey(libraryID);
-  const sourceClaudeGlobalKey =
-    resolvedSourceState.item &&
-    (resolvedSourceState.item as any).__paperpilotClaudeGlobalPortalItem === true
-      ? Number(resolvedSourceState.item.id || 0)
-      : sourceItem && (sourceItem as any).__paperpilotClaudeGlobalPortalItem === true
-        ? Number(sourceItem.id || 0)
-        : 0;
-  const sourceCodexGlobalKey =
-    resolvedSourceState.item &&
-    (resolvedSourceState.item as any).__paperpilotCodexGlobalPortalItem === true
-      ? Number(resolvedSourceState.item.id || 0)
-      : sourceItem && (sourceItem as any).__paperpilotCodexGlobalPortalItem === true
-        ? Number(sourceItem.id || 0)
-        : 0;
   const conversationKey = buildDefaultUpstreamGlobalConversationKey(libraryID);
   // const conversationKey = isClaudeConversationSystem()
   //   ? sourceClaudeGlobalKey > 0
@@ -809,57 +786,9 @@ export function openStandaloneChat(options?: {
       tabGroup.className = "paperpilot-standalone-tab-group";
       tabGroup.append(paperTab, openTab);
 
-      const systemToggleBtn = doc.createElementNS(
-        HTML_NS,
-        "button",
-      ) as HTMLButtonElement;
-      systemToggleBtn.className = "paperpilot-standalone-claude-toggle";
-      systemToggleBtn.type = "button";
-      systemToggleBtn.setAttribute("aria-label", "Conversation runtime");
-
-      const getPreferredRuntimeSystem = (): ConversationSystem => {
-        // if (resolveActiveNoteSession(activeItem)) {
-        //   return isCodexAppServerModeEnabled() ? "codex" : "upstream";
-        // }
-        // const preferred = getConversationSystemPref();
-        // if (preferred === "codex" && isCodexAppServerModeEnabled())
-        //   return "codex";
-        // if (preferred === "claude_code" && getClaudeCodeModeEnabled())
-        //   return "claude_code";
-        // if (isCodexAppServerModeEnabled()) return "codex";
-        // if (getClaudeCodeModeEnabled()) return "claude_code";
-        return "upstream";
-      };
-
-      const updateStandaloneSystemToggle = () => {
-        const targetSystem = getPreferredRuntimeSystem();
-        const enabled = true;
-          // !isInWebChatMode &&
-          // (resolveActiveNoteSession(activeItem)
-          //   ? targetSystem === "codex" || isCodexConversationSystem()
-          //   : getClaudeCodeModeEnabled() || isCodexAppServerModeEnabled());
-        systemToggleBtn.style.display = enabled ? "inline-flex" : "none";
-        const active = isRuntimeConversationSystem();
-        const iconSystem = active ? currentConversationSystem : targetSystem;
-        systemToggleBtn.dataset.active = active ? "true" : "false";
-        systemToggleBtn.title = "Switch to upstream mode";
-        // systemToggleBtn.title = active
-        //   ? "Switch to upstream mode"
-        //   : iconSystem === "codex"
-        //     ? "Switch to Codex mode"
-        //     : "Switch to Claude Code mode";
-        // if (iconSystem === "codex") {
-        //   systemToggleBtn.innerHTML = `<span class="paperpilot-codex-system-toggle-icon" aria-hidden="true"></span>`;
-        //   return;
-        // }
-        systemToggleBtn.innerHTML = active
-          ? `<svg height="1em" style="flex:none;line-height:1" viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z" fill="#D97757" fill-rule="evenodd"></path></svg>`
-          : `<svg fill="currentColor" fill-rule="evenodd" height="1em" style="flex:none;line-height:1" viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z"></path></svg>`;
-      };
-
       const tabRow = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
       tabRow.className = "paperpilot-standalone-tab-row";
-      tabRow.append(systemToggleBtn, tabGroup);
+      tabRow.append(tabGroup);
 
       // -- Lower area: sidebar + content side by side --
       const lowerArea = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
@@ -1288,9 +1217,7 @@ export function openStandaloneChat(options?: {
       //   mode: entry.kind === "paper" ? "paper" : "open",
       // });
 
-      // -----------------------------------------------------------------------
-      // Webchat mode UI updates for standalone window
-      // -----------------------------------------------------------------------
+      const updateStandaloneSystemToggle = () => {};
       const updateStandaloneWebChatUI = (isWebChat: boolean) => {
         if (cancelled) return;
         isInWebChatMode = isWebChat;
@@ -3976,7 +3903,3 @@ export function openStandaloneChat(options?: {
   // Note: unload is registered inside initWindow to avoid the XUL
   // about:blank → document transition firing a premature unload.
 }
-
-
-
-

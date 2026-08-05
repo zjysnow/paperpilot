@@ -9906,6 +9906,10 @@ label.paperpilot-search-results-item:hover {
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
 }
 
+.paperpilot-model-menu {
+  min-height: calc(60px * var(--paperpilot-font-scale, 1)) !important;
+}
+
 .paperpilot-model-menu-open,
 .paperpilot-reasoning-menu-open {
   opacity: 1;

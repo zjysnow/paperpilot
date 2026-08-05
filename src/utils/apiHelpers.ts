@@ -25,17 +25,3 @@ export function isOpenAIChatCompletionsBase(baseOrUrl: string): boolean {
     return cleaned.toLowerCase().endsWith("/chat/completions");
   }
 }
-
-/** Check whether the base URL points at a local Flowise prediction endpoint. */
-export function isFlowisePredictionBase(baseOrUrl: string): boolean {
-  const cleaned = baseOrUrl.trim().replace(/\/+$/, "");
-  if (!cleaned) return false;
-  try {
-    const pathname = new URL(cleaned).pathname
-      .replace(/\/+$/, "")
-      .toLowerCase();
-    return pathname.startsWith("/api/v1/prediction");
-  } catch (_err) {
-    return cleaned.toLowerCase().includes("/api/v1/prediction");
-  }
-}

@@ -12,6 +12,185 @@
     <html:link rel="localization" href="__addonRef__-preferences.ftl" />
   </linkset>
   <groupbox>
-    
+    <html:div
+      style="display: flex; flex-direction: column; padding: 10px; gap: 16px"
+    >
+      <html:div
+        id="__addonRef__-pref-tab-bar"
+        style="
+          display: flex;
+          gap: 6px;
+          padding: 3px;
+          border-radius: 8px;
+          background: color-mix(in srgb, currentColor 10%, Field);
+        "
+      >
+        <html:button
+          data-pref-tab="providers"
+          type="button"
+          style="
+            flex: 1;
+            padding: 6px 0;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            cursor: pointer;
+          "
+          >AI Providers</html:button
+        >
+        <html:button
+          data-pref-tab="customization"
+          type="button"
+          style="
+            flex: 1;
+            padding: 6px 0;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            cursor: pointer;
+          "
+          >Customization</html:button
+        >
+      </html:div>
+
+      <html:div
+        id="__addonRef__-pref-panel-providers"
+        data-pref-panel="providers"
+        style="display: flex; flex-direction: column; gap: 8px"
+      >
+        <html:label
+          for="__addonRef__-model-provider-groups"
+          style="font-weight: 600"
+          >Model Provider Groups (JSON)</html:label
+        >
+        <html:textarea
+          id="__addonRef__-model-provider-groups"
+          rows="16"
+          spellcheck="false"
+          style="
+            width: 100%;
+            font-family: monospace;
+            padding: 8px;
+            box-sizing: border-box;
+            resize: vertical;
+          "
+        ></html:textarea>
+        <html:span style="font-size: 11px; color: var(--fill-secondary, #888)"
+          >Edit the saved provider configuration directly as JSON.</html:span
+        >
+        <html:button
+          id="__addonRef__-add-ollama-provider"
+          type="button"
+          style="align-self: flex-start; padding: 6px 10px; cursor: pointer"
+          >Add local Ollama provider</html:button
+        >
+        <html:span
+          id="__addonRef__-provider-status"
+          style="font-size: 11px; color: var(--fill-secondary, #888)"
+          aria-live="polite"
+        ></html:span>
+        <html:span style="font-size: 11px; color: var(--fill-secondary, #888)"
+          >Requires Ollama running locally with a pulled model, for example
+          <html:code>llama3.2</html:code>.</html:span
+        >
+      </html:div>
+
+      <html:div
+        id="__addonRef__-pref-panel-customization"
+        data-pref-panel="customization"
+        style="display: none; flex-direction: column; gap: 14px"
+      >
+        <html:div style="display: flex; flex-direction: column; gap: 4px">
+          <html:label for="__addonRef__-system-prompt" style="font-weight: 600"
+            >System Prompt (optional)</html:label
+          >
+          <html:textarea
+            id="__addonRef__-system-prompt"
+            rows="5"
+            placeholder="Custom instructions for the AI assistant..."
+            style="
+              width: 100%;
+              padding: 8px;
+              box-sizing: border-box;
+              resize: vertical;
+            "
+          ></html:textarea>
+        </html:div>
+
+        <html:div style="display: flex; flex-direction: column; gap: 4px">
+          <html:label
+            for="__addonRef__-panel-font-scale"
+            style="font-weight: 600"
+            >Plugin Font Size</html:label
+          >
+          <html:input
+            id="__addonRef__-panel-font-scale"
+            type="range"
+            min="80"
+            max="180"
+            step="10"
+            value="120"
+          ></html:input>
+          <html:span id="__addonRef__-panel-font-scale-readout">120%</html:span>
+        </html:div>
+
+        <html:div style="display: flex; flex-direction: column; gap: 4px">
+          <html:label
+            for="__addonRef__-message-paragraph-spacing"
+            style="font-weight: 600"
+            >Message Paragraph Spacing</html:label
+          >
+          <html:input
+            id="__addonRef__-message-paragraph-spacing"
+            type="range"
+            min="0"
+            max="32"
+            step="1"
+            value="8"
+          ></html:input>
+          <html:span id="__addonRef__-message-paragraph-spacing-readout"
+            >8px</html:span
+          >
+        </html:div>
+
+        <html:div style="display: flex; flex-direction: column; gap: 4px">
+          <html:label
+            for="__addonRef__-message-word-spacing"
+            style="font-weight: 600"
+            >Message Word Spacing</html:label
+          >
+          <html:input
+            id="__addonRef__-message-word-spacing"
+            type="range"
+            min="0"
+            max="8"
+            step="1"
+            value="0"
+          ></html:input>
+          <html:span id="__addonRef__-message-word-spacing-readout"
+            >0px</html:span
+          >
+        </html:div>
+
+        <html:div style="display: flex; flex-direction: column; gap: 4px">
+          <html:label
+            for="__addonRef__-message-line-spacing"
+            style="font-weight: 600"
+            >Message Line Spacing</html:label
+          >
+          <html:input
+            id="__addonRef__-message-line-spacing"
+            type="range"
+            min="150"
+            max="250"
+            step="10"
+            value="150"
+          ></html:input>
+          <html:span id="__addonRef__-message-line-spacing-readout"
+            >150%</html:span
+          >
+        </html:div>
+      </html:div>
+    </html:div>
   </groupbox>
 </vbox>

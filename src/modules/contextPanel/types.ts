@@ -36,7 +36,6 @@ export type SelectedTextContext = {
   text: string;
   source: SelectedTextSource;
   paperContext?: PaperContextRef;
-  // noteContext?: NoteContextRef;
   contextItemId?: number;
   pageIndex?: number;
   pageLabel?: string;
@@ -54,7 +53,7 @@ export type ActionDropdownSpec = {
 };
 
 
-export type ChatRuntimeMode = "chat" | "agent";
+export type ChatRuntimeMode = "chat";
 export type PaperContextSendMode = "retrieval" | "full-next" | "full-sticky";
 
 
@@ -96,7 +95,6 @@ export interface Message {
   text: string;
   timestamp: number;
   runMode?: "chat";
-  agentRunId?: string;
   selectedText?: string;
   selectedTextExpanded?: boolean;
   selectedTexts?: string[];
@@ -130,7 +128,6 @@ export interface Message {
   streaming?: boolean;
   pendingFinalText?: string;
   waitingAnimationStartedAt?: number;
-  // pendingAgentTraceEvents?: import("../../agent/types").AgentRunEventRecord[];
   reasoningSummary?: string;
   reasoningDetails?: string;
   reasoningOpen?: boolean;

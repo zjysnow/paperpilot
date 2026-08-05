@@ -89,6 +89,63 @@ function setPref(key: string, value: unknown): void {
   getZoteroPrefs()?.set?.(prefKey(key), value, true);
 }
 
+export function setModelProviderGroups(groups: ModelProviderGroup[]): void {
+  setPref(MODEL_PROVIDER_GROUPS_PREF_KEY, JSON.stringify(groups));
+}
+
+export async function refreshOllamaProviderModels(): Promise<number> {
+  const groups = getModelProviderGroups();
+  let discovered = 0;
+  let changed = false;
+
+  for (const group of groups) {
+    if (detectProviderPreset(group.apiBase) !== "ollama") continue;
+    const parsed = new URL(group.apiBase);
+    const endpoint = `${parsed.origin}/api/tags`;
+    
+    try {
+      const xhr = await Zotero.HTTP.request("GET", endpoint, {
+        timeout: 10000,
+        successCodes: false,
+      });
+      
+      if (!xhr.responseText) {
+        throw new Error(`Ollama model discovery failed: empty response`);
+      }
+      
+      const payload = JSON.parse(xhr.responseText) as {
+        models?: Array<{ name?: unknown }>;
+      };
+      const names = (payload.models || [])
+        .map((model) =>
+          typeof model?.name === "string" ? model.name.trim() : "",
+        )
+        .filter(Boolean);
+      discovered += names.length;
+      const existingByName = new Map(
+        group.models.map((model) => [model.model, model]),
+      );
+      group.models = names.map((name) => {
+        const existing = existingByName.get(name);
+        return (
+          existing || {
+            id: `ollama-${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+            model: name,
+            temperature: 0.7,
+            maxTokens: 4096,
+          }
+        );
+      });
+      changed = true;
+    } catch (error) {
+      throw new Error(`Ollama model discovery failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (changed) setModelProviderGroups(groups);
+  return discovered;
+}
+
 function getStringPref(key: string): string {
   const value = getZoteroPrefs()?.get?.(prefKey(key), true);
   return typeof value === "string" ? value : "";

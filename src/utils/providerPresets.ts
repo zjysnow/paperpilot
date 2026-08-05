@@ -1,6 +1,6 @@
 import type { ProviderProtocol } from "./providerProtocol";
 
-export type SupportedProviderPresetId = "openai" | "flowise";
+export type SupportedProviderPresetId = "openai" | "ollama";
 
 export type ProviderPresetId = SupportedProviderPresetId | "customized";
 
@@ -52,27 +52,11 @@ function matchesPaths(pathname: string, paths: string[]): boolean {
   return paths.includes(pathname);
 }
 
-function matchesPathPrefix(pathname: string, prefixes: string[]): boolean {
-  return prefixes.some(
-    (prefix) =>
-      pathname === prefix ||
-      pathname.startsWith(`${prefix.replace(/\/+$/, "")}/`),
-  );
-}
-
 function makeHostAndPathMatcher(hosts: string[], paths: string[]) {
   return (apiBase: string) => {
     const parsed = parseApiBase(apiBase);
     if (!parsed) return false;
     return isHost(parsed, hosts) && matchesPaths(parsed.pathname, paths);
-  };
-}
-
-function makePathPrefixMatcher(prefixes: string[]) {
-  return (apiBase: string) => {
-    const parsed = parseApiBase(apiBase);
-    if (!parsed) return false;
-    return matchesPathPrefix(parsed.pathname, prefixes);
   };
 }
 
@@ -84,6 +68,7 @@ const OPENAI_PATHS = [
   "/v1/files",
   "/v1/embeddings",
 ];
+const OLLAMA_PATHS = ["/", "/v1", "/v1/chat/completions"];
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
@@ -99,13 +84,17 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     defaultEmbeddingModel: "text-embedding-3-small",
   },
   {
-    id: "flowise",
-    label: "Flowise",
-    defaultApiBase: "http://localhost:3000/api/v1/prediction",
-    defaultProtocol: "flowise_prediction",
-    supportedProtocols: ["flowise_prediction"],
-    helperText: "Preset for a local Flowise instance using the prediction API.",
-    matches: makePathPrefixMatcher(["/api/v1/prediction"]),
+    id: "ollama",
+    label: "Ollama",
+    defaultApiBase: "http://localhost:11434/v1",
+    defaultProtocol: "openai_chat_compat",
+    supportedProtocols: ["openai_chat_compat"],
+    helperText:
+      "Use Ollama's local OpenAI-compatible /v1/chat/completions endpoint.",
+    matches: makeHostAndPathMatcher(
+      ["localhost", "127.0.0.1", "::1"],
+      OLLAMA_PATHS,
+    ),
   },
 ];
 

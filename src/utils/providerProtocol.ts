@@ -1,11 +1,10 @@
 import {
-  isFlowisePredictionBase,
   isOpenAIChatCompletionsBase,
   isResponsesBase,
 } from "./apiHelpers";
 
 export type ProviderProtocol =
-  "flowise_prediction" | "openai_chat_compat" | "responses_api";
+  "openai_chat_compat" | "responses_api";
 
 export type ProviderProtocolSpec = {
   id: ProviderProtocol;
@@ -19,17 +18,6 @@ export type ProviderProtocolSpec = {
 };
 
 export const PROVIDER_PROTOCOL_SPECS: ProviderProtocolSpec[] = [
-  {
-    id: "flowise_prediction",
-    label: "Flowise Prediction",
-    helperText:
-      "Use a local Flowise prediction endpoint such as /api/v1/prediction/:id.",
-    streaming: true,
-    toolCalls: true,
-    multimodal: true,
-    fileInputs: true,
-    reasoning: true,
-  },
   {
     id: "responses_api",
     label: "Responses API",
@@ -68,9 +56,6 @@ export function inferLegacyProviderProtocol(params: {
   authMode?: string;
   apiBase?: string;
 }): ProviderProtocol {
-  if (isFlowisePredictionBase(params.apiBase || "")) {
-    return "flowise_prediction";
-  }
   if (isResponsesBase(params.apiBase || "")) {
     return "responses_api";
   }

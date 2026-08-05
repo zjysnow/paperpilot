@@ -110,15 +110,6 @@ export function resolvePaperChatSourceItem(
   if (isPaperPortalItem(targetItem)) {
     return resolvePaperPortalBaseItem(targetItem);
   }
-  // if (isClaudePaperPortalItem(targetItem)) {
-  //   return resolveClaudePaperPortalBaseItem(targetItem);
-  // }
-  // if (isCodexPaperPortalItem(targetItem)) {
-  //   return resolveCodexPaperPortalBaseItem(targetItem);
-  // }
-  // if ((targetItem as any).isNote?.()) {
-  //   return resolveNoteParentItem(targetItem);
-  // }
   if (targetItem.isAttachment() && targetItem.parentID) {
     if (!isSupportedContextAttachment(targetItem)) return null;
     const parent = Zotero.Items.get(targetItem.parentID) || null;
@@ -139,16 +130,6 @@ export function resolveConversationBaseItem(
   if (isPaperPortalItem(targetItem)) {
     return resolvePaperPortalBaseItem(targetItem);
   }
-  // if (isClaudePaperPortalItem(targetItem)) {
-  //   return resolveClaudePaperPortalBaseItem(targetItem);
-  // }
-  // if (isCodexPaperPortalItem(targetItem)) {
-  //   return resolveCodexPaperPortalBaseItem(targetItem);
-  // }
-  // const noteParentItem = resolveNoteParentItem(targetItem);
-  // if (noteParentItem) {
-  //   return noteParentItem;
-  // }
   if ((targetItem as any).isNote?.()) {
     return targetItem;
   }
@@ -312,24 +293,6 @@ export function resolveInitialPanelItemState(
   basePaperItem: Zotero.Item | null;
 } {
   let item = initialItem || null;
-  // const noteSession = resolveActiveNoteSession(item);
-  // if (noteSession) {
-  //   return {
-  //     item,
-  //     basePaperItem:
-  //       noteSession.noteKind === "item" && noteSession.parentItemId
-  //         ? Zotero.Items.get(noteSession.parentItemId) || null
-  //         : null,
-  //   };
-  // }
-  // if (
-  //   ((isClaudeGlobalPortalItem(item) || isClaudePaperPortalItem(item)) &&
-  //     !isClaudeCodeModeEnabled()) ||
-  //   ((isCodexGlobalPortalItem(item) || isCodexPaperPortalItem(item)) &&
-  //     !isCodexAppServerModeEnabled())
-  // ) {
-  //   item = resolveConversationBaseItem(item);
-  // }
   const basePaperItem = resolveConversationBaseItem(item);
   if (!basePaperItem) {
     return { item, basePaperItem: null };
@@ -399,10 +362,6 @@ export function resolveConversationSystemForItem(
 export function resolveDisplayConversationKind(
   item: Zotero.Item | null | undefined,
 ): "global" | "paper" | null {
-  // const noteSession = resolveActiveNoteSession(item);
-  // if (noteSession) {
-  //   return noteSession.conversationKind;
-  // }
   if (!item) return null;
   return isGlobalPortalItem(item) 
     ? "global"
@@ -416,27 +375,6 @@ export function resolvePreferredConversationSystem(params: {
   item: Zotero.Item | null | undefined;
   preferredSystem?: ConversationSystem | null;
 }): ConversationSystem {
-  // const preferred = params.preferredSystem || getConversationSystemPref();
-  // if (resolveActiveNoteSession(params.item)) {
-  //   return resolvePreferredNoteFocusSystem({
-  //     preferredSystem: preferred,
-  //     claudeAvailable: isClaudeCodeModeEnabled(),
-  //     codexAvailable: isCodexAppServerModeEnabled(),
-  //   });
-  // }
   const itemSystem = resolveConversationSystemForItem(params.item);
-  // if (itemSystem === "claude_code" && !isClaudeCodeModeEnabled()) {
-  //   return "upstream";
-  // }
-  // if (itemSystem === "codex" && !isCodexAppServerModeEnabled()) {
-  //   return "upstream";
-  // }
-  // if (preferred === "claude_code" && !isClaudeCodeModeEnabled()) {
-  //   return "upstream";
-  // }
-  // if (preferred === "codex" && !isCodexAppServerModeEnabled()) {
-  //   return "upstream";
-  // }
   return itemSystem || "upstream";
 }
-

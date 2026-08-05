@@ -34,8 +34,6 @@ export type PanelDomRefs = {
   historyUndoText: HTMLSpanElement | null;
   historyUndoBtn: HTMLButtonElement | null;
   topToast: HTMLDivElement | null;
-  claudeSystemToggleBtn: HTMLButtonElement | null;
-  claudeSystemToggleIcon: HTMLSpanElement | null;
   selectTextBtn: HTMLButtonElement | null;
   screenshotBtn: HTMLButtonElement | null;
   uploadBtn: HTMLButtonElement | null;
@@ -173,12 +171,6 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
       "#paperpilot-history-undo-btn",
     ) as HTMLButtonElement | null,
     topToast: body.querySelector("#paperpilot-top-toast") as HTMLDivElement | null,
-    claudeSystemToggleBtn: body.querySelector(
-      "#paperpilot-claude-system-toggle",
-    ) as HTMLButtonElement | null,
-    claudeSystemToggleIcon: body.querySelector(
-      "#paperpilot-claude-system-toggle-icon",
-    ) as HTMLSpanElement | null,
     selectTextBtn: body.querySelector(
       "#paperpilot-select-text",
     ) as HTMLButtonElement | null,

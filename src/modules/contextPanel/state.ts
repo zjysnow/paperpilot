@@ -3,6 +3,7 @@ import type {
   ChatRuntimeMode,
   SelectedTextContext,
   PaperContextRef,
+  ChatAttachment,
   QuoteCitation,
   GeneratedChatImage,
 } from "./types"
@@ -133,16 +134,17 @@ export function clearAllState(): void {
   activeContextPanels.clear();
   activeContextPanelRawItems.clear();
   activeContextPanelStateSync.clear();
-  // selectedImageCache.clear();
-  // selectedFileAttachmentCache.clear();
-  // selectedFilePreviewExpandedCache.clear();
-  // selectedPaperContextCache.clear();
-  // selectedOtherRefContextCache.clear();
-  // selectedCollectionContextCache.clear();
-  // paperContextModeOverrides.clear();
-  // paperContentSourceOverrides.clear();
+  selectedImageCache.clear();
+  selectedFileAttachmentCache.clear();
+  selectedFilePreviewExpandedCache.clear();
+  selectedPaperContextCache.clear();
+  selectedOtherRefContextCache.clear();
+  selectedCollectionContextCache.clear();
+  selectedTagContextCache.clear();
+  paperContextModeOverrides.clear();
+  paperContentSourceOverrides.clear();
   selectedPaperPreviewExpandedCache.clear();
-  // selectedPaperContextListExpandedCache.clear();
+  selectedPaperContextListExpandedCache.clear();
   activeGlobalConversationByLibrary.clear();
   activeConversationModeByLibrary.clear();
   // draftInputCache.clear();
@@ -168,12 +170,25 @@ export function clearAllState(): void {
 export const selectedTextCache = new Map<number, SelectedTextContext[]>();
 export const selectedTextPreviewExpandedCache = new Map<number, number>();
 export const selectedNotePreviewExpandedCache = new Map<number, boolean>();
+export const selectedImageCache = new TTLMap<number, string[]>(
+  24 * 60 * 60 * 1000,
+  30,
+);
+export const selectedFileAttachmentCache = new Map<number, ChatAttachment[]>();
+export const selectedFilePreviewExpandedCache = new Map<number, boolean>();
 export const selectedImagePreviewExpandedCache = new Map<number, boolean>();
 export const selectedImagePreviewActiveIndexCache = new Map<number, number>();
+export const selectedPaperContextCache = new Map<number, PaperContextRef[]>();
+export const selectedOtherRefContextCache = new Map<number, PaperContextRef[]>();
+export const selectedCollectionContextCache = new Map<number, string[]>();
+export const selectedTagContextCache = new Map<number, string[]>();
+export const selectedPaperContextListExpandedCache = new Map<number, boolean>();
 export const pinnedSelectedTextKeys = new Map<number, Set<string>>();
 export const pinnedImageKeys = new Map<number, Set<string>>();
 export const pinnedFileKeys = new Map<number, Set<string>>();
 export const pinnedPaperKeys = new Map<number, Set<string>>();
+export const paperContextModeOverrides = new Map<string, string>();
+export const paperContentSourceOverrides = new Map<string, string>();
 // Recent reader text selections — capped (5-min TTL, max 50).
 export const recentReaderSelectionCache = new TTLMap<number, string>(
   5 * 60 * 1000,
@@ -252,4 +267,3 @@ export function setResponseActionRunner(
     responseActionRunners.delete(body);
   }
 }
-

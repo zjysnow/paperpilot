@@ -1,21 +1,21 @@
 import {
-    config,
-    FONT_SCALE_DEFAULT_PERCENT,
-    FONT_SCALE_MIN_PERCENT,
-    FONT_SCALE_MAX_PERCENT,
-    MESSAGE_LINE_SPACING_DEFAULT_PERCENT,
-    MESSAGE_LINE_SPACING_MIN_PERCENT,
-    MESSAGE_LINE_SPACING_MAX_PERCENT,
-    MESSAGE_PARAGRAPH_SPACING_DEFAULT_PX,
-    MESSAGE_PARAGRAPH_SPACING_MIN_PX,
-    MESSAGE_PARAGRAPH_SPACING_MAX_PX,
-    MESSAGE_WORD_SPACING_DEFAULT_PX,
-    MESSAGE_WORD_SPACING_MIN_PX,
-    MESSAGE_WORD_SPACING_MAX_PX,
-    GLOBAL_CONVERSATION_KEY_BASE,
-    buildDefaultUpstreamGlobalConversationKey,
-    isUpstreamGlobalConversationKey,
-} from "./constants"
+  config,
+  FONT_SCALE_DEFAULT_PERCENT,
+  FONT_SCALE_MIN_PERCENT,
+  FONT_SCALE_MAX_PERCENT,
+  MESSAGE_LINE_SPACING_DEFAULT_PERCENT,
+  MESSAGE_LINE_SPACING_MIN_PERCENT,
+  MESSAGE_LINE_SPACING_MAX_PERCENT,
+  MESSAGE_PARAGRAPH_SPACING_DEFAULT_PX,
+  MESSAGE_PARAGRAPH_SPACING_MIN_PX,
+  MESSAGE_PARAGRAPH_SPACING_MAX_PX,
+  MESSAGE_WORD_SPACING_DEFAULT_PX,
+  MESSAGE_WORD_SPACING_MIN_PX,
+  MESSAGE_WORD_SPACING_MAX_PX,
+  GLOBAL_CONVERSATION_KEY_BASE,
+  buildDefaultUpstreamGlobalConversationKey,
+  isUpstreamGlobalConversationKey,
+} from "./constants";
 
 import {
   selectedModelCache,
@@ -38,35 +38,37 @@ import {
   type RuntimeModelEntry,
 } from "../../utils/modelProviders";
 
-
 type ZoteroPrefsAPI = {
-    get?: (key: string, global?: boolean) => unknown;
-    set?: (key: string, value: unknown, global?: boolean) => void;
-    clear?: (key: string, global?: boolean) => void;
+  get?: (key: string, global?: boolean) => unknown;
+  set?: (key: string, value: unknown, global?: boolean) => void;
+  clear?: (key: string, global?: boolean) => void;
 };
 
 function getZoteroPrefs(): ZoteroPrefsAPI | null {
-    return (
-        (Zotero as unknown as { Prefs?: ZoteroPrefsAPI } | undefined)?.Prefs || null
-    );
+  return (
+    (Zotero as unknown as { Prefs?: ZoteroPrefsAPI } | undefined)?.Prefs || null
+  );
 }
 
 export function getStringPref(key: string): string {
-    const value = getZoteroPrefs()?.get?.(`${config.prefsPrefix}.${key}`, true);
-    return typeof value === "string" ? value : "";
+  const value = getZoteroPrefs()?.get?.(`${config.prefsPrefix}.${key}`, true);
+  return typeof value === "string" ? value : "";
+}
+
+export function setStringPref(key: string, value: string): void {
+  getZoteroPrefs()?.set?.(`${config.prefsPrefix}.${key}`, value, true);
 }
 
 export function getBoolPref(key: string, defaultValue = false): boolean {
-    const value = getZoteroPrefs()?.get?.(`${config.prefsPrefix}.${key}`, true);
-    if (typeof value === "boolean") return value;
-    if (typeof value === "string") {
-        const normalized = value.trim().toLowerCase();
-        if (normalized === "true") return true;
-        if (normalized === "false") return false;
-    }
-    return defaultValue;
+  const value = getZoteroPrefs()?.get?.(`${config.prefsPrefix}.${key}`, true);
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return defaultValue;
 }
-
 
 const PANEL_FONT_SCALE_PREF_KEY = "panelFontScale";
 const MESSAGE_LINE_SPACING_PREF_KEY = "messageLineSpacing";
@@ -136,7 +138,6 @@ export function setMessageLineSpacingPref(value: number): void {
   );
 }
 
-
 export function getMessageParagraphSpacingPref(): number {
   const raw = getZoteroPrefs()?.get?.(
     `${config.prefsPrefix}.${MESSAGE_PARAGRAPH_SPACING_PREF_KEY}`,
@@ -161,7 +162,6 @@ export function setMessageParagraphSpacingPref(value: number): void {
     true,
   );
 }
-
 
 export function getMessageWordSpacingPref(): number {
   const raw = getZoteroPrefs()?.get?.(
@@ -188,7 +188,6 @@ export function setMessageWordSpacingPref(value: number): void {
   );
 }
 
-
 export function getMessageFontFamilyPref(): string {
   const raw = getZoteroPrefs()?.get?.(
     `${config.prefsPrefix}.${MESSAGE_FONT_FAMILY_PREF_KEY}`,
@@ -205,14 +204,12 @@ export function setMessageFontFamilyPref(value: string): void {
   );
 }
 
-
 export function buildPaperStateKey(
   libraryID: number,
   paperItemID: number,
 ): string {
   return `${Math.floor(libraryID)}:${Math.floor(paperItemID)}`;
 }
-
 
 function getLastPaperConversationMap(): Record<string, number> {
   const raw = getZoteroPrefs()?.get?.(
@@ -282,7 +279,6 @@ export function removeLastUsedPaperConversationKey(
   setLastPaperConversationMap(map);
 }
 
-
 // =============================================================================
 // Locked Global Conversation Preference
 // =============================================================================
@@ -310,8 +306,6 @@ export function getLockedGlobalConversationKey(
     : null;
 }
 
-
-
 function stripFontFamilyQuotes(value: string): string {
   const trimmed = value.trim();
   if (trimmed.length < 2) return trimmed;
@@ -322,7 +316,6 @@ function stripFontFamilyQuotes(value: string): string {
   }
   return trimmed;
 }
-
 
 function formatFontFamilyToken(raw: string): string | null {
   const token = stripFontFamilyQuotes(
@@ -338,8 +331,6 @@ function formatFontFamilyToken(raw: string): string | null {
   return `"${token.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-
-
 export function formatMessageFontFamilyCssValue(value: string): string {
   const tokens = value
     .split(",")
@@ -353,11 +344,12 @@ export function formatMessageFontFamilyCssValue(value: string): string {
   return tokens.join(", ");
 }
 
-
-
 export function applyPanelFontScale(panel: HTMLElement | null): void {
   if (!panel) return;
-  panel.style.setProperty("--paperpilot-font-scale", `${panelFontScalePercent / 100}`);
+  panel.style.setProperty(
+    "--paperpilot-font-scale",
+    `${panelFontScalePercent / 100}`,
+  );
   panel.style.setProperty(
     "--paperpilot-message-line-height",
     `${messageLineSpacingPercent / 100}`,
@@ -376,10 +368,6 @@ export function applyPanelFontScale(panel: HTMLElement | null): void {
   );
 }
 
-
-
-
-
 /**
  * Locks (or unlocks) a global-chat session as the default for the given library.
  * Pass null or 0 to clear the lock.
@@ -397,13 +385,9 @@ export function setLockedGlobalConversationKey(
   }
 }
 
-
-
 export function getAvailableModelEntries(): RuntimeModelEntry[] {
   return getRuntimeModelEntries();
 }
-
-
 
 export function getSelectedModelEntryForItem(
   itemId: number,
@@ -430,3 +414,15 @@ export function getSelectedModelEntryForItem(
   return selected;
 }
 
+export function setSelectedModelEntryForItem(
+  itemId: number,
+  entryId: string,
+): RuntimeModelEntry | null {
+  const selected = getRuntimeModelEntries().find(
+    (entry) => entry.entryId === entryId,
+  );
+  if (!selected) return null;
+  selectedModelCache.set(itemId, selected.entryId);
+  setLastUsedModelEntryId(selected.entryId);
+  return selected;
+}

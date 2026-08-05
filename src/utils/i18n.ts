@@ -65,7 +65,7 @@ export function getWelcomeHtml(): string {
           <ul class="paperpilot-welcome-list">
             <li><strong>论文对话</strong>回答关于当前打开的 PDF 的问题。<strong>开放对话</strong>是一个自由形式的工作区，可跨多篇论文和文件提问。</li>
             <li>输入 <strong>/</strong> 打开快捷操作：附加文件、添加参考文献、发送当前 PDF 页面或发送整个 PDF。输入 <strong>@</strong> 从文献库添加论文作为上下文。</li>
-            <li>在偏好设置中配置 <strong>Flowise</strong> 本地预测接口和 chatflow ID，然后照常开始对话。</li>
+            <li>在偏好设置中配置 <strong>AI Providers</strong>，然后照常开始对话。</li>
             <li>内联添加上下文：在 PDF 阅读器中选择文本作为<strong>文本上下文</strong>，使用截图按钮作为<strong>图片上下文</strong>，或使用 <strong>@</strong> 作为<strong>论文上下文</strong>。右键点击论文标签可强制发送全文；再次右键点击切换回检索模式。</li>
           </ul>
         </div>
@@ -80,7 +80,7 @@ export function getWelcomeHtml(): string {
         <ul class="paperpilot-welcome-list">
           <li><strong>Paper chat</strong> answers questions about the currently open PDF. <strong>Library chat</strong> is a free-form workspace for questions across multiple papers and files.</li>
           <li>Type <strong>/</strong> to open quick actions: attach files, add a reference, send the current PDF page, or send the entire PDF. Type <strong>@</strong> to add a paper from your library as context.</li>
-          <li>Configure your local <strong>Flowise</strong> prediction endpoint and chatflow ID in Preferences, then start chatting normally.</li>
+          <li>Configure your <strong>AI Providers</strong> in Preferences, then start chatting normally.</li>
           <li>Add context inline: select text in the PDF reader for <strong>text context</strong>, use the screenshot button for <strong>figure context</strong>, or use <strong>@</strong> for <strong>paper context</strong>. Right-click a paper chip to force sending its full text; right-click again to switch it back to retrieval mode.</li>
         </ul>
       </div>
@@ -152,8 +152,8 @@ export function getStandaloneLibraryChatStartPageHtml(): string {
           <div class="paperpilot-start-page-rec-title">推荐设置以获得最佳体验</div>
           <ol class="paperpilot-start-page-rec-list">
             <li><strong>偏好设置 → MinerU</strong>：将 PDF 解析为 Markdown + 图片<span class="paperpilot-rec-reason">（MD 是 LLM 的语言；可以利用解析出的图片写出更好的笔记；节省 token）</span></li>
-            <li>启用 <strong>Agent 模式</strong>，让助手自主完成研究任务</li>
-            <li>使用<strong>适合研究任务的模型或流程</strong>：例如本地 Flowise flow</li>
+            <li>使用 <strong>AI Providers</strong> 里配置的模型完成研究任务</li>
+            <li>使用<strong>适合研究任务的模型</strong>：例如适合总结、对比和写作的模型</li>
             <li>在偏好设置中配置<strong>笔记目录路径</strong></li>
           </ol>
         </div>
@@ -167,9 +167,9 @@ export function getStandaloneLibraryChatStartPageHtml(): string {
       <div class="paperpilot-start-page-recommendations">
         <div class="paperpilot-start-page-rec-title">Recommended settings for the best experience</div>
         <ol class="paperpilot-start-page-rec-list">
-          <li><strong>Preferences → Flowise</strong>: point the plugin at your local prediction endpoint and chatflow ID</li>
+          <li><strong>Preferences → AI Providers</strong>: configure the model provider you want to use</li>
           <li><strong>Preferences → MinerU</strong>: parse your PDFs to Markdown + images<span class="paperpilot-rec-reason"> (MD is the language of LLMs; parsed images help better notes and save tokens)</span></li>
-          <li>Use a <strong>capable research model or flow</strong> for summaries, comparisons, and note drafting</li>
+          <li>Use a <strong>capable research model</strong> for summaries, comparisons, and note drafting</li>
           <li>Set up <strong>Notes directory</strong> in Preferences</li>
         </ol>
       </div>

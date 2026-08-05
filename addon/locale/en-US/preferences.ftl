@@ -1,1 +1,11 @@
 pref-title = Paper Pilot
+pref-tab-providers = AI Providers
+pref-tab-customization = Customization
+pref-model-provider-groups = Model Provider Groups (JSON)
+pref-model-provider-groups-help = Edit the saved provider configuration directly as JSON.
+pref-system-prompt = System Prompt (optional)
+pref-system-prompt-placeholder = Custom instructions for the AI assistant...
+pref-panel-font-scale = Plugin Font Size
+pref-message-paragraph-spacing = Message Paragraph Spacing
+pref-message-word-spacing = Message Word Spacing
+pref-message-line-spacing = Message Line Spacing
