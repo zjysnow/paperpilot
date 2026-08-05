@@ -2,8 +2,6 @@ import { config } from "../package.json";
 import { ColumnOptions, DialogHelper } from "zotero-plugin-toolkit";
 import hooks from "./hooks";
 import { createZToolkit } from "./utils/ztoolkit";
-// import type { getAgentApi } from "./agent";
-// import type { WorkflowTestApi } from "./modules/contextPanel/workflowTestTypes";
 
 class Addon {
   public data: {
@@ -26,11 +24,6 @@ class Addon {
   };
   // Lifecycle hooks
   public hooks: typeof hooks;
-  // APIs
-  // public api: {
-  //   agent?: ReturnType<typeof getAgentApi>;
-  //   workflowTest?: WorkflowTestApi;
-  // };
 
   constructor() {
     this.data = {
@@ -41,7 +34,6 @@ class Addon {
       ztoolkit: createZToolkit(),
     };
     this.hooks = hooks;
-    // this.api = {};
   }
 }
 

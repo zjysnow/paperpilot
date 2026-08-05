@@ -1,9 +1,6 @@
-
 import type { ProviderProtocol } from "./providerProtocol";
 
-export type SupportedProviderPresetId =
-    | "openai"
-    | "flowise";
+export type SupportedProviderPresetId = "openai" | "flowise";
 
 export type ProviderPresetId = SupportedProviderPresetId | "customized";
 
@@ -46,7 +43,6 @@ function parseApiBase(apiBase: string): ParsedApiBase | null {
   }
 }
 
-
 function isHost(parsed: ParsedApiBase | null, hosts: string[]): boolean {
   if (!parsed) return false;
   return hosts.includes(parsed.hostname);
@@ -56,12 +52,27 @@ function matchesPaths(pathname: string, paths: string[]): boolean {
   return paths.includes(pathname);
 }
 
+function matchesPathPrefix(pathname: string, prefixes: string[]): boolean {
+  return prefixes.some(
+    (prefix) =>
+      pathname === prefix ||
+      pathname.startsWith(`${prefix.replace(/\/+$/, "")}/`),
+  );
+}
 
 function makeHostAndPathMatcher(hosts: string[], paths: string[]) {
   return (apiBase: string) => {
     const parsed = parseApiBase(apiBase);
     if (!parsed) return false;
     return isHost(parsed, hosts) && matchesPaths(parsed.pathname, paths);
+  };
+}
+
+function makePathPrefixMatcher(prefixes: string[]) {
+  return (apiBase: string) => {
+    const parsed = parseApiBase(apiBase);
+    if (!parsed) return false;
+    return matchesPathPrefix(parsed.pathname, prefixes);
   };
 }
 
@@ -75,18 +86,27 @@ const OPENAI_PATHS = [
 ];
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
-    {
-        id: "openai",
-        label: "OpenAI",
-        defaultApiBase: "https://api.openai.com/v1/responses",
-        defaultProtocol: "responses_api",
-        supportedProtocols: ["responses_api", "openai_chat_compat"],
-        helperText: "Preset uses OpenAI's official Responses endpoint.",
-        matches: makeHostAndPathMatcher(["api.openai.com"], OPENAI_PATHS),
-        supportsResponsesEndpoint: true,
-        supportsEmbeddings: true,
-        defaultEmbeddingModel: "text-embedding-3-small",
-    },
+  {
+    id: "openai",
+    label: "OpenAI",
+    defaultApiBase: "https://api.openai.com/v1/responses",
+    defaultProtocol: "responses_api",
+    supportedProtocols: ["responses_api", "openai_chat_compat"],
+    helperText: "Preset uses OpenAI's official Responses endpoint.",
+    matches: makeHostAndPathMatcher(["api.openai.com"], OPENAI_PATHS),
+    supportsResponsesEndpoint: true,
+    supportsEmbeddings: true,
+    defaultEmbeddingModel: "text-embedding-3-small",
+  },
+  {
+    id: "flowise",
+    label: "Flowise",
+    defaultApiBase: "http://localhost:3000/api/v1/prediction",
+    defaultProtocol: "flowise_prediction",
+    supportedProtocols: ["flowise_prediction"],
+    helperText: "Preset for a local Flowise instance using the prediction API.",
+    matches: makePathPrefixMatcher(["/api/v1/prediction"]),
+  },
 ];
 
 export function detectProviderPreset(apiBase: string): ProviderPresetId {
@@ -98,8 +118,6 @@ export function detectProviderPreset(apiBase: string): ProviderPresetId {
   return "customized";
 }
 
-
-
 export function getProviderPreset(
   id: SupportedProviderPresetId,
 ): ProviderPreset {
@@ -109,4 +127,3 @@ export function getProviderPreset(
   }
   return preset;
 }
-

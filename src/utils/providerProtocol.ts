@@ -1,8 +1,11 @@
-import { isResponsesBase } from "./apiHelpers";
+import {
+  isFlowisePredictionBase,
+  isOpenAIChatCompletionsBase,
+  isResponsesBase,
+} from "./apiHelpers";
 
 export type ProviderProtocol =
-    | "openai_chat_compat"
-    | "responses_api";
+  "flowise_prediction" | "openai_chat_compat" | "responses_api";
 
 export type ProviderProtocolSpec = {
   id: ProviderProtocol;
@@ -16,16 +19,38 @@ export type ProviderProtocolSpec = {
 };
 
 export const PROVIDER_PROTOCOL_SPECS: ProviderProtocolSpec[] = [
-    {
-        id: "responses_api",
-        label: "Responses API",
-        helperText: "Use OpenAI-style Responses APIs with tool calls and direct file input.",
-        streaming: true,
-        toolCalls: true,
-        multimodal: true,
-        fileInputs: true,
-        reasoning: true,
-    },
+  {
+    id: "flowise_prediction",
+    label: "Flowise Prediction",
+    helperText:
+      "Use a local Flowise prediction endpoint such as /api/v1/prediction/:id.",
+    streaming: true,
+    toolCalls: true,
+    multimodal: true,
+    fileInputs: true,
+    reasoning: true,
+  },
+  {
+    id: "responses_api",
+    label: "Responses API",
+    helperText:
+      "Use OpenAI-style Responses APIs with tool calls and direct file input.",
+    streaming: true,
+    toolCalls: true,
+    multimodal: true,
+    fileInputs: true,
+    reasoning: true,
+  },
+  {
+    id: "openai_chat_compat",
+    label: "OpenAI Chat Completions",
+    helperText: "Use the classic OpenAI-style /v1/chat/completions endpoint.",
+    streaming: true,
+    toolCalls: false,
+    multimodal: true,
+    fileInputs: false,
+    reasoning: false,
+  },
 ];
 
 const PROVIDER_PROTOCOL_IDS = new Set<ProviderProtocol>(
@@ -33,34 +58,27 @@ const PROVIDER_PROTOCOL_IDS = new Set<ProviderProtocol>(
 );
 
 export function isProviderProtocol(value: unknown): value is ProviderProtocol {
-  return typeof value === "string" && PROVIDER_PROTOCOL_IDS.has(value as ProviderProtocol);
+  return (
+    typeof value === "string" &&
+    PROVIDER_PROTOCOL_IDS.has(value as ProviderProtocol)
+  );
 }
-
-
-
 
 export function inferLegacyProviderProtocol(params: {
-    authMode?: string;
-    apiBase?: string;
+  authMode?: string;
+  apiBase?: string;
 }): ProviderProtocol {
-    // if (params.authMode === "codex_auth" || params.authMode === "codex_app_server") {
-    //     return "codex_responses";
-    // }
-    // if (params.authMode === "copilot_auth") {
-    //     return "openai_chat_compat";
-    // }
-    if (isResponsesBase(params.apiBase || "")) {
-        return "responses_api";
-    }
-    // if (isAnthropicMessagesBase(params.apiBase)) {
-    //     return "anthropic_messages";
-    // }
-    // if (isOpenAIChatCompletionsBase(params.apiBase)) {
-    //     return "openai_chat_compat";
-    // }
+  if (isFlowisePredictionBase(params.apiBase || "")) {
+    return "flowise_prediction";
+  }
+  if (isResponsesBase(params.apiBase || "")) {
+    return "responses_api";
+  }
+  if (isOpenAIChatCompletionsBase(params.apiBase || "")) {
     return "openai_chat_compat";
+  }
+  return "openai_chat_compat";
 }
-
 
 export function normalizeProviderProtocol(
   value: unknown,
@@ -69,7 +87,6 @@ export function normalizeProviderProtocol(
   return isProviderProtocol(value) ? value : fallback;
 }
 
-
 export function normalizeProviderProtocolForAuthMode(params: {
   protocol?: unknown;
   authMode?: string;
@@ -77,16 +94,8 @@ export function normalizeProviderProtocolForAuthMode(params: {
   fallback?: ProviderProtocol;
   model?: string;
 }): ProviderProtocol {
-    const inferred = inferLegacyProviderProtocol(params);
-    const fallback = params.fallback || inferred;
-    const normalized = normalizeProviderProtocol(params.protocol, fallback);
-
-    // if (params.authMode === "copilot_auth") {
-    //     // Copilot supports both responses_api and openai_chat_compat
-    //     return normalized === "openai_chat_compat" || normalized === "responses_api"
-    //     ? normalized
-    //     : "openai_chat_compat";
-    // }
-    return normalized;
+  const inferred = inferLegacyProviderProtocol(params);
+  const fallback = params.fallback || inferred;
+  const normalized = normalizeProviderProtocol(params.protocol, fallback);
+  return normalized;
 }
-

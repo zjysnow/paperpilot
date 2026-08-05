@@ -1,10 +1,9 @@
 /**
- * Shared domain types used by both the agent layer and the contextPanel layer.
+ * Shared domain types used by the context panel and related runtime helpers.
  * This file has zero imports — all types are pure data shapes.
  */
 
 export type ConversationSystem = "upstream";
-
 
 /** A Zotero collection selected as context scope. */
 export type CollectionContextRef = {
@@ -25,14 +24,7 @@ export type NoteContextRef = {
 };
 
 export type PaperContentSourceMode =
-  | "text"
-  | "mineru"
-  | "pdf"
-  | "markdown"
-  | "html"
-  | "txt"
-  | "docx";
-
+  "text" | "mineru" | "pdf" | "markdown" | "html" | "txt" | "docx";
 
 export type PaperContextRef = {
   itemId: number;
@@ -67,8 +59,6 @@ export type ActiveNoteSession = {
   conversationKind: "paper" | "global";
 };
 
-
-
 export type QuoteCitation = {
   id: string;
   quoteText: string;
@@ -97,12 +87,7 @@ export type QuoteCitation = {
 };
 
 export type ChatAttachmentCategory =
-  | "image"
-  | "pdf"
-  | "markdown"
-  | "code"
-  | "text"
-  | "file";
+  "image" | "pdf" | "markdown" | "code" | "text" | "file";
 
 export type ChatAttachment = {
   id: string;
@@ -116,7 +101,6 @@ export type ChatAttachment = {
   contentHash?: string;
 };
 
-
 export type GeneratedChatImage = {
   id: string;
   label?: string;
@@ -124,7 +108,6 @@ export type GeneratedChatImage = {
   src?: string;
   revisedPrompt?: string;
 };
-
 
 export type ModelInputMode = "text_only" | "vision_allowed";
 
@@ -143,4 +126,3 @@ export type OtherContextRef = {
   contentType: string;
   refKind: "figure" | "other";
 };
-
