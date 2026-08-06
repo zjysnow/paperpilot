@@ -44,4 +44,6 @@ assert.match(stylesheetSource, /action-screenshot\.svg/);
 assert.match(stylesheetSource, /flex-direction: row/);
 assert.match(stylesheetSource, /align-self: flex-start/);
 assert.match(stylesheetSource, /display: none/);
+assert.match(stylesheetSource, /grid-column: 1 \/ -1/);
+assert.match(stylesheetSource, /:has\(/);
 globalThis.console.log("Workflow smoke tests passed.");
