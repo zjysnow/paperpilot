@@ -509,12 +509,13 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     //     pdfPage: slashPdfPageBtn,
     //     pdfMultiplePages: slashPdfMultiplePagesBtn,
     // };
-    // slashList.append(
-    //     ...getBaseSlashMenuItems(
-    //     resolveSlashActionChatMode(displayConversationKind),
-    //     ).map((entry) => slashBaseButtons[entry]),
-    // );
-    // slashMenu.append(slashList);
+    slashList.append(
+        slashUploadBtn,
+        slashReferenceBtn,
+        slashPdfPageBtn,
+        slashPdfMultiplePagesBtn,
+    );
+    slashMenu.append(slashList);
     // slashMenu is appended to composeArea below (after composeArea is created)
 
     // Retry model menu (opened from latest assistant retry action)

@@ -49,6 +49,7 @@ import {
   renderPaperModeShortcuts,
   resolvePaperShortcutAttachment,
 } from "./paperModePresentation";
+import { renderGlobalReferenceSelectorUI } from "./globalReferenceSelectorUI";
 import {
   activeContextPanelRawItems,
   activeContextPanels,
@@ -349,6 +350,288 @@ export function setupHandlers(
     renderPaperModeShortcuts(body, paperMode && Boolean(item));
   };
 
+  const clearSelectedPdfAttachmentsForGlobalMode = () => {
+    pendingShortcutAttachment = null;
+    const itemIds = new Set(
+      [item?.id, basePaperItem?.id].filter(
+        (value): value is number =>
+          typeof value === "number" && Number.isFinite(value) && value > 0,
+      ),
+    );
+    for (const itemId of itemIds) {
+      const attachments = selectedFileAttachmentCache.get(itemId);
+      if (!attachments?.length) continue;
+      const retained = attachments.filter((attachment) => {
+        const name = attachment.name.trim().toLowerCase();
+        return (
+          attachment.category !== "pdf" &&
+          attachment.mimeType !== "application/pdf" &&
+          !name.endsWith(".pdf") &&
+          !attachment.id.startsWith("pdf-paper-") &&
+          !attachment.id.startsWith("paper-shortcut-")
+        );
+      });
+      if (retained.length) {
+        selectedFileAttachmentCache.set(itemId, retained);
+      } else {
+        selectedFileAttachmentCache.delete(itemId);
+      }
+    }
+  };
+
+  const getInputSelectionRange = (): { start: number; end: number } => {
+    const start =
+      typeof inputBox.selectionStart === "number"
+        ? inputBox.selectionStart
+        : inputBox.value.length;
+    const end =
+      typeof inputBox.selectionEnd === "number"
+        ? inputBox.selectionEnd
+        : start;
+    return { start, end };
+  };
+
+  const insertTextAtInputSelection = (text: string): void => {
+    const { start, end } = getInputSelectionRange();
+    const nextValue =
+      inputBox.value.slice(0, start) + text + inputBox.value.slice(end);
+    inputBox.value = nextValue;
+    const nextCaret = start + text.length;
+    try {
+      inputBox.setSelectionRange(nextCaret, nextCaret);
+    } catch {
+      /* ignore selection errors */
+    }
+  };
+
+  const getTriggerTokenAtCaret = (
+    trigger: "@" | "/",
+  ): { query: string; start: number; end: number } | null => {
+    const { start, end } = getInputSelectionRange();
+    if (start !== end) return null;
+    const caret = end;
+    const beforeCaret = inputBox.value.slice(0, caret);
+    const triggerIndex = beforeCaret.lastIndexOf(trigger);
+    if (triggerIndex < 0) return null;
+    const prefix = beforeCaret.slice(0, triggerIndex);
+    if (prefix.length > 0) {
+      const lastChar = prefix.slice(-1);
+      if (!/[\s([{"'`]/.test(lastChar)) return null;
+    }
+    const query = beforeCaret.slice(triggerIndex + 1);
+    if (trigger === "/" && query.length > 0) return null;
+    if (/\s/.test(query)) return null;
+    return { query, start: triggerIndex, end: caret };
+  };
+
+  const setSlashMenuVisible = (isVisible: boolean): void => {
+    if (!slashMenu) return;
+    if (isVisible) {
+      setFloatingMenuOpen(slashMenu, SLASH_MENU_OPEN_CLASS, true);
+      uploadBtn?.setAttribute("aria-expanded", "true");
+      return;
+    }
+    setFloatingMenuOpen(slashMenu, SLASH_MENU_OPEN_CLASS, false);
+    uploadBtn?.setAttribute("aria-expanded", "false");
+  };
+
+  const positionGlobalReferencePickerForAnchor = (): void => {
+    if (!paperPicker) return;
+    const anchor = paperPicker.parentElement as HTMLElement | null;
+    const ownerDoc = body.ownerDocument;
+    const ownerWin = ownerDoc?.defaultView;
+    if (!ownerDoc || !ownerWin || !anchor) {
+      paperPicker.classList.remove("paperpilot-paper-picker-below");
+      paperPicker.style.removeProperty("--paperpilot-paper-picker-max-height");
+      return;
+    }
+
+    const anchorRect = anchor.getBoundingClientRect();
+    const panelRect = panelRoot?.getBoundingClientRect?.();
+    const viewportHeight =
+      ownerWin.innerHeight || ownerDoc.documentElement?.clientHeight || 0;
+    const viewportTop = Math.max(0, panelRect?.top ?? 0);
+    const viewportBottom = Math.min(
+      viewportHeight || Number.POSITIVE_INFINITY,
+      panelRect?.bottom ?? Number.POSITIVE_INFINITY,
+    );
+    const preferredMaxHeight = Math.max(
+      120,
+      Math.floor(
+        Math.min(
+          720,
+          (viewportHeight || 720 / 0.82) * 0.82,
+        ),
+      ),
+    );
+    const spaceAbove = Math.max(
+      0,
+      anchorRect.top - viewportTop - 12 - 8,
+    );
+    const spaceBelow = Math.max(
+      0,
+      viewportBottom - anchorRect.bottom - 12 - 8,
+    );
+    const placeBelow = spaceAbove < 120 && spaceBelow > spaceAbove;
+    const availableHeight = placeBelow ? spaceBelow : spaceAbove;
+    const maxHeight = Math.max(1, Math.floor(Math.min(preferredMaxHeight, availableHeight)));
+
+    paperPicker.classList.toggle("paperpilot-paper-picker-below", placeBelow);
+    paperPicker.style.setProperty(
+      "--paperpilot-paper-picker-max-height",
+      `${maxHeight}px`,
+    );
+  };
+
+  const openGlobalReferenceSelector = async (
+    initialQuery = "",
+    insertMentionSymbol = false,
+  ): Promise<void> => {
+    if (!item || !isGlobalMode()) return;
+    const libraryID = Number(item.libraryID || getCurrentLibraryID());
+    if (!Number.isFinite(libraryID) || libraryID <= 0) return;
+
+    const pickerHost = paperPicker || body;
+
+    if (insertMentionSymbol) {
+      insertTextAtInputSelection("@");
+    }
+
+    const existingSelector = pickerHost.querySelector(
+      "#paperpilot-global-reference-selector",
+    ) as HTMLElement | null;
+    if (existingSelector) {
+      const existingSearch = existingSelector.querySelector(
+        ".paperpilot-ref-selector-search",
+      ) as HTMLInputElement | null;
+      if (existingSearch) {
+        existingSearch.value = initialQuery;
+        existingSearch.dispatchEvent(
+          new Event("input", { bubbles: true, cancelable: false }),
+        );
+        existingSearch.focus();
+      }
+      return;
+    }
+
+    setSlashMenuVisible(false);
+    if (paperPicker) {
+      paperPicker.classList.remove("paperpilot-paper-picker-below");
+      paperPicker.style.display = "block";
+      paperPicker.style.minHeight = "240px";
+      positionGlobalReferencePickerForAnchor();
+    }
+
+    const doc = body.ownerDocument;
+    if (!doc) return;
+
+    try {
+      await renderGlobalReferenceSelectorUI(
+        pickerHost as HTMLElement,
+        doc,
+        libraryID,
+        async (papers) => {
+          if (!item) return;
+
+          const current = selectedFileAttachmentCache.get(item.id) || [];
+          const next = [...current];
+
+          for (const paper of papers) {
+            const paperItem = Zotero.Items.get(paper.itemId);
+            if (!paperItem) continue;
+
+            const pdf = (paperItem.getAttachments?.() || [])
+              .map((attachmentID) => Zotero.Items.get(attachmentID) || null)
+              .find(
+                (attachment): attachment is Zotero.Item => {
+                  if (!attachment) return false;
+                  const contentType = (
+                    attachment as unknown as { attachmentContentType?: string }
+                  ).attachmentContentType;
+                  const title = String(attachment.getField?.("title") || "");
+                  return (
+                    contentType === "application/pdf" ||
+                    title.toLowerCase().endsWith(".pdf")
+                  );
+                },
+              );
+
+            if (!pdf) continue;
+
+            if (
+              next.some((attachment) => attachment.id === `global-paper-${pdf.id}`)
+            ) {
+              continue;
+            }
+
+            const fulltextApi = (Zotero as unknown as {
+              Fulltext?: { getItemCacheFile?: (target: Zotero.Item) => unknown };
+              FullText?: { getItemCacheFile?: (target: Zotero.Item) => unknown };
+            }).Fulltext || (Zotero as unknown as {
+              FullText?: { getItemCacheFile?: (target: Zotero.Item) => unknown };
+            }).FullText;
+
+            const cacheFile = fulltextApi?.getItemCacheFile?.(pdf) as
+              | { exists?: () => boolean }
+              | undefined;
+            if (!cacheFile || cacheFile.exists?.() === false) continue;
+
+            const contents = await (
+              Zotero as unknown as {
+                File?: {
+                  getContentsAsync?: (
+                    source: unknown,
+                    charset?: string,
+                  ) => Promise<unknown>;
+                };
+              }
+            ).File?.getContentsAsync?.(cacheFile, "utf-8");
+
+            const textContent =
+              typeof contents === "string"
+                ? contents.trim()
+                : contents instanceof Uint8Array
+                  ? new TextDecoder("utf-8").decode(contents).trim()
+                  : "";
+
+            if (!textContent) continue;
+
+            next.push({
+              id: `global-paper-${pdf.id}`,
+              name: paper.title,
+              mimeType: "application/pdf",
+              sizeBytes: textContent.length,
+              category: "pdf",
+              textContent: textContent.slice(0, 120000),
+            });
+          }
+
+          if (next.length) {
+            selectedFileAttachmentCache.set(item.id, next);
+            updateFilePreview();
+            if (status) setStatus(status, `${next.length} reference(s) added`, "ready");
+          } else if (status) {
+            setStatus(
+              status,
+              t("No extractable text is available for the selected references"),
+              "warning",
+            );
+          }
+        },
+        t,
+        initialQuery,
+      );
+      if (paperPicker) {
+        paperPicker.style.display = "block";
+        paperPicker.style.minHeight = "240px";
+        positionGlobalReferencePickerForAnchor();
+      }
+    } catch (error) {
+      ztoolkit.log("Paper Pilot: failed to render global reference selector", error);
+      if (status) setStatus(status, t("Unable to select library references"), "error");
+    }
+  };
+
   const shortcutsRow = body.querySelector("#paperpilot-shortcuts");
   shortcutsRow?.addEventListener("click", (event: Event) => {
     const target = event.target as Element | null;
@@ -623,10 +906,7 @@ export function setupHandlers(
       e.preventDefault();
       e.stopPropagation();
       const isOpen = slashMenu?.style.display !== "none";
-      if (slashMenu) {
-        slashMenu.style.display = isOpen ? "none" : "";
-      }
-      uploadBtn.setAttribute("aria-expanded", isOpen ? "false" : "true");
+      setSlashMenuVisible(!isOpen);
     });
     uploadInput.addEventListener("change", () => {
       if (!item) return;
@@ -640,6 +920,15 @@ export function setupHandlers(
       });
     });
   }
+
+  slashReferenceOption?.addEventListener("click", (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void openGlobalReferenceSelector("", true).catch((error) => {
+      ztoolkit.log("Paper Pilot: failed to select library references", error);
+      if (status) setStatus(status, t("Unable to select library references"), "error");
+    });
+  });
 
   if (historyNewBtn) {
     historyNewBtn.addEventListener("click", async (e: Event) => {
@@ -720,6 +1009,23 @@ export function setupHandlers(
     if (e.key !== "Enter" || e.shiftKey || e.defaultPrevented) return;
     e.preventDefault();
     sendBtn.click();
+  });
+
+  inputBox.addEventListener("input", () => {
+    if (!item) return;
+    const mentionToken = getTriggerTokenAtCaret("@");
+    if (mentionToken) {
+      void openGlobalReferenceSelector(mentionToken.query);
+      return;
+    }
+    const slashToken = getTriggerTokenAtCaret("/");
+    if (slashToken) {
+      setSlashMenuVisible(true);
+      return;
+    }
+    if (slashMenu?.style.display !== "none") {
+      setSlashMenuVisible(false);
+    }
   });
 
   const inferAttachmentCategory = (file: File): ChatAttachment["category"] => {
@@ -1447,6 +1753,7 @@ export function setupHandlers(
   createAndSwitchGlobalConversation = async (forceFresh = false) => {
     const libraryID = getCurrentLibraryID();
     if (!libraryID) return false;
+    clearSelectedPdfAttachmentsForGlobalMode();
     const key = forceFresh
       ? allocateConversationKey("global")
       : buildDefaultUpstreamGlobalConversationKey(libraryID);
