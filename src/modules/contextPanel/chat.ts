@@ -1351,16 +1351,73 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           attachments.length,
         );
         badge.appendChild(label);
-        contextBadgesRow.appendChild(badge);
+        if (kind === "Paper") {
+          const expandedEl = doc.createElement("div") as HTMLDivElement;
+          expandedEl.className = "paperpilot-user-papers-expanded";
+          const list = doc.createElement("div") as HTMLDivElement;
+          list.className = "paperpilot-user-papers-list";
+          for (const attachment of attachments) {
+            const item = doc.createElement("div") as HTMLDivElement;
+            item.className = "paperpilot-user-papers-item";
+            const title = doc.createElement("span") as HTMLSpanElement;
+            title.className = "paperpilot-user-papers-item-title";
+            title.textContent = attachment.name;
+            title.title = attachment.name;
+            const meta = doc.createElement("span") as HTMLSpanElement;
+            meta.className = "paperpilot-user-papers-item-meta";
+            meta.textContent = attachment.mimeType || "PDF";
+            item.append(title, meta);
+            list.appendChild(item);
+          }
+          expandedEl.appendChild(list);
+          const applyState = () => {
+            const expanded = Boolean(msg.paperAttachmentsExpanded);
+            badge.classList.toggle("expanded", expanded);
+            badge.setAttribute("aria-expanded", expanded ? "true" : "false");
+            expandedEl.hidden = !expanded;
+            expandedEl.style.display = expanded ? "block" : "none";
+            badge.title = expanded ? "Collapse papers" : "Show papers";
+          };
+          const toggle = () => {
+            msg.paperAttachmentsExpanded = !msg.paperAttachmentsExpanded;
+            applyState();
+          };
+          badge.addEventListener("mousedown", (event: Event) => {
+            const mouse = event as MouseEvent;
+            if (mouse.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            toggle();
+          });
+          badge.addEventListener("click", (event: Event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          });
+          badge.addEventListener("keydown", (event: KeyboardEvent) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            event.stopPropagation();
+            toggle();
+          });
+          applyState();
+          const group = doc.createElement("div") as HTMLDivElement;
+          group.className = "paperpilot-user-attachment-kind-group";
+          group.append(badge, expandedEl);
+          contextBadgesRow.appendChild(group);
+        } else {
+          contextBadgesRow.appendChild(badge);
+        }
         hasContextBadge = true;
         hasUserContext = true;
       };
 
-      appendAttachmentKindBadge(
-        "Paper",
-        paperAttachments,
-        "paperpilot-user-papers-bar paperpilot-user-attachment-kind-bar",
-      );
+      if (!paperContexts.length) {
+        appendAttachmentKindBadge(
+          "Paper",
+          paperAttachments,
+          "paperpilot-user-papers-bar paperpilot-user-attachment-kind-bar",
+        );
+      }
       appendAttachmentKindBadge(
         "Image",
         imageAttachments,

@@ -3207,6 +3207,13 @@
   max-width: min(95%, 620px);
 }
 
+.paperpilot-user-attachment-kind-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
 .paperpilot-user-screenshots-bar {
   display: inline-flex;
   align-items: center;
@@ -3385,16 +3392,16 @@
   gap: 6px;
   width: auto;
   max-width: 100%;
-  padding: 3px 8px;
+  padding: 2px 7px;
   margin: 0;
   border: none;
-  border-radius: 8px;
-  background: transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fill-quinary) 72%, transparent);
   color: var(--fill-secondary);
   text-align: left;
   cursor: pointer;
-  font-size: var(--paperpilot-fs-12);
-  line-height: 1.25;
+  font-size: var(--paperpilot-fs-10);
+  line-height: 1.15;
   overflow: hidden;
 }
 

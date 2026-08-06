@@ -115,6 +115,7 @@ export interface Message {
   collectionContextsExpanded?: boolean;
   tagContextsExpanded?: boolean;
   paperContextsExpanded?: boolean;
+  paperAttachmentsExpanded?: boolean;
   attachments?: ChatAttachment[];
   modelAttachments?: ChatAttachment[];
   generatedImages?: GeneratedChatImage[];
