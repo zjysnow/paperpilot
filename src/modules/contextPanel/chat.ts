@@ -1461,10 +1461,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             toggle();
           });
           applyState();
-          const group = doc.createElement("div") as HTMLDivElement;
-          group.className = "paperpilot-user-attachment-kind-group";
-          group.append(badge, expandedEl);
-          contextBadgesRow.appendChild(group);
+          contextBadgesRow.appendChild(badge);
+          paperAttachmentsExpanded = expandedEl;
         } else {
           contextBadgesRow.appendChild(badge);
         }
@@ -1618,6 +1616,9 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       }
       if (papersExpanded) {
         wrapper.appendChild(papersExpanded);
+      }
+      if (paperAttachmentsExpanded) {
+        wrapper.appendChild(paperAttachmentsExpanded);
       }
       if (filesExpanded) {
         wrapper.appendChild(filesExpanded);

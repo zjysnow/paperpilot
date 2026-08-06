@@ -3215,22 +3215,7 @@
   min-width: max-content;
 }
 
-.paperpilot-user-attachment-kind-group {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-}
 
-.paperpilot-user-attachment-kind-group:has(
-    .paperpilot-user-papers-bar.expanded
-  ) {
-  grid-column: 1 / -1;
-  justify-self: end;
-  width: min(20em, calc(100vw - 24px));
-  flex-direction: column;
-  align-items: flex-end;
-}
 
 .paperpilot-user-screenshots-bar .paperpilot-user-screenshots-label,
 .paperpilot-user-papers-bar:not(.paperpilot-user-collections-bar):not(
