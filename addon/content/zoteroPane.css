@@ -3425,15 +3425,6 @@
   opacity: 0.9;
 }
 
-.paperpilot-user-attachment-icon {
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 13px;
-  height: 13px;
-  object-fit: contain;
-  opacity: 0.9;
-}
-
 .paperpilot-user-papers-label {
   min-width: 0;
   white-space: nowrap;

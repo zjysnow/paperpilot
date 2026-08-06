@@ -10,7 +10,6 @@ import {
 import { renderZoteroRichTextInto } from "./markdownRenderer";
 
 import {
-  config,
   MAX_FULL_TEXT_PAPER_CONTEXTS,
   MAX_SELECTED_IMAGES,
   PERSISTED_HISTORY_LIMIT,
@@ -19,7 +18,6 @@ import {
   formatPaperCountLabel,
 } from "./constants";
 
-const ATTACHMENT_ICON_BASE_URL = `chrome://${config.addonRef}/content/icons`;
 import {
   applyChatScrollSnapshot,
   buildChatScrollSnapshot,
@@ -912,14 +910,11 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const screenshotLabel = doc.createElement("span") as HTMLSpanElement;
         screenshotLabel.className = "paperpilot-user-screenshots-label";
-        screenshotLabel.textContent = `(${screenshotImages.length})`;
-        screenshotLabel.setAttribute("aria-label", formatFigureCountLabel(screenshotImages.length));
+        screenshotLabel.textContent = formatFigureCountLabel(screenshotImages.length);
 
-        const screenshotIcon = doc.createElement("img") as HTMLImageElement;
+        const screenshotIcon = doc.createElement("span") as HTMLSpanElement;
         screenshotIcon.className =
-          "paperpilot-user-attachment-icon paperpilot-user-screenshots-icon";
-        screenshotIcon.src = `${ATTACHMENT_ICON_BASE_URL}/action-screenshot.svg`;
-        screenshotIcon.alt = "";
+          "paperpilot-context-svg-icon paperpilot-context-icon-image paperpilot-user-screenshots-icon";
         screenshotIcon.setAttribute("aria-hidden", "true");
         screenshotBar.append(screenshotIcon, screenshotLabel);
 
@@ -1252,16 +1247,13 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const papersLabel = doc.createElement("span") as HTMLSpanElement;
         papersLabel.className = "paperpilot-user-papers-label";
-        papersLabel.textContent = `(${paperContexts.length})`;
-        papersLabel.setAttribute("aria-label", formatPaperCountLabel(paperContexts.length));
+        papersLabel.textContent = formatPaperCountLabel(paperContexts.length);
         papersLabel.title = displayPaperContexts
           .map((entry) => entry.title)
           .join("\n");
-        const papersIcon = doc.createElement("img") as HTMLImageElement;
+        const papersIcon = doc.createElement("span") as HTMLSpanElement;
         papersIcon.className =
-          "paperpilot-user-attachment-icon paperpilot-user-papers-icon";
-        papersIcon.src = `${ATTACHMENT_ICON_BASE_URL}/action-papers.svg`;
-        papersIcon.alt = "";
+          "paperpilot-context-svg-icon paperpilot-context-icon-papers paperpilot-user-papers-icon";
         papersIcon.setAttribute("aria-hidden", "true");
         papersBar.append(papersIcon, papersLabel);
 
@@ -1354,27 +1346,18 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           formatAttachmentKindCountLabel(kind, attachments.length),
         );
         badge.title = attachments.map((entry) => entry.name).join("\n");
-        const icon = doc.createElement("img") as HTMLImageElement;
+        const icon = doc.createElement("span") as HTMLSpanElement;
         icon.className =
           kind === "Paper"
-            ? "paperpilot-user-attachment-icon paperpilot-user-papers-icon"
-            : "paperpilot-user-attachment-icon paperpilot-user-screenshots-icon";
-        icon.src =
-          kind === "Paper"
-            ? `${ATTACHMENT_ICON_BASE_URL}/action-papers.svg`
-            : `${ATTACHMENT_ICON_BASE_URL}/action-screenshot.svg`;
-        icon.alt = "";
+            ? "paperpilot-context-svg-icon paperpilot-context-icon-papers paperpilot-user-papers-icon"
+            : "paperpilot-context-svg-icon paperpilot-context-icon-image paperpilot-user-screenshots-icon";
         icon.setAttribute("aria-hidden", "true");
         const label = doc.createElement("span");
         label.className =
           kind === "Paper"
             ? "paperpilot-user-papers-label"
             : "paperpilot-user-screenshots-label";
-        label.textContent = `(${attachments.length})`;
-        label.setAttribute(
-          "aria-label",
-          formatAttachmentKindCountLabel(kind, attachments.length),
-        );
+        label.textContent = formatAttachmentKindCountLabel(kind, attachments.length);
         badge.append(icon, label);
         if (kind === "Paper") {
           const expandedEl = doc.createElement("div") as HTMLDivElement;
