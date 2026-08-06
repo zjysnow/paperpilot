@@ -191,6 +191,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 🙏 Acknowledgments
 
+- Thanks to the **[llm-for-zotero](https://github.com/yilewang/llm-for-zotero)** project, from which Paper Pilot was forked and significantly evolved with the assistance of AI agents.
 - Built with [Zotero Plugin Toolkit](https://github.com/northword/zotero-plugin-toolkit)
 - Powered by the [Zotero](https://www.zotero.org/) community
 
