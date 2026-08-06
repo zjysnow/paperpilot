@@ -73,4 +73,9 @@ describe("Ollama provider configuration", () => {
       ["openai_chat_compat"],
     );
   });
+
+  it("recognizes the native Ollama discovery endpoint", () => {
+    const base = new URL(getProviderPreset("ollama").defaultApiBase);
+    assert.equal(`${base.origin}/api/tags`, "http://localhost:11434/api/tags");
+  });
 });

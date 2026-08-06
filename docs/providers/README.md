@@ -6,7 +6,8 @@
 2. Pull a chat model, for example `ollama pull llama3.2`.
 3. In Zotero, open **Preferences > Paper Pilot > AI Providers**.
 4. Click **Add local Ollama provider**.
-5. Select the discovered model in the chat panel.
+5. Click **Refresh Ollama models** after pulling another model.
+6. Select the discovered model in the chat panel.
 
 The default local URL is `http://localhost:11434/v1`. Paper Pilot sends chat
 requests to Ollama's native `http://localhost:11434/api/chat` endpoint and

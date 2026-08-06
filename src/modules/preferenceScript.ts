@@ -10,7 +10,10 @@ import {
   setMessageParagraphSpacingPref,
   setMessageWordSpacingPref,
 } from "./contextPanel/prefHelpers";
-import { getModelProviderGroups } from "../utils/modelProviders";
+import {
+  getModelProviderGroups,
+  refreshOllamaProviderModels,
+} from "../utils/modelProviders";
 
 type PrefsAPI = {
   get?: (key: string, global?: boolean) => unknown;
@@ -71,6 +74,9 @@ export async function registerPrefsScripts(window: Window | undefined | null) {
   const addOllamaProviderButton = doc.getElementById(
     elementId("add-ollama-provider"),
   ) as HTMLButtonElement | null;
+  const refreshOllamaModelsButton = doc.getElementById(
+    elementId("refresh-ollama-models"),
+  ) as HTMLButtonElement | null;
   const providerStatus = doc.getElementById(elementId("provider-status"));
   const systemPromptInput = doc.getElementById(
     elementId("system-prompt"),
@@ -123,6 +129,35 @@ export async function registerPrefsScripts(window: Window | undefined | null) {
           if (!Array.isArray(parsed)) {
             throw new Error("Provider configuration must be a JSON array.");
           }
+
+          refreshOllamaModelsButton?.addEventListener("click", async () => {
+            refreshOllamaModelsButton.disabled = true;
+            if (providerStatus)
+              providerStatus.textContent = "Refreshing Ollama models...";
+            try {
+              const count = await refreshOllamaProviderModels();
+              if (modelProviderGroupsInput) {
+                modelProviderGroupsInput.value = JSON.stringify(
+                  getModelProviderGroups(),
+                  null,
+                  2,
+                );
+              }
+              if (providerStatus) {
+                providerStatus.textContent = `Ollama model list refreshed (${count} model${count === 1 ? "" : "s"} found).`;
+              }
+            } catch (error) {
+              ztoolkit.log(
+                "Paper Pilot: failed to refresh Ollama models",
+                error,
+              );
+              if (providerStatus) {
+                providerStatus.textContent = `Ollama refresh failed: ${error instanceof Error ? error.message : String(error)}`;
+              }
+            } finally {
+              refreshOllamaModelsButton.disabled = false;
+            }
+          });
           groups = parsed;
         } catch (error) {
           ztoolkit.log(
