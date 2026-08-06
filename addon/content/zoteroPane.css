@@ -3199,6 +3199,7 @@
 .paperpilot-user-context-badges {
   align-self: flex-end;
   display: flex;
+  flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
@@ -3207,6 +3208,11 @@
   max-width: 100%;
   margin-left: auto;
   white-space: nowrap;
+  overflow: visible;
+}
+
+.paperpilot-user-context-badges > * {
+  flex: 0 0 auto;
 }
 
 .paperpilot-user-attachment-kind-group {
@@ -3616,8 +3622,8 @@
 
 .paperpilot-message-wrapper.user.paperpilot-user-context-aligned
   .paperpilot-user-context-badges {
-  width: max-content;
-  max-width: 100%;
+  width: fit-content;
+  max-width: none;
   box-sizing: border-box;
   justify-content: flex-end;
 }
