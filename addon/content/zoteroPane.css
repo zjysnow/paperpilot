@@ -581,7 +581,7 @@
   flex-direction: column;
   align-items: flex-start;
   max-width: 260px;
-  gap: 6px;
+  gap: 3px;
 }
 .paperpilot-webchat-preload-title {
   font-size: 13px;
@@ -3234,16 +3234,16 @@
   gap: 6px;
   width: auto;
   max-width: 100%;
-  padding: 3px 8px;
+  padding: 2px 7px;
   margin: 0;
   border: none;
-  border-radius: 8px;
-  background: transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fill-quinary) 72%, transparent);
   color: var(--fill-secondary);
   text-align: left;
   cursor: pointer;
-  font-size: var(--paperpilot-fs-12);
-  line-height: 1.25;
+  font-size: var(--paperpilot-fs-10);
+  line-height: 1.15;
   overflow: hidden;
 }
 
