@@ -909,12 +909,14 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const screenshotLabel = doc.createElement("span") as HTMLSpanElement;
         screenshotLabel.className = "paperpilot-user-screenshots-label";
-        screenshotLabel.textContent = formatFigureCountLabel(
-          screenshotImages.length,
-        );
+        screenshotLabel.textContent = `(${screenshotImages.length})`;
+        screenshotLabel.setAttribute("aria-label", formatFigureCountLabel(screenshotImages.length));
 
-        // screenshotBar.append(screenshotIcon, screenshotLabel);
-        screenshotBar.append(screenshotLabel);
+        const screenshotIcon = doc.createElement("span") as HTMLSpanElement;
+        screenshotIcon.className =
+          "paperpilot-user-attachment-icon paperpilot-user-screenshots-icon";
+        screenshotIcon.setAttribute("aria-hidden", "true");
+        screenshotBar.append(screenshotIcon, screenshotLabel);
 
         const screenshotExpandedEl = doc.createElement("div") as HTMLDivElement;
         screenshotExpandedEl.className = "paperpilot-user-screenshots-expanded";
@@ -1245,12 +1247,16 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const papersLabel = doc.createElement("span") as HTMLSpanElement;
         papersLabel.className = "paperpilot-user-papers-label";
-        papersLabel.textContent = formatPaperCountLabel(paperContexts.length);
+        papersLabel.textContent = `(${paperContexts.length})`;
+        papersLabel.setAttribute("aria-label", formatPaperCountLabel(paperContexts.length));
         papersLabel.title = displayPaperContexts
           .map((entry) => entry.title)
           .join("\n");
-        // papersBar.append(papersIcon, papersLabel);
-        papersBar.append(papersLabel);
+        const papersIcon = doc.createElement("span") as HTMLSpanElement;
+        papersIcon.className =
+          "paperpilot-user-attachment-icon paperpilot-user-papers-icon";
+        papersIcon.setAttribute("aria-hidden", "true");
+        papersBar.append(papersIcon, papersLabel);
 
         const papersExpandedEl = doc.createElement("div") as HTMLDivElement;
         papersExpandedEl.className = "paperpilot-user-papers-expanded";
@@ -1272,7 +1278,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             paperContext.firstCreator || "",
             paperContext.year || "",
           ].filter(Boolean);
-          paperMeta.textContent = metaParts.join(" · ") || "Supplemental paper";
+          paperMeta.textContent = metaParts.join(", ") || "Supplemental paper";
           paperMeta.title = paperMeta.textContent;
 
           const attachmentTitle = paperContext.attachmentTitle || "";
@@ -1341,16 +1347,23 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           formatAttachmentKindCountLabel(kind, attachments.length),
         );
         badge.title = attachments.map((entry) => entry.name).join("\n");
+        const icon = doc.createElement("span");
+        icon.className =
+          kind === "Paper"
+            ? "paperpilot-user-attachment-icon paperpilot-user-papers-icon"
+            : "paperpilot-user-attachment-icon paperpilot-user-screenshots-icon";
+        icon.setAttribute("aria-hidden", "true");
         const label = doc.createElement("span");
         label.className =
           kind === "Paper"
             ? "paperpilot-user-papers-label"
             : "paperpilot-user-screenshots-label";
-        label.textContent = formatAttachmentKindCountLabel(
-          kind,
-          attachments.length,
+        label.textContent = `(${attachments.length})`;
+        label.setAttribute(
+          "aria-label",
+          formatAttachmentKindCountLabel(kind, attachments.length),
         );
-        badge.appendChild(label);
+        badge.append(icon, label);
         if (kind === "Paper") {
           const expandedEl = doc.createElement("div") as HTMLDivElement;
           expandedEl.className = "paperpilot-user-papers-expanded";
@@ -1365,7 +1378,12 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             title.title = attachment.name;
             const meta = doc.createElement("span") as HTMLSpanElement;
             meta.className = "paperpilot-user-papers-item-meta";
-            meta.textContent = attachment.mimeType || "PDF";
+            meta.textContent =
+              [attachment.creatorLabel, attachment.year]
+                .filter(Boolean)
+                .join(", ") ||
+              attachment.mimeType ||
+              "PDF";
             item.append(title, meta);
             list.appendChild(item);
           }

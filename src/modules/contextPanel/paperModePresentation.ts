@@ -39,6 +39,25 @@ function getAttachmentLabel(attachment: Zotero.Item): string {
     : "Selected PDF";
 }
 
+function getPaperCreatorLabel(item: Zotero.Item | null | undefined): string {
+  const creator = item?.getCreators?.()?.[0];
+  if (!creator) return "";
+  const creatorName = (creator as unknown as { name?: unknown }).name;
+  if (typeof creatorName === "string" && creatorName.trim()) {
+    return creatorName.trim();
+  }
+  return [creator.lastName, creator.firstName]
+    .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+    .join(", ")
+    .trim();
+}
+
+function getPaperYear(item: Zotero.Item | null | undefined): string {
+  const date = item?.getField?.("date");
+  const match = typeof date === "string" ? date.match(/\b\d{4}\b/) : null;
+  return match?.[0] || "";
+}
+
 async function readFullTextCache(attachment: Zotero.Item): Promise<string> {
   const fulltext = (
     Zotero as unknown as {
@@ -93,6 +112,8 @@ export async function resolvePaperShortcutAttachment(
     sizeBytes: clippedText.length,
     category: "pdf",
     textContent: clippedText,
+    creatorLabel: getPaperCreatorLabel(resolvePaperChatSourceItem(item)),
+    year: getPaperYear(resolvePaperChatSourceItem(item)),
   };
 }
 

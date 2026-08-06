@@ -99,6 +99,8 @@ export type ChatAttachment = {
   textContent?: string;
   storedPath?: string;
   contentHash?: string;
+  creatorLabel?: string;
+  year?: string;
 };
 
 export type GeneratedChatImage = {
