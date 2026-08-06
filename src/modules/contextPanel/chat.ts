@@ -12,6 +12,8 @@ import { renderZoteroRichTextInto } from "./markdownRenderer";
 import {
   MAX_FULL_TEXT_PAPER_CONTEXTS,
   MAX_SELECTED_IMAGES,
+  PERSISTED_HISTORY_LIMIT,
+  formatAttachmentKindCountLabel,
   formatFigureCountLabel,
   formatPaperCountLabel,
 } from "./constants";
@@ -157,6 +159,7 @@ type ResponsesMessageContentPart =
 
 const activeSendRequests = new Map<number, { abort: () => void }>();
 const CHAT_HISTORY_PREF_KEY = "conversationHistory";
+const MAX_CHAT_HISTORY_PREF_LENGTH = 750_000;
 let chatHistoryHydrated = false;
 
 function persistableMessage(message: Message): Message {
@@ -165,10 +168,11 @@ function persistableMessage(message: Message): Message {
     text: message.text,
     timestamp: message.timestamp,
     runMode: "chat",
-    selectedTexts: message.selectedTexts,
+    selectedTexts: message.selectedTexts?.map((text) => text.slice(0, 8000)),
     selectedTextSources: message.selectedTextSources,
     attachments: message.attachments?.map((attachment) => ({
       ...attachment,
+      textContent: attachment.textContent?.slice(0, 24000),
       imageDataUrl: undefined,
     })),
     modelName: message.modelName,
@@ -181,10 +185,33 @@ export function persistChatHistory(): void {
   const serialized = Object.fromEntries(
     [...chatHistory.entries()].map(([key, messages]) => [
       String(key),
-      messages.filter((message) => !message.streaming).map(persistableMessage),
+      messages
+        .filter((message) => !message.streaming)
+        .slice(-PERSISTED_HISTORY_LIMIT)
+        .map(persistableMessage),
     ]),
   );
-  setStringPref(CHAT_HISTORY_PREF_KEY, JSON.stringify(serialized));
+  let value = JSON.stringify(serialized);
+  if (value.length > MAX_CHAT_HISTORY_PREF_LENGTH) {
+    for (const key of Object.keys(serialized)) {
+      serialized[key] = serialized[key].slice(-10);
+    }
+    value = JSON.stringify(serialized);
+  }
+  if (value.length > MAX_CHAT_HISTORY_PREF_LENGTH) {
+    ztoolkit.log(
+      "Paper Pilot: Chat history exceeds the Zotero preference size limit; skipping persistence",
+    );
+    return;
+  }
+  try {
+    setStringPref(CHAT_HISTORY_PREF_KEY, value);
+  } catch (error) {
+    ztoolkit.log(
+      "Paper Pilot: Failed to persist chat history; preference value was too large",
+      error,
+    );
+  }
 }
 
 function hydrateChatHistory(): void {
@@ -747,6 +774,23 @@ function normalizeTagContexts(tagContexts: unknown): TagContextRef[] {
   return normalizeTagContextRefs(tagContexts, { sanitizeText });
 }
 
+function isPdfChatAttachment(attachment: ChatAttachment): boolean {
+  const name = attachment.name.trim().toLowerCase();
+  const mimeType = attachment.mimeType.trim().toLowerCase();
+  return (
+    attachment.category === "pdf" ||
+    mimeType === "application/pdf" ||
+    name.endsWith(".pdf")
+  );
+}
+
+function isImageChatAttachment(attachment: ChatAttachment): boolean {
+  return (
+    attachment.category === "image" ||
+    attachment.mimeType.trim().toLowerCase().startsWith("image/")
+  );
+}
+
 function getMessageSelectedTextExpandedIndex(
   message: Message,
   count: number,
@@ -1255,6 +1299,21 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       }
 
       const paperContexts = normalizePaperContexts(msg.paperContexts);
+      const chatAttachments = Array.isArray(msg.attachments)
+        ? msg.attachments.filter(
+            (entry): entry is ChatAttachment =>
+              Boolean(entry) &&
+              typeof entry === "object" &&
+              typeof entry.name === "string" &&
+              typeof entry.mimeType === "string" &&
+              typeof entry.category === "string",
+          )
+        : [];
+      const paperAttachments = chatAttachments.filter(
+        (entry) =>
+          isPdfChatAttachment(entry) && !entry.id.startsWith("pdf-paper-"),
+      );
+      const imageAttachments = chatAttachments.filter(isImageChatAttachment);
       hasUserContext = hasUserContext || paperContexts.length > 0;
       if (paperContexts.length) {
         const displayPaperContexts = paperContexts.map(
@@ -1354,20 +1413,52 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         hasContextBadge = true;
       }
 
-      const fileAttachments = Array.isArray(msg.attachments)
-        ? msg.attachments.filter(
-            (entry) =>
-              entry &&
-              typeof entry === "object" &&
-              entry.category !== "image" &&
-              typeof entry.name === "string" &&
-              // Exclude PDF-paper attachments (shown under paper context instead)
-              !(
-                typeof entry.id === "string" &&
-                entry.id.startsWith("pdf-paper-")
-              ),
-          )
-        : [];
+      const appendAttachmentKindBadge = (
+        kind: "Paper" | "Image",
+        attachments: ChatAttachment[],
+        className: string,
+      ) => {
+        if (!attachments.length) return;
+        const badge = doc.createElementNS(
+          HTML_NS,
+          "button",
+        ) as HTMLButtonElement;
+        badge.type = "button";
+        badge.className = className;
+        badge.setAttribute(
+          "aria-label",
+          formatAttachmentKindCountLabel(kind, attachments.length),
+        );
+        badge.title = attachments.map((entry) => entry.name).join("\n");
+        const label = doc.createElement("span");
+        label.className =
+          kind === "Paper"
+            ? "paperpilot-user-papers-label"
+            : "paperpilot-user-screenshots-label";
+        label.textContent = formatAttachmentKindCountLabel(
+          kind,
+          attachments.length,
+        );
+        badge.appendChild(label);
+        contextBadgesRow.appendChild(badge);
+        hasContextBadge = true;
+        hasUserContext = true;
+      };
+
+      appendAttachmentKindBadge(
+        "Paper",
+        paperAttachments,
+        "paperpilot-user-papers-bar paperpilot-user-attachment-kind-bar",
+      );
+      appendAttachmentKindBadge(
+        "Image",
+        imageAttachments,
+        "paperpilot-user-screenshots-bar paperpilot-user-attachment-kind-bar",
+      );
+
+      const fileAttachments = chatAttachments.filter(
+        (entry) => !isPdfChatAttachment(entry) && !isImageChatAttachment(entry),
+      );
       hasUserContext = hasUserContext || fileAttachments.length > 0;
       if (fileAttachments.length) {
         const filesBar = doc.createElementNS(

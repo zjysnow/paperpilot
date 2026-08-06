@@ -144,6 +144,12 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
       fontWeight: "500",
       cursor: "pointer",
       zIndex: "10001",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      textAlign: "center",
+      lineHeight: "1",
+      minWidth: "120px",
     });
     cancelBtn.textContent = "Cancel (Esc)";
 

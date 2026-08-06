@@ -855,6 +855,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
         "paperpilot-shortcut-btn paperpilot-action-btn paperpilot-action-btn-primary paperpilot-send-btn",
         {
         id: "paperpilot-send",
+        type: "button",
         textContent: t("Send"),
         title: t("Send"),
         disabled: !hasItem,
@@ -866,6 +867,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
         "paperpilot-shortcut-btn paperpilot-action-btn paperpilot-action-btn-danger paperpilot-send-btn paperpilot-cancel-btn",
         {
         id: "paperpilot-cancel",
+        type: "button",
         textContent: t("Cancel"),
         },
     );

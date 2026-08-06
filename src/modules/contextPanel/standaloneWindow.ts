@@ -35,6 +35,7 @@ import {
 
 import { buildUI } from "./buildUI";
 import {
+  disposeSetupHandlers,
   setupHandlers,
   type ContextPreviewRenderMetrics,
   type SetupHandlersHooks,
@@ -2482,13 +2483,29 @@ export function openStandaloneChat(options?: {
       // });
 
       // Escape key — attached at document level so it works regardless of focus
-      doc.addEventListener("keydown", (e: Event) => {
-        if (skillOverlay.style.display === "none") return;
-        if ((e as KeyboardEvent).key === "Escape") {
-          e.preventDefault();
-          // closeSkillPopup();
-        }
-      });
+      doc.addEventListener(
+        "keydown",
+        (e: Event) => {
+          const event = e as KeyboardEvent;
+          if (event.key !== "Escape" || event.defaultPrevented) return;
+
+          let closed = false;
+          const hide = (element: HTMLElement): void => {
+            if (element.style.display === "none") return;
+            element.style.display = "none";
+            closed = true;
+          };
+
+          hide(skillCtxMenu);
+          hide(exportPopup);
+          hide(skillOverlay);
+          if (!closed) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+        },
+        true,
+      );
 
       // Context menu: Show in file system
       // skillCtxShowInFs.addEventListener("click", async () => {
@@ -3900,6 +3917,7 @@ export function openStandaloneChat(options?: {
     );
     const contentArea = root?.querySelector(".paperpilot-standalone-content");
     if (contentArea) {
+      disposeSetupHandlers(contentArea);
       // void releaseClaudeRuntimeForBody(contentArea as Element);
       activeContextPanels.delete(contentArea);
       activeContextPanelRawItems.delete(contentArea);

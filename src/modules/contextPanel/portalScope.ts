@@ -287,6 +287,7 @@ export function resolveInitialPanelItemState(
   initialItem: Zotero.Item | null | undefined,
   options?: {
     conversationSystem?: ConversationSystem | null;
+    conversationMode?: "global" | "paper";
   },
 ): {
   item: Zotero.Item | null;
@@ -314,10 +315,9 @@ export function resolveInitialPanelItemState(
 
   const libraryID = resolveLibraryIdFromItem(basePaperItem);
   const conversationSystem = "upstream";
-  const preferredMode = resolvePreferredConversationMode(
-    libraryID,
-    conversationSystem,
-  );
+  const preferredMode =
+    options?.conversationMode ||
+    resolvePreferredConversationMode(libraryID, conversationSystem);
 
   if (preferredMode === "global") {
     const conversationKey = resolveGlobalConversationKey(

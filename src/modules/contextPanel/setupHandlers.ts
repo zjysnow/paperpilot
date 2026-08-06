@@ -195,6 +195,11 @@ import type { SetupHandlersContext } from "./setupHandlers/types";
 
 /** Monotonic counter incremented every time setupHandlers rebuilds a panel. */
 let setupHandlersGeneration = 0;
+const setupHandlersCleanupByBody = new WeakMap<Element, () => void>();
+
+export function disposeSetupHandlers(body: Element): void {
+  setupHandlersCleanupByBody.get(body)?.();
+}
 
 export type ContextPreviewRenderMetrics = {
   previousHeight: number;
@@ -223,12 +228,23 @@ export function setupHandlers(
   const existingPanelRoot = body.querySelector(
     "#paperpilot-main",
   ) as HTMLElement | null;
+  if (existingPanelRoot?.dataset.handlersInitialized) {
+    return;
+  }
+  disposeSetupHandlers(body);
   const preferredConversationSystem =
     existingPanelRoot?.dataset?.conversationSystem === "upstream"
       ? "upstream"
       : resolveConversationSystemForItem(initialItem);
+  const preferredConversationMode =
+    existingPanelRoot?.dataset?.conversationKind === "global"
+      ? "global"
+      : existingPanelRoot?.dataset?.conversationKind === "paper"
+        ? "paper"
+        : undefined;
   const resolvedInitialState = resolveInitialPanelItemState(initialItem, {
     conversationSystem: preferredConversationSystem,
+    conversationMode: preferredConversationMode,
   });
   const rawPanelItem =
     activeContextPanelRawItems.get(body) || initialItem || null;
@@ -794,14 +810,7 @@ export function setupHandlers(
 
   const isStandalonePanel = panelRoot.dataset.standalone === "true";
 
-  // Guard: skip re-wiring if handlers were already attached to this exact
-  // panelRoot element.  buildUI() creates a fresh panelRoot each time, so
-  // the stamp is only present when setupHandlers is called twice on the
-  // same DOM tree without an intervening rebuild.
   const thisGen = String(++setupHandlersGeneration);
-  if (panelRoot.dataset.handlersInitialized) {
-    return;
-  }
   panelRoot.dataset.handlersAttached = thisGen;
   panelRoot.dataset.rawContextItemId = rawPanelItem
     ? `${Number(rawPanelItem.id || 0) || ""}`
@@ -1012,7 +1021,15 @@ export function setupHandlers(
         optimized,
       ].slice(0, MAX_SELECTED_IMAGES);
       selectedImageCache.set(item.id, nextImages);
-      selectedImagePreviewExpandedCache.set(item.id, true);
+      const expandedBeforeCapture = selectedImagePreviewExpandedCache.get(
+        item.id,
+      );
+      selectedImagePreviewExpandedCache.set(
+        item.id,
+        typeof expandedBeforeCapture === "boolean"
+          ? expandedBeforeCapture
+          : false,
+      );
       selectedImagePreviewActiveIndexCache.set(item.id, nextImages.length - 1);
       updateImagePreview();
       if (status) {
@@ -1084,9 +1101,7 @@ export function setupHandlers(
   }
 
   if (sendBtn) {
-    sendBtn.addEventListener("click", async (e: Event) => {
-      e.preventDefault();
-      e.stopPropagation();
+    const executeSend = async (): Promise<void> => {
       if (!item || !inputBox) return;
       const text = sanitizeText(inputBox.value).trim();
       if (!text) {
@@ -1102,7 +1117,22 @@ export function setupHandlers(
         ...(pendingShortcutAttachment ? [pendingShortcutAttachment] : []),
       ];
       if (isPaperMode()) {
-        const defaultPaperAttachment = await resolvePaperShortcutAttachment(item);
+        let defaultPaperAttachment: ChatAttachment | null = null;
+        try {
+          defaultPaperAttachment = await resolvePaperShortcutAttachment(item);
+        } catch (error) {
+          ztoolkit.log(
+            "Paper Pilot: failed to prepare the PDF context for sending",
+            error,
+          );
+          if (status) {
+            setStatus(
+              status,
+              t("Unable to prepare the PDF context; sending without it"),
+              "warning",
+            );
+          }
+        }
         if (
           defaultPaperAttachment &&
           !attachments.some(
@@ -1137,7 +1167,20 @@ export function setupHandlers(
         body,
         item,
         message: userMessage,
-        modelEntry: getSelectedModelInfo().selectedEntry || undefined,
+        modelEntry:
+          getSelectedModelInfo().selectedEntry ||
+          getAvailableModelEntries()[0] ||
+          undefined,
+      });
+    };
+    sendBtn.addEventListener("click", (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void executeSend().catch((error) => {
+        ztoolkit.log("Paper Pilot: send handler failed", error);
+        if (status) {
+          setStatus(status, t("Unable to send message"), "error");
+        }
       });
     });
   }
@@ -1379,6 +1422,19 @@ export function setupHandlers(
       };
     }
   };
+
+  previewMeta?.addEventListener("click", (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const currentItem = item;
+    if (!currentItem) return;
+    const images = selectedImageCache.get(currentItem.id) || [];
+    if (!images.length) return;
+    const expanded =
+      selectedImagePreviewExpandedCache.get(currentItem.id) === true;
+    selectedImagePreviewExpandedCache.set(currentItem.id, !expanded);
+    updateImagePreview();
+  });
 
   const resetContextClearButtonStyle = (button: HTMLElement) => {
     for (const [property, value] of [
@@ -5137,7 +5193,11 @@ export function setupHandlers(
 
   getSelectedModelInfo = () => {
     const { choices, groupedChoices } = getModelChoices();
-    const selectedEntry = item ? getSelectedModelEntryForItem(item.id) : null;
+    const selectedEntry =
+      (item ? getSelectedModelEntryForItem(item.id) : null) ||
+      (rawPanelItem && rawPanelItem.id !== item?.id
+        ? getSelectedModelEntryForItem(rawPanelItem.id)
+        : null);
     const currentModel =
       selectedEntry?.model ||
       choices[0]?.model ||
@@ -8059,13 +8119,96 @@ export function setupHandlers(
     });
   }
 
-  body.addEventListener("keydown", (e: Event) => {
-    const ke = e as KeyboardEvent;
-    if (ke.key !== "Escape" || ke.defaultPrevented) return;
-    if (item && !cancelQuestion(item)) return;
-    e.preventDefault();
-    e.stopPropagation();
-  });
+  const closeFloatingWindowsOnEscape = (event: KeyboardEvent): void => {
+    if (event.key !== "Escape" || event.defaultPrevented) return;
+
+    let closed = false;
+    const hide = (element: HTMLElement | null): void => {
+      if (!element || element.style.display === "none") return;
+      element.style.display = "none";
+      closed = true;
+    };
+
+    if (
+      imagePreview &&
+      imagePreview.style.display !== "none" &&
+      item &&
+      selectedImagePreviewExpandedCache.get(item.id) === true
+    ) {
+      selectedImagePreviewExpandedCache.set(item.id, false);
+      updateImagePreview();
+      closed = true;
+    }
+
+    hide(responseMenu);
+    hide(promptMenu);
+    hide(exportMenu);
+    hide(historyRowMenu);
+    hide(historyNewMenu);
+    hide(historyMenu);
+    hide(slashMenu);
+    hide(shortcutMenu);
+    hide(modelMenu);
+    hide(reasoningMenu);
+    hide(retryModelMenu);
+    hide(paperPicker);
+    hide(paperChipMineruCacheMenu);
+    hide(paperChipMenu);
+    hide(actionPicker);
+    hide(actionHitlPanel);
+
+    if (closed) {
+      closeResponseMenu();
+      closePromptMenu();
+      closeExportMenu();
+      closeHistoryNewMenu();
+      closeHistoryMenu();
+      closeSlashMenu();
+      closeModelMenu();
+      closeReasoningMenu();
+      closeRetryModelMenu();
+      closePaperPicker();
+      closePaperChipMenu();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    if (item && cancelQuestion(item)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+
+  const panelDocWithEscapeHandler = panelDoc as Document & {
+    __paperpilotFloatingWindowsEscapeHandler?: (event: KeyboardEvent) => void;
+  };
+  if (panelDocWithEscapeHandler.__paperpilotFloatingWindowsEscapeHandler) {
+    panelDoc.removeEventListener(
+      "keydown",
+      panelDocWithEscapeHandler.__paperpilotFloatingWindowsEscapeHandler,
+      true,
+    );
+  }
+  panelDoc.addEventListener("keydown", closeFloatingWindowsOnEscape, true);
+  panelDocWithEscapeHandler.__paperpilotFloatingWindowsEscapeHandler =
+    closeFloatingWindowsOnEscape;
+
+  let setupHandlersCleaned = false;
+  const cleanupSetupHandlers = (): void => {
+    if (setupHandlersCleaned) return;
+    setupHandlersCleaned = true;
+    panelDoc.removeEventListener(
+      "keydown",
+      closeFloatingWindowsOnEscape,
+      true,
+    );
+    activeContextPanelStateSync.delete(body);
+    if (setupHandlersCleanupByBody.get(body) === cleanupSetupHandlers) {
+      setupHandlersCleanupByBody.delete(body);
+    }
+  };
+  setupHandlersCleanupByBody.set(body, cleanupSetupHandlers);
 
   // Clear button
   if (clearBtn) {

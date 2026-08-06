@@ -13,7 +13,7 @@
   --paperpilot-message-paragraph-spacing: 8px;
   --paperpilot-message-word-spacing: 0px;
   --paperpilot-message-font-family: inherit;
-  --paperpilot-screenshot-thumb-size: 56px;
+  --paperpilot-screenshot-thumb-size: 40px;
   --paperpilot-file-card-min-width: 184px;
   --paperpilot-context-icon-text-color: var(--color-accent, #3584e4);
   --paperpilot-context-icon-image-color: #06b6d4;
@@ -10447,7 +10447,6 @@ label.paperpilot-search-results-item:hover {
   color: var(--fill-primary);
 }
 
-.paperpilot-image-preview:hover .paperpilot-image-preview-expanded,
 .paperpilot-image-preview.expanded .paperpilot-image-preview-expanded {
   opacity: 1;
   visibility: visible;

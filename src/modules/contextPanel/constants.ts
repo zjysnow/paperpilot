@@ -80,6 +80,14 @@ export function formatPaperCountLabel(count: number): string {
   return t("Papers");
 }
 
+export function formatAttachmentKindCountLabel(
+  kind: "Paper" | "Image",
+  count: number,
+): string {
+  if (count <= 0) return "";
+  return `${kind} (${count})`;
+}
+
 export function getSelectTextExpandedLabel() {
   return t("Add Text");
 }
@@ -134,8 +142,6 @@ export const BUILTIN_SHORTCUTS = [
     prompt: "Create a Mermaid diagram showing the main ideas and relationships in this paper.",
   },
 ] as const;
-
-
 export const STOPWORDS = new Set([
   "an",
   "as",
