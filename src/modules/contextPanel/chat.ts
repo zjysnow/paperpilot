@@ -10,6 +10,7 @@ import {
 import { renderZoteroRichTextInto } from "./markdownRenderer";
 
 import {
+  config,
   MAX_FULL_TEXT_PAPER_CONTEXTS,
   MAX_SELECTED_IMAGES,
   PERSISTED_HISTORY_LIMIT,
@@ -17,6 +18,8 @@ import {
   formatFigureCountLabel,
   formatPaperCountLabel,
 } from "./constants";
+
+const ATTACHMENT_ICON_BASE_URL = `chrome://${config.addonRef}/content/icons`;
 import {
   applyChatScrollSnapshot,
   buildChatScrollSnapshot,
@@ -915,7 +918,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         const screenshotIcon = doc.createElement("img") as HTMLImageElement;
         screenshotIcon.className =
           "paperpilot-user-attachment-icon paperpilot-user-screenshots-icon";
-        screenshotIcon.src = "icons/action-screenshot.svg";
+        screenshotIcon.src = `${ATTACHMENT_ICON_BASE_URL}/action-screenshot.svg`;
         screenshotIcon.alt = "";
         screenshotIcon.setAttribute("aria-hidden", "true");
         screenshotBar.append(screenshotIcon, screenshotLabel);
@@ -1257,7 +1260,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         const papersIcon = doc.createElement("img") as HTMLImageElement;
         papersIcon.className =
           "paperpilot-user-attachment-icon paperpilot-user-papers-icon";
-        papersIcon.src = "icons/action-papers.svg";
+        papersIcon.src = `${ATTACHMENT_ICON_BASE_URL}/action-papers.svg`;
         papersIcon.alt = "";
         papersIcon.setAttribute("aria-hidden", "true");
         papersBar.append(papersIcon, papersLabel);
@@ -1358,8 +1361,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             : "paperpilot-user-attachment-icon paperpilot-user-screenshots-icon";
         icon.src =
           kind === "Paper"
-            ? "icons/action-papers.svg"
-            : "icons/action-screenshot.svg";
+            ? `${ATTACHMENT_ICON_BASE_URL}/action-papers.svg`
+            : `${ATTACHMENT_ICON_BASE_URL}/action-screenshot.svg`;
         icon.alt = "";
         icon.setAttribute("aria-hidden", "true");
         const label = doc.createElement("span");
