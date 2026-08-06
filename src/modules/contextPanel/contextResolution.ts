@@ -101,26 +101,135 @@ export function getActiveReaderSelectionText(
   panelDoc: Document,
   currentItem?: Zotero.Item | null,
 ): string {
-  void currentItem;
-  const reader = getActiveReaderForSelectedTab() as any;
-  const candidates: Array<{ toString?: () => string; text?: string } | null> = [
-    reader?.getSelectedText?.() || null,
-    reader?.getSelection?.() || null,
-    reader?._iframe?.contentWindow?.getSelection?.() || null,
-    reader?._window?.getSelection?.() || null,
-    panelDoc.defaultView?.getSelection?.() || null,
-  ];
-  for (const candidate of candidates) {
+  const readerApi = (
+    Zotero as unknown as {
+      Reader?: {
+        getByItemID?: (itemID: number) => unknown;
+        getByTabID?: (tabID: string | number) => unknown;
+      };
+    }
+  ).Reader;
+  const readerCandidates: unknown[] = [];
+  const readerIds = new Set<number>();
+  const addReaderForItem = (itemId: unknown) => {
+    const parsed = parseItemID(itemId);
+    if (parsed === null || readerIds.has(parsed)) return;
+    readerIds.add(parsed);
+    const reader = readerApi?.getByItemID?.(parsed);
+    if (reader) readerCandidates.push(reader);
+  };
+  addReaderForItem(currentItem?.id);
+  addReaderForItem(currentItem?.parentID);
+  for (const attachmentId of currentItem?.getAttachments?.() || []) {
+    addReaderForItem(attachmentId);
+  }
+
+  const activeReader = getActiveReaderForSelectedTab();
+  if (activeReader) readerCandidates.push(activeReader);
+  const selectedTabId = refreshLastKnownSelectedTabId();
+  if (selectedTabId !== null) {
+    const tabReader = readerApi?.getByTabID?.(selectedTabId);
+    if (tabReader) readerCandidates.push(tabReader);
+  }
+
+  const selectionCandidates: unknown[] = [];
+  for (const reader of readerCandidates) {
+    const value = reader as {
+      getSelectedText?: () => unknown;
+      getSelection?: () => unknown;
+      _iframeWindow?: Window;
+      _iframe?: {
+        contentWindow?: Window;
+        contentDocument?: Document;
+      };
+      _window?: Window & { document?: Document };
+      _internalReader?: {
+        _state?: {
+          primaryViewSelectionPopup?: { annotation?: { text?: unknown } };
+          secondaryViewSelectionPopup?: { annotation?: { text?: unknown } };
+        };
+        _primaryView?: {
+          _selectionPopup?: { annotation?: { text?: unknown } };
+          _iframeWindow?: Window;
+          _iframe?: { contentDocument?: Document };
+        };
+        _secondaryView?: {
+          _selectionPopup?: { annotation?: { text?: unknown } };
+          _iframeWindow?: Window;
+          _iframe?: { contentDocument?: Document };
+        };
+        _lastViewPrimary?: boolean;
+      };
+    };
+    const documents: Document[] = [];
+    const addDocument = (document: Document | undefined) => {
+      if (document && !documents.includes(document)) documents.push(document);
+    };
+    addDocument(value._iframeWindow?.document);
+    addDocument(value._iframe?.contentDocument);
+    addDocument(value._window?.document);
+    for (const view of [
+      value._internalReader?._primaryView,
+      value._internalReader?._secondaryView,
+    ]) {
+      addDocument(view?._iframeWindow?.document);
+      addDocument(view?._iframe?.contentDocument);
+    }
+    selectionCandidates.push(
+      value.getSelectedText?.(),
+      value.getSelection?.(),
+      value._iframeWindow?.getSelection?.(),
+      value._iframe?.contentWindow?.getSelection?.(),
+      value._window?.getSelection?.(),
+      ...documents.map((document) => document.defaultView?.getSelection?.()),
+    );
+
+    const state = value._internalReader?._state;
+    const primaryFirst = value._internalReader?._lastViewPrimary !== false;
+    const popups = primaryFirst
+      ? [
+          state?.primaryViewSelectionPopup,
+          value._internalReader?._primaryView?._selectionPopup,
+          state?.secondaryViewSelectionPopup,
+          value._internalReader?._secondaryView?._selectionPopup,
+        ]
+      : [
+          state?.secondaryViewSelectionPopup,
+          value._internalReader?._secondaryView?._selectionPopup,
+          state?.primaryViewSelectionPopup,
+          value._internalReader?._primaryView?._selectionPopup,
+        ];
+    selectionCandidates.push(
+      ...popups.map((popup) => popup?.annotation?.text),
+    );
+  }
+  for (const candidate of selectionCandidates) {
+    if (!candidate) continue;
     const text =
-      typeof candidate?.toString === "function"
-        ? candidate.toString()
-        : typeof candidate?.text === "string"
-          ? candidate.text
-          : "";
+      typeof candidate === "string"
+        ? candidate
+        : typeof (candidate as { toString?: () => string }).toString ===
+            "function"
+          ? (candidate as { toString: () => string }).toString()
+          : typeof (candidate as { text?: unknown }).text === "string"
+            ? (candidate as { text: string }).text
+            : "";
     const normalized = sanitizeText(text).trim();
     if (normalized) return normalized;
   }
-  return "";
+  const cachedItemIds = [
+    currentItem?.id,
+    currentItem?.parentID,
+    ...(currentItem?.getAttachments?.() || []),
+  ];
+  for (const itemId of cachedItemIds) {
+    const cached = recentReaderSelectionCache.get(Number(itemId));
+    if (cached) return cached;
+  }
+
+  // Keep the panel selection as a fallback for existing dialog-selection use.
+  const panelSelection = panelDoc.defaultView?.getSelection?.()?.toString() || "";
+  return sanitizeText(panelSelection).trim();
 }
 
 function isTabsState(value: unknown): value is ZoteroTabsState {

@@ -72,6 +72,7 @@ import {
 import { getLockedGlobalConversationKey } from "./prefHelpers";
 
 import { freshStartupConversationSession } from "./freshStartupConversation";
+import { registerReaderSelectionTracking } from "./readerSelectionTracking";
 
 export { openStandaloneChat } from "./standaloneWindow";
 import {
@@ -172,6 +173,7 @@ function buildPanelLifecycleSignature(
 export function registerReaderContextPanel() {
     if (readerContextPanelRegistered) return;
     setReaderContextPanelRegistered(true);
+    registerReaderSelectionTracking();
     freshStartupConversationSession.begin();
     // Generation counter: incremented on every onAsyncRender call so stale
     // (superseded) renders can bail out at each await point.
@@ -467,6 +469,5 @@ export function registerReaderContextPanel() {
         },
     });
 }
-
 
 

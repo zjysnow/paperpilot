@@ -3,7 +3,7 @@
  * Uses marked library to convert markdown to HTML for display in Zotero panel
  */
 
-import { marked } from "marked";
+import { Marked, Renderer } from "marked";
 import hljs from "highlight.js";
 import katex from "katex";
 
@@ -18,23 +18,24 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => map[char]);
 }
 
-const markdownRenderer = new marked.Renderer();
-markdownRenderer.code = ({ text, lang }) => {
-  const language = lang?.trim().split(/\s+/)[0] || "";
-  const highlighted =
-    language && hljs.getLanguage(language)
-      ? hljs.highlight(text, { language }).value
-      : escapeHtml(text);
-  const languageClass = language ? ` language-${escapeHtml(language)}` : "";
-  return `<pre class="paperpilot-code-block"><code class="paperpilot-code${languageClass}">${highlighted}</code></pre>`;
-};
-
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-  async: false,
-  renderer: markdownRenderer,
-});
+function createMarkdownParser(): Marked {
+  const renderer = new Renderer();
+  renderer.code = ({ text, lang }) => {
+    const language = lang?.trim().split(/\s+/)[0] || "";
+    const highlighted =
+      language && hljs.getLanguage(language)
+        ? hljs.highlight(text, { language }).value
+        : escapeHtml(text);
+    const languageClass = language ? ` language-${escapeHtml(language)}` : "";
+    return `<pre class="paperpilot-code-block"><code class="paperpilot-code${languageClass}">${highlighted}</code></pre>`;
+  };
+  return new Marked({
+    breaks: true,
+    gfm: true,
+    async: false,
+    renderer,
+  });
+}
 
 function renderMathInMarkdown(markdown: string): string {
   return markdown.replace(
@@ -60,7 +61,11 @@ function renderMathInMarkdown(markdown: string): string {
  */
 export function markdownToHtml(markdown: string, doc?: Document): string {
   try {
-    const html = marked.parse(renderMathInMarkdown(markdown)) as string;
+    // Use a fresh parser for each completed render. Marked attaches parser
+    // state to its renderer, and chat refreshes can happen during streaming.
+    const html = createMarkdownParser().parse(
+      renderMathInMarkdown(markdown),
+    ) as string;
     const temp = (doc || document).implementation.createHTMLDocument("");
     temp.body.innerHTML = html;
     temp.body.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((heading) => {
