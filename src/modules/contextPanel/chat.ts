@@ -152,6 +152,53 @@ function chatContentToOllamaText(content: unknown): string {
     .join("\n");
 }
 
+export function resolveOllamaEndpoint(apiBase: string): string {
+  const normalized = apiBase.trim();
+  if (!normalized) throw new Error("The selected model has no API URL.");
+  return `${new URL(normalized).origin}/api/chat`;
+}
+
+export function buildOllamaRequestBody(params: {
+  model: string;
+  systemPrompt?: string;
+  history: Message[];
+  message: Message;
+  temperature: number;
+  maxTokens: number;
+}): {
+  model: string;
+  stream: true;
+  think: false;
+  messages: Array<{ role: "system" | Message["role"]; content: string }>;
+  options: { temperature: number; num_predict: number };
+} {
+  const priorMessages = params.history
+    .filter((message) => !message.streaming)
+    .map((message) => ({
+      role: message.role,
+      content: chatContentToOllamaText(buildChatContent(message)),
+    }));
+  return {
+    model: params.model,
+    stream: true,
+    think: false,
+    messages: [
+      ...(params.systemPrompt?.trim()
+        ? [{ role: "system" as const, content: params.systemPrompt.trim() }]
+        : []),
+      ...priorMessages,
+      {
+        role: "user",
+        content: chatContentToOllamaText(buildChatContent(params.message)),
+      },
+    ],
+    options: {
+      temperature: params.temperature,
+      num_predict: params.maxTokens,
+    },
+  };
+}
+
 const activeSendRequests = new Map<number, { abort: () => void }>();
 const CHAT_HISTORY_PREF_KEY = "conversationHistory";
 const MAX_CHAT_HISTORY_PREF_LENGTH = 750_000;
@@ -395,19 +442,13 @@ export async function sendQuestion(
   refreshChat(options.body, options.item);
   persistChatHistory();
   try {
-    const endpoint = `${new URL(entry.apiBase).origin}/api/chat`;
+    const endpoint = resolveOllamaEndpoint(entry.apiBase);
     ztoolkit.log(
       "Paper Pilot: sending model request",
       entry.providerLabel,
       entry.model,
       endpoint,
     );
-    const priorMessages = history
-      .filter((message) => !message.streaming)
-      .map((message) => ({
-        role: message.role,
-        content: buildChatContent(message),
-      }));
     const systemPrompt = getStringPref("systemPrompt").trim();
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -415,26 +456,14 @@ export async function sendQuestion(
     if (entry.apiKey.trim()) {
       headers.Authorization = `Bearer ${entry.apiKey.trim()}`;
     }
-    const requestBody = {
+    const requestBody = buildOllamaRequestBody({
       model: entry.model,
-      stream: true,
-      think: false,
-      messages: [
-        ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-        ...priorMessages.map((message) => ({
-          role: message.role,
-          content: chatContentToOllamaText(message.content),
-        })),
-        {
-          role: "user",
-          content: chatContentToOllamaText(buildChatContent(options.message)),
-        },
-      ],
-      options: {
-        temperature: entry.advanced.temperature,
-        num_predict: entry.advanced.maxTokens,
-      },
-    };
+      systemPrompt,
+      history,
+      message: options.message,
+      temperature: entry.advanced.temperature,
+      maxTokens: entry.advanced.maxTokens,
+    });
     ztoolkit.log("Paper Pilot: Making HTTP request to", endpoint);
     {
       const streamState: ProviderStreamState = {

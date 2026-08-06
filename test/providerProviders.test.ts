@@ -13,6 +13,10 @@ import {
   PROVIDER_PROTOCOL_SPECS,
   normalizeProviderProtocol,
 } from "../src/utils/providerProtocol";
+import {
+  buildOllamaRequestBody,
+  resolveOllamaEndpoint,
+} from "../src/modules/contextPanel/chat";
 
 const ollamaGroup = (id: string, apiBase: string): ModelProviderGroup => ({
   id,
@@ -93,5 +97,48 @@ describe("Ollama provider configuration", () => {
   it("recognizes the native Ollama discovery endpoint", () => {
     const base = new URL(getProviderPreset("ollama").defaultApiBase);
     assert.equal(`${base.origin}/api/tags`, "http://localhost:11434/api/tags");
+  });
+
+  it("builds a native streaming chat request", () => {
+    const body = buildOllamaRequestBody({
+      model: "llama3.2",
+      systemPrompt: "Be concise.",
+      history: [
+        {
+          role: "user",
+          text: "Previous question",
+          timestamp: 1,
+        },
+        {
+          role: "assistant",
+          text: "Previous answer",
+          timestamp: 2,
+        },
+      ],
+      message: {
+        role: "user",
+        text: "Current question",
+        timestamp: 3,
+      },
+      temperature: 0.4,
+      maxTokens: 1024,
+    });
+
+    assert.equal(body.stream, true);
+    assert.equal(body.think, false);
+    assert.deepEqual(body.messages, [
+      { role: "system", content: "Be concise." },
+      { role: "user", content: "Previous question" },
+      { role: "assistant", content: "Previous answer" },
+      { role: "user", content: "Current question" },
+    ]);
+    assert.deepEqual(body.options, { temperature: 0.4, num_predict: 1024 });
+  });
+
+  it("resolves any Ollama base URL to the native chat endpoint", () => {
+    assert.equal(
+      resolveOllamaEndpoint("http://localhost:11434/v1"),
+      "http://localhost:11434/api/chat",
+    );
   });
 });
