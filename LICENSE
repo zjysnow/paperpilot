@@ -1,0 +1,272 @@
+                    GNU AFFERO GENERAL PUBLIC LICENSE
+                       Version 3, 11 November 2007
+
+ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+                            Preamble
+
+  The GNU Affero General Public License is a free software licence,
+with additional features to support the use of software on computer
+networks.  If you can implement it as a conventional copyright-based
+free software licence, that is preferable.  However, developers must
+also be encouraged to implement these licences in software that runs
+on server-side and other non-GUI applications where the user does not
+typically receive a copy of its source code.
+
+  Therefore the GNU Affero General Public License has two important
+features: (1) it covers non-charting as well as charting distribution,
+and (2) it has a clause which requires licensed code used in the
+operation of a computer network to be made available as source code,
+even if users do not receive a copy of it.
+
+  The GNU Affero General Public License is licensed under the following
+terms:
+
+                            TERMS AND CONDITIONS
+
+  0. Definitions.
+
+    "This License" means the GNU Affero General Public License.
+
+    "You" means an individual or Legal Entity exercising permissions
+granted by this License.
+
+    "Source code" for a work means the preferred form of the work for
+making modifications to it.
+
+    "An intercepted network transmission" is a communication between
+computers, whether wireline, wireless, or other forms.
+
+    "A user's application" means a work designed, intended, and
+marketed primarily for use by end users on their computers.
+
+    "Corresponding Source" of a source code form and an associated
+work means all the material that would need to be included in such
+source code to reproduce the work.
+
+    "Conveying" means communicating with others or otherwise distributing
+or transferring the Work or any part of it.
+
+    "Propagating" means using, reproducing, communicating, or making
+available in any way the Work or any part of it.
+
+    "The Program" means any work whose copyright holder says it can be
+distributed under the terms of this License.
+
+    "Contribute" means any contribution to the program including source
+code, documentation, patches, bug fixes, enhancements, new features,
+etc.
+
+  1. Source Code Versions.
+
+    a) You may copy and distribute verbatim copies of the Program's
+source code as you receive it, in any medium, provided that you
+conspicuously and appropriately publish on each copy an appropriate
+copyright notice and disclaimer of warranty; keep intact all the notices
+that refer to this License and to the absence of any warranty; and give
+any other recipients of the Program a copy of this License along with
+the Program.
+
+    b) You may modify your copy or copies of the Program or any portion
+of it, thus forming a work based on the Program, and copy and distribute
+such modifications or work under the terms of Section 1 above, provided
+that you also meet all of these conditions:
+
+      i) You must cause the modified files to carry prominent notices
+stating that you changed the files and the date of any change.
+
+      ii) You must cause any non-functioning altered portions of the
+Program to carry prominent notices stating that you changed the portion
+of the Program and the date of any change.
+
+      iii) You must cause the whole of the work to be licensed at no
+charge to all third parties under the terms of this License, including
+and in particular all source code of any distributed product containing
+the program or any portion of it.
+
+    c) You may install the Program on a machine or multiple machines and
+propagate it to other users of those machines, but only if you meet all
+of the conditions above and the requirements set forth in Sections 6 and 7.
+
+  2. Complete Source Code and Corresponding Source.
+
+    "Complete source code" means all source code for all modules that are
+part of the Program.
+
+    "Corresponding Source" for a binary form means:
+      (a) The corresponding machine-readable source code for the binary,
+and all source code for all extensions of the work that are designed to
+work with the program; and
+      (b) All source code for all tools typically distributed with such
+software.
+
+  3. Copying and Distribution of Source Code Forms.
+
+    a) You may propagate or convey verbatim copies of the Program's source
+code as you receive it, in any medium.
+
+    b) You may modify your copy or copies of the Program or any portion
+of it, thus forming a work based on the Program, and copy and distribute
+such modifications or work under the terms of Section 1 above, provided
+that you also meet all of these conditions:
+
+      (i) You must cause the modified files to carry prominent notices
+stating that you changed the files and the date of any change.
+
+      (ii) You must cause any non-functioning altered portions of the
+Program to carry prominent notices stating that you changed the portion
+of the Program and the date of any change.
+
+      (iii) You must cause the whole of the work to be licensed at no
+charge to all third parties under the terms of this License, including
+and in particular all source code of any distributed product containing
+the program or any portion of it.
+
+    c) You may install the Program on a machine or multiple machines and
+propagate it to other users of those machines, but only if you meet all
+of the conditions above and the requirements set forth in Sections 6 and 7.
+
+  4. Combining Independent Works.
+
+    A work that uses the Program must be either: (i) a single product
+or service offered by one provider to customers on a nonaffiliated basis,
+and where all customer data and functionality is controlled by that provider;
+or (ii) an independent work distributed in the normal course.
+
+  5. Combined Works.
+
+    You may convey a Combined Work of a work other than the Program and
+the Program, provided that you comply with the conditions set forth in
+Section 1 above and:
+
+      (a) You do more than interact with or propagate the work through
+a computer network; or
+      (b) You make the Corresponding Source for the work available for
+free distribution on a widely-used medium.
+
+  6. Modified Versions.
+
+    As used in this License, "Modified Version" means:
+      (a) A modification of the Program; or
+      (b) A collective work in which the Program is incorporated.
+
+  7. Releasing the Source Code to Users on a Computer Network.
+
+    When you propagate or convey a version of the Program that is designed
+to be used over a computer network, you must also provide users with
+access to the Complete Source Code of the Program on reasonable and fair
+terms.
+
+  8. Not For Other Works.
+
+    This License does not permit propagating or conveying the Program except
+under the terms of this License. A Modified Version must not be propagated
+or conveyed except under these terms.
+
+  9. Acceptance.
+
+    You are not required to accept this License since you have not signed
+it.  However, nothing else grants you permission to propagate or convey
+this Program or modifications of it.  These activities are illegal unless
+you accept this License.  Therefore, by propagating or conveying the Program
+(or any part of it), you indicate your acceptance of this License to do
+so, and all its terms and conditions.
+
+  10. Automatic Licensing of Downstream Recipients.
+
+     Each recipient of the Program is a licensee.  Licenses may not impose
+any further restrictions on the recipients' exercise of the rights granted
+herein.
+
+  11. Patents.
+
+     "Your Version" means the Program as you received it, including any
+modifications you made.
+
+     "Essential Patent Claims" means all patent claims owned or controlled by
+you, which would be infringed by propagation or conveying of your Version
+if no one had made such license.
+
+  12. No Surrender of Others' Freedom.
+
+     If conditions are imposed on you (whether by court order, agreement or
+otherwise) that contradict the conditions of this License, they cannot
+excuse you from the conditions of this License.
+
+  13. Remote Network Interaction is "Conveying".
+
+     A modified version of the Program must be made available to all users
+of a computer network on which it operates, in source code form, unless
+they already have it or they received it through other means.
+
+  14. Revised Versions of this License.
+
+     The Free Software Foundation may publish revised and/or new versions
+of the GNU Affero General Public License from time to time.
+
+                     NO WARRANTY
+
+  15. Disclaimer of Warranty.
+
+     THE PROGRAM IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTY OF ANY
+KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+
+  16. Limitation of Liability.
+
+     IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+WILL ANY COPYRIGHT HOLDER, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
+GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE
+OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF DATA
+OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES
+OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS), EVEN IF
+SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+                  END OF TERMS AND CONDITIONS
+
+How to Apply These Terms to Your New Programs
+
+  If you develop a new program, and you want it to be of great use, put the
+following notices near the first source code file or first page (helped by
+proofreading).  Make sure it is also in the description section of the
+program.  For example:
+
+    <one line to give the program's name and an idea of what it does.>
+    Copyright (C) <year>  <name of author>
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as
+    published by the Free Software Foundation, either version 3 of the
+    License, or (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+Also add information on how to contact you by electronic and paper mail.
+
+If the program does terminal interaction, make it output a short notice
+like this when it starts in an interactive mode:
+
+    <program>  Copyright (C) <year>  <name of author>
+    This program comes with ABSOLUTELY NO WARRANTY; for details type 'show w'.
+    This is free software, and you are welcome to redistribute it
+    under certain conditions; type 'show c' for details.
+
+The hypothetical commands 'show w' and 'show c' should show the appropriate
+parts of the General Public License.  Of course, your program's commands might
+be different; for a GUI interface, you would use an "about box".
+
+  You should also make sure that your (former) employer has a copyright on
+the program (if you have worked on it); if you are the author, you can do it.
+If not, you should get a written statement from your employer confirming that
+it does work under this license or otherwise.
+
+  You may also obtain this license from the Free Software Foundation at:
+  https://www.gnu.org/licenses/
