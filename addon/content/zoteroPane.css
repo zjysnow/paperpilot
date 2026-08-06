@@ -3199,12 +3199,14 @@
 .paperpilot-user-context-badges {
   align-self: flex-end;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-  width: auto;
-  max-width: min(95%, 620px);
+  width: max-content;
+  max-width: 100%;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .paperpilot-user-attachment-kind-group {
@@ -3614,8 +3616,8 @@
 
 .paperpilot-message-wrapper.user.paperpilot-user-context-aligned
   .paperpilot-user-context-badges {
-  width: var(--paperpilot-user-bubble-width, min(95%, 620px));
-  max-width: var(--paperpilot-user-bubble-width, min(95%, 620px));
+  width: max-content;
+  max-width: 100%;
   box-sizing: border-box;
   justify-content: flex-end;
 }

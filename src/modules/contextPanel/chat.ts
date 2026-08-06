@@ -950,7 +950,11 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const screenshotLabel = doc.createElement("span") as HTMLSpanElement;
         screenshotLabel.className = "paperpilot-user-screenshots-label";
-        screenshotLabel.textContent = formatFigureCountLabel(screenshotImages.length);
+        screenshotLabel.textContent = "";
+        screenshotLabel.setAttribute(
+          "aria-label",
+          formatFigureCountLabel(screenshotImages.length),
+        );
 
         const screenshotIcon = doc.createElement("span") as HTMLSpanElement;
         screenshotIcon.className =
@@ -1291,7 +1295,11 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const papersLabel = doc.createElement("span") as HTMLSpanElement;
         papersLabel.className = "paperpilot-user-papers-label";
-        papersLabel.textContent = formatPaperCountLabel(paperContexts.length);
+        papersLabel.textContent = "";
+        papersLabel.setAttribute(
+          "aria-label",
+          formatPaperCountLabel(paperContexts.length),
+        );
         papersLabel.title = displayPaperContexts
           .map((entry) => entry.title)
           .join("\n");
@@ -1391,7 +1399,11 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           kind === "Paper"
             ? "paperpilot-user-papers-label"
             : "paperpilot-user-screenshots-label";
-        label.textContent = formatAttachmentKindCountLabel(kind, attachments.length);
+        label.textContent = "";
+        label.setAttribute(
+          "aria-label",
+          formatAttachmentKindCountLabel(kind, attachments.length),
+        );
         badge.append(icon, label);
         if (kind === "Paper") {
           const expandedEl = doc.createElement("div") as HTMLDivElement;
