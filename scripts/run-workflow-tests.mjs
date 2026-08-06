@@ -12,8 +12,15 @@ const preferenceSource = fs.readFileSync(
   path.join(root, "addon/content/preferences.xhtml"),
   "utf8",
 );
+const panelSource = fs.readFileSync(
+  path.join(root, "src/modules/contextPanel/buildUI.ts"),
+  "utf8",
+);
 
 assert.match(providerSource, /id: "ollama"/);
 assert.doesNotMatch(providerSource, /id: "openai"/);
 assert.match(preferenceSource, /add-ollama-provider/);
+assert.match(preferenceSource, /refresh-ollama-models/);
+assert.match(panelSource, /disabled: true/);
+assert.match(panelSource, /Reasoning controls are not supported by Ollama yet/);
 globalThis.console.log("Workflow smoke tests passed.");
