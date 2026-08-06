@@ -3209,9 +3209,20 @@
 
 .paperpilot-user-attachment-kind-group {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row;
+  align-items: center;
   gap: 4px;
+}
+
+.paperpilot-user-screenshots-bar .paperpilot-user-screenshots-label,
+.paperpilot-user-papers-bar:not(.paperpilot-user-collections-bar):not(
+    .paperpilot-user-tags-bar
+  )
+  .paperpilot-user-papers-label,
+.paperpilot-user-attachment-kind-bar
+  .paperpilot-user-screenshots-label,
+.paperpilot-user-attachment-kind-bar .paperpilot-user-papers-label {
+  display: none;
 }
 
 .paperpilot-user-screenshots-bar {

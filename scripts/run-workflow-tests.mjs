@@ -40,4 +40,6 @@ assert.match(chatSource, /year/);
 assert.match(stylesheetSource, /border-radius: 999px/);
 assert.match(stylesheetSource, /action-papers\.svg/);
 assert.match(stylesheetSource, /action-screenshot\.svg/);
+assert.match(stylesheetSource, /flex-direction: row/);
+assert.match(stylesheetSource, /display: none/);
 globalThis.console.log("Workflow smoke tests passed.");
