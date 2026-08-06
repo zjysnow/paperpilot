@@ -107,6 +107,34 @@ export const BUILTIN_SHORTCUT_FILES = [
   { id: "mermaid-diagram", label: "Diagram", file: "mermaid-diagram.txt" },
 ] as const;
 
+export const BUILTIN_SHORTCUTS = [
+  {
+    id: "summarize",
+    label: "Summarize",
+    prompt: "Summarize this paper and highlight its main contributions.",
+  },
+  {
+    id: "key-points",
+    label: "Key Points",
+    prompt: "List the key points and findings from this paper.",
+  },
+  {
+    id: "methodology",
+    label: "Methodology",
+    prompt: "Explain the methodology used in this paper.",
+  },
+  {
+    id: "limitations",
+    label: "Limitations",
+    prompt: "Identify and explain the limitations of this paper.",
+  },
+  {
+    id: "mermaid-diagram",
+    label: "Diagram",
+    prompt: "Create a Mermaid diagram showing the main ideas and relationships in this paper.",
+  },
+] as const;
+
 
 export const STOPWORDS = new Set([
   "an",

@@ -3,7 +3,12 @@ import { t } from "../../utils/i18n";
 
 import { attachMenuActionController } from "./setupHandlers/controllers/menuActionController";
 
-import type { RuntimeModelEntry } from "../../utils/modelProviders";
+import {
+  getModelProviderGroups,
+  refreshOllamaProviderModels,
+  type RuntimeModelEntry,
+} from "../../utils/modelProviders";
+import { detectProviderPreset } from "../../utils/providerPresets";
 import type { ConversationSystem } from "../../shared/types";
 
 import type {
@@ -20,6 +25,7 @@ import type {
   PaperContentSourceMode,
   ResolvedContextSource,
   SelectedTextContext,
+  ChatAttachment,
 } from "./types";
 
 import {
@@ -39,25 +45,37 @@ import {
 } from "./portalScope";
 import { getPanelDomRefs } from "./setupHandlers/domRefs";
 import {
+  renderPaperModeContext,
+  renderPaperModeShortcuts,
+  resolvePaperShortcutAttachment,
+} from "./paperModePresentation";
+import { renderGlobalReferenceSelectorUI } from "./globalReferenceSelectorUI";
+import {
   activeContextPanelRawItems,
   activeContextPanels,
+  chatHistory,
   isRequestPending,
   selectedRuntimeModeCache,
   activeGlobalConversationByLibrary,
   activeConversationModeByLibrary,
   activePaperConversationByPaper,
   removeAutoLockedGlobalConversationKey,
+  selectedTextCache,
+  selectedImageCache,
+  selectedImagePreviewActiveIndexCache,
+  selectedImagePreviewExpandedCache,
+  selectedFileAttachmentCache,
+  selectedFilePreviewExpandedCache,
   selectedPaperPreviewExpandedCache,
   activeContextPanelStateSync,
-} from "./state"
+} from "./state";
 import {
   getAvailableModelEntries,
   getStringPref,
-  // getAgentModeEnabled,
   getSelectedModelEntryForItem,
   applyPanelFontScale,
   // getAdvancedModelParamsForEntry,
-  // setSelectedModelEntryForItem,
+  setSelectedModelEntryForItem,
   // getLastUsedReasoningLevel,
   // getLastUsedReasoningLevelForProvider,
   // setLastUsedReasoningLevel,
@@ -89,6 +107,7 @@ import {
   MAX_FULL_TEXT_PAPER_CONTEXTS,
   MAX_SELECTED_IMAGES,
   MAX_SELECTED_PAPER_CONTEXTS,
+  PAPER_CONVERSATION_KEY_BASE,
   PERSISTED_HISTORY_LIMIT,
   formatFigureCountLabel,
   formatFileCountLabel,
@@ -106,11 +125,13 @@ import {
   chooseCurrentPaperBaseItemForMode,
   isAutoLoadedSnapshotForCurrentPaper,
 } from "./paperContextPreloadIdentity";
+import { captureScreenshotSelection, optimizeImageDataUrl } from "./screenshot";
 import {
   getActiveContextAttachmentFromTabs,
   addSelectedTextContext,
   appendSelectedTextContextForItem,
   applySelectedTextPreview,
+  getActiveReaderSelectionText,
   formatSelectedTextContextPageLabel,
   getSelectedTextContextEntries,
   getSelectedTextContexts,
@@ -145,7 +166,9 @@ import {
 } from "./setupHandlers/controllers/menuController";
 
 import {
-  // sendQuestion,
+  sendQuestion,
+  cancelQuestion,
+  persistChatHistory,
   refreshChat,
   syncUserContextAlignmentWidths,
   getConversationKey,
@@ -173,7 +196,6 @@ import type { SetupHandlersContext } from "./setupHandlers/types";
 /** Monotonic counter incremented every time setupHandlers rebuilds a panel. */
 let setupHandlersGeneration = 0;
 
-
 export type ContextPreviewRenderMetrics = {
   previousHeight: number;
   nextHeight: number;
@@ -186,540 +208,1271 @@ export type SetupHandlersHooks = {
   onContextPreviewRendered?: (metrics: ContextPreviewRenderMetrics) => void;
   // onWebChatModeChanged?: (isWebChat: boolean) => void;
   prepareItemsAsDefaultContextTarget?: () =>
-    | Promise<boolean | void>
-    | boolean
-    | void;
+    Promise<boolean | void> | boolean | void;
   /** Called by standalone to clear force-new-chat intent before loading a session. */
   // clearWebChatNewChatIntent?: () => void;
   /** Called by standalone to resolve the currently selected model consistently. */
   getCurrentModelName?: () => string | null;
 };
 
-
 export function setupHandlers(
   body: Element,
   initialItem?: Zotero.Item | null,
   hooks?: SetupHandlersHooks,
 ) {
-      const existingPanelRoot = body.querySelector(
-      "#paperpilot-main",
+  const existingPanelRoot = body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLElement | null;
+  const preferredConversationSystem =
+    existingPanelRoot?.dataset?.conversationSystem === "upstream"
+      ? "upstream"
+      : resolveConversationSystemForItem(initialItem);
+  const resolvedInitialState = resolveInitialPanelItemState(initialItem, {
+    conversationSystem: preferredConversationSystem,
+  });
+  const rawPanelItem =
+    activeContextPanelRawItems.get(body) || initialItem || null;
+  const resolveLiveRawPanelItem = (): Zotero.Item | null => {
+    if (activeContextPanelRawItems.has(body)) {
+      return activeContextPanelRawItems.get(body) || null;
+    }
+    return rawPanelItem;
+  };
+  let item = resolvedInitialState.item;
+  let pendingShortcutAttachment: ChatAttachment | null = null;
+  let basePaperItem =
+    resolvedInitialState.basePaperItem ||
+    resolveConversationBaseItem(rawPanelItem);
+  const buildPaperStateKey = (libraryID: number, paperItemID: number): string =>
+    `${Math.floor(libraryID)}:${Math.floor(paperItemID)}`;
+  const resolveLibraryIdFromItem = (
+    targetItem: Zotero.Item | null | undefined,
+  ): number => {
+    const parsed = Number(targetItem?.libraryID);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+    return resolveActiveLibraryID() || 0;
+  };
+
+  const panelRefs = getPanelDomRefs(body);
+  const {
+    inputBox,
+    inputSection,
+    sendBtn,
+    cancelBtn,
+    modelBtn,
+    modelSlot,
+    modelMenu,
+    reasoningBtn,
+    runtimeModeBtn,
+    reasoningSlot,
+    reasoningMenu,
+    actionsRow,
+    actionsLeft,
+    actionsRight,
+    popoutBtn,
+    settingsBtn,
+    exportBtn,
+    clearBtn,
+    titleStatic,
+    historyBar,
+    historyNewBtn,
+    historyNewMenu,
+    historyNewOpenBtn,
+    historyNewPaperBtn,
+    historyToggleBtn,
+    historyModeIndicator,
+    historyMenu,
+    modeCapsule,
+    modeChipBtn,
+    historyRowMenu,
+    historyRowRenameBtn,
+    historyUndo,
+    historyUndoText,
+    historyUndoBtn,
+    topToast,
+    selectTextBtn,
+    screenshotBtn,
+    uploadBtn,
+    uploadInput,
+    slashMenu,
+    slashUploadOption,
+    slashReferenceOption,
+    slashPdfPageOption,
+    slashPdfMultiplePagesOption,
+    imagePreview,
+    contextPreviews,
+    selectedContextList,
+    previewStrip,
+    previewExpanded,
+    previewSelected,
+    previewSelectedImg,
+    previewMeta,
+    removeImgBtn,
+    filePreview,
+    filePreviewMeta,
+    filePreviewExpanded,
+    filePreviewList,
+    filePreviewClear,
+    paperPreview,
+    paperPreviewList,
+    paperPicker,
+    paperPickerList,
+    actionPicker,
+    actionPickerList,
+    actionHitlPanel,
+    shortcutMenu,
+    queueBar,
+    responseMenu,
+    responseMenuCopyBtn,
+    responseMenuNoteBtn,
+    responseMenuForkBtn,
+    responseMenuDeleteBtn,
+    promptMenu,
+    promptMenuForkBtn,
+    promptMenuDeleteBtn,
+    exportMenu,
+    exportMenuCopyBtn,
+    exportMenuNoteBtn,
+    retryModelMenu,
+    status,
+    chatBox,
+    panelRoot,
+  } = panelRefs;
+
+  if (!inputBox || !sendBtn) {
+    ztoolkit.log("Paper Pilot: Could not find input or send button");
+    return;
+  }
+
+  const syncPaperModePresentation = () => {
+    const paperMode = isPaperMode();
+    renderPaperModeContext(body, item);
+    renderPaperModeShortcuts(body, paperMode && Boolean(item));
+  };
+
+  const clearSelectedPdfAttachmentsForGlobalMode = () => {
+    pendingShortcutAttachment = null;
+    const itemIds = new Set(
+      [item?.id, basePaperItem?.id].filter(
+        (value): value is number =>
+          typeof value === "number" && Number.isFinite(value) && value > 0,
+      ),
+    );
+    for (const itemId of itemIds) {
+      const attachments = selectedFileAttachmentCache.get(itemId);
+      if (!attachments?.length) continue;
+      const retained = attachments.filter((attachment) => {
+        const name = attachment.name.trim().toLowerCase();
+        return (
+          attachment.category !== "pdf" &&
+          attachment.mimeType !== "application/pdf" &&
+          !name.endsWith(".pdf") &&
+          !attachment.id.startsWith("pdf-paper-") &&
+          !attachment.id.startsWith("paper-shortcut-")
+        );
+      });
+      if (retained.length) {
+        selectedFileAttachmentCache.set(itemId, retained);
+      } else {
+        selectedFileAttachmentCache.delete(itemId);
+      }
+    }
+  };
+
+  const getInputSelectionRange = (): { start: number; end: number } => {
+    const start =
+      typeof inputBox.selectionStart === "number"
+        ? inputBox.selectionStart
+        : inputBox.value.length;
+    const end =
+      typeof inputBox.selectionEnd === "number"
+        ? inputBox.selectionEnd
+        : start;
+    return { start, end };
+  };
+
+  const insertTextAtInputSelection = (text: string): void => {
+    const { start, end } = getInputSelectionRange();
+    const nextValue =
+      inputBox.value.slice(0, start) + text + inputBox.value.slice(end);
+    inputBox.value = nextValue;
+    const nextCaret = start + text.length;
+    try {
+      inputBox.setSelectionRange(nextCaret, nextCaret);
+    } catch {
+      /* ignore selection errors */
+    }
+  };
+
+  const getTriggerTokenAtCaret = (
+    trigger: "@" | "/",
+  ): { query: string; start: number; end: number } | null => {
+    const { start, end } = getInputSelectionRange();
+    if (start !== end) return null;
+    const caret = end;
+    const beforeCaret = inputBox.value.slice(0, caret);
+    const triggerIndex = beforeCaret.lastIndexOf(trigger);
+    if (triggerIndex < 0) return null;
+    const prefix = beforeCaret.slice(0, triggerIndex);
+    if (prefix.length > 0) {
+      const lastChar = prefix.slice(-1);
+      if (!/[\s([{"'`]/.test(lastChar)) return null;
+    }
+    const query = beforeCaret.slice(triggerIndex + 1);
+    if (trigger === "/" && query.length > 0) return null;
+    if (/\s/.test(query)) return null;
+    return { query, start: triggerIndex, end: caret };
+  };
+
+  const setSlashMenuVisible = (isVisible: boolean): void => {
+    if (!slashMenu) return;
+    if (isVisible) {
+      setFloatingMenuOpen(slashMenu, SLASH_MENU_OPEN_CLASS, true);
+      uploadBtn?.setAttribute("aria-expanded", "true");
+      return;
+    }
+    setFloatingMenuOpen(slashMenu, SLASH_MENU_OPEN_CLASS, false);
+    uploadBtn?.setAttribute("aria-expanded", "false");
+  };
+
+  const positionGlobalReferencePickerForAnchor = (): void => {
+    if (!paperPicker) return;
+    const anchor = paperPicker.parentElement as HTMLElement | null;
+    const ownerDoc = body.ownerDocument;
+    const ownerWin = ownerDoc?.defaultView;
+    if (!ownerDoc || !ownerWin || !anchor) {
+      paperPicker.classList.remove("paperpilot-paper-picker-below");
+      paperPicker.style.removeProperty("--paperpilot-paper-picker-max-height");
+      return;
+    }
+
+    const anchorRect = anchor.getBoundingClientRect();
+    const panelRect = panelRoot?.getBoundingClientRect?.();
+    const viewportHeight =
+      ownerWin.innerHeight || ownerDoc.documentElement?.clientHeight || 0;
+    const viewportTop = Math.max(0, panelRect?.top ?? 0);
+    const viewportBottom = Math.min(
+      viewportHeight || Number.POSITIVE_INFINITY,
+      panelRect?.bottom ?? Number.POSITIVE_INFINITY,
+    );
+    const preferredMaxHeight = Math.max(
+      120,
+      Math.floor(
+        Math.min(
+          720,
+          (viewportHeight || 720 / 0.82) * 0.82,
+        ),
+      ),
+    );
+    const spaceAbove = Math.max(
+      0,
+      anchorRect.top - viewportTop - 12 - 8,
+    );
+    const spaceBelow = Math.max(
+      0,
+      viewportBottom - anchorRect.bottom - 12 - 8,
+    );
+    const placeBelow = spaceAbove < 120 && spaceBelow > spaceAbove;
+    const availableHeight = placeBelow ? spaceBelow : spaceAbove;
+    const maxHeight = Math.max(1, Math.floor(Math.min(preferredMaxHeight, availableHeight)));
+
+    paperPicker.classList.toggle("paperpilot-paper-picker-below", placeBelow);
+    paperPicker.style.setProperty(
+      "--paperpilot-paper-picker-max-height",
+      `${maxHeight}px`,
+    );
+  };
+
+  const openGlobalReferenceSelector = async (
+    initialQuery = "",
+    insertMentionSymbol = false,
+  ): Promise<void> => {
+    if (!item || !isGlobalMode()) return;
+    const libraryID = Number(item.libraryID || getCurrentLibraryID());
+    if (!Number.isFinite(libraryID) || libraryID <= 0) return;
+
+    const pickerHost = paperPicker || body;
+
+    if (insertMentionSymbol) {
+      insertTextAtInputSelection("@");
+    }
+
+    const existingSelector = pickerHost.querySelector(
+      "#paperpilot-global-reference-selector",
     ) as HTMLElement | null;
-    const preferredConversationSystem =
-      existingPanelRoot?.dataset?.conversationSystem === "upstream"
-        ? "upstream"
-        : resolveConversationSystemForItem(initialItem);
-    const resolvedInitialState = resolveInitialPanelItemState(initialItem, {
-      conversationSystem: preferredConversationSystem,
-    });
-    const rawPanelItem =
-      activeContextPanelRawItems.get(body) || initialItem || null;
-    const resolveLiveRawPanelItem = (): Zotero.Item | null => {
-      if (activeContextPanelRawItems.has(body)) {
-        return activeContextPanelRawItems.get(body) || null;
+    if (existingSelector) {
+      const existingSearch = existingSelector.querySelector(
+        ".paperpilot-ref-selector-search",
+      ) as HTMLInputElement | null;
+      if (existingSearch) {
+        existingSearch.value = initialQuery;
+        existingSearch.dispatchEvent(
+          new Event("input", { bubbles: true, cancelable: false }),
+        );
+        existingSearch.focus();
       }
-      return rawPanelItem;
-    };
-    let item = resolvedInitialState.item;
-    let basePaperItem =
-      resolvedInitialState.basePaperItem ||
-      resolveConversationBaseItem(rawPanelItem);
-    const buildPaperStateKey = (libraryID: number, paperItemID: number): string =>
-      `${Math.floor(libraryID)}:${Math.floor(paperItemID)}`;
-    const resolveLibraryIdFromItem = (
-      targetItem: Zotero.Item | null | undefined,
-    ): number => {
-      const parsed = Number(targetItem?.libraryID);
-      if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-      return resolveActiveLibraryID() || 0;
-    };
-
-    const panelRefs = getPanelDomRefs(body);
-    const {
-      inputBox,
-      inputSection,
-      sendBtn,
-      cancelBtn,
-      modelBtn,
-      modelSlot,
-      modelMenu,
-      reasoningBtn,
-      runtimeModeBtn,
-      reasoningSlot,
-      reasoningMenu,
-      actionsRow,
-      actionsLeft,
-      actionsRight,
-      popoutBtn,
-      settingsBtn,
-      exportBtn,
-      clearBtn,
-      titleStatic,
-      historyBar,
-      historyNewBtn,
-      historyNewMenu,
-      historyNewOpenBtn,
-      historyNewPaperBtn,
-      historyToggleBtn,
-      historyModeIndicator,
-      historyMenu,
-      modeCapsule,
-      modeChipBtn,
-      historyRowMenu,
-      historyRowRenameBtn,
-      historyUndo,
-      historyUndoText,
-      historyUndoBtn,
-      topToast,
-      claudeSystemToggleBtn,
-      claudeSystemToggleIcon,
-      selectTextBtn,
-      screenshotBtn,
-      uploadBtn,
-      uploadInput,
-      slashMenu,
-      slashUploadOption,
-      slashReferenceOption,
-      slashPdfPageOption,
-      slashPdfMultiplePagesOption,
-      imagePreview,
-      contextPreviews,
-      selectedContextList,
-      previewStrip,
-      previewExpanded,
-      previewSelected,
-      previewSelectedImg,
-      previewMeta,
-      removeImgBtn,
-      filePreview,
-      filePreviewMeta,
-      filePreviewExpanded,
-      filePreviewList,
-      filePreviewClear,
-      paperPreview,
-      paperPreviewList,
-      paperPicker,
-      paperPickerList,
-      actionPicker,
-      actionPickerList,
-      actionHitlPanel,
-      shortcutMenu,
-      queueBar,
-      responseMenu,
-      responseMenuCopyBtn,
-      responseMenuNoteBtn,
-      responseMenuForkBtn,
-      responseMenuDeleteBtn,
-      promptMenu,
-      promptMenuForkBtn,
-      promptMenuDeleteBtn,
-      exportMenu,
-      exportMenuCopyBtn,
-      exportMenuNoteBtn,
-      retryModelMenu,
-      status,
-      chatBox,
-      panelRoot,
-    } = panelRefs;
-
-    if (!inputBox || !sendBtn) {
-      ztoolkit.log("Paper Pilot: Could not find input or send button");
       return;
     }
 
-    if (!panelRoot) {
-      ztoolkit.log("Paper Pilot: Could not find panel root");
-      return;
+    setSlashMenuVisible(false);
+    if (paperPicker) {
+      paperPicker.classList.remove("paperpilot-paper-picker-below");
+      paperPicker.style.display = "block";
+      paperPicker.style.minHeight = "240px";
+      positionGlobalReferencePickerForAnchor();
     }
 
-    const isStandalonePanel = panelRoot.dataset.standalone === "true";
+    const doc = body.ownerDocument;
+    if (!doc) return;
 
-    // Guard: skip re-wiring if handlers were already attached to this exact
-    // panelRoot element.  buildUI() creates a fresh panelRoot each time, so
-    // the stamp is only present when setupHandlers is called twice on the
-    // same DOM tree without an intervening rebuild.
-    const thisGen = String(++setupHandlersGeneration);
-    if (panelRoot.dataset.handlersInitialized) {
-      return;
-    }
-    panelRoot.dataset.handlersAttached = thisGen;
-    panelRoot.dataset.rawContextItemId = rawPanelItem
-      ? `${Number(rawPanelItem.id || 0) || ""}`
-      : "";
+    try {
+      await renderGlobalReferenceSelectorUI(
+        pickerHost as HTMLElement,
+        doc,
+        libraryID,
+        async (papers) => {
+          if (!item) return;
 
-    activeContextPanels.set(body, () => item);
-    let isWebChatModeActive = () => panelRoot.dataset.webchatMode === "true";
-    const getQueuedFollowUpThreadKey = (): string | null =>
-      buildQueuedFollowUpThreadKey({
-        conversationSystem: currentConversationSystem,
-        conversationKey: null, // item ? getConversationKey(item) : null,
-        webChatActive: isWebChatModeActive(),
-      });
-    const queuedFollowUpBody = body as Element & {
-      __paperpilotQueuedFollowUpRegisteredThreadKey?: string | null;
-    };
-    let registeredQueuedFollowUpThreadKey: string | null =
-      queuedFollowUpBody.__paperpilotQueuedFollowUpRegisteredThreadKey || null;
-    const syncQueuedFollowUpRegistration = () => {
-      const nextThreadKey = getQueuedFollowUpThreadKey();
-      if (registeredQueuedFollowUpThreadKey === nextThreadKey) return;
-      unregisterQueuedFollowUpBody(registeredQueuedFollowUpThreadKey, body);
-      registeredQueuedFollowUpThreadKey = nextThreadKey;
-      queuedFollowUpBody.__paperpilotQueuedFollowUpRegisteredThreadKey =
-        registeredQueuedFollowUpThreadKey;
-      registerQueuedFollowUpBody(registeredQueuedFollowUpThreadKey, body);
-    };
+          const current = selectedFileAttachmentCache.get(item.id) || [];
+          const next = [...current];
 
-    // Disconnect previous ResizeObservers to prevent accumulation across
-    // successive setupHandlers calls (each call creates fresh observers).
-    const prevObservers = (body as any).__paperpilotResizeObservers as
-      | ResizeObserver[]
-      | undefined;
-    if (prevObservers) {
-      for (const obs of prevObservers) obs.disconnect();
-      delete (body as any).__paperpilotResizeObservers;
-    }
-    const prevResizeSchedulers = (body as any).__paperpilotResizeSchedulers as
-      | Array<{ cancel?: () => void }>
-      | undefined;
-    if (prevResizeSchedulers) {
-      for (const scheduler of prevResizeSchedulers) scheduler.cancel?.();
-      delete (body as any).__paperpilotResizeSchedulers;
-    }
+          for (const paper of papers) {
+            const paperItem = Zotero.Items.get(paper.itemId);
+            if (!paperItem) continue;
 
-    let renderQueuedFollowUpInputs: () => void = () => {};
-    let scheduleQueuedFollowUpDrain: () => void = () => {};
-    let isQueuedFollowUpSendAvailable: () => boolean = () => false;
-    let queueFollowUpInput: (text: string) => void = () => {};
-
-    const syncRequestUiForCurrentConversation = () => {
-      const activeConversationKey = null; // item ? getConversationKey(item) : null;
-      const isWebChatActive = isWebChatModeActive();
-      const isCurrentConversationPending =
-        activeConversationKey !== null &&
-        Number.isFinite(activeConversationKey) &&
-        isRequestPending(activeConversationKey);
-      if (sendBtn) {
-        sendBtn.style.display = isCurrentConversationPending ? "none" : "";
-        sendBtn.disabled = !item;
-        sendBtn.title = "Send";
-      }
-      if (cancelBtn) {
-        cancelBtn.style.display = isCurrentConversationPending ? "" : "none";
-      }
-      if (inputBox) {
-        inputBox.disabled =
-          !item || (isCurrentConversationPending && isWebChatActive);
-      }
-      renderQueuedFollowUpInputs();
-    };
-
-    // buildUI() wipes body.textContent whenever onAsyncRender fires (item
-    // navigation), which destroys the cancel/send button DOM mid-stream.
-    // Re-apply the current conversation's request state immediately so a panel
-    // switch never inherits stale send/cancel UI from another conversation.
-    syncRequestUiForCurrentConversation();
-
-    const panelDoc = body.ownerDocument;
-    if (!panelDoc) {
-      ztoolkit.log("Paper Pilot: Could not find panel document");
-      return;
-    }
-    const panelWin = panelDoc?.defaultView || null;
-    const ElementCtor = panelDoc.defaultView?.Element;
-    const isElementNode = (value: unknown): value is Element =>
-      Boolean(ElementCtor && value instanceof ElementCtor);
-    const headerTop = body.querySelector(
-      ".paperpilot-header-top",
-    ) as HTMLDivElement | null;
-    panelRoot.tabIndex = 0;
-    applyPanelFontScale(panelRoot);
-
-    // const resolveCurrentNoteSession = () => resolveActiveNoteSession(item);
-    // const isNoteSession = () => Boolean(resolveCurrentNoteSession());
-    const notifyConversationHistoryChanged = () => {
-      try {
-        hooks?.onConversationHistoryChanged?.();
-      } catch (err) {
-        ztoolkit.log("Paper Pilot: standalone history hook failed", err);
-      }
-    };
-    const isGlobalMode = () => resolveDisplayConversationKind(item) === "global";
-    const isPaperMode = () => resolveDisplayConversationKind(item) === "paper";
-    const initialConversationSystem: ConversationSystem = resolvePreferredConversationSystem({ item });
-    let currentConversationSystem: ConversationSystem =
-      resolvePreferredConversationSystem({
-        item,
-        preferredSystem: initialConversationSystem,
-      });
-    const getConversationSystem = (): ConversationSystem =>
-      currentConversationSystem;
-    // const isClaudeConversationSystem = () =>
-    //   getConversationSystem() === "claude_code";
-    // const isCodexConversationSystem = () => getConversationSystem() === "codex";
-    // const isRuntimeConversationSystem = () =>
-    //   isClaudeConversationSystem() || isCodexConversationSystem();
-    // const shouldRenderDynamicSlashMenuForCurrentConversation = () =>
-    //   shouldRenderDynamicSlashMenu({
-    //     itemPresent: Boolean(item),
-    //     isWebChat: isWebChatModeActive(),
-    //     runtimeMode: getCurrentRuntimeMode(),
-    //     conversationSystem: getConversationSystem(),
-    //   });
-    // const shouldRenderSkillSlashMenuForCurrentConversation = () =>
-    //   shouldRenderSkillSlashMenu({
-    //     itemPresent: Boolean(item),
-    //     isWebChat: isWebChatModeActive(),
-    //     runtimeMode: getCurrentRuntimeMode(),
-    //     conversationSystem: getConversationSystem(),
-    //   });
-    panelRoot.dataset.conversationSystem = currentConversationSystem;
-    syncQueuedFollowUpRegistration();
-    
-    const getPreferredTargetSystem = (): ConversationSystem => {
-      // const preferred = getConversationSystemPref();
-      // if (preferred === "codex" && isCodexModeAvailable()) return "codex";
-      // if (preferred === "claude_code" && isClaudeModeAvailable())
-      //   return "claude_code";
-      // if (isCodexModeAvailable()) return "codex";
-      // if (isClaudeModeAvailable()) return "claude_code";
-      return "upstream";
-    };
-    const getCurrentLibraryID = (): number => {
-      const fromItem =
-        item && Number.isFinite(item.libraryID) && item.libraryID > 0
-          ? Math.floor(item.libraryID)
-          : 0;
-      if (fromItem > 0) return fromItem;
-      return resolveActiveLibraryID() || 0;
-    };
-    const getCurrentRuntimeMode = (): ChatRuntimeMode => {
-      if (!item) return "chat";
-      // const key = getConversationKey(item);
-      // const noteSession = resolveCurrentNoteSession();
-      // return resolveRuntimeModeForConversation({
-      //   cachedMode: selectedRuntimeModeCache.get(key) || null,
-      //   isRuntimeConversationSystem: isRuntimeConversationSystem(),
-      //   runtimeConversationSystem: getConversationSystem(),
-      //   isWebChat: isWebChatModeActive(),
-      //   agentModeEnabled: getAgentModeEnabled(),
-      //   displayConversationKind: resolveDisplayConversationKind(item),
-      //   noteKind: noteSession?.noteKind || null,
-      // });
-      return "chat";
-    };
-    const updateRuntimeModeButton = () => {
-      if (!runtimeModeBtn) return;
-      const indicator = runtimeModeBtn.querySelector(
-        ".paperpilot-agent-toggle-indicator",
-      ) as HTMLSpanElement | null;
-      // if (isRuntimeConversationSystem()) {
-      //   const labelText = isCodexConversationSystem() ? "Codex" : "Claude Code";
-      //   const staticMode: ChatRuntimeMode = isCodexConversationSystem()
-      //     ? "chat"
-      //     : "agent";
-      //   runtimeModeBtn.style.display = "";
-      //   const label = runtimeModeBtn.querySelector(
-      //     ".paperpilot-agent-toggle-label",
-      //   ) as HTMLSpanElement | null;
-      //   if (label) {
-      //     label.textContent = labelText;
-      //   }
-      //   runtimeModeBtn.classList.remove("paperpilot-agent-toggle-enabled");
-      //   runtimeModeBtn.classList.add("paperpilot-runtime-mode-static");
-      //   runtimeModeBtn.dataset.mode = staticMode;
-      //   runtimeModeBtn.dataset.system = getConversationSystem();
-      //   runtimeModeBtn.title = isCodexConversationSystem()
-      //     ? "Codex native runtime"
-      //     : labelText;
-      //   runtimeModeBtn.setAttribute(
-      //     "aria-label",
-      //     isCodexConversationSystem() ? "Codex native runtime" : labelText,
-      //   );
-      //   runtimeModeBtn.setAttribute("aria-pressed", "false");
-      //   runtimeModeBtn.setAttribute("aria-disabled", "true");
-      //   runtimeModeBtn.disabled = true;
-      //   if (indicator) indicator.style.display = "none";
-      //   panelRoot.dataset.runtimeMode = staticMode;
-      //   return;
-      // }
-      runtimeModeBtn.classList.remove("paperpilot-runtime-mode-static");
-      delete runtimeModeBtn.dataset.system;
-      runtimeModeBtn.removeAttribute("aria-disabled");
-      runtimeModeBtn.disabled = false;
-      if (indicator) indicator.style.display = "";
-      const agentFeatureEnabled = false; // getAgentModeEnabled();
-      // [webchat] Agent mode not available in webchat — hide toggle
-      let webChatActive = false;
-      try {
-        webChatActive = isWebChatModeActive();
-      } catch {
-        /* not ready */
-      }
-      // Hide the entire toggle when agent feature is disabled or in webchat mode.
-      const shouldHide = !agentFeatureEnabled || webChatActive;
-      runtimeModeBtn.style.display = shouldHide ? "none" : "";
-      if (shouldHide) {
-        panelRoot.dataset.runtimeMode = "chat";
-        return;
-      }
-      const mode = getCurrentRuntimeMode();
-      const enabled = mode === "agent";
-      const label = runtimeModeBtn.querySelector(
-        ".paperpilot-agent-toggle-label",
-      ) as HTMLSpanElement | null;
-      if (label) {
-        label.textContent = t("Agent (beta)");
-      }
-      runtimeModeBtn.classList.toggle("paperpilot-agent-toggle-enabled", enabled);
-      runtimeModeBtn.dataset.mode = mode;
-      runtimeModeBtn.title = enabled
-        ? t("Agent mode ON. Click to switch to Chat mode")
-        : t("Agent mode OFF. Click to switch to Agent mode");
-      runtimeModeBtn.setAttribute(
-        "aria-label",
-        mode === "agent" ? t("Switch to Chat mode") : t("Switch to Agent mode"),
-      );
-      runtimeModeBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
-      panelRoot.dataset.runtimeMode = mode;
-    };
-    const setCurrentRuntimeMode = (mode: ChatRuntimeMode) => {
-      // if (!item || isRuntimeConversationSystem()) {
-      //   updateRuntimeModeButton();
-      //   return;
-      // }
-      // selectedRuntimeModeCache.set(getConversationKey(item), mode);
-      updateRuntimeModeButton();
-    };
-
-    let resetComposePreviewUI = () => {};
-    let updateModelButton = () => {};
-    let updateReasoningButton = () => {};
-    let getSelectedModelInfo: () => {
-      selectedEntryId: string;
-      selectedEntry: RuntimeModelEntry | null;
-      choices: RuntimeModelEntry[];
-      groupedChoices: Array<{
-        providerLabel: string;
-        entries: RuntimeModelEntry[];
-      }>;
-      currentModel: string;
-      currentModelDisplay: string;
-      currentModelHint: string;
-    } = () => ({
-      selectedEntryId: "",
-      selectedEntry: null,
-      choices: [],
-      groupedChoices: [],
-      currentModel: "",
-      currentModelDisplay: "",
-      currentModelHint: "",
-    });
-    let markNextWebChatSendAsNewChat = () => {};
-    let primeFreshWebChatPaperChipState = () => {};
-    let refreshGlobalHistoryHeader: () => Promise<void> = async () => {};
-    let switchGlobalConversation: (
-      nextConversationKey: number,
-    ) => Promise<boolean> = async () => false;
-    let switchPaperConversation: (
-      nextConversationKey?: number,
-    ) => Promise<boolean | void> = async () => {};
-    let createAndSwitchGlobalConversation: (
-      forceFresh?: boolean,
-    ) => Promise<boolean | void> = async () => {};
-    let createAndSwitchPaperConversation: (
-      forceFresh?: boolean,
-    ) => Promise<boolean | void> = async () => {};
-    let queueTurnDeletion: (target: {
-      conversationKey: number;
-      userTimestamp: number;
-      assistantTimestamp: number;
-    }) => Promise<void> = async () => {};
-    let forkConversationFromTurn: (target: {
-      item: Zotero.Item;
-      conversationKey: number;
-      userTimestamp: number;
-      assistantTimestamp: number;
-    }) => Promise<void> = async () => {};
-    let clearPendingTurnDeletion: () => unknown = () => null;
-    let hasPendingTurnDeletionForConversation = (_conversationKey: number) =>
-      false;
-    let closePaperPicker = () => {};
-    // let clearForcedSkill = () => {};
-    // let renderWebChatHistoryMenu: () => Promise<void> = async () => {};
-    // let isWebChatMode = () => isWebChatModeActive();
-    const switchConversationSystem = async (
-      nextSystem: ConversationSystem,
-      options?: { forceFresh?: boolean },
-    ) => {
-      if (!item) return;
-      // const noteSession = resolveCurrentNoteSession();
-      // if (noteSession) {
-      //   const resolvedNextSystem = resolveNoteFocusSystemSwitch({
-      //     nextSystem,
-      //     codexAvailable: isCodexModeAvailable(),
-      //     claudeAvailable: isClaudeModeAvailable(),
-      //   });
-      //   if (!resolvedNextSystem) return;
-      //   if (resolvedNextSystem === getConversationSystem()) return;
-      //   persistDraftInputForCurrentConversation();
-      //   setConversationSystemPref(resolvedNextSystem);
-      //   currentConversationSystem = resolvedNextSystem;
-      //   syncConversationIdentity();
-      //   syncQueuedFollowUpRegistration();
-      //   updateRuntimeModeButton();
-      //   await ensureConversationLoaded(item);
-      //   restoreDraftInputForCurrentConversation();
-      //   refreshChatPreservingScroll();
-      //   resetComposePreviewUI();
-      //   updateModelButton();
-      //   updateReasoningButton();
-      //   return;
-      // }
-      if (nextSystem === getConversationSystem()) return;
-      const libraryID = getCurrentLibraryID();
-      if (!libraryID) return;
-      const forceFresh = options?.forceFresh === true;
-      // persistDraftInputForCurrentConversation();
-      // setConversationSystemPref(nextSystem);
-      currentConversationSystem = nextSystem;
-      panelRoot.dataset.conversationSystem = nextSystem;
-      syncQueuedFollowUpRegistration();
-      if (isGlobalMode()) {
-        if (forceFresh) {
-          await createAndSwitchGlobalConversation(true);
-          return;
-        }
-        const nextConversationKey =
-           (() => {
-                  const lockedKey = getLockedGlobalConversationKey(libraryID);
-                  if (lockedKey !== null) return lockedKey;
-                  const activeKey = Number(
-                    activeGlobalConversationByLibrary.get(libraryID) || 0,
+            const pdf = (paperItem.getAttachments?.() || [])
+              .map((attachmentID) => Zotero.Items.get(attachmentID) || null)
+              .find(
+                (attachment): attachment is Zotero.Item => {
+                  if (!attachment) return false;
+                  const contentType = (
+                    attachment as unknown as { attachmentContentType?: string }
+                  ).attachmentContentType;
+                  const title = String(attachment.getField?.("title") || "");
+                  return (
+                    contentType === "application/pdf" ||
+                    title.toLowerCase().endsWith(".pdf")
                   );
-                  if (!isUpstreamGlobalConversationKey(activeKey)) return 0;
-                  return activeKey === GLOBAL_CONVERSATION_KEY_BASE
-                    ? buildDefaultUpstreamGlobalConversationKey(libraryID)
-                    : Math.floor(activeKey);
-                })();
-        if (nextConversationKey > 0) {
-          await switchGlobalConversation(nextConversationKey);
-        } else {
-          await createAndSwitchGlobalConversation();
+                },
+              );
+
+            if (!pdf) continue;
+
+            if (
+              next.some((attachment) => attachment.id === `global-paper-${pdf.id}`)
+            ) {
+              continue;
+            }
+
+            const fulltextApi = (Zotero as unknown as {
+              Fulltext?: { getItemCacheFile?: (target: Zotero.Item) => unknown };
+              FullText?: { getItemCacheFile?: (target: Zotero.Item) => unknown };
+            }).Fulltext || (Zotero as unknown as {
+              FullText?: { getItemCacheFile?: (target: Zotero.Item) => unknown };
+            }).FullText;
+
+            const cacheFile = fulltextApi?.getItemCacheFile?.(pdf) as
+              | { exists?: () => boolean }
+              | undefined;
+            if (!cacheFile || cacheFile.exists?.() === false) continue;
+
+            const contents = await (
+              Zotero as unknown as {
+                File?: {
+                  getContentsAsync?: (
+                    source: unknown,
+                    charset?: string,
+                  ) => Promise<unknown>;
+                };
+              }
+            ).File?.getContentsAsync?.(cacheFile, "utf-8");
+
+            const textContent =
+              typeof contents === "string"
+                ? contents.trim()
+                : contents instanceof Uint8Array
+                  ? new TextDecoder("utf-8").decode(contents).trim()
+                  : "";
+
+            if (!textContent) continue;
+
+            next.push({
+              id: `global-paper-${pdf.id}`,
+              name: paper.title,
+              mimeType: "application/pdf",
+              sizeBytes: textContent.length,
+              category: "pdf",
+              textContent: textContent.slice(0, 120000),
+            });
+          }
+
+          if (next.length) {
+            selectedFileAttachmentCache.set(item.id, next);
+            updateFilePreview();
+            if (status) setStatus(status, `${next.length} reference(s) added`, "ready");
+          } else if (status) {
+            setStatus(
+              status,
+              t("No extractable text is available for the selected references"),
+              "warning",
+            );
+          }
+        },
+        t,
+        initialQuery,
+      );
+      if (paperPicker) {
+        paperPicker.style.display = "block";
+        paperPicker.style.minHeight = "240px";
+        positionGlobalReferencePickerForAnchor();
+      }
+    } catch (error) {
+      ztoolkit.log("Paper Pilot: failed to render global reference selector", error);
+      if (status) setStatus(status, t("Unable to select library references"), "error");
+    }
+  };
+
+  const shortcutsRow = body.querySelector("#paperpilot-shortcuts");
+  shortcutsRow?.addEventListener("click", (event: Event) => {
+    const target = event.target as Element | null;
+    const button = target?.closest(
+      "button[data-shortcut-prompt]",
+    ) as HTMLButtonElement | null;
+    if (!button || !item || !isPaperMode()) return;
+    const prompt = button.dataset.shortcutPrompt?.trim();
+    if (!prompt) return;
+    event.preventDefault();
+    inputBox.value = prompt;
+    inputBox.focus();
+    void resolvePaperShortcutAttachment(item).then((attachment) => {
+      if (!attachment) {
+        pendingShortcutAttachment = null;
+        if (status) {
+          setStatus(status, t("No extractable text is available for this PDF"), "error");
         }
         return;
       }
-      if (forceFresh) {
-        const rawBaseItem = resolveCurrentPaperBaseItem();
-        if (!rawBaseItem) return;
-        const resolvedState = resolveInitialPanelItemState(rawBaseItem, {
-          conversationSystem: nextSystem,
-        });
-        item = resolvedState.item || item;
-        basePaperItem = resolvedState.basePaperItem || basePaperItem;
-        syncConversationIdentity();
-        await createAndSwitchPaperConversation(true);
+      pendingShortcutAttachment = attachment;
+      sendBtn.click();
+    }).catch((error) => {
+      ztoolkit.log("Paper Pilot: failed to load PDF text for shortcut", error);
+      pendingShortcutAttachment = null;
+      if (status) {
+        setStatus(status, t("Could not read the selected PDF"), "error");
+      }
+    });
+  });
+
+  if (!panelRoot) {
+    ztoolkit.log("Paper Pilot: Could not find panel root");
+    return;
+  }
+
+  const isStandalonePanel = panelRoot.dataset.standalone === "true";
+
+  // Guard: skip re-wiring if handlers were already attached to this exact
+  // panelRoot element.  buildUI() creates a fresh panelRoot each time, so
+  // the stamp is only present when setupHandlers is called twice on the
+  // same DOM tree without an intervening rebuild.
+  const thisGen = String(++setupHandlersGeneration);
+  if (panelRoot.dataset.handlersInitialized) {
+    return;
+  }
+  panelRoot.dataset.handlersAttached = thisGen;
+  panelRoot.dataset.rawContextItemId = rawPanelItem
+    ? `${Number(rawPanelItem.id || 0) || ""}`
+    : "";
+
+  activeContextPanels.set(body, () => item);
+  let isWebChatModeActive = () => panelRoot.dataset.webchatMode === "true";
+  const getQueuedFollowUpThreadKey = (): string | null =>
+    buildQueuedFollowUpThreadKey({
+      conversationSystem: currentConversationSystem,
+      conversationKey: item ? getConversationKey(item) : null,
+      webChatActive: isWebChatModeActive(),
+    });
+  const queuedFollowUpBody = body as Element & {
+    __paperpilotQueuedFollowUpRegisteredThreadKey?: string | null;
+  };
+  let registeredQueuedFollowUpThreadKey: string | null =
+    queuedFollowUpBody.__paperpilotQueuedFollowUpRegisteredThreadKey || null;
+  const syncQueuedFollowUpRegistration = () => {
+    const nextThreadKey = getQueuedFollowUpThreadKey();
+    if (registeredQueuedFollowUpThreadKey === nextThreadKey) return;
+    unregisterQueuedFollowUpBody(registeredQueuedFollowUpThreadKey, body);
+    registeredQueuedFollowUpThreadKey = nextThreadKey;
+    queuedFollowUpBody.__paperpilotQueuedFollowUpRegisteredThreadKey =
+      registeredQueuedFollowUpThreadKey;
+    registerQueuedFollowUpBody(registeredQueuedFollowUpThreadKey, body);
+  };
+
+  // Disconnect previous ResizeObservers to prevent accumulation across
+  // successive setupHandlers calls (each call creates fresh observers).
+  const prevObservers = (body as any).__paperpilotResizeObservers as
+    ResizeObserver[] | undefined;
+  if (prevObservers) {
+    for (const obs of prevObservers) obs.disconnect();
+    delete (body as any).__paperpilotResizeObservers;
+  }
+  const prevResizeSchedulers = (body as any).__paperpilotResizeSchedulers as
+    Array<{ cancel?: () => void }> | undefined;
+  if (prevResizeSchedulers) {
+    for (const scheduler of prevResizeSchedulers) scheduler.cancel?.();
+    delete (body as any).__paperpilotResizeSchedulers;
+  }
+
+  let renderQueuedFollowUpInputs: () => void = () => {};
+  let scheduleQueuedFollowUpDrain: () => void = () => {};
+  let isQueuedFollowUpSendAvailable: () => boolean = () => false;
+  let queueFollowUpInput: (text: string) => void = () => {};
+
+  const syncRequestUiForCurrentConversation = () => {
+    const activeConversationKey = item ? getConversationKey(item) : null;
+    const isWebChatActive = isWebChatModeActive();
+    const isCurrentConversationPending =
+      activeConversationKey !== null &&
+      Number.isFinite(activeConversationKey) &&
+      isRequestPending(activeConversationKey);
+    if (sendBtn) {
+      sendBtn.style.display = isCurrentConversationPending ? "none" : "";
+      sendBtn.disabled = !item;
+      sendBtn.title = "Send";
+    }
+    if (cancelBtn) {
+      cancelBtn.style.display = isCurrentConversationPending ? "" : "none";
+    }
+    if (inputBox) {
+      inputBox.disabled =
+        !item || (isCurrentConversationPending && isWebChatActive);
+    }
+    renderQueuedFollowUpInputs();
+  };
+
+  // buildUI() wipes body.textContent whenever onAsyncRender fires (item
+  // navigation), which destroys the cancel/send button DOM mid-stream.
+  // Re-apply the current conversation's request state immediately so a panel
+  // switch never inherits stale send/cancel UI from another conversation.
+  syncRequestUiForCurrentConversation();
+
+  const panelDoc = body.ownerDocument;
+  if (!panelDoc) {
+    ztoolkit.log("Paper Pilot: Could not find panel document");
+    return;
+  }
+  const panelWin = panelDoc?.defaultView || null;
+  const ElementCtor = panelDoc.defaultView?.Element;
+  const isElementNode = (value: unknown): value is Element =>
+    Boolean(ElementCtor && value instanceof ElementCtor);
+  const headerTop = body.querySelector(
+    ".paperpilot-header-top",
+  ) as HTMLDivElement | null;
+  panelRoot.tabIndex = 0;
+  applyPanelFontScale(panelRoot);
+
+  // const resolveCurrentNoteSession = () => resolveActiveNoteSession(item);
+  // const isNoteSession = () => Boolean(resolveCurrentNoteSession());
+  const notifyConversationHistoryChanged = () => {
+    try {
+      hooks?.onConversationHistoryChanged?.();
+    } catch (err) {
+      ztoolkit.log("Paper Pilot: standalone history hook failed", err);
+    }
+  };
+  const isGlobalMode = () => resolveDisplayConversationKind(item) === "global";
+  const isPaperMode = () => resolveDisplayConversationKind(item) === "paper";
+  const initialConversationSystem: ConversationSystem =
+    resolvePreferredConversationSystem({ item });
+  let currentConversationSystem: ConversationSystem =
+    resolvePreferredConversationSystem({
+      item,
+      preferredSystem: initialConversationSystem,
+    });
+  const getConversationSystem = (): ConversationSystem =>
+    currentConversationSystem;
+  // const isClaudeConversationSystem = () =>
+  //   getConversationSystem() === "claude_code";
+  // const isCodexConversationSystem = () => getConversationSystem() === "codex";
+  // const isRuntimeConversationSystem = () =>
+  //   isClaudeConversationSystem() || isCodexConversationSystem();
+  // const shouldRenderDynamicSlashMenuForCurrentConversation = () =>
+  //   shouldRenderDynamicSlashMenu({
+  //     itemPresent: Boolean(item),
+  //     isWebChat: isWebChatModeActive(),
+  //     runtimeMode: getCurrentRuntimeMode(),
+  //     conversationSystem: getConversationSystem(),
+  //   });
+  // const shouldRenderSkillSlashMenuForCurrentConversation = () =>
+  //   shouldRenderSkillSlashMenu({
+  //     itemPresent: Boolean(item),
+  //     isWebChat: isWebChatModeActive(),
+  //     runtimeMode: getCurrentRuntimeMode(),
+  //     conversationSystem: getConversationSystem(),
+  //   });
+  panelRoot.dataset.conversationSystem = currentConversationSystem;
+  syncQueuedFollowUpRegistration();
+
+  const getPreferredTargetSystem = (): ConversationSystem => {
+    // const preferred = getConversationSystemPref();
+    // if (preferred === "codex" && isCodexModeAvailable()) return "codex";
+    // if (preferred === "claude_code" && isClaudeModeAvailable())
+    //   return "claude_code";
+    // if (isCodexModeAvailable()) return "codex";
+    // if (isClaudeModeAvailable()) return "claude_code";
+    return "upstream";
+  };
+  const getCurrentLibraryID = (): number => {
+    const fromItem =
+      item && Number.isFinite(item.libraryID) && item.libraryID > 0
+        ? Math.floor(item.libraryID)
+        : 0;
+    if (fromItem > 0) return fromItem;
+    return resolveActiveLibraryID() || 0;
+  };
+  const getCurrentRuntimeMode = (): ChatRuntimeMode => "chat";
+  const updateRuntimeModeButton = () => {
+    if (!runtimeModeBtn) return;
+    runtimeModeBtn.style.display = "none";
+    runtimeModeBtn.setAttribute("aria-pressed", "false");
+    panelRoot.dataset.runtimeMode = "chat";
+  };
+  const setCurrentRuntimeMode = (_mode: ChatRuntimeMode) => {
+    updateRuntimeModeButton();
+  };
+
+  if (selectTextBtn) {
+    selectTextBtn.addEventListener("click", (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!item) return;
+      const selectedText = getActiveReaderSelectionText(panelDoc, item);
+      if (!selectedText) {
+        if (status) {
+          setStatus(status, t("No selected text found"), "warning");
+        }
         return;
       }
+      const added = appendSelectedTextContextForItem(
+        item.id,
+        selectedText,
+        "pdf",
+      );
+      applySelectedTextPreview(body, item.id);
+      if (status) {
+        setStatus(
+          status,
+          added ? t("Selected text added") : t("Selected text already added"),
+          added ? "ready" : "warning",
+        );
+      }
+    });
+  }
+
+  if (screenshotBtn) {
+    screenshotBtn.addEventListener("click", async (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!item) return;
+      const mainWindow =
+        Zotero.getMainWindow?.() || body.ownerDocument?.defaultView || null;
+      if (!mainWindow) return;
+      const dataUrl = await captureScreenshotSelection(mainWindow);
+      if (!dataUrl) {
+        if (status) {
+          setStatus(status, t("Selection cancelled"), "ready");
+        }
+        return;
+      }
+      const optimized = await optimizeImageDataUrl(mainWindow, dataUrl);
+      const nextImages = [
+        ...(selectedImageCache.get(item.id) || []),
+        optimized,
+      ].slice(0, MAX_SELECTED_IMAGES);
+      selectedImageCache.set(item.id, nextImages);
+      selectedImagePreviewExpandedCache.set(item.id, true);
+      selectedImagePreviewActiveIndexCache.set(item.id, nextImages.length - 1);
+      updateImagePreview();
+      if (status) {
+        setStatus(
+          status,
+          `${t("Screenshot captured")} (${nextImages.length})`,
+          "ready",
+        );
+      }
+    });
+  }
+
+  if (uploadBtn && uploadInput) {
+    uploadBtn.addEventListener("click", (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const isOpen = slashMenu?.style.display !== "none";
+      setSlashMenuVisible(!isOpen);
+    });
+    uploadInput.addEventListener("change", () => {
+      if (!item) return;
+      const files = Array.from(uploadInput.files || []);
+      uploadInput.value = "";
+      if (!files.length) return;
+      void processIncomingFiles(files).then(() => {
+        if (status) {
+          setStatus(status, t("Files added"), "ready");
+        }
+      });
+    });
+  }
+
+  slashReferenceOption?.addEventListener("click", (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void openGlobalReferenceSelector("", true).catch((error) => {
+      ztoolkit.log("Paper Pilot: failed to select library references", error);
+      if (status) setStatus(status, t("Unable to select library references"), "error");
+    });
+  });
+
+  if (historyNewBtn) {
+    historyNewBtn.addEventListener("click", async (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!item) return;
+      if (isGlobalMode()) {
+        await createAndSwitchGlobalConversation(true);
+        return;
+      }
+      await createAndSwitchPaperConversation(true);
+    });
+  }
+
+  if (historyToggleBtn) {
+    historyToggleBtn.addEventListener("click", async (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const isOpen = historyMenu?.style.display !== "none";
+      if (historyMenu) {
+        historyMenu.style.display = isOpen ? "none" : "";
+      }
+      historyToggleBtn.setAttribute("aria-expanded", isOpen ? "false" : "true");
+      if (!isOpen) {
+        await refreshGlobalHistoryHeader();
+      }
+    });
+  }
+
+  if (sendBtn) {
+    sendBtn.addEventListener("click", (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!item || !inputBox) return;
+      const text = sanitizeText(inputBox.value).trim();
+      if (!text) {
+        if (status) {
+          setStatus(status, t("Enter a message first"), "warning");
+        }
+        return;
+      }
+      const conversationKey = getConversationKey(item);
+      const history = chatHistory.get(conversationKey) || [];
+      const userMessage: Message = {
+        role: "user",
+        text,
+        timestamp: Date.now(),
+        selectedTexts: (selectedTextCache.get(item.id) || []).map(
+          (entry) => entry.text,
+        ),
+        selectedTextSources: (selectedTextCache.get(item.id) || []).map(
+          (entry) => entry.source,
+        ),
+        screenshotImages: selectedImageCache.get(item.id) || [],
+        attachments: [
+          ...(selectedFileAttachmentCache.get(item.id) || []),
+          ...(pendingShortcutAttachment ? [pendingShortcutAttachment] : []),
+        ],
+      };
+      pendingShortcutAttachment = null;
+      chatHistory.set(conversationKey, [...history, userMessage]);
+      persistChatHistory();
+      inputBox.value = "";
+      refreshChat(body, item);
+      if (status) {
+        setStatus(status, t("Sending"), "ready");
+      }
+      void sendQuestion({
+        body,
+        item,
+        message: userMessage,
+        modelEntry: getSelectedModelInfo().selectedEntry || undefined,
+      });
+    });
+  }
+
+  inputBox.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key !== "Enter" || e.shiftKey || e.defaultPrevented) return;
+    e.preventDefault();
+    sendBtn.click();
+  });
+
+  inputBox.addEventListener("input", () => {
+    if (!item) return;
+    const mentionToken = getTriggerTokenAtCaret("@");
+    if (mentionToken) {
+      void openGlobalReferenceSelector(mentionToken.query);
+      return;
+    }
+    const slashToken = getTriggerTokenAtCaret("/");
+    if (slashToken) {
+      setSlashMenuVisible(true);
+      return;
+    }
+    if (slashMenu?.style.display !== "none") {
+      setSlashMenuVisible(false);
+    }
+  });
+
+  const inferAttachmentCategory = (file: File): ChatAttachment["category"] => {
+    const lowerName = (file.name || "").toLowerCase();
+    const mime = (file.type || "").toLowerCase();
+    if (mime.startsWith("image/")) return "image";
+    if (mime === "application/pdf" || lowerName.endsWith(".pdf")) return "pdf";
+    if (/\.(md|markdown)$/i.test(lowerName)) return "markdown";
+    if (
+      /\.(js|jsx|ts|tsx|py|java|c|cc|cpp|h|hpp|go|rs|rb|php|swift|kt|scala|sh|bash|zsh|sql|r|m|mm|lua)$/i.test(
+        lowerName,
+      )
+    ) {
+      return "code";
+    }
+    if (
+      mime.startsWith("text/") ||
+      mime.includes("json") ||
+      mime.includes("xml") ||
+      mime.includes("javascript") ||
+      mime.includes("typescript")
+    ) {
+      return "text";
+    }
+    return "file";
+  };
+
+  const readFileAsDataURL = async (file: File): Promise<string> =>
+    await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () =>
+        typeof reader.result === "string"
+          ? resolve(reader.result)
+          : reject(new Error("Invalid data URL result"));
+      reader.onerror = () =>
+        reject(reader.error || new Error("File read failed"));
+      reader.readAsDataURL(file);
+    });
+
+  const readFileAsText = async (file: File): Promise<string> =>
+    await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () =>
+        typeof reader.result === "string"
+          ? resolve(reader.result)
+          : reject(new Error("Invalid text result"));
+      reader.onerror = () =>
+        reject(reader.error || new Error("File read failed"));
+      reader.readAsText(file);
+    });
+
+  const updateImagePreview = () => {
+    const currentItem = item;
+    if (
+      !currentItem ||
+      !imagePreview ||
+      !previewStrip ||
+      !previewExpanded ||
+      !previewSelected ||
+      !previewSelectedImg ||
+      !previewMeta
+    ) {
+      return;
+    }
+    const images = (selectedImageCache.get(currentItem.id) || []).slice(
+      0,
+      MAX_SELECTED_IMAGES,
+    );
+    if (!images.length) {
+      imagePreview.style.display = "none";
+      imagePreview.classList.remove("expanded", "collapsed");
+      previewExpanded.style.display = "none";
+      previewStrip.innerHTML = "";
+      previewSelectedImg.removeAttribute("src");
+      previewMeta.textContent = formatFigureCountLabel(0);
+      previewMeta.setAttribute("aria-expanded", "false");
+      if (removeImgBtn) removeImgBtn.style.display = "none";
+      return;
+    }
+    let expanded = selectedImagePreviewExpandedCache.get(currentItem.id);
+    if (typeof expanded !== "boolean") {
+      expanded = false;
+      selectedImagePreviewExpandedCache.set(currentItem.id, expanded);
+    }
+    let activeIndex = selectedImagePreviewActiveIndexCache.get(currentItem.id);
+    if (typeof activeIndex !== "number" || !Number.isFinite(activeIndex)) {
+      activeIndex = images.length - 1;
+    }
+    activeIndex = Math.max(
+      0,
+      Math.min(images.length - 1, Math.floor(activeIndex)),
+    );
+    selectedImagePreviewActiveIndexCache.set(currentItem.id, activeIndex);
+    imagePreview.style.display = "flex";
+    imagePreview.classList.toggle("expanded", expanded);
+    imagePreview.classList.toggle("collapsed", !expanded);
+    previewExpanded.style.display = "grid";
+    previewStrip.innerHTML = "";
+    for (const [index, imageUrl] of images.entries()) {
+      const thumbItem = createElement(
+        panelDoc,
+        "div",
+        "paperpilot-preview-item",
+      );
+      const thumbBtn = createElement(
+        panelDoc,
+        "button",
+        "paperpilot-preview-thumb",
+        {
+          type: "button",
+        },
+      ) as HTMLButtonElement;
+      thumbBtn.classList.toggle("active", index === activeIndex);
+      const thumb = createElement(panelDoc, "img", "paperpilot-preview-img", {
+        alt: "Selected screenshot",
+      }) as HTMLImageElement;
+      thumb.src = imageUrl;
+      thumbBtn.appendChild(thumb);
+      thumbBtn.addEventListener("click", (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!currentItem) return;
+        selectedImagePreviewActiveIndexCache.set(currentItem.id, index);
+        selectedImagePreviewExpandedCache.set(currentItem.id, true);
+        updateImagePreview();
+      });
+      const removeOneBtn = createElement(
+        panelDoc,
+        "button",
+        "paperpilot-preview-remove-one",
+        {
+          type: "button",
+          textContent: "×",
+          title: `Remove screenshot ${index + 1}`,
+        },
+      );
+      removeOneBtn.addEventListener("click", (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!currentItem) return;
+        const nextImages = images.filter((_, i) => i !== index);
+        if (nextImages.length) {
+          selectedImageCache.set(currentItem.id, nextImages);
+          selectedImagePreviewActiveIndexCache.set(
+            currentItem.id,
+            Math.min(index, nextImages.length - 1),
+          );
+        } else {
+          selectedImageCache.delete(currentItem.id);
+          selectedImagePreviewActiveIndexCache.delete(currentItem.id);
+          selectedImagePreviewExpandedCache.delete(currentItem.id);
+        }
+        updateImagePreview();
+      });
+      thumbItem.append(thumbBtn, removeOneBtn);
+      previewStrip.appendChild(thumbItem);
+    }
+    previewSelectedImg.src = images[activeIndex];
+    previewSelectedImg.alt = `Selected screenshot ${activeIndex + 1}`;
+    previewMeta.textContent = formatFigureCountLabel(images.length);
+    previewMeta.setAttribute("aria-expanded", expanded ? "true" : "false");
+    if (removeImgBtn) {
+      removeImgBtn.style.display = "";
+      removeImgBtn.onclick = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectedImageCache.delete(currentItem.id);
+        selectedImagePreviewExpandedCache.delete(currentItem.id);
+        selectedImagePreviewActiveIndexCache.delete(currentItem.id);
+        updateImagePreview();
+      };
+    }
+  };
+
+  const updateFilePreview = () => {
+    const currentItem = item;
+    if (
+      !currentItem ||
+      !filePreview ||
+      !filePreviewMeta ||
+      !filePreviewExpanded ||
+      !filePreviewList
+    ) {
+      return;
+    }
+    const files = selectedFileAttachmentCache.get(currentItem.id) || [];
+    if (!files.length) {
+      filePreview.style.display = "none";
+      filePreview.classList.remove("expanded", "collapsed");
+      filePreviewExpanded.style.display = "none";
+      filePreviewList.innerHTML = "";
+      filePreviewMeta.textContent = formatFileCountLabel(0);
+      filePreviewMeta.setAttribute("aria-expanded", "false");
+      return;
+    }
+    const expanded =
+      selectedFilePreviewExpandedCache.get(currentItem.id) === true;
+    filePreview.style.display = "flex";
+    filePreview.classList.toggle("expanded", expanded);
+    filePreview.classList.toggle("collapsed", !expanded);
+    filePreviewExpanded.style.display = "grid";
+    filePreviewList.innerHTML = "";
+    filePreviewMeta.textContent = formatFileCountLabel(files.length);
+    filePreviewMeta.setAttribute("aria-expanded", expanded ? "true" : "false");
+    for (const [index, attachment] of files.entries()) {
+      const row = createElement(
+        panelDoc,
+        "div",
+        "paperpilot-file-context-item",
+      );
+      const type = createElement(
+        panelDoc,
+        "span",
+        "paperpilot-file-context-type",
+        {
+          textContent: getAttachmentTypeLabel(attachment),
+        },
+      );
+      const info = createElement(
+        panelDoc,
+        "div",
+        "paperpilot-file-context-text",
+      );
+      const name = createElement(
+        panelDoc,
+        "span",
+        "paperpilot-file-context-name",
+        {
+          textContent: attachment.name,
+        },
+      );
+      const meta = createElement(
+        panelDoc,
+        "span",
+        "paperpilot-file-context-meta-info",
+        {
+          textContent: `${attachment.mimeType || "application/octet-stream"} · ${(attachment.sizeBytes / 1024 / 1024).toFixed(2)} MB`,
+        },
+      );
+      const removeBtn = createElement(
+        panelDoc,
+        "button",
+        "paperpilot-file-context-remove",
+        {
+          type: "button",
+          textContent: "×",
+          title: `Remove ${attachment.name}`,
+        },
+      );
+      removeBtn.addEventListener("click", (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const nextFiles = files.filter((_, i) => i !== index);
+        if (nextFiles.length) {
+          selectedFileAttachmentCache.set(currentItem.id, nextFiles);
+        } else {
+          selectedFileAttachmentCache.delete(currentItem.id);
+          selectedFilePreviewExpandedCache.delete(currentItem.id);
+        }
+        updateFilePreview();
+      });
+      info.append(name, meta);
+      row.append(type, info, removeBtn);
+      filePreviewList.appendChild(row);
+    }
+  };
+
+  const processIncomingFiles = async (incomingFiles: File[]) => {
+    const currentItem = item;
+    if (!currentItem || !incomingFiles.length) return;
+    const nextImages = [...(selectedImageCache.get(currentItem.id) || [])];
+    const nextFiles = [
+      ...(selectedFileAttachmentCache.get(currentItem.id) || []),
+    ];
+    for (const file of incomingFiles) {
+      const name = (file.name || "").trim() || `uploaded-${Date.now()}`;
+      const category = inferAttachmentCategory(file);
+      if (category === "image") {
+        try {
+          const dataUrl = await readFileAsDataURL(file);
+          const panelWindow = body.ownerDocument?.defaultView;
+          nextImages.push(
+            panelWindow
+              ? await optimizeImageDataUrl(panelWindow, dataUrl)
+              : dataUrl,
+          );
+        } catch (err) {
+          ztoolkit.log("LLM: Failed to read image upload", err);
+        }
+        continue;
+      }
+      let textContent: string | undefined;
+      if (
+        category === "markdown" ||
+        category === "code" ||
+        category === "text"
+      ) {
+        try {
+          textContent = await readFileAsText(file);
+        } catch (err) {
+          ztoolkit.log("LLM: Failed to read text upload", err);
+        }
+      }
+      nextFiles.push({
+        id: `file-${name}-${file.size}-${file.lastModified}`,
+        name,
+        mimeType: file.type || "application/octet-stream",
+        sizeBytes: file.size,
+        category,
+        ...(textContent ? { textContent } : {}),
+      });
+    }
+    selectedImageCache.set(currentItem.id, nextImages);
+    selectedFileAttachmentCache.set(currentItem.id, nextFiles);
+    selectedImagePreviewActiveIndexCache.set(
+      currentItem.id,
+      Math.max(0, nextImages.length - 1),
+    );
+    if (nextImages.length) {
+      selectedImagePreviewExpandedCache.set(
+        currentItem.id,
+        selectedImagePreviewExpandedCache.get(currentItem.id) === true,
+      );
+    }
+    updateImagePreview();
+    updateFilePreview();
+  };
+
+  let resetComposePreviewUI = () => {};
+  let updateModelButton = () => {};
+  let updateReasoningButton = () => {};
+  let getSelectedModelInfo: () => {
+    selectedEntryId: string;
+    selectedEntry: RuntimeModelEntry | null;
+    choices: RuntimeModelEntry[];
+    groupedChoices: Array<{
+      providerLabel: string;
+      entries: RuntimeModelEntry[];
+    }>;
+    currentModel: string;
+    currentModelDisplay: string;
+    currentModelHint: string;
+  } = () => ({
+    selectedEntryId: "",
+    selectedEntry: null,
+    choices: [],
+    groupedChoices: [],
+    currentModel: "",
+    currentModelDisplay: "",
+    currentModelHint: "",
+  });
+  let markNextWebChatSendAsNewChat = () => {};
+  let primeFreshWebChatPaperChipState = () => {};
+  let refreshGlobalHistoryHeader: () => Promise<void> = async () => {};
+  let switchGlobalConversation: (
+    nextConversationKey: number,
+  ) => Promise<boolean> = async () => false;
+  let switchPaperConversation: (
+    nextConversationKey?: number,
+  ) => Promise<boolean | void> = async () => {};
+  let createAndSwitchGlobalConversation: (
+    forceFresh?: boolean,
+  ) => Promise<boolean | void> = async () => {};
+  let createAndSwitchPaperConversation: (
+    forceFresh?: boolean,
+  ) => Promise<boolean | void> = async () => {};
+  let queueTurnDeletion: (target: {
+    conversationKey: number;
+    userTimestamp: number;
+    assistantTimestamp: number;
+  }) => Promise<void> = async () => {};
+  let forkConversationFromTurn: (target: {
+    item: Zotero.Item;
+    conversationKey: number;
+    userTimestamp: number;
+    assistantTimestamp: number;
+  }) => Promise<void> = async () => {};
+  let clearPendingTurnDeletion: () => unknown = () => null;
+  let hasPendingTurnDeletionForConversation = (_conversationKey: number) =>
+    false;
+  let closePaperPicker = () => {};
+  // let clearForcedSkill = () => {};
+  // let renderWebChatHistoryMenu: () => Promise<void> = async () => {};
+  // let isWebChatMode = () => isWebChatModeActive();
+  const switchConversationSystem = async (
+    nextSystem: ConversationSystem,
+    options?: { forceFresh?: boolean },
+  ) => {
+    if (!item) return;
+    // const noteSession = resolveCurrentNoteSession();
+    // if (noteSession) {
+    //   const resolvedNextSystem = resolveNoteFocusSystemSwitch({
+    //     nextSystem,
+    //     codexAvailable: isCodexModeAvailable(),
+    //     claudeAvailable: isClaudeModeAvailable(),
+    //   });
+    //   if (!resolvedNextSystem) return;
+    //   if (resolvedNextSystem === getConversationSystem()) return;
+    //   persistDraftInputForCurrentConversation();
+    //   setConversationSystemPref(resolvedNextSystem);
+    //   currentConversationSystem = resolvedNextSystem;
+    //   syncConversationIdentity();
+    //   syncQueuedFollowUpRegistration();
+    //   updateRuntimeModeButton();
+    //   await ensureConversationLoaded(item);
+    //   restoreDraftInputForCurrentConversation();
+    //   refreshChatPreservingScroll();
+    //   resetComposePreviewUI();
+    //   updateModelButton();
+    //   updateReasoningButton();
+    //   return;
+    // }
+    if (nextSystem === getConversationSystem()) return;
+    const libraryID = getCurrentLibraryID();
+    if (!libraryID) return;
+    const forceFresh = options?.forceFresh === true;
+    // persistDraftInputForCurrentConversation();
+    // setConversationSystemPref(nextSystem);
+    currentConversationSystem = nextSystem;
+    panelRoot.dataset.conversationSystem = nextSystem;
+    syncQueuedFollowUpRegistration();
+    if (isGlobalMode()) {
+      if (forceFresh) {
+        await createAndSwitchGlobalConversation(true);
+        syncPaperModePresentation();
+        return;
+      }
+      const nextConversationKey = (() => {
+        const lockedKey = getLockedGlobalConversationKey(libraryID);
+        if (lockedKey !== null) return lockedKey;
+        const activeKey = Number(
+          activeGlobalConversationByLibrary.get(libraryID) || 0,
+        );
+        if (!isUpstreamGlobalConversationKey(activeKey)) return 0;
+        return activeKey === GLOBAL_CONVERSATION_KEY_BASE
+          ? buildDefaultUpstreamGlobalConversationKey(libraryID)
+          : Math.floor(activeKey);
+      })();
+      if (nextConversationKey > 0) {
+        await switchGlobalConversation(nextConversationKey);
+      } else {
+        await createAndSwitchGlobalConversation();
+      }
+      syncPaperModePresentation();
+      return;
+    }
+    if (forceFresh) {
       const rawBaseItem = resolveCurrentPaperBaseItem();
       if (!rawBaseItem) return;
       const resolvedState = resolveInitialPanelItemState(rawBaseItem, {
@@ -728,3300 +1481,3503 @@ export function setupHandlers(
       item = resolvedState.item || item;
       basePaperItem = resolvedState.basePaperItem || basePaperItem;
       syncConversationIdentity();
-
-      // await ensureConversationLoaded(item as Zotero.Item);
-      // await renderShortcuts(
-      //   body,
-      //   item as Zotero.Item,
-      //   resolveShortcutMode(item as Zotero.Item),
-      // );
-      // restoreDraftInputForCurrentConversation();
-      // refreshChatPreservingScroll();
-      resetComposePreviewUI();
-      updateModelButton();
-      // updateReasoningButton();
-      void refreshGlobalHistoryHeader();
-    };
-
-
-    // const resolveCurrentNoteParentItem = (): Zotero.Item | null => {
-    //   const noteSession = resolveCurrentNoteSession();
-    //   if (!noteSession?.parentItemId) return null;
-    //   const parentItem = Zotero.Items.get(noteSession.parentItemId) || null;
-    //   return parentItem?.isRegularItem?.() ? parentItem : null;
-    // };
-    const resolvePaperChatBaseItem = (
-      candidate: Zotero.Item | null | undefined,
-    ): Zotero.Item | null => {
-      return resolvePaperChatSourceItem(candidate);
-    };
-    const resolveActiveReaderPaperBaseItem = (): Zotero.Item | null => {
-      const activeContext = getActiveContextAttachmentFromTabs();
-      const resolvedFromContext =
-        activeContext && activeContext.parentID
-          ? Zotero.Items.get(activeContext.parentID) || null
-          : activeContext;
-      return resolvePaperChatSourceItem(resolvedFromContext);
-    };
-    const resolveCurrentPaperBaseItem = (): Zotero.Item | null => {
-      // const noteSession = resolveCurrentNoteSession();
-      // if (noteSession?.noteKind === "item") {
-      //   const parentItem = resolveCurrentNoteParentItem();
-      //   if (parentItem) {
-      //     basePaperItem = parentItem;
-      //     return parentItem;
-      //   }
-      // }
-      // if (noteSession) {
-      //   return null;
-      // }
-      const resolvedBaseItem = chooseCurrentPaperBaseItemForMode({
-        isGlobalMode: isGlobalMode(),
-        liveRawBaseItem: resolvePaperChatBaseItem(resolveLiveRawPanelItem()),
-        activeReaderBaseItem: resolveActiveReaderPaperBaseItem(),
-        cachedBasePaperItem: resolvePaperChatBaseItem(basePaperItem),
-        currentItemBaseItem: resolvePaperChatBaseItem(item),
-      });
-      if (resolvedBaseItem) {
-        basePaperItem = resolvedBaseItem;
-        return resolvedBaseItem;
+      syncPaperModePresentation();
+      if (item) {
+        void ensureConversationLoaded(item).then(() => refreshChat(body, item));
       }
-      return null;
-    };
-
-    // Compute conversation key early so all closures can reference it.
-    let conversationKey = 0; // item ? getConversationKey(item) : null;
-    // const getTextContextConversationKey = (): number | null =>
-    //   item ? getConversationKey(item) : null;
-    const syncConversationIdentity = () => {
-      conversationKey = 0; // item ? getConversationKey(item) : null;
-      activeContextPanels.set(body, () => item);
-      // void retainClaudeRuntimeForBody(body, item);
-      if ((body as HTMLElement).dataset?.standalone === "true") {
-        activeContextPanelRawItems.set(body, item || null);
-      }
-      panelRoot.dataset.itemId =
-        Number.isFinite(conversationKey) && (conversationKey as number) > 0
-          ? `${conversationKey}`
-          : "";
-      const libraryID = getCurrentLibraryID();
-      panelRoot.dataset.libraryId = libraryID > 0 ? `${libraryID}` : "";
-      // const noteSession = resolveCurrentNoteSession();
-      const mode: "global" | "paper" | null = item
-        ? resolveDisplayConversationKind(item)
-        : null;
-      panelRoot.dataset.conversationKind = mode || ""; // noteSession?.conversationKind || mode || "";
-      currentConversationSystem = resolvePreferredConversationSystem({
-        item,
-        preferredSystem: currentConversationSystem,
-      });
-      panelRoot.dataset.conversationSystem = currentConversationSystem;
-      syncQueuedFollowUpRegistration();
-      const currentBasePaperItemID =
-        mode === "paper" ? Number(resolveCurrentPaperBaseItem()?.id || 0) : 0;
-      panelRoot.dataset.basePaperItemId =
-        Number.isFinite(currentBasePaperItemID) && currentBasePaperItemID > 0
-          ? `${Math.floor(currentBasePaperItemID)}`
-          : "";
-      panelRoot.dataset.noteKind = ""; // noteSession?.noteKind || "";
-      // panelRoot.dataset.noteId = noteSession?.noteId
-      //   ? `${noteSession.noteId}`
-      //   : "";
-      panelRoot.dataset.noteId = "";
-      panelRoot.dataset.noteTitle = ""; // noteSession?.title || "";
-      // panelRoot.dataset.noteParentItemId = noteSession?.parentItemId
-      //   ? `${noteSession.parentItemId}`
-      //   : "";
-      panelRoot.dataset.noteParentItemId = "";
-      if (historyNewBtn) {
-        historyNewBtn.style.display = "";
-      }
-      if (historyToggleBtn) {
-        historyToggleBtn.style.display = "";
-      }
-      if (item && libraryID > 0 && mode) {
-        activeConversationModeByLibrary.set(libraryID, mode);
-        if (mode === "global") {
-          activeGlobalConversationByLibrary.set(libraryID, item.id);
-        } else if (
-          Number.isFinite(conversationKey) &&
-          (conversationKey as number) > 0 &&
-          Number.isFinite(currentBasePaperItemID) &&
-          currentBasePaperItemID > 0
-        ) {
-          const lockedGlobalKey = getLockedGlobalConversationKey(libraryID);
-          if (lockedGlobalKey !== null) {
-            setLockedGlobalConversationKey(libraryID, null);
-            removeAutoLockedGlobalConversationKey(lockedGlobalKey);
-          }
-          const normalizedConversationKey = Math.floor(
-            conversationKey as number,
-          );
-          const paperStateKey = buildPaperStateKey(
-            libraryID,
-            Math.floor(currentBasePaperItemID),
-          );
-          activePaperConversationByPaper.set(
-            paperStateKey,
-            normalizedConversationKey,
-          );
-          setLastUsedPaperConversationKey(
-            libraryID,
-            Math.floor(currentBasePaperItemID),
-            normalizedConversationKey,
-          );
-        }
-      }
-      syncRequestUiForCurrentConversation();
-      if (historyModeIndicator) {
-        // Keep historyModeIndicator (which is the clock history button) accessible.
-        // Its label is static "Conversation history" — no text update needed.
-      }
-      // Update mode capsule data-active state
-      if (modeCapsule) {
-        modeCapsule.dataset.mode = mode || "";
-      }
-      if (modeChipBtn) {
-        // [webchat] Don't overwrite — applyWebChatModeUI manages the chip in webchat mode
-        if (!modeChipBtn.querySelector(".paperpilot-webchat-dot")) {
-          const currentLabel = mode === "global"
-              ? t("Library chat")
-              : t("Paper chat");
-          modeChipBtn.textContent = currentLabel;
-          modeChipBtn.title = mode === "global"
-              ? "Switch to paper chat"
-              : "Switch to library chat";
-          modeChipBtn.setAttribute(
-            "aria-label",
-            mode === "global"
-                ? "Switch to paper chat"
-                : "Switch to library chat",
-          );
-        }
-      }
-      if (inputBox) {
-        inputBox.placeholder =
-          mode === "global"
-            ? t("Ask anything... Type / for actions, @ to add papers")
-            : t("Ask about this paper... Type / for actions, @ to add papers");
-      }
-      updateRuntimeModeButton();
-    };
+      await createAndSwitchPaperConversation(true);
+      return;
+    }
+    const rawBaseItem = resolveCurrentPaperBaseItem();
+    if (!rawBaseItem) return;
+    const resolvedState = resolveInitialPanelItemState(rawBaseItem, {
+      conversationSystem: nextSystem,
+    });
+    item = resolvedState.item || item;
+    basePaperItem = resolvedState.basePaperItem || basePaperItem;
     syncConversationIdentity();
 
-    // Keep the agent mode toggle in sync when the preference is changed in the
-    // Preferences window (which runs in a separate window context).
-    let cleanupPrefObservers: (() => void) | null = null;
-    let cleanupMineruPaperSourceObservers: (() => void) | null = null;
-    {
-      const agentPrefKey = `${config.prefsPrefix}.enableAgentMode`;
-      const claudeModePrefKey = `${config.prefsPrefix}.enableClaudeCodeMode`;
-      const codexModePrefKey = `${config.prefsPrefix}.enableCodexAppServerMode`;
-      let agentObserverId: symbol | undefined;
-      let claudeObserverId: symbol | undefined;
-      let codexObserverId: symbol | undefined;
-      const unregister = (observerId: symbol | undefined) => {
-        if (observerId === undefined) return;
-        try {
-          (Zotero as any).Prefs.unregisterObserver(observerId);
-        } catch {
-          void 0;
-        }
-      };
-      cleanupPrefObservers = () => {
-        unregister(agentObserverId);
-        // unregister(claudeObserverId);
-        // unregister(codexObserverId);
-        agentObserverId = undefined;
-        // claudeObserverId = undefined;
-        // codexObserverId = undefined;
-      };
-      const onAgentPrefChange = () => {
-        if (!(body as Element).isConnected) {
-          cleanupPrefObservers?.();
-          return;
-        }
-        updateRuntimeModeButton();
-      };
+    // await ensureConversationLoaded(item as Zotero.Item);
+    // await renderShortcuts(
+    //   body,
+    //   item as Zotero.Item,
+    //   resolveShortcutMode(item as Zotero.Item),
+    // );
+    // restoreDraftInputForCurrentConversation();
+    // refreshChatPreservingScroll();
+    resetComposePreviewUI();
+    updateModelButton();
+    // updateReasoningButton();
+    void refreshGlobalHistoryHeader();
+  };
 
+  // const resolveCurrentNoteParentItem = (): Zotero.Item | null => {
+  //   const noteSession = resolveCurrentNoteSession();
+  //   if (!noteSession?.parentItemId) return null;
+  //   const parentItem = Zotero.Items.get(noteSession.parentItemId) || null;
+  //   return parentItem?.isRegularItem?.() ? parentItem : null;
+  // };
+  const resolvePaperChatBaseItem = (
+    candidate: Zotero.Item | null | undefined,
+  ): Zotero.Item | null => {
+    return resolvePaperChatSourceItem(candidate);
+  };
+  const resolveActiveReaderPaperBaseItem = (): Zotero.Item | null => {
+    const activeContext = getActiveContextAttachmentFromTabs();
+    const resolvedFromContext =
+      activeContext && activeContext.parentID
+        ? Zotero.Items.get(activeContext.parentID) || null
+        : activeContext;
+    return resolvePaperChatSourceItem(resolvedFromContext);
+  };
+  const resolveCurrentPaperBaseItem = (): Zotero.Item | null => {
+    // const noteSession = resolveCurrentNoteSession();
+    // if (noteSession?.noteKind === "item") {
+    //   const parentItem = resolveCurrentNoteParentItem();
+    //   if (parentItem) {
+    //     basePaperItem = parentItem;
+    //     return parentItem;
+    //   }
+    // }
+    // if (noteSession) {
+    //   return null;
+    // }
+    const resolvedBaseItem = chooseCurrentPaperBaseItemForMode({
+      isGlobalMode: isGlobalMode(),
+      liveRawBaseItem: resolvePaperChatBaseItem(resolveLiveRawPanelItem()),
+      activeReaderBaseItem: resolveActiveReaderPaperBaseItem(),
+      cachedBasePaperItem: resolvePaperChatBaseItem(basePaperItem),
+      currentItemBaseItem: resolvePaperChatBaseItem(item),
+    });
+    if (resolvedBaseItem) {
+      basePaperItem = resolvedBaseItem;
+      return resolvedBaseItem;
+    }
+    return null;
+  };
 
-      try {
-        agentObserverId = (Zotero as any).Prefs.registerObserver(
-          agentPrefKey,
-          onAgentPrefChange,
-          true,
+  // Compute conversation key early so all closures can reference it.
+  let conversationKey = item ? getConversationKey(item) : 0;
+  const syncConversationIdentity = () => {
+    conversationKey = item ? getConversationKey(item) : 0;
+    activeContextPanels.set(body, () => item);
+    // void retainClaudeRuntimeForBody(body, item);
+    if ((body as HTMLElement).dataset?.standalone === "true") {
+      activeContextPanelRawItems.set(body, item || null);
+    }
+    panelRoot.dataset.itemId =
+      Number.isFinite(conversationKey) && (conversationKey as number) > 0
+        ? `${conversationKey}`
+        : "";
+    const libraryID = getCurrentLibraryID();
+    panelRoot.dataset.libraryId = libraryID > 0 ? `${libraryID}` : "";
+    // const noteSession = resolveCurrentNoteSession();
+    const mode: "global" | "paper" | null = item
+      ? resolveDisplayConversationKind(item)
+      : null;
+    panelRoot.dataset.conversationKind = mode || ""; // noteSession?.conversationKind || mode || "";
+    currentConversationSystem = resolvePreferredConversationSystem({
+      item,
+      preferredSystem: currentConversationSystem,
+    });
+    panelRoot.dataset.conversationSystem = currentConversationSystem;
+    syncQueuedFollowUpRegistration();
+    const currentBasePaperItemID =
+      mode === "paper" ? Number(resolveCurrentPaperBaseItem()?.id || 0) : 0;
+    panelRoot.dataset.basePaperItemId =
+      Number.isFinite(currentBasePaperItemID) && currentBasePaperItemID > 0
+        ? `${Math.floor(currentBasePaperItemID)}`
+        : "";
+    panelRoot.dataset.noteKind = ""; // noteSession?.noteKind || "";
+    // panelRoot.dataset.noteId = noteSession?.noteId
+    //   ? `${noteSession.noteId}`
+    //   : "";
+    panelRoot.dataset.noteId = "";
+    panelRoot.dataset.noteTitle = ""; // noteSession?.title || "";
+    // panelRoot.dataset.noteParentItemId = noteSession?.parentItemId
+    //   ? `${noteSession.parentItemId}`
+    //   : "";
+    panelRoot.dataset.noteParentItemId = "";
+    if (historyNewBtn) {
+      historyNewBtn.style.display = "";
+    }
+    if (historyToggleBtn) {
+      historyToggleBtn.style.display = "";
+    }
+    if (item && libraryID > 0 && mode) {
+      activeConversationModeByLibrary.set(libraryID, mode);
+      if (mode === "global") {
+        activeGlobalConversationByLibrary.set(libraryID, item.id);
+      } else if (
+        Number.isFinite(conversationKey) &&
+        (conversationKey as number) > 0 &&
+        Number.isFinite(currentBasePaperItemID) &&
+        currentBasePaperItemID > 0
+      ) {
+        const lockedGlobalKey = getLockedGlobalConversationKey(libraryID);
+        if (lockedGlobalKey !== null) {
+          setLockedGlobalConversationKey(libraryID, null);
+          removeAutoLockedGlobalConversationKey(lockedGlobalKey);
+        }
+        const normalizedConversationKey = Math.floor(conversationKey as number);
+        const paperStateKey = buildPaperStateKey(
+          libraryID,
+          Math.floor(currentBasePaperItemID),
         );
-      } catch {
-        // Zotero.Prefs.registerObserver not available – no live sync
+        activePaperConversationByPaper.set(
+          paperStateKey,
+          normalizedConversationKey,
+        );
+        setLastUsedPaperConversationKey(
+          libraryID,
+          Math.floor(currentBasePaperItemID),
+          normalizedConversationKey,
+        );
       }
     }
+    syncRequestUiForCurrentConversation();
+    if (historyModeIndicator) {
+      // Keep historyModeIndicator (which is the clock history button) accessible.
+      // Its label is static "Conversation history" — no text update needed.
+    }
+    // Update mode capsule data-active state
+    if (modeCapsule) {
+      modeCapsule.dataset.mode = mode || "";
+    }
+    if (modeChipBtn) {
+      // [webchat] Don't overwrite — applyWebChatModeUI manages the chip in webchat mode
+      if (!modeChipBtn.querySelector(".paperpilot-webchat-dot")) {
+        const currentLabel =
+          mode === "global" ? t("Library chat") : t("Paper chat");
+        modeChipBtn.textContent = currentLabel;
+        modeChipBtn.title =
+          mode === "global" ? "Switch to paper chat" : "Switch to library chat";
+        modeChipBtn.setAttribute(
+          "aria-label",
+          mode === "global" ? "Switch to paper chat" : "Switch to library chat",
+        );
+      }
+    }
+    if (inputBox) {
+      inputBox.placeholder =
+        mode === "global"
+          ? t("Ask anything... Type / for actions, @ to add papers")
+          : t("Ask about this paper... Type / for actions, @ to add papers");
+    }
+    updateRuntimeModeButton();
+  };
 
-    // let activeEditSession: EditLatestTurnMarker | null = null;
-    // let attachmentGcTimer: number | null = null;
-    // const scheduleAttachmentGc = (delayMs = 5_000) => {
-    //   const win = body.ownerDocument?.defaultView;
-    //   const clearTimer = () => {
-    //     if (attachmentGcTimer === null) return;
-    //     if (win) {
-    //       win.clearTimeout(attachmentGcTimer);
-    //     } else {
-    //       clearTimeout(attachmentGcTimer);
-    //     }
-    //     attachmentGcTimer = null;
-    //   };
-    //   clearTimer();
-    //   const runGc = () => {
-    //     attachmentGcTimer = null;
-    //     void collectAndDeleteUnreferencedBlobs(ATTACHMENT_GC_MIN_AGE_MS).catch(
-    //       (err) => {
-    //         ztoolkit.log("Paper Pilot: Attachment GC failed", err);
-    //       },
-    //     );
-    //   };
-    //   if (win) {
-    //     attachmentGcTimer = win.setTimeout(runGc, delayMs);
-    //   } else {
-    //     attachmentGcTimer =
-    //       (setTimeout(runGc, delayMs) as unknown as number) || 0;
-    //   }
-    // };
+  const allocateConversationKey = (kind: "global" | "paper"): number => {
+    const base =
+      kind === "global"
+        ? GLOBAL_CONVERSATION_KEY_BASE + 500_000_000
+        : PAPER_CONVERSATION_KEY_BASE;
+    const range = kind === "global" ? 499_999_999 : 499_999_999;
+    let candidate = base + (Date.now() % range);
+    while (chatHistory.has(candidate)) {
+      candidate = base + ((candidate - base + 1) % range);
+    }
+    return candidate;
+  };
 
-    // const persistCurrentChatScrollSnapshot = () => {
-    //   if (!item || !chatBox || !chatBox.childElementCount) return;
-    //   if (!isChatViewportVisible(chatBox)) return;
-    //   persistChatScrollSnapshot(item, chatBox);
-    // };
+  const selectConversation = async (
+    nextItem: Zotero.Item,
+    nextBasePaperItem: Zotero.Item | null,
+  ): Promise<void> => {
+    item = nextItem;
+    basePaperItem = nextBasePaperItem;
+    activeContextPanelRawItems.set(body, nextBasePaperItem || nextItem);
+    syncConversationIdentity();
+    await ensureConversationLoaded(nextItem);
+    refreshChat(body, nextItem);
+    resetComposePreviewUI();
+    updateModelButton();
+  };
 
-    const isChatViewportVisible = (box: HTMLDivElement): boolean => {
-      return box.clientHeight > 0 && box.getClientRects().length > 0;
-    };
+  refreshGlobalHistoryHeader = async () => {
+    if (!historyMenu) return;
+    if (typeof historyMenu.replaceChildren === "function") {
+      historyMenu.replaceChildren();
+    } else {
+      historyMenu.textContent = "";
+    }
+    const entries = [...chatHistory.entries()]
+      .filter(([key]) =>
+        isGlobalMode()
+          ? isUpstreamGlobalConversationKey(key)
+          : !isUpstreamGlobalConversationKey(key),
+      )
+      .filter(([, messages]) =>
+        messages.some((message) => message.role === "user"),
+      )
+      .sort(([, left], [, right]) => {
+        const leftTime = left.at(-1)?.timestamp || 0;
+        const rightTime = right.at(-1)?.timestamp || 0;
+        return rightTime - leftTime;
+      });
+    if (!entries.length) {
+      const empty = panelDoc.createElement("div");
+      empty.className = "paperpilot-history-empty";
+      empty.textContent = t("No conversations yet");
+      historyMenu.appendChild(empty);
+      return;
+    }
+    for (const [key, messages] of entries) {
+      const firstUser = messages.find((message) => message.role === "user");
+      const button = panelDoc.createElement("button");
+      button.type = "button";
+      button.className = "paperpilot-history-item";
+      button.textContent = firstUser?.text.slice(0, 80) || t("Untitled chat");
+      button.title = firstUser?.text || t("Untitled chat");
+      button.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const libraryID = getCurrentLibraryID();
+        const nextItem = isGlobalMode()
+          ? createGlobalPortalItem(libraryID, key)
+          : (() => {
+              const paper = resolveCurrentPaperBaseItem();
+              return paper ? createPaperPortalItem(paper, key, 0) : null;
+            })();
+        if (!nextItem) return;
+        await selectConversation(
+          nextItem,
+          isGlobalMode() ? basePaperItem : resolveCurrentPaperBaseItem(),
+        );
+        closeHistoryMenu();
+      });
+      historyMenu.appendChild(button);
+    }
+  };
 
-    type ChatBoxViewportState = {
-      width: number;
-      height: number;
-      maxScrollTop: number;
-      scrollTop: number;
-      nearBottom: boolean;
+  createAndSwitchGlobalConversation = async (forceFresh = false) => {
+    const libraryID = getCurrentLibraryID();
+    if (!libraryID) return false;
+    clearSelectedPdfAttachmentsForGlobalMode();
+    const key = forceFresh
+      ? allocateConversationKey("global")
+      : buildDefaultUpstreamGlobalConversationKey(libraryID);
+    const nextItem = createGlobalPortalItem(libraryID, key);
+    if (!chatHistory.has(key)) chatHistory.set(key, []);
+    activeGlobalConversationByLibrary.set(libraryID, key);
+    await selectConversation(nextItem, basePaperItem);
+    return true;
+  };
+
+  createAndSwitchPaperConversation = async (forceFresh = false) => {
+    const paper = resolveCurrentPaperBaseItem();
+    if (!paper) return false;
+    const key = forceFresh
+      ? allocateConversationKey("paper")
+      : getLastUsedPaperConversationKey(
+          Number(paper.libraryID || getCurrentLibraryID()),
+          Number(paper.id || 0),
+        ) || Number(paper.id || 0);
+    const nextItem = createPaperPortalItem(paper, key, Date.now());
+    if (!chatHistory.has(key)) chatHistory.set(key, []);
+    await selectConversation(nextItem, paper);
+    return true;
+  };
+
+  if (modeChipBtn) {
+    modeChipBtn.addEventListener("click", (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void (async () => {
+        const switched = isGlobalMode()
+          ? await createAndSwitchPaperConversation()
+          : await createAndSwitchGlobalConversation();
+        if (!switched && status) {
+          setStatus(
+            status,
+            isGlobalMode()
+              ? t("No paper is available for paper chat")
+              : t("Unable to open library chat"),
+            "warning",
+          );
+        }
+      })().catch((error) => {
+        ztoolkit.log("Paper Pilot: failed to switch conversation scope", error);
+        if (status) {
+          setStatus(status, t("Unable to switch conversation scope"), "error");
+        }
+      });
+    });
+  }
+
+  syncConversationIdentity();
+
+  let cleanupPrefObservers: (() => void) | null = null;
+  let cleanupMineruPaperSourceObservers: (() => void) | null = null;
+  cleanupPrefObservers = () => {};
+
+  // let activeEditSession: EditLatestTurnMarker | null = null;
+  // let attachmentGcTimer: number | null = null;
+  // const scheduleAttachmentGc = (delayMs = 5_000) => {
+  //   const win = body.ownerDocument?.defaultView;
+  //   const clearTimer = () => {
+  //     if (attachmentGcTimer === null) return;
+  //     if (win) {
+  //       win.clearTimeout(attachmentGcTimer);
+  //     } else {
+  //       clearTimeout(attachmentGcTimer);
+  //     }
+  //     attachmentGcTimer = null;
+  //   };
+  //   clearTimer();
+  //   const runGc = () => {
+  //     attachmentGcTimer = null;
+  //     void collectAndDeleteUnreferencedBlobs(ATTACHMENT_GC_MIN_AGE_MS).catch(
+  //       (err) => {
+  //         ztoolkit.log("Paper Pilot: Attachment GC failed", err);
+  //       },
+  //     );
+  //   };
+  //   if (win) {
+  //     attachmentGcTimer = win.setTimeout(runGc, delayMs);
+  //   } else {
+  //     attachmentGcTimer =
+  //       (setTimeout(runGc, delayMs) as unknown as number) || 0;
+  //   }
+  // };
+
+  // const persistCurrentChatScrollSnapshot = () => {
+  //   if (!item || !chatBox || !chatBox.childElementCount) return;
+  //   if (!isChatViewportVisible(chatBox)) return;
+  //   persistChatScrollSnapshot(item, chatBox);
+  // };
+
+  const isChatViewportVisible = (box: HTMLDivElement): boolean => {
+    return box.clientHeight > 0 && box.getClientRects().length > 0;
+  };
+
+  type ChatBoxViewportState = {
+    width: number;
+    height: number;
+    maxScrollTop: number;
+    scrollTop: number;
+    nearBottom: boolean;
+  };
+  const buildChatBoxViewportState = (): ChatBoxViewportState | null => {
+    if (!chatBox) return null;
+    if (!isChatViewportVisible(chatBox)) return null;
+    const width = Math.max(0, Math.round(chatBox.clientWidth));
+    const height = Math.max(0, Math.round(chatBox.clientHeight));
+    const maxScrollTop = Math.max(
+      0,
+      chatBox.scrollHeight - chatBox.clientHeight,
+    );
+    const scrollTop = Math.max(0, Math.min(maxScrollTop, chatBox.scrollTop));
+    const nearBottom = maxScrollTop - scrollTop <= AUTO_SCROLL_BOTTOM_THRESHOLD;
+    return {
+      width,
+      height,
+      maxScrollTop,
+      scrollTop,
+      nearBottom,
     };
-    const buildChatBoxViewportState = (): ChatBoxViewportState | null => {
-      if (!chatBox) return null;
-      if (!isChatViewportVisible(chatBox)) return null;
-      const width = Math.max(0, Math.round(chatBox.clientWidth));
-      const height = Math.max(0, Math.round(chatBox.clientHeight));
-      const maxScrollTop = Math.max(
-        0,
-        chatBox.scrollHeight - chatBox.clientHeight,
-      );
-      const scrollTop = Math.max(0, Math.min(maxScrollTop, chatBox.scrollTop));
-      const nearBottom = maxScrollTop - scrollTop <= AUTO_SCROLL_BOTTOM_THRESHOLD;
-      return {
-        width,
-        height,
-        maxScrollTop,
-        scrollTop,
-        nearBottom,
-      };
-    };
-    let chatBoxViewportState = buildChatBoxViewportState();
-    const captureChatBoxViewportState = () => {
-      chatBoxViewportState = buildChatBoxViewportState();
-    };
-    const isCurrentConversationStreaming = (): boolean => {
-      // if (!item) return false;
-      // const conversationKey = getConversationKey(item);
-      // return (chatHistory.get(conversationKey) || []).some((msg) =>
-      //   Boolean(msg.streaming),
-      // );
-      return false;
-    };
-    const requestStreamingFollowBottom = () => {
+  };
+  let chatBoxViewportState = buildChatBoxViewportState();
+  const captureChatBoxViewportState = () => {
+    chatBoxViewportState = buildChatBoxViewportState();
+  };
+  const isCurrentConversationStreaming = (): boolean => {
+    // if (!item) return false;
+    // const conversationKey = getConversationKey(item);
+    // return (chatHistory.get(conversationKey) || []).some((msg) =>
+    //   Boolean(msg.streaming),
+    // );
+    return false;
+  };
+  const requestStreamingFollowBottom = () => {
+    if (!item || !chatBox) return;
+    if (!isCurrentConversationStreaming()) return;
+    // requestChatScrollFollowBottom(body, item, chatBox);
+    captureChatBoxViewportState();
+  };
+
+  if (item && chatBox) {
+    const handleStreamingFollowWheel = (event: WheelEvent) => {
       if (!item || !chatBox) return;
       if (!isCurrentConversationStreaming()) return;
-      // requestChatScrollFollowBottom(body, item, chatBox);
-      captureChatBoxViewportState();
-    };
-
-    if (item && chatBox) {
-      const handleStreamingFollowWheel = (event: WheelEvent) => {
-        if (!item || !chatBox) return;
-        if (!isCurrentConversationStreaming()) return;
-        if (event.deltaY < 0) {
-          // cancelChatScrollFollowBottomRequest(item);
-          return;
-        }
-        if (event.deltaY <= 0) return;
-
-        const checkAfterNativeScroll = () => {
-          const current = buildChatBoxViewportState();
-          if (!current) return;
-          const distanceFromBottom = current.maxScrollTop - current.scrollTop;
-          // if (isAtAutoFollowBottom(distanceFromBottom)) {
-          //   requestStreamingFollowBottom();
-          // }
-        };
-        const win = body.ownerDocument?.defaultView;
-        if (win) {
-          win.setTimeout(checkAfterNativeScroll, 0);
-        } else {
-          checkAfterNativeScroll();
-        }
-      };
-      const persistScroll = () => {
-        if (!item) return;
-        if (!chatBox.childElementCount) return;
-        if (!isChatViewportVisible(chatBox)) return;
-        const currentWidth = Math.max(0, Math.round(chatBox.clientWidth));
-        const currentHeight = Math.max(0, Math.round(chatBox.clientHeight));
-        const previousViewport = chatBoxViewportState;
-        let viewportResized = false;
-        if (previousViewport) {
-          viewportResized =
-            currentWidth !== previousViewport.width ||
-            currentHeight !== previousViewport.height;
-        }
-        // Ignore resize-induced scroll events so the last pre-resize viewport
-        // state remains available for relative-position restoration.
-        if (viewportResized) return;
-        // Skip persistence when scroll was caused by our own programmatic
-        // scrollTop writes or by layout mutations (e.g. button relayout
-        // changing the flex-sized chat area).
-        // if (isScrollUpdateSuspended()) {
-        //   captureChatBoxViewportState();
-        //   return;
-        // }
-        const currentViewport = buildChatBoxViewportState();
-        if (previousViewport && currentViewport) {
-          const scrollDelta =
-            currentViewport.scrollTop - previousViewport.scrollTop;
-          const distanceFromBottom =
-            currentViewport.maxScrollTop - currentViewport.scrollTop;
-          const followAction = resolveStreamingScrollFollowAction({
-            scrollDelta,
-            distanceFromBottom,
-            isStreaming: isCurrentConversationStreaming(),
-          });
-          if (followAction === "cancel") {
-            // cancelChatScrollFollowBottomRequest(item);
-          } else if (followAction === "follow") {
-            // requestChatScrollFollowBottom(body, item, chatBox);
-            captureChatBoxViewportState();
-            return;
-          }
-        }
-        // persistChatScrollSnapshot(item, chatBox);
-        captureChatBoxViewportState();
-      };
-      chatBox.addEventListener("wheel", handleStreamingFollowWheel, {
-        passive: false,
-      });
-      chatBox.addEventListener("scroll", persistScroll, { passive: true });
-    }
-
-    // Capture scroll before click/focus interactions that may trigger a panel
-    // re-render, so restore uses the most recent user position.
-    // body.addEventListener("pointerdown", persistCurrentChatScrollSnapshot, true);
-
-    // NOTE: We intentionally do NOT persist on "focusin" because focusin fires
-    // AFTER focus() has already caused a potential scroll adjustment in Gecko.
-    // Persisting at that point overwrites the correct pre-interaction snapshot
-    // (captured by pointerdown) with a corrupted position. The scroll event
-    // handler on chatBox already keeps the snapshot up to date for programmatic
-    // scroll changes.
-
-    let retryMenuAnchor: HTMLButtonElement | null = null;
-    const closeResponseMenu = () => {
-      if (responseMenu) responseMenu.style.display = "none";
-      // setResponseMenuTarget(null);
-    };
-    const closePromptMenu = () => {
-      if (promptMenu) promptMenu.style.display = "none";
-      // setPromptMenuTarget(null);
-    };
-    const closeExportMenu = () => {
-      if (exportMenu) exportMenu.style.display = "none";
-    };
-    let resetHistorySearchState = () => {};
-    const closeHistoryRowMenu = () => {
-      if (historyRowMenu) historyRowMenu.style.display = "none";
-    };
-    const closeHistoryNewMenu = () => {
-      if (historyNewMenu) historyNewMenu.style.display = "none";
-      if (historyNewBtn) {
-        historyNewBtn.setAttribute("aria-expanded", "false");
-      }
-      closeHistoryRowMenu();
-    };
-    const closeHistoryMenu = () => {
-      if (historyMenu) historyMenu.style.display = "none";
-      if (historyToggleBtn) {
-        historyToggleBtn.setAttribute("aria-expanded", "false");
-      }
-      resetHistorySearchState();
-      closeHistoryRowMenu();
-    };
-    let closeSlashMenu = () => {
-      // setFloatingMenuOpen(slashMenu, SLASH_MENU_OPEN_CLASS, false);
-      if (uploadBtn) {
-        uploadBtn.setAttribute("aria-expanded", "false");
-      }
-    };
-    let openModelMenu = () => {};
-    let closeModelMenu = () => {
-      // setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
-    };
-    let openReasoningMenu = () => {};
-    let closeReasoningMenu = () => {
-      // setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
-    };
-    const isHistoryMenuOpen = () =>
-      Boolean(historyMenu && historyMenu.style.display !== "none");
-    const isHistoryNewMenuOpen = () =>
-      Boolean(historyNewMenu && historyNewMenu.style.display !== "none");
-    const closeRetryModelMenu = () => {
-      // setFloatingMenuOpen(retryModelMenu, RETRY_MODEL_MENU_OPEN_CLASS, false);
-      retryMenuAnchor = null;
-    };
-
-    // const handlerContext: SetupHandlersContext = {
-    //   body,
-    //   refs: panelRefs,
-    //   getItem: () => item,
-    //   getConversationKey,
-    //   setStatusMessage: (message, level) => {
-    //     if (status) setStatus(status, message, level);
-    //   },
-    //   refreshChatPreservingScroll: () => refreshChatPreservingScroll(),
-    //   refreshGlobalHistoryHeader: () => refreshGlobalHistoryHeader(),
-    //   logError: (message, ...args) => {
-    //     ztoolkit.log(message, ...args);
-    //   },
-    // };
-
-    // attachAssistantSelectionPopup({
-    //   body: handlerContext.body,
-    //   panelRoot,
-    //   panelDoc,
-    //   panelWin,
-    //   chatBox,
-    //   inputBox,
-    //   status,
-    //   getItem: handlerContext.getItem,
-    //   getTextContextConversationKey,
-    //   runWithChatScrollGuard: (fn) => runWithChatScrollGuard(fn),
-    //   updateSelectedTextPreviewPreservingScroll: () =>
-    //     updateSelectedTextPreviewPreservingScroll(),
-    //   isElementNode,
-    // });
-
-    attachMenuActionController({
-      body,
-      status,
-      responseMenu,
-      responseMenuCopyBtn,
-      responseMenuNoteBtn,
-      responseMenuForkBtn,
-      responseMenuDeleteBtn,
-      promptMenu,
-      promptMenuForkBtn,
-      promptMenuDeleteBtn,
-      exportMenu,
-      exportMenuCopyBtn,
-      exportMenuNoteBtn,
-      exportBtn,
-      popoutBtn,
-      settingsBtn,
-      preferencesPaneId: PREFERENCES_PANE_ID,
-      getItem: () => item,
-      // getResponseMenuTarget: () => responseMenuTarget,
-      // getPromptMenuTarget: () => promptMenuTarget,
-      getCurrentLibraryID,
-      getConversationSystem,
-      getCurrentRuntimeModeForItem: (targetItem) =>
-        selectedRuntimeModeCache.get(getConversationKey(targetItem)) || null,
-      isGlobalMode,
-      ensureConversationLoaded,
-      getConversationKey,
-      // getHistory: (conversationKey) => chatHistory.get(conversationKey) || [],
-      // resolveActiveNoteSession,
-      closeResponseMenu,
-      closePromptMenu,
-      closeExportMenu,
-      closeRetryModelMenu,
-      closeSlashMenu,
-      closeHistoryNewMenu,
-      closeHistoryMenu,
-      queueTurnDeletion: (target) => queueTurnDeletion(target),
-      forkConversationFromTurn: (target) => forkConversationFromTurn(target),
-      logError: (message, error) => {
-        ztoolkit.log(message, error);
-      },
-    });
-
-    // Clicking non-interactive panel area gives keyboard focus to the panel.
-    panelRoot.addEventListener("mousedown", (e: Event) => {
-      const me = e as MouseEvent;
-      if (me.button !== 0) return;
-      const target = me.target as Element | null;
-      if (!target) return;
-      const isInteractive = Boolean(
-        target.closest(
-          "input, textarea, button, select, option, a[href], [contenteditable='true']",
-        ),
-      );
-      if (!isInteractive) {
-        panelRoot.focus({ preventScroll: true });
-      }
-    });
-
-    // const { applyResponsiveActionButtonsLayout } = createActionLayoutController({
-    //   body,
-    //   panelRoot,
-    //   actionsRow,
-    //   actionsLeft,
-    //   modelBtn,
-    //   modelSlot,
-    //   reasoningBtn,
-    //   reasoningSlot,
-    //   uploadBtn,
-    //   selectTextBtn,
-    //   screenshotBtn,
-    //   sendBtn,
-    //   cancelBtn,
-    // });
-    let lastUserContextAlignmentPanelWidth = -1;
-    const getRoundedPanelWidth = () =>
-      Math.ceil(
-        panelRoot.getBoundingClientRect?.().width || panelRoot.clientWidth || 0,
-      );
-    // const responsiveLayoutScheduler = createCoalescedFrameScheduler({
-    //   getWindow: () => body.ownerDocument?.defaultView || null,
-    //   run: () => {
-    //     const panelWidth = getRoundedPanelWidth();
-    //     withScrollGuard(
-    //       chatBox,
-    //       conversationKey,
-    //       () => {
-    //         applyResponsiveActionButtonsLayout();
-    //         if (
-    //           panelWidth <= 0 ||
-    //           panelWidth !== lastUserContextAlignmentPanelWidth
-    //         ) {
-    //           syncUserContextAlignmentWidths(body);
-    //           if (panelWidth > 0) {
-    //             lastUserContextAlignmentPanelWidth = panelWidth;
-    //           }
-    //         }
-    //       },
-    //       "relative",
-    //     );
-    //   },
-    // });
-    // const scheduleResponsiveLayoutSync = () => {
-    //   responsiveLayoutScheduler.schedule();
-    // };
-    const flushResponsiveLayoutSyncNow = () => {
-      // responsiveLayoutScheduler.flush();
-    };
-    let pendingChatBoxResizePreviousState: ChatBoxViewportState | null = null;
-    // const chatBoxViewportResizeScheduler = createCoalescedFrameScheduler({
-    //   getWindow: () => body.ownerDocument?.defaultView || null,
-    //   run: () => {
-    //     const previous =
-    //       pendingChatBoxResizePreviousState || chatBoxViewportState;
-    //     pendingChatBoxResizePreviousState = null;
-    //     if (!chatBox) return;
-    //     if (!isChatViewportVisible(chatBox)) return;
-    //     const current = buildChatBoxViewportState();
-    //     if (!current) return;
-    //     const viewportChanged = Boolean(
-    //       previous &&
-    //       (current.width !== previous.width ||
-    //         current.height !== previous.height),
-    //     );
-    //     if (viewportChanged && previous && previous.nearBottom) {
-    //       const targetBottom = Math.max(
-    //         0,
-    //         chatBox.scrollHeight - chatBox.clientHeight,
-    //       );
-    //       if (Math.abs(chatBox.scrollTop - targetBottom) > 1) {
-    //         chatBox.scrollTop = chatBox.scrollHeight;
-    //       }
-    //       captureChatBoxViewportState();
-    //       if (item && chatBox.childElementCount) {
-    //         persistChatScrollSnapshot(item, chatBox);
-    //       }
-    //       return;
-    //     }
-    //     if (
-    //       viewportChanged &&
-    //       previous &&
-    //       !previous.nearBottom &&
-    //       previous.maxScrollTop > 0
-    //     ) {
-    //       const progress = Math.max(
-    //         0,
-    //         Math.min(1, previous.scrollTop / previous.maxScrollTop),
-    //       );
-    //       const targetScrollTop = Math.round(current.maxScrollTop * progress);
-    //       if (Math.abs(chatBox.scrollTop - targetScrollTop) > 1) {
-    //         chatBox.scrollTop = targetScrollTop;
-    //       }
-    //       captureChatBoxViewportState();
-    //       if (item && chatBox.childElementCount) {
-    //         persistChatScrollSnapshot(item, chatBox);
-    //       }
-    //       return;
-    //     }
-    //     chatBoxViewportState = current;
-    //   },
-    // });
-
-    // const clearSelectedImageState = (itemId: number) =>
-    //   clearSelectedImageState_(pinnedImageKeys, itemId);
-
-    // const clearSelectedFileState = (itemId: number) =>
-    //   clearSelectedFileState_(pinnedFileKeys, itemId);
-
-    // const hasUserTurnsForCurrentConversation = (): boolean => {
-    //   if (!item) return false;
-    //   const history = chatHistory.get(getConversationKey(item)) || [];
-    //   return history.some((message) => message.role === "user");
-    // };
-
-    // getPaperModeOverride, setPaperModeOverride, clearPaperModeOverrides
-    // → imported from ./contexts/paperContextState
-
-    // const consumePaperModeState = (
-    //   itemId: number,
-    //   opts?: { webchatGreyOut?: boolean },
-    // ) => {
-    //   if (!item || item.id !== itemId) {
-    //     // clearPaperModeOverrides(itemId);
-    //     return;
-    //   }
-    //   // Standard path: consume full-next mode for non-PDF papers
-    //   const fullTextPaperContexts = getEffectiveFullTextPaperContexts(item);
-    //   for (const paperContext of fullTextPaperContexts) {
-    //     const mode = resolvePaperContextNextSendMode(itemId, paperContext);
-    //     if (mode === "full-next") {
-    //       // setPaperModeOverride(itemId, paperContext, "retrieval");
-    //     }
-    //   }
-    //   // [webchat] Also consume full-next for PDF-source papers.
-    //   // getEffectiveFullTextPaperContexts excludes PDF-source papers,
-    //   // but in webchat mode these papers also use full-next/full-sticky semantics
-    //   // for controlling whether to send the PDF binary to ChatGPT.
-    //   if (opts?.webchatGreyOut) {
-    //     const allPaperContexts = getAllEffectivePaperContexts(item);
-    //     for (const paperContext of allPaperContexts) {
-    //       if (resolvePaperContentSourceMode(itemId, paperContext) !== "pdf")
-    //         continue;
-    //       const mode = resolvePaperContextNextSendMode(itemId, paperContext);
-    //       if (mode === "full-next") {
-    //         // setPaperModeOverride(itemId, paperContext, "retrieval");
-    //       }
-    //     }
-    //   }
-    // };
-
-    // isPaperContextFullTextMode, getPaperContentSourceOverride,
-    // setPaperContentSourceOverride, clearPaperContentSourceOverrides
-    // → imported from ./contexts/paperContextState
-
-    const resolvePaperContentSourceMode = (
-      itemId: number,
-      paperContext: PaperContextRef,
-    ): PaperContentSourceMode => {
-      // [webchat] Always use PDF content source — webchat sends raw PDF via drag-and-drop
-      //if (isWebChatMode()) return "pdf";
-      // const explicit = getPaperContentSourceOverride(itemId, paperContext);
-      // return (
-      //   explicit ||
-      //   paperContext.contentSourceMode ||
-      //   (isPaperContextMineru(paperContext) ? "mineru" : "text")
-      // );
-      return (paperContext.contentSourceMode === "mineru" ? "mineru" : "text");
-    };
-
-    const withResolvedPaperContentSourceMode = (
-      itemId: number,
-      paperContext: PaperContextRef,
-    ): PaperContextRef => ({
-      ...paperContext,
-      contentSourceMode: resolvePaperContentSourceMode(itemId, paperContext),
-    });
-    
-    // // Lightweight sync cache: once checkAndApplyMineruChipStyle confirms MinerU
-    // // exists on disk, the contextItemId is added here so isPaperContextMineru
-    // // returns true immediately without waiting for pdfTextCache to be populated.
-    // const mineruAvailableIds = new Set<number>();
-    // const pendingMineruAvailabilityChecks = new Map<number, Promise<void>>();
-    // let mineruChipStyleDepsPromise: Promise<{
-    //   getMineruAvailabilityForAttachmentId: typeof import("./mineruSync").getMineruAvailabilityForAttachmentId;
-    // }> | null = null;
-    // const loadMineruChipStyleDeps = () => {
-    //   if (!mineruChipStyleDepsPromise) {
-    //     mineruChipStyleDepsPromise = import("./mineruSync").then(
-    //       (mineruSync) => ({
-    //         getMineruAvailabilityForAttachmentId:
-    //           mineruSync.getMineruAvailabilityForAttachmentId,
-    //       }),
-    //     );
-    //   }
-    //   return mineruChipStyleDepsPromise;
-    // };
-
-    // const isPaperContextMineru = (paperContext: PaperContextRef): boolean => {
-    //   if (mineruAvailableIds.has(paperContext.contextItemId)) return true;
-    //   // Check in-memory pdfTextCache (populated after ensurePDFTextCached)
-    //   const cached = pdfTextCache.get(paperContext.contextItemId);
-    //   if (cached?.sourceType === "mineru") {
-    //     mineruAvailableIds.add(paperContext.contextItemId);
-    //     return true;
-    //   }
-    //   // Cache may not be populated yet — trigger async check and update chip later
-    //   if (!cached) {
-    //     void checkAndApplyMineruChipStyle(paperContext.contextItemId);
-    //   }
-    //   return false;
-    // };
-
-    // const checkAndApplyMineruChipStyle = async (
-    //   contextItemId: number,
-    // ): Promise<void> => {
-    //   if (mineruAvailableIds.has(contextItemId)) return;
-    //   return getOrCreateKeyedInFlightTask(
-    //     pendingMineruAvailabilityChecks,
-    //     contextItemId,
-    //     async () => {
-    //       try {
-    //         if (mineruAvailableIds.has(contextItemId)) return;
-    //         const { getMineruAvailabilityForAttachmentId } =
-    //           await loadMineruChipStyleDeps();
-    //         const availability = await getMineruAvailabilityForAttachmentId(
-    //           contextItemId,
-    //           {
-    //             validateSyncedPackage: false,
-    //           },
-    //         );
-    //         if (availability.status === "missing") return;
-    //         mineruAvailableIds.add(contextItemId);
-    //         upgradePaperContextsToMineruForAttachment(contextItemId);
-    //         // MinerU is now available; re-render chips so the default mode flips.
-    //         schedulePanelStateRefresh();
-    //         refreshOpenPaperChipMenu();
-    //       } catch {
-    //         /* ignore */
-    //       }
-    //     },
-    //   );
-    // };
-    
-
-    // const resolvePaperContextNextSendMode = (
-    //   itemId: number,
-    //   paperContext: PaperContextRef,
-    // ): PaperContextSendMode => {
-    //   if (
-    //     isPaperContextFullTextOnlySourceMode(
-    //       resolvePaperContentSourceMode(itemId, paperContext),
-    //     )
-    //   ) {
-    //     return "full-sticky";
-    //   }
-    //   const explicitMode = getPaperModeOverride(itemId, paperContext);
-    //   if (explicitMode) return explicitMode;
-    //   const autoLoadedPaperContext =
-    //     item && item.id === itemId ? resolveAutoLoadedPaperContext() : null;
-    //   if (
-    //     autoLoadedPaperContext &&
-    //     buildPaperKey(autoLoadedPaperContext) === buildPaperKey(paperContext) &&
-    //     !hasUserTurnsForCurrentConversation()
-    //   ) {
-    //     return "full-next";
-    //   }
-    //   return "retrieval";
-    // };
-
-    // const getManualPaperContextsForItem = (
-    //   itemId: number,
-    //   autoLoadedPaperContext: PaperContextRef | null,
-    //   selectedPaperContexts?: PaperContextRef[],
-    // ): PaperContextRef[] => {
-    //   const fromCache = selectedPaperContexts === undefined;
-    //   const normalized = normalizePaperContextEntries(
-    //     fromCache
-    //       ? selectedPaperContextCache.get(itemId) || []
-    //       : selectedPaperContexts,
-    //   );
-    //   const filtered = filterManualPaperContextsAgainstAutoLoaded(
-    //     normalized,
-    //     autoLoadedPaperContext,
-    //   );
-    //   if (fromCache && filtered.length !== normalized.length) {
-    //     if (filtered.length) {
-    //       selectedPaperContextCache.set(itemId, filtered);
-    //     } else {
-    //       selectedPaperContextCache.delete(itemId);
-    //     }
-    //   }
-    //   return filtered;
-    // };
-
-    // const getAllEffectivePaperContexts = (
-    //   currentItem: Zotero.Item,
-    //   selectedPaperContexts?: PaperContextRef[],
-    // ): PaperContextRef[] => {
-    //   const autoLoadedPaperContext = isGlobalPortalItem(currentItem)
-    //     ? null
-    //     : resolveAutoLoadedPaperContext();
-    //   const selectedPapers = getManualPaperContextsForItem(
-    //     currentItem.id,
-    //     autoLoadedPaperContext,
-    //     selectedPaperContexts,
-    //   );
-    //   return normalizePaperContextEntries([
-    //     ...(autoLoadedPaperContext ? [autoLoadedPaperContext] : []),
-    //     ...selectedPapers,
-    //   ]).map((paperContext) =>
-    //     withResolvedPaperContentSourceMode(currentItem.id, paperContext),
-    //   );
-    // };
-
-    // const getEffectiveFullTextPaperContexts = (
-    //   currentItem: Zotero.Item,
-    //   selectedPaperContexts?: PaperContextRef[],
-    // ): PaperContextRef[] => {
-    //   return getAllEffectivePaperContexts(currentItem, selectedPaperContexts)
-    //     .filter(
-    //       (paperContext) =>
-    //         resolvePaperContentSourceMode(currentItem.id, paperContext) !==
-    //           "pdf" &&
-    //         isPaperContextFullTextMode(
-    //           resolvePaperContextNextSendMode(currentItem.id, paperContext),
-    //         ),
-    //     )
-    //     .slice(0, MAX_FULL_TEXT_PAPER_CONTEXTS);
-    // };
-
-    // const getEffectivePdfModePaperContexts = (
-    //   currentItem: Zotero.Item,
-    //   selectedPaperContexts?: PaperContextRef[],
-    // ): PaperContextRef[] => {
-    //   return getAllEffectivePaperContexts(
-    //     currentItem,
-    //     selectedPaperContexts,
-    //   ).filter(
-    //     (paperContext) =>
-    //       resolvePaperContentSourceMode(currentItem.id, paperContext) === "pdf",
-    //   );
-    // };
-
-    /** [webchat] Check if any paper has PDF content source AND full-text send mode (purple chip). */
-    // const hasActivePdfFullTextPapers = (
-    //   currentItem: Zotero.Item,
-    //   selectedPaperContexts?: PaperContextRef[],
-    // ): boolean => {
-    //   return getAllEffectivePaperContexts(
-    //     currentItem,
-    //     selectedPaperContexts,
-    //   ).some(
-    //     (paperContext) =>
-    //       resolvePaperContentSourceMode(currentItem.id, paperContext) === "pdf" &&
-    //       isPaperContextFullTextMode(
-    //         resolvePaperContextNextSendMode(currentItem.id, paperContext),
-    //       ),
-    //   );
-    // };
-
-    // clearSelectedPaperState, clearAllRefContextState
-    // → imported from ./contexts/paperContextState
-
-    // const clearSelectedTextState = (itemId: number) =>
-    //   clearSelectedTextState_(pinnedSelectedTextKeys, itemId);
-    // const setDraftInputForConversation = (
-    //   conversationKey: number,
-    //   value: string,
-    // ) => {
-    //   if (!Number.isFinite(conversationKey) || conversationKey <= 0) return;
-    //   const normalizedKey = Math.floor(conversationKey);
-    //   if (value) {
-    //     draftInputCache.set(normalizedKey, value);
-    //   } else {
-    //     draftInputCache.delete(normalizedKey);
-    //   }
-    // };
-    // const persistDraftInputForCurrentConversation = () => {
-    //   // Don't persist the edit-mode text as a draft; the real draft was saved in
-    //   // inlineEditSavedDraft when edit mode was entered.
-    //   if (!item || !inputBox || inlineEditTarget) return;
-    //   if (isWebChatModeActive()) return;
-    //   setDraftInputForConversation(getConversationKey(item), inputBox.value);
-    // };
-    // const restoreDraftInputForCurrentConversation = () => {
-    //   if (!item || !inputBox) return;
-    //   // Don't overwrite the user's in-progress edit text; the real draft was saved
-    //   // in inlineEditSavedDraft when edit mode was entered and will be restored by
-    //   // inlineEditCleanup when the edit session ends.
-    //   if (inlineEditTarget) return;
-    //   if (isWebChatModeActive()) {
-    //     inputBox.value = "";
-    //     return;
-    //   }
-    //   inputBox.value = draftInputCache.get(getConversationKey(item)) || "";
-    // };
-    // const clearDraftInputState = (itemId: number) => {
-    //   draftInputCache.delete(itemId);
-    // };
-    // const retainPinnedImageState = (itemId: number) =>
-    //   retainPinnedImageState_(pinnedImageKeys, itemId);
-    // const retainPinnedFileState = (itemId: number) =>
-    //   retainPinnedFileState_(pinnedFileKeys, itemId);
-    // const retainPaperState = (itemId: number) => {
-    //   const autoLoadedPaperContext =
-    //     item && item.id === itemId ? resolveAutoLoadedPaperContext() : null;
-    //   const retained = getManualPaperContextsForItem(
-    //     itemId,
-    //     autoLoadedPaperContext,
-    //   );
-    //   if (retained.length) {
-    //     selectedPaperContextCache.set(itemId, retained);
-    //   } else {
-    //     selectedPaperContextCache.delete(itemId);
-    //   }
-    //   // Retain other ref contexts across sends (they persist like paper contexts).
-    //   // Prune orphaned mode overrides for papers that are no longer selected.
-    //   const validPaperKeys = new Set(
-    //     retained.map((paperContext) => buildPaperKey(paperContext)),
-    //   );
-    //   if (autoLoadedPaperContext) {
-    //     validPaperKeys.add(buildPaperKey(autoLoadedPaperContext));
-    //   }
-    //   const prefix = `${itemId}:`;
-    //   for (const key of Array.from(paperContextModeOverrides.keys())) {
-    //     if (key.startsWith(prefix)) {
-    //       const paperKey = key.slice(prefix.length);
-    //       if (!validPaperKeys.has(paperKey)) {
-    //         paperContextModeOverrides.delete(key);
-    //       }
-    //     }
-    //   }
-    //   if (retained.length) {
-    //     return;
-    //   }
-    //   if (!autoLoadedPaperContext) {
-    //     selectedPaperPreviewExpandedCache.delete(itemId);
-    //   }
-    // };
-    // const retainPinnedTextState = (itemId: number) =>
-    //   retainPinnedTextState_(pinnedSelectedTextKeys, itemId);
-    // const clearTransientComposeStateForItem = (itemId: number) => {
-    //   clearDraftInputState(itemId);
-    //   clearSelectedImageState(itemId);
-    //   clearAllRefContextState(itemId);
-    //   clearPaperContentSourceOverrides(itemId);
-    //   clearSelectedFileState(itemId);
-    //   clearSelectedTextState(itemId);
-    // };
-    // const runWithChatScrollGuard = (fn: () => void) => {
-    //   withScrollGuard(chatBox, conversationKey, fn);
-    // };
-    // const EDIT_STALE_STATUS_TEXT = t(
-    //   "Edit target changed. Please edit latest prompt again.",
-    // );
-    // const getLatestEditablePair = async () => {
-    //   if (!item) return null;
-    //   await ensureConversationLoaded(item as Zotero.Item);
-    //   const key = getConversationKey(item);
-    //   const history = chatHistory.get(key) || [];
-    //   const pair = findLatestRetryPair(history);
-    //   if (!pair) return null;
-    //   return { conversationKey: key, pair };
-    // };
-
-    let autoLoadedContextSourceSnapshot: ResolvedContextSource | null | undefined;
-    let autoLoadedPaperContextOwnerItemId: number | null = null;
-    let autoLoadedPaperContextItemId: number | null = null;
-    let autoLoadedPaperContextContentSourceMode: string | null = null;
-    let autoLoadedContextPanelItemKey: string | null = null;
-    let autoLoadedContextSourceSnapshotIsExplicit = false;
-    let autoLoadedPaperContextGeneration = 0;
-    let autoLoadedPaperContextPromise: Promise<PaperContextRef | null> | null =
-      null;
-    let requestAutoLoadedPaperContextRefresh: (() => void) | null = null;
-
-    const writeAutoLoadedContextItemId = (
-      contextSource: ResolvedContextSource | null,
-    ) => {
-      const sourceItem = contextSource?.contextItem || null;
-      const paperContext = contextSource?.paperContext || null;
-      const contextItemId = Math.floor(
-        Number(paperContext?.contextItemId || sourceItem?.id || 0),
-      );
-      panelRoot.dataset.contextItemId =
-        Number.isFinite(contextItemId) && contextItemId > 0
-          ? `${contextItemId}`
-          : "";
-    };
-
-    const setAutoLoadedContextSnapshot = (
-      contextSource: ResolvedContextSource | null,
-      contextPanelItem?: Zotero.Item | null,
-      options?: { explicitSourceSelection?: boolean },
-    ) => {
-      if (isGlobalMode()) {
-        panelRoot.dataset.contextItemId = "";
+      if (event.deltaY < 0) {
+        // cancelChatScrollFollowBottomRequest(item);
         return;
       }
-      const sourceItem = contextSource?.contextItem || null;
-      const paperContext = contextSource?.paperContext || null;
-      const ownerItemId = Math.floor(
-        Number(paperContext?.itemId || resolveCurrentPaperBaseItem()?.id || 0),
-      );
-      autoLoadedPaperContextOwnerItemId =
-        Number.isFinite(ownerItemId) && ownerItemId > 0 ? ownerItemId : null;
-      const contextItemId = Math.floor(
-        Number(paperContext?.contextItemId || sourceItem?.id || 0),
-      );
-      autoLoadedPaperContextItemId =
-        Number.isFinite(contextItemId) && contextItemId > 0
-          ? contextItemId
-          : null;
-      autoLoadedPaperContextContentSourceMode =
-        paperContext?.contentSourceMode || null;
-      const contextPanelItemId = Math.floor(
-        Number(contextPanelItem?.id || sourceItem?.id || 0),
-      );
-      autoLoadedContextPanelItemKey =
-        Number.isFinite(contextPanelItemId) && contextPanelItemId > 0
-          ? `${contextPanelItemId}`
-          : null;
-      autoLoadedContextSourceSnapshot = contextSource;
-      autoLoadedContextSourceSnapshotIsExplicit =
-        options?.explicitSourceSelection === true;
-      writeAutoLoadedContextItemId(contextSource);
-      // requestAutoLoadedPaperContextRefresh?.();
-    };
+      if (event.deltaY <= 0) return;
 
-    const clearAutoLoadedContextSnapshot = () => {
-      autoLoadedPaperContextGeneration += 1;
-      autoLoadedContextSourceSnapshot = undefined;
-      autoLoadedPaperContextOwnerItemId = null;
-      autoLoadedPaperContextItemId = null;
-      autoLoadedPaperContextContentSourceMode = null;
-      autoLoadedContextPanelItemKey = null;
-      autoLoadedContextSourceSnapshotIsExplicit = false;
-      autoLoadedPaperContextPromise = null;
-      panelRoot.dataset.contextItemId = "";
-    };
-
-    const getCurrentAutoLoadedPaperOwnerItemId = (): number | null => {
-      if (!item || isGlobalMode()) return null;
-      const ownerItemId = Math.floor(
-        Number(resolveCurrentPaperBaseItem()?.id || 0),
-      );
-      return Number.isFinite(ownerItemId) && ownerItemId > 0 ? ownerItemId : null;
-    };
-
-    // const isAutoLoadedContextSnapshotCurrent = (): boolean => {
-    //   const currentPanelItem = resolveAutoLoadedContextPanelItem();
-    //   const currentPanelItemId = Math.floor(Number(currentPanelItem?.id || 0));
-    //   const currentPanelItemKey =
-    //     Number.isFinite(currentPanelItemId) && currentPanelItemId > 0
-    //       ? `${currentPanelItemId}`
-    //       : null;
-    //   if (
-    //     autoLoadedContextPanelItemKey &&
-    //     currentPanelItemKey &&
-    //     autoLoadedContextPanelItemKey !== currentPanelItemKey
-    //   ) {
-    //     return false;
-    //   }
-    //   const currentContextSource =
-    //     resolveAutoLoadedContextSourceSync(currentPanelItem);
-    //   const currentContextSourceItem = currentContextSource?.contextItem || null;
-    //   const currentPaperContext = currentContextSource?.paperContext || null;
-    //   return isAutoLoadedSnapshotForCurrentPaper({
-    //     currentOwnerItemId: getCurrentAutoLoadedPaperOwnerItemId(),
-    //     snapshotOwnerItemId: autoLoadedPaperContextOwnerItemId,
-    //     currentContextItemId:
-    //       currentPaperContext?.contextItemId ||
-    //       (currentContextSourceItem
-    //         ? Math.floor(Number(currentContextSourceItem.id || 0))
-    //         : null),
-    //     snapshotContextItemId: autoLoadedPaperContextItemId,
-    //     currentContentSourceMode: currentPaperContext?.contentSourceMode || null,
-    //     snapshotContentSourceMode: autoLoadedPaperContextContentSourceMode,
-    //     allowExplicitContextOverride: autoLoadedContextSourceSnapshotIsExplicit,
-    //   });
-    // };
-
-    // const resolveAutoLoadedContextPanelItem = (): Zotero.Item | null => {
-    //   const liveRawPanelItem = resolveLiveRawPanelItem();
-    //   return chooseAutoLoadedContextPanelItem({
-    //     isGlobalMode: isGlobalMode(),
-    //     currentItem: item,
-    //     currentPaperBaseItem: resolveCurrentPaperBaseItem(),
-    //     liveRawPanelItem,
-    //     liveRawPanelItemIsSupportedAttachment:
-    //       isSupportedContextAttachment(liveRawPanelItem),
-    //   });
-    // };
-
-    // const resolveAutoLoadedContextSourceSync = (
-    //   panelItemOverride?: Zotero.Item | null,
-    // ): ResolvedContextSource | null => {
-    //   if (!item) return null;
-    //   const noteSession = resolveCurrentNoteSession();
-    //   if (noteSession?.noteKind === "standalone") return null;
-    //   if (noteSession?.noteKind === "item") {
-    //     const parentItem = resolveCurrentNoteParentItem();
-    //     if (!parentItem) return null;
-    //     const activeReaderAttachment = getActiveContextAttachmentFromTabs();
-    //     if (activeReaderAttachment?.parentID === parentItem.id) {
-    //       return resolveContextSourceItem(activeReaderAttachment);
-    //     }
-    //     return null;
-    //   }
-    //   if (isGlobalMode()) return null;
-    //   const sourceItem =
-    //     panelItemOverride === undefined
-    //       ? resolveAutoLoadedContextPanelItem()
-    //       : panelItemOverride;
-    //   if (
-    //     sourceItem?.isAttachment?.() &&
-    //     resolvePaperContextRefFromAttachment(sourceItem)
-    //   ) {
-    //     return resolveContextSourceItem(sourceItem);
-    //   }
-    //   const activeReaderAttachment = getActiveContextAttachmentFromTabs();
-    //   if (activeReaderAttachment) {
-    //     return resolveContextSourceItem(activeReaderAttachment);
-    //   }
-    //   return null;
-    // };
-
-    // const resolveAutoLoadedPaperContext = (): PaperContextRef | null => {
-    //   if (isGlobalMode()) {
-    //     panelRoot.dataset.contextItemId = "";
-    //     return null;
-    //   }
-    //   if (autoLoadedContextSourceSnapshot !== undefined) {
-    //     if (isAutoLoadedContextSnapshotCurrent()) {
-    //       writeAutoLoadedContextItemId(autoLoadedContextSourceSnapshot);
-    //       return autoLoadedContextSourceSnapshot?.paperContext || null;
-    //     }
-    //     clearAutoLoadedContextSnapshot();
-    //   }
-    //   return resolveAutoLoadedContextSourceSync()?.paperContext || null;
-    // };
-
-    // const resolveAutoLoadedContextSourceAsync =
-    //   async (): Promise<ResolvedContextSource | null> => {
-    //     await resolveAutoLoadedPaperContextAsync();
-    //     return autoLoadedContextSourceSnapshot ?? null;
-    //   };
-
-    // const resolveAutoLoadedPaperContextAsync =
-    //   async (): Promise<PaperContextRef | null> => {
-    //     if (!item) return null;
-    //     if (isGlobalMode()) {
-    //       panelRoot.dataset.contextItemId = "";
-    //       return null;
-    //     }
-    //     if (autoLoadedContextSourceSnapshot !== undefined) {
-    //       if (isAutoLoadedContextSnapshotCurrent()) {
-    //         writeAutoLoadedContextItemId(autoLoadedContextSourceSnapshot);
-    //         return autoLoadedContextSourceSnapshot?.paperContext || null;
-    //       }
-    //       clearAutoLoadedContextSnapshot();
-    //     }
-    //     if (autoLoadedPaperContextPromise) return autoLoadedPaperContextPromise;
-    //     const requestGeneration = autoLoadedPaperContextGeneration;
-    //     autoLoadedPaperContextPromise = (async () => {
-    //       const panelItem = resolveAutoLoadedContextPanelItem();
-    //       if (!panelItem) return null;
-    //       const contextSource = await resolveContextSourceItemAsync(panelItem);
-    //       const paperContext = contextSource.paperContext || null;
-    //       if (
-    //         panelRoot.dataset.handlersAttached === thisGen &&
-    //         requestGeneration === autoLoadedPaperContextGeneration
-    //       ) {
-    //         setAutoLoadedContextSnapshot(contextSource, panelItem);
-    //       }
-    //       return paperContext;
-    //     })();
-    //     try {
-    //       return await autoLoadedPaperContextPromise;
-    //     } finally {
-    //       autoLoadedPaperContextPromise = null;
-    //     }
-    //   };
-
-    // const refreshAutoLoadedPaperContextForCurrentItem = () => {
-    //   clearAutoLoadedContextSnapshot();
-    //   if (!item || isGlobalMode()) return;
-    //   const panelItem = resolveAutoLoadedContextPanelItem();
-    //   const contextSource = resolveAutoLoadedContextSourceSync(panelItem);
-    //   const paperContext = contextSource?.paperContext || null;
-    //   if (paperContext) {
-    //     setAutoLoadedContextSnapshot(contextSource, panelItem);
-    //     return;
-    //   }
-    //   void resolveAutoLoadedPaperContextAsync();
-    // };
-
-    let paperChipMenu: HTMLDivElement | null = null;
-    let paperChipMineruCacheMenu: HTMLDivElement | null = null;
-    let paperChipMineruCacheMenuTarget: { contextItemId: number } | null = null;
-    let paperChipMenuAnchor: HTMLDivElement | null = null;
-    let paperChipMenuSticky = false;
-    let paperChipMenuTarget: PaperContextRef | null = null;
-    let paperChipMenuHideTimer: number | null = null;
-    let refreshOpenPaperChipMenu = () => {};
-    const clearPaperChipMenuHideTimer = () => {
-      if (paperChipMenuHideTimer === null) return;
+      const checkAfterNativeScroll = () => {
+        const current = buildChatBoxViewportState();
+        if (!current) return;
+        const distanceFromBottom = current.maxScrollTop - current.scrollTop;
+        // if (isAtAutoFollowBottom(distanceFromBottom)) {
+        //   requestStreamingFollowBottom();
+        // }
+      };
       const win = body.ownerDocument?.defaultView;
       if (win) {
-        win.clearTimeout(paperChipMenuHideTimer);
+        win.setTimeout(checkAfterNativeScroll, 0);
       } else {
-        clearTimeout(
-          paperChipMenuHideTimer as unknown as ReturnType<typeof setTimeout>,
-        );
+        checkAfterNativeScroll();
       }
-      paperChipMenuHideTimer = null;
     };
-    const closePaperChipMineruCacheMenu = () => {
-      if (paperChipMineruCacheMenu) {
-        paperChipMineruCacheMenu.style.display = "none";
+    const persistScroll = () => {
+      if (!item) return;
+      if (!chatBox.childElementCount) return;
+      if (!isChatViewportVisible(chatBox)) return;
+      const currentWidth = Math.max(0, Math.round(chatBox.clientWidth));
+      const currentHeight = Math.max(0, Math.round(chatBox.clientHeight));
+      const previousViewport = chatBoxViewportState;
+      let viewportResized = false;
+      if (previousViewport) {
+        viewportResized =
+          currentWidth !== previousViewport.width ||
+          currentHeight !== previousViewport.height;
       }
-      paperChipMineruCacheMenuTarget = null;
-    };
-    const closePaperChipMenu = () => {
-      closePaperChipMineruCacheMenu();
-      clearPaperChipMenuHideTimer();
-      if (paperChipMenu) {
-        paperChipMenu.style.display = "none";
-      }
-      paperChipMenuAnchor?.classList.remove("paperpilot-paper-context-chip-menu-open");
-      paperChipMenuAnchor = null;
-      paperChipMenuTarget = null;
-      paperChipMenuSticky = false;
-    };
-    const buildPaperMetaText = (paper: {
-      firstCreator?: string;
-      year?: string;
-    }): string => {
-      const parts = [paper.firstCreator || "", paper.year || ""].filter(Boolean);
-      return parts.join(" · ");
-    };
-
-    // const resolveCurrentPdfSupport = () => {
-    //   const selectedProfile = getSelectedProfile();
-    //   const modelName = (
-    //     selectedProfile?.model ||
-    //     getSelectedModelInfo().currentModel ||
-    //     ""
-    //   ).trim();
-    //   const inputMode = getAdvancedModelParamsForEntry(
-    //     selectedProfile?.entryId,
-    //   )?.inputMode;
-    //   return getModelPdfSupport(
-    //     modelName,
-    //     selectedProfile?.providerProtocol,
-    //     selectedProfile?.authMode,
-    //     selectedProfile?.apiBase,
-    //     inputMode,
-    //   );
-    // };
-
-    const getMineruDisabledParsingMessage = (): string =>
-      t("⚠️ enable MinerU to start PDF parsing");
-
-    // const buildPaperSourceOptions = (
-    //   paperContext: PaperContextRef,
-    // ): PaperSourceOption[] => {
-    //   return buildPaperSourceOptionsController({
-    //     paperContext,
-    //     getItemById: (itemId) => Zotero.Items.get(itemId) || null,
-    //     webChatMode: isWebChatMode(),
-    //     pdfSupport: resolveCurrentPdfSupport(),
-    //     isMineruEnabled: isMineruEnabled(),
-    //     getItemStatus,
-    //     isPaperContextMineru,
-    //     mineruAvailableIds,
-    //     fullPdfUnsupportedMessage: FULL_PDF_UNSUPPORTED_MESSAGE,
-    //     mineruDisabledParsingMessage: getMineruDisabledParsingMessage(),
-    //     translate: t,
-    //   });
-    // };
-
-    // const buildPaperChipMenuCard = (
-    //   ownerDoc: Document,
-    //   paperContext: PaperContextRef,
-    //   options?: {
-    //     contentSourceMode?: PaperContentSourceMode;
-    //     badge?: string;
-    //     title?: string;
-    //     description?: string;
-    //     disabledReason?: string;
-    //     selected?: boolean;
-    //     sourceOption?: boolean;
-    //     mineruState?: MineruSourceUiState;
-    //     mineruAction?: MineruSourceAction;
-    //     mineruActionTitle?: string;
-    //     mineruCacheReveal?: boolean;
-    //   },
-    // ): HTMLButtonElement => {
-    //   const card = createElement(
-    //     ownerDoc,
-    //     "button",
-    //     `paperpilot-paper-picker-item paperpilot-paper-picker-group-row paperpilot-paper-chip-menu-row ${getContextSourceModeCssClassName(options?.contentSourceMode)}`,
-    //     {
-    //       type: "button",
-    //       title: options?.sourceOption
-    //         ? options.description || options.title || paperContext.title
-    //         : `Jump to ${paperContext.title}`,
-    //     },
-    //   ) as HTMLButtonElement;
-    //   if (options?.sourceOption) {
-    //     card.dataset.sourceMode = options.contentSourceMode || "";
-    //     card.dataset.contextItemId = `${paperContext.contextItemId}`;
-    //     card.dataset.paperItemId = `${paperContext.itemId}`;
-    //   }
-    //   if (options?.mineruState) {
-    //     card.dataset.mineruState = options.mineruState;
-    //     card.classList.add(
-    //       `paperpilot-paper-chip-menu-row-mineru-${options.mineruState}`,
-    //     );
-    //     if (options.mineruAction && options.mineruAction !== "select") {
-    //       card.dataset.mineruAction = options.mineruAction;
-    //     }
-    //     if (options.mineruActionTitle) {
-    //       card.title = options.mineruActionTitle;
-    //     }
-    //   }
-    //   if (options?.mineruCacheReveal) {
-    //     card.dataset.mineruCacheReveal = "true";
-    //   }
-    //   if (options?.disabledReason) {
-    //     card.disabled = true;
-    //     card.setAttribute("aria-disabled", "true");
-    //     card.classList.add("paperpilot-paper-chip-menu-row-disabled");
-    //     card.title = options.disabledReason;
-    //   }
-    //   if (options?.selected) {
-    //     card.setAttribute("aria-selected", "true");
-    //   }
-    //   const rowMain = createElement(
-    //     ownerDoc,
-    //     "div",
-    //     "paperpilot-paper-picker-group-row-main",
-    //   );
-    //   const titleLine = createElement(
-    //     ownerDoc,
-    //     "div",
-    //     "paperpilot-paper-picker-group-title-line",
-    //   );
-    //   const title = createElement(ownerDoc, "span", "paperpilot-paper-picker-title", {
-    //     textContent: options?.title || paperContext.title,
-    //     title: options?.title || paperContext.title,
-    //   });
-    //   titleLine.appendChild(title);
-    //   const mode = options?.contentSourceMode;
-    //   const badgeText =
-    //     options?.badge ||
-    //     (mode === "mineru" || mode === "markdown"
-    //       ? "MD"
-    //       : mode === "pdf"
-    //         ? "PDF"
-    //         : mode === "text"
-    //           ? "Text"
-    //           : mode === "html"
-    //             ? "HTML"
-    //             : mode === "txt"
-    //               ? "TXT"
-    //               : mode === "docx"
-    //                 ? "DOCX"
-    //                 : null);
-    //   if (badgeText) {
-    //     const badge = createElement(ownerDoc, "span", "paperpilot-paper-picker-badge", {
-    //       textContent: badgeText,
-    //       title: options?.mineruActionTitle,
-    //     });
-    //     titleLine.appendChild(badge);
-    //   }
-    //   rowMain.appendChild(titleLine);
-    //   const metaText = isTextLikeAttachmentSourceMode(mode)
-    //     ? ""
-    //     : buildPaperMetaText(paperContext);
-    //   if (metaText) {
-    //     rowMain.appendChild(
-    //       createElement(ownerDoc, "span", "paperpilot-paper-picker-meta", {
-    //         textContent: metaText,
-    //         title: metaText,
-    //       }),
-    //     );
-    //   }
-    //   const displayAttachmentText =
-    //     options?.description ||
-    //     formatPaperContextCardAttachmentLine(paperContext, mode);
-    //   const disabledReasonAlreadyShown =
-    //     !!options?.disabledReason &&
-    //     (displayAttachmentText === options.disabledReason ||
-    //       displayAttachmentText.endsWith(`· ${options.disabledReason}`));
-    //   if (displayAttachmentText) {
-    //     rowMain.appendChild(
-    //       createElement(
-    //         ownerDoc,
-    //         "span",
-    //         "paperpilot-paper-picker-meta paperpilot-paper-context-card-attachment",
-    //         {
-    //           textContent: displayAttachmentText,
-    //           title: displayAttachmentText,
-    //         },
-    //       ),
-    //     );
-    //   }
-    //   if (options?.disabledReason && !disabledReasonAlreadyShown) {
-    //     rowMain.appendChild(
-    //       createElement(
-    //         ownerDoc,
-    //         "span",
-    //         "paperpilot-paper-picker-meta paperpilot-paper-chip-disabled-reason",
-    //         {
-    //           textContent: options.disabledReason,
-    //           title: options.disabledReason,
-    //         },
-    //       ),
-    //     );
-    //   }
-    //   card.appendChild(rowMain);
-    //   return card;
-    // };
-
-    // const upgradePaperContextsToMineruForAttachment = (
-    //   contextItemId: number,
-    // ): boolean => {
-    //   if (!item || !Number.isFinite(contextItemId) || contextItemId <= 0) {
-    //     return false;
-    //   }
-    //   const currentItem = item;
-    //   let didUpgrade = false;
-    //   const autoLoadedPaperContext = resolveAutoLoadedPaperContext();
-
-    //   if (autoLoadedPaperContext?.contextItemId === contextItemId) {
-    //     const currentMode = resolvePaperContentSourceMode(
-    //       currentItem.id,
-    //       autoLoadedPaperContext,
-    //     );
-    //     if (currentMode !== "pdf" && currentMode !== "mineru") {
-    //       setPaperContentSourceOverride(
-    //         currentItem.id,
-    //         autoLoadedPaperContext,
-    //         "mineru",
-    //       );
-    //       didUpgrade = true;
-    //     }
-    //   }
-
-    //   const selectedPapers = getManualPaperContextsForItem(
-    //     currentItem.id,
-    //     autoLoadedPaperContext,
-    //   );
-    //   if (!selectedPapers.length) return didUpgrade;
-
-    //   const nextPapers = selectedPapers.map((paperContext) => {
-    //     if (paperContext.contextItemId !== contextItemId) return paperContext;
-    //     const currentMode = resolvePaperContentSourceMode(
-    //       currentItem.id,
-    //       paperContext,
-    //     );
-    //     if (currentMode === "pdf" || currentMode === "mineru") {
-    //       return paperContext;
-    //     }
-    //     didUpgrade = true;
-    //     const nextContext: PaperContextRef = {
-    //       ...paperContext,
-    //       contentSourceMode: "mineru",
-    //     };
-    //     setPaperContentSourceOverride(currentItem.id, nextContext, "mineru");
-    //     return nextContext;
-    //   });
-
-    //   if (didUpgrade) {
-    //     selectedPaperContextCache.set(currentItem.id, nextPapers);
-    //   }
-    //   return didUpgrade;
-    // };
-
-    // const syncMineruPaperSourceState = (): void => {
-    //   if (!item) return;
-    //   const autoLoadedPaperContext = resolveAutoLoadedPaperContext();
-    //   const selectedPapers = getManualPaperContextsForItem(
-    //     item.id,
-    //     autoLoadedPaperContext,
-    //   );
-    //   const paperContexts = [
-    //     ...(autoLoadedPaperContext ? [autoLoadedPaperContext] : []),
-    //     ...selectedPapers,
-    //   ];
-    //   let didRefresh = false;
-    //   for (const paperContext of paperContexts) {
-    //     const status = getItemStatus(paperContext.contextItemId);
-    //     if (status?.status !== "cached") continue;
-    //     mineruAvailableIds.add(paperContext.contextItemId);
-    //     if (
-    //       upgradePaperContextsToMineruForAttachment(paperContext.contextItemId)
-    //     ) {
-    //       didRefresh = true;
-    //     }
-    //   }
-    //   if (didRefresh) {
-    //     updatePaperPreviewPreservingScroll();
-    //   }
-    // };
-
-    // const handleMineruSourceAction = async (
-    //   sourceOption: PaperSourceOption,
-    // ): Promise<void> => {
-    //   const action = sourceOption.mineruAction;
-    //   if (!action || action === "select") return;
-    //   const attachmentId = sourceOption.paperContext.contextItemId;
-
-    //   if (action === "pause") {
-    //     const batchState = getMineruBatchState();
-    //     if (batchState.running && !batchState.paused) {
-    //       pauseBatchProcessing();
-    //     } else {
-    //       const autoWatchStatus = getAutoWatchStatus();
-    //       if (autoWatchStatus.isProcessing && !autoWatchStatus.isPaused) {
-    //         pauseAutoWatch();
-    //       }
-    //     }
-    //     if (status) setStatus(status, t("Click to do MinerU parsing"), "ready");
-    //     return;
-    //   }
-
-    //   if (!isMineruEnabled()) {
-    //     if (status) {
-    //       setStatus(status, getMineruDisabledParsingMessage(), "warning");
-    //     }
-    //     return;
-    //   }
-
-    //   const batchState = getMineruBatchState();
-    //   if (batchState.running) {
-    //     if (status) setStatus(status, t("MinerU parsing…"), "warning");
-    //     return;
-    //   }
-
-    //   if (status) setStatus(status, t("MinerU parsing…"), "ready");
-    //   await processSelectedItems([attachmentId], { overrideEligibility: true });
-    //   refreshOpenPaperChipMenu();
-    // };
-
-    // const resolvePaperChipMenuSourceOptionFromCard = (
-    //   card: HTMLButtonElement,
-    // ): PaperSourceOption | null => {
-    //   if (!paperChipMenuTarget) return null;
-    //   const mode = card.dataset.sourceMode as PaperContentSourceMode | "";
-    //   const contextItemId = Number.parseInt(card.dataset.contextItemId || "", 10);
-    //   const paperItemId = Number.parseInt(card.dataset.paperItemId || "", 10);
-    //   if (!mode || !Number.isFinite(contextItemId) || contextItemId <= 0) {
-    //     return null;
-    //   }
-    //   return (
-    //     buildPaperSourceOptions(paperChipMenuTarget).find(
-    //       (candidate) =>
-    //         candidate.mode === mode &&
-    //         candidate.paperContext.contextItemId === contextItemId &&
-    //         candidate.paperContext.itemId === paperItemId,
-    //     ) || null
-    //   );
-    // };
-
-    // const handleShowMineruCacheInFileSystem = async (): Promise<void> => {
-    //   const target = paperChipMineruCacheMenuTarget;
-    //   closePaperChipMineruCacheMenu();
-    //   if (!target) return;
-
-    //   const attachment = Zotero.Items.get(target.contextItemId) || null;
-    //   if (!attachment) {
-    //     if (status) {
-    //       setStatus(status, t("Could not find this paper attachment."), "error");
-    //     }
-    //     return;
-    //   }
-
-    //   try {
-    //     const { ensureMineruCacheDirForAttachment } =
-    //       await import("./mineruSync");
-    //     const cacheDir = await ensureMineruCacheDirForAttachment(attachment);
-    //     if (!cacheDir) {
-    //       if (status) {
-    //         setStatus(
-    //           status,
-    //           t("MinerU cache is not available in the file system."),
-    //           "error",
-    //         );
-    //       }
-    //       return;
-    //     }
-    //     if (!revealLocalPath(cacheDir)) {
-    //       if (status) {
-    //         setStatus(
-    //           status,
-    //           t("Could not show MinerU cache in file system."),
-    //           "error",
-    //         );
-    //       }
-    //       return;
-    //     }
-    //     if (status) {
-    //       setStatus(status, t("Showing MinerU cache in file system."), "ready");
-    //     }
-    //   } catch (error) {
-    //     ztoolkit.log("LLM: Failed to show MinerU cache folder", error);
-    //     if (status) {
-    //       setStatus(
-    //         status,
-    //         t("Could not show MinerU cache in file system."),
-    //         "error",
-    //       );
-    //     }
-    //   }
-    // };
-
-    const ensurePaperChipMineruCacheMenu = (): HTMLDivElement | null => {
-      if (paperChipMineruCacheMenu?.isConnected) {
-        return paperChipMineruCacheMenu;
-      }
-      const ownerDoc = body.ownerDocument;
-      if (!ownerDoc) return null;
-      const menu = createElement(
-        ownerDoc,
-        "div",
-        "paperpilot-model-menu paperpilot-paper-chip-cache-menu",
-      );
-      menu.style.display = "none";
-      menu.addEventListener("pointerdown", (event: Event) => {
-        event.stopPropagation();
-      });
-      menu.addEventListener("mousedown", (event: Event) => {
-        event.stopPropagation();
-      });
-      menu.addEventListener("contextmenu", (event: Event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      });
-
-      const showCacheButton = createElement(
-        ownerDoc,
-        "button",
-        "paperpilot-paper-chip-cache-menu-item",
-        {
-          type: "button",
-          textContent: t("Show MinerU cache in file system"),
-        },
-      ) as HTMLButtonElement;
-      showCacheButton.addEventListener("click", (event: Event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        // void handleShowMineruCacheInFileSystem();
-      });
-      menu.appendChild(showCacheButton);
-
-      ownerDoc.addEventListener(
-        "keydown",
-        (event: Event) => {
-          const keyboardEvent = event as KeyboardEvent;
-          if (
-            keyboardEvent.key !== "Escape" ||
-            !paperChipMineruCacheMenu ||
-            paperChipMineruCacheMenu.style.display === "none"
-          ) {
-            return;
-          }
-          closePaperChipMineruCacheMenu();
-          event.preventDefault();
-          event.stopPropagation();
-        },
-        true,
-      );
-
-      body.appendChild(menu);
-      paperChipMineruCacheMenu = menu;
-      return menu;
-    };
-
-    const openPaperChipMineruCacheMenu = (
-      contextItemId: number,
-      clientX: number,
-      clientY: number,
-    ): void => {
-      const menu = ensurePaperChipMineruCacheMenu();
-      if (!menu) return;
-      paperChipMineruCacheMenuTarget = { contextItemId };
-      // positionMenuAtPointer(body, menu, clientX, clientY);
-      menu.style.display = "grid";
-    };
-
-    const ensurePaperChipMenu = (): HTMLDivElement | null => {
-      if (paperChipMenu?.isConnected) return paperChipMenu;
-      const ownerDoc = body.ownerDocument;
-      if (!ownerDoc) return null;
-      const menu = createElement(
-        ownerDoc,
-        "div",
-        "paperpilot-model-menu paperpilot-paper-chip-menu",
-      );
-      menu.style.display = "none";
-      menu.addEventListener("mouseenter", () => {
-        clearPaperChipMenuHideTimer();
-      });
-      menu.addEventListener("mouseleave", () => {
-        if (!paperChipMenuSticky) {
-          const win = body.ownerDocument?.defaultView;
-          if (!win) {
-            closePaperChipMenu();
-            return;
-          }
-          clearPaperChipMenuHideTimer();
-          paperChipMenuHideTimer = win.setTimeout(() => {
-            closePaperChipMenu();
-          }, 100);
-        }
-      });
-      // menu.addEventListener("click", (e: Event) => {
-      //   const target = e.target as Element | null;
-      //   if (!target) return;
-      //   const card = target.closest(
-      //     ".paperpilot-paper-chip-menu-row",
-      //   ) as HTMLButtonElement | null;
-      //   if (!card || !paperChipMenuTarget) return;
-      //   e.preventDefault();
-      //   e.stopPropagation();
-      //   if (card.disabled || card.getAttribute("aria-disabled") === "true") {
-      //     if (status && card.title) setStatus(status, card.title, "error");
-      //     return;
-      //   }
-      //   const option = resolvePaperChipMenuSourceOptionFromCard(card);
-      //   if (!option || option.disabledReason) {
-      //     if (status && option?.disabledReason) {
-      //       setStatus(status, option.disabledReason, "error");
-      //     }
-      //     return;
-      //   }
-      //   if (option.mineruAction && option.mineruAction !== "select") {
-      //     void handleMineruSourceAction(option);
-      //     return;
-      //   }
-      //   const currentItem = item;
-      //   if (!currentItem) return;
-      //   const mode = option.mode;
-      //   const selectedContext = option.paperContext;
-      //   if (paperChipMenuAnchor?.dataset.autoLoaded === "true") {
-      //     const contextItem =
-      //       Zotero.Items.get(selectedContext.contextItemId) || null;
-      //     const contextSource = contextItem
-      //       ? {
-      //           ...resolveContextSourceItem(contextItem),
-      //           paperContext: selectedContext,
-      //           contentSourceMode: selectedContext.contentSourceMode,
-      //         }
-      //       : {
-      //           contextItem: null,
-      //           paperContext: selectedContext,
-      //           statusText: selectedContext.attachmentTitle
-      //             ? `using the selected ${selectedContext.attachmentTitle} as context`
-      //             : "using the selected attachment as context",
-      //           contentSourceMode: selectedContext.contentSourceMode,
-      //         };
-      //     setAutoLoadedContextSnapshot(
-      //       contextSource,
-      //       resolveAutoLoadedContextPanelItem(),
-      //       { explicitSourceSelection: true },
-      //     );
-      //   } else {
-      //     const selectedPapers = getManualPaperContextsForItem(
-      //       currentItem.id,
-      //       resolveAutoLoadedPaperContext(),
-      //     );
-      //     const currentIndex = selectedPapers.findIndex(
-      //       (paper) =>
-      //         paper.itemId === paperChipMenuTarget?.itemId &&
-      //         paper.contextItemId === paperChipMenuTarget?.contextItemId,
-      //     );
-      //     const nextPapers =
-      //       currentIndex >= 0
-      //         ? selectedPapers.map((paper, index) =>
-      //             index === currentIndex ? selectedContext : paper,
-      //           )
-      //         : [...selectedPapers, selectedContext];
-      //     selectedPaperContextCache.set(currentItem.id, nextPapers);
-      //   }
-      //   setPaperContentSourceOverride(currentItem.id, selectedContext, mode);
-      //   closePaperChipMenu();
-      //   updatePaperPreviewPreservingScroll();
-      //   if (status) {
-      //     setStatus(status, `${t("Content source:")} ${option.badge}`, "ready");
-      //   }
-      // });
-      // menu.addEventListener("contextmenu", (e: Event) => {
-      //   const target = e.target as Element | null;
-      //   if (!target) return;
-      //   const card = target.closest(
-      //     ".paperpilot-paper-chip-menu-row",
-      //   ) as HTMLButtonElement | null;
-      //   if (!card || !paperChipMenuTarget) return;
-      //   const option = resolvePaperChipMenuSourceOptionFromCard(card);
-      //   if (
-      //     card.dataset.mineruCacheReveal !== "true" ||
-      //     !option ||
-      //     !canRevealMineruCacheForSourceOption(option)
-      //   ) {
-      //     closePaperChipMineruCacheMenu();
-      //     return;
-      //   }
-      //   e.preventDefault();
-      //   e.stopPropagation();
-      //   const mouseEvent = e as MouseEvent;
-      //   openPaperChipMineruCacheMenu(
-      //     option.paperContext.contextItemId,
-      //     mouseEvent.clientX,
-      //     mouseEvent.clientY,
-      //   );
-      // });
-      body.appendChild(menu);
-      paperChipMenu = menu;
-      return menu;
-    };
-    const positionPaperChipMenuAboveAnchor = (
-      menu: HTMLDivElement,
-      anchor: HTMLElement,
-    ) => {
-      const win = body.ownerDocument?.defaultView;
-      if (!win) return;
-
-      const viewportMargin = 8;
-      const gap = 6;
-      const panelRect = body.getBoundingClientRect();
-      const minLeftBound = Math.max(
-        viewportMargin,
-        Math.round(panelRect.left) + 2,
-      );
-      const minTopBound = Math.max(viewportMargin, Math.round(panelRect.top) + 2);
-      const maxRightBound = Math.round(panelRect.right) - 2;
-      const maxBottomBound = Math.round(panelRect.bottom) - 2;
-      const anchorRect = anchor.getBoundingClientRect();
-      const availableWidth = Math.max(
-        160,
-        Math.floor(panelRect.width) - viewportMargin * 2 - 4,
-      );
-
-      menu.style.position = "fixed";
-      menu.style.display = "grid";
-      menu.style.visibility = "hidden";
-      menu.style.boxSizing = "border-box";
-      menu.style.maxWidth = `${availableWidth}px`;
-      menu.style.maxHeight = `${Math.max(120, Math.floor(panelRect.height) - viewportMargin * 2)}px`;
-      menu.style.overflowY = "auto";
-      menu.style.overflowX = "hidden";
-
-      const menuRect = menu.getBoundingClientRect();
-      const maxLeft = Math.max(
-        minLeftBound,
-        Math.min(
-          win.innerWidth - menuRect.width - viewportMargin,
-          maxRightBound - menuRect.width,
-        ),
-      );
-      const maxTop = Math.max(
-        minTopBound,
-        Math.min(
-          win.innerHeight - menuRect.height - viewportMargin,
-          maxBottomBound - menuRect.height,
-        ),
-      );
-      const preferredLeft =
-        anchorRect.left + menuRect.width <= maxRightBound
-          ? anchorRect.left
-          : anchorRect.right - menuRect.width;
-      const spaceAbove = anchorRect.top - minTopBound;
-      const spaceBelow = maxBottomBound - anchorRect.bottom;
-      const preferredTop =
-        spaceAbove >= menuRect.height || spaceAbove >= spaceBelow
-          ? anchorRect.top - menuRect.height - gap
-          : anchorRect.bottom + gap;
-      const left = Math.min(Math.max(minLeftBound, preferredLeft), maxLeft);
-      const top = Math.min(Math.max(minTopBound, preferredTop), maxTop);
-      menu.style.left = `${Math.round(left)}px`;
-      menu.style.top = `${Math.round(top)}px`;
-      menu.style.visibility = "visible";
-    };
-    const openPaperChipMenu = (
-      chip: HTMLDivElement,
-      paperContext: PaperContextRef,
-      options?: { sticky?: boolean },
-    ) => {
-      const ownerDoc = body.ownerDocument;
-      if (!ownerDoc) return;
-      const currentMode =
-        (chip.dataset.contentSource as PaperContentSourceMode) ||
-        paperContext.contentSourceMode ||
-        "text";
-      // const sourceOptions = buildPaperSourceOptions(paperContext);
-      // if (!hasPaperChipSourceMenuOption(sourceOptions)) {
-      //   closePaperChipMenu();
+      // Ignore resize-induced scroll events so the last pre-resize viewport
+      // state remains available for relative-position restoration.
+      if (viewportResized) return;
+      // Skip persistence when scroll was caused by our own programmatic
+      // scrollTop writes or by layout mutations (e.g. button relayout
+      // changing the flex-sized chat area).
+      // if (isScrollUpdateSuspended()) {
+      //   captureChatBoxViewportState();
       //   return;
       // }
-      const menu = ensurePaperChipMenu();
-      if (!menu) return;
-      clearPaperChipMenuHideTimer();
-      if (paperChipMenuAnchor && paperChipMenuAnchor !== chip) {
-        paperChipMenuAnchor.classList.remove("paperpilot-paper-context-chip-menu-open");
+      const currentViewport = buildChatBoxViewportState();
+      if (previousViewport && currentViewport) {
+        const scrollDelta =
+          currentViewport.scrollTop - previousViewport.scrollTop;
+        const distanceFromBottom =
+          currentViewport.maxScrollTop - currentViewport.scrollTop;
+        const followAction = resolveStreamingScrollFollowAction({
+          scrollDelta,
+          distanceFromBottom,
+          isStreaming: isCurrentConversationStreaming(),
+        });
+        if (followAction === "cancel") {
+          // cancelChatScrollFollowBottomRequest(item);
+        } else if (followAction === "follow") {
+          // requestChatScrollFollowBottom(body, item, chatBox);
+          captureChatBoxViewportState();
+          return;
+        }
       }
-      paperChipMenuAnchor = chip;
-      chip.classList.add("paperpilot-paper-context-chip-menu-open");
-      chip.classList.remove("expanded");
-      chip.classList.add("collapsed");
-      if (item) {
-        selectedPaperPreviewExpandedCache.delete(item.id);
-      }
-      paperChipMenuSticky = options?.sticky === true;
-      paperChipMenuTarget = paperContext;
-      closePaperChipMineruCacheMenu();
-      menu.innerHTML = "";
-      // for (const sourceOption of sourceOptions) {
-      //   menu.appendChild(
-      //     buildPaperChipMenuCard(ownerDoc, sourceOption.paperContext, {
-      //       contentSourceMode: sourceOption.mode,
-      //       badge: sourceOption.badge,
-      //       title: sourceOption.title,
-      //       description: sourceOption.description,
-      //       disabledReason: sourceOption.disabledReason,
-      //       mineruState: sourceOption.mineruState,
-      //       mineruAction: sourceOption.mineruAction,
-      //       mineruActionTitle: sourceOption.mineruActionTitle,
-      //       mineruCacheReveal: canRevealMineruCacheForSourceOption(sourceOption),
-      //       selected:
-      //         sourceOption.mode === currentMode &&
-      //         sourceOption.paperContext.contextItemId ===
-      //           paperContext.contextItemId,
-      //       sourceOption: true,
-      //     }),
-      //   );
-      // }
-      // if (!menu.childElementCount) {
-      //   menu.appendChild(
-      //     buildPaperChipMenuCard(ownerDoc, paperContext, {
-      //       contentSourceMode: currentMode,
-      //     }),
-      //   );
-      // }
-      positionPaperChipMenuAboveAnchor(menu, chip);
-      menu.style.display = "grid";
+      // persistChatScrollSnapshot(item, chatBox);
+      captureChatBoxViewportState();
     };
-    refreshOpenPaperChipMenu = () => {
-      if (
-        !paperChipMenu ||
-        !paperChipMenuAnchor ||
-        !paperChipMenuTarget ||
-        paperChipMenu.style.display === "none"
-      ) {
-        return;
-      }
-      openPaperChipMenu(paperChipMenuAnchor, paperChipMenuTarget, {
-        sticky: paperChipMenuSticky,
-      });
-    };
-    const schedulePaperChipMenuClose = () => {
-      if (paperChipMenuSticky) return;
-      const win = body.ownerDocument?.defaultView;
-      if (!win) {
-        closePaperChipMenu();
-        return;
-      }
-      clearPaperChipMenuHideTimer();
-      paperChipMenuHideTimer = win.setTimeout(() => {
-        closePaperChipMenu();
-      }, 100);
-    };
-    const resolvePaperContextFromChipElement = (
-      chip: HTMLElement,
-    ): PaperContextRef | null => {
-      // if (chip.dataset.autoLoaded === "true") {
-      //   return resolveAutoLoadedPaperContext();
-      // }
-      const paperItemId = Number.parseInt(chip.dataset.paperItemId || "", 10);
-      const contextItemId = Number.parseInt(
-        chip.dataset.paperContextItemId || "",
-        10,
+    chatBox.addEventListener("wheel", handleStreamingFollowWheel, {
+      passive: false,
+    });
+    chatBox.addEventListener("scroll", persistScroll, { passive: true });
+  }
+
+  // Capture scroll before click/focus interactions that may trigger a panel
+  // re-render, so restore uses the most recent user position.
+  // body.addEventListener("pointerdown", persistCurrentChatScrollSnapshot, true);
+
+  // NOTE: We intentionally do NOT persist on "focusin" because focusin fires
+  // AFTER focus() has already caused a potential scroll adjustment in Gecko.
+  // Persisting at that point overwrites the correct pre-interaction snapshot
+  // (captured by pointerdown) with a corrupted position. The scroll event
+  // handler on chatBox already keeps the snapshot up to date for programmatic
+  // scroll changes.
+
+  let retryMenuAnchor: HTMLButtonElement | null = null;
+  const closeResponseMenu = () => {
+    if (responseMenu) responseMenu.style.display = "none";
+    // setResponseMenuTarget(null);
+  };
+  const closePromptMenu = () => {
+    if (promptMenu) promptMenu.style.display = "none";
+    // setPromptMenuTarget(null);
+  };
+  const closeExportMenu = () => {
+    if (exportMenu) exportMenu.style.display = "none";
+  };
+  let resetHistorySearchState = () => {};
+  const closeHistoryRowMenu = () => {
+    if (historyRowMenu) historyRowMenu.style.display = "none";
+  };
+  const closeHistoryNewMenu = () => {
+    if (historyNewMenu) historyNewMenu.style.display = "none";
+    if (historyNewBtn) {
+      historyNewBtn.setAttribute("aria-expanded", "false");
+    }
+    closeHistoryRowMenu();
+  };
+  const closeHistoryMenu = () => {
+    if (historyMenu) historyMenu.style.display = "none";
+    if (historyToggleBtn) {
+      historyToggleBtn.setAttribute("aria-expanded", "false");
+    }
+    resetHistorySearchState();
+    closeHistoryRowMenu();
+  };
+  let closeSlashMenu = () => {
+    // setFloatingMenuOpen(slashMenu, SLASH_MENU_OPEN_CLASS, false);
+    if (uploadBtn) {
+      uploadBtn.setAttribute("aria-expanded", "false");
+    }
+  };
+  let openModelMenu = () => {};
+  let closeModelMenu = () => {
+    // setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
+  };
+  let openReasoningMenu = () => {};
+  let closeReasoningMenu = () => {
+    // setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
+  };
+  const isHistoryMenuOpen = () =>
+    Boolean(historyMenu && historyMenu.style.display !== "none");
+  const isHistoryNewMenuOpen = () =>
+    Boolean(historyNewMenu && historyNewMenu.style.display !== "none");
+  const closeRetryModelMenu = () => {
+    // setFloatingMenuOpen(retryModelMenu, RETRY_MODEL_MENU_OPEN_CLASS, false);
+    retryMenuAnchor = null;
+  };
+
+  // const handlerContext: SetupHandlersContext = {
+  //   body,
+  //   refs: panelRefs,
+  //   getItem: () => item,
+  //   getConversationKey,
+  //   setStatusMessage: (message, level) => {
+  //     if (status) setStatus(status, message, level);
+  //   },
+  //   refreshChatPreservingScroll: () => refreshChatPreservingScroll(),
+  //   refreshGlobalHistoryHeader: () => refreshGlobalHistoryHeader(),
+  //   logError: (message, ...args) => {
+  //     ztoolkit.log(message, ...args);
+  //   },
+  // };
+
+  // attachAssistantSelectionPopup({
+  //   body: handlerContext.body,
+  //   panelRoot,
+  //   panelDoc,
+  //   panelWin,
+  //   chatBox,
+  //   inputBox,
+  //   status,
+  //   getItem: handlerContext.getItem,
+  //   getTextContextConversationKey,
+  //   runWithChatScrollGuard: (fn) => runWithChatScrollGuard(fn),
+  //   updateSelectedTextPreviewPreservingScroll: () =>
+  //     updateSelectedTextPreviewPreservingScroll(),
+  //   isElementNode,
+  // });
+
+  attachMenuActionController({
+    body,
+    status,
+    responseMenu,
+    responseMenuCopyBtn,
+    responseMenuNoteBtn,
+    responseMenuForkBtn,
+    responseMenuDeleteBtn,
+    promptMenu,
+    promptMenuForkBtn,
+    promptMenuDeleteBtn,
+    exportMenu,
+    exportMenuCopyBtn,
+    exportMenuNoteBtn,
+    exportBtn,
+    popoutBtn,
+    settingsBtn,
+    preferencesPaneId: PREFERENCES_PANE_ID,
+    getItem: () => item,
+    // getResponseMenuTarget: () => responseMenuTarget,
+    // getPromptMenuTarget: () => promptMenuTarget,
+    getCurrentLibraryID,
+    getConversationSystem,
+    getCurrentRuntimeModeForItem: (targetItem) =>
+      selectedRuntimeModeCache.get(getConversationKey(targetItem)) || null,
+    isGlobalMode,
+    ensureConversationLoaded,
+    getConversationKey,
+    // getHistory: (conversationKey) => chatHistory.get(conversationKey) || [],
+    // resolveActiveNoteSession,
+    closeResponseMenu,
+    closePromptMenu,
+    closeExportMenu,
+    closeRetryModelMenu,
+    closeSlashMenu,
+    closeHistoryNewMenu,
+    closeHistoryMenu,
+    queueTurnDeletion: (target) => queueTurnDeletion(target),
+    forkConversationFromTurn: (target) => forkConversationFromTurn(target),
+    logError: (message, error) => {
+      ztoolkit.log(message, error);
+    },
+  });
+
+  // Clicking non-interactive panel area gives keyboard focus to the panel.
+  panelRoot.addEventListener("mousedown", (e: Event) => {
+    const me = e as MouseEvent;
+    if (me.button !== 0) return;
+    const target = me.target as Element | null;
+    if (!target) return;
+    const isInteractive = Boolean(
+      target.closest(
+        "input, textarea, button, select, option, a[href], [contenteditable='true']",
+      ),
+    );
+    if (!isInteractive) {
+      panelRoot.focus({ preventScroll: true });
+    }
+  });
+
+  // const { applyResponsiveActionButtonsLayout } = createActionLayoutController({
+  //   body,
+  //   panelRoot,
+  //   actionsRow,
+  //   actionsLeft,
+  //   modelBtn,
+  //   modelSlot,
+  //   reasoningBtn,
+  //   reasoningSlot,
+  //   uploadBtn,
+  //   selectTextBtn,
+  //   screenshotBtn,
+  //   sendBtn,
+  //   cancelBtn,
+  // });
+  let lastUserContextAlignmentPanelWidth = -1;
+  const getRoundedPanelWidth = () =>
+    Math.ceil(
+      panelRoot.getBoundingClientRect?.().width || panelRoot.clientWidth || 0,
+    );
+  // const responsiveLayoutScheduler = createCoalescedFrameScheduler({
+  //   getWindow: () => body.ownerDocument?.defaultView || null,
+  //   run: () => {
+  //     const panelWidth = getRoundedPanelWidth();
+  //     withScrollGuard(
+  //       chatBox,
+  //       conversationKey,
+  //       () => {
+  //         applyResponsiveActionButtonsLayout();
+  //         if (
+  //           panelWidth <= 0 ||
+  //           panelWidth !== lastUserContextAlignmentPanelWidth
+  //         ) {
+  //           syncUserContextAlignmentWidths(body);
+  //           if (panelWidth > 0) {
+  //             lastUserContextAlignmentPanelWidth = panelWidth;
+  //           }
+  //         }
+  //       },
+  //       "relative",
+  //     );
+  //   },
+  // });
+  // const scheduleResponsiveLayoutSync = () => {
+  //   responsiveLayoutScheduler.schedule();
+  // };
+  const flushResponsiveLayoutSyncNow = () => {
+    // responsiveLayoutScheduler.flush();
+  };
+  let pendingChatBoxResizePreviousState: ChatBoxViewportState | null = null;
+  // const chatBoxViewportResizeScheduler = createCoalescedFrameScheduler({
+  //   getWindow: () => body.ownerDocument?.defaultView || null,
+  //   run: () => {
+  //     const previous =
+  //       pendingChatBoxResizePreviousState || chatBoxViewportState;
+  //     pendingChatBoxResizePreviousState = null;
+  //     if (!chatBox) return;
+  //     if (!isChatViewportVisible(chatBox)) return;
+  //     const current = buildChatBoxViewportState();
+  //     if (!current) return;
+  //     const viewportChanged = Boolean(
+  //       previous &&
+  //       (current.width !== previous.width ||
+  //         current.height !== previous.height),
+  //     );
+  //     if (viewportChanged && previous && previous.nearBottom) {
+  //       const targetBottom = Math.max(
+  //         0,
+  //         chatBox.scrollHeight - chatBox.clientHeight,
+  //       );
+  //       if (Math.abs(chatBox.scrollTop - targetBottom) > 1) {
+  //         chatBox.scrollTop = chatBox.scrollHeight;
+  //       }
+  //       captureChatBoxViewportState();
+  //       if (item && chatBox.childElementCount) {
+  //         persistChatScrollSnapshot(item, chatBox);
+  //       }
+  //       return;
+  //     }
+  //     if (
+  //       viewportChanged &&
+  //       previous &&
+  //       !previous.nearBottom &&
+  //       previous.maxScrollTop > 0
+  //     ) {
+  //       const progress = Math.max(
+  //         0,
+  //         Math.min(1, previous.scrollTop / previous.maxScrollTop),
+  //       );
+  //       const targetScrollTop = Math.round(current.maxScrollTop * progress);
+  //       if (Math.abs(chatBox.scrollTop - targetScrollTop) > 1) {
+  //         chatBox.scrollTop = targetScrollTop;
+  //       }
+  //       captureChatBoxViewportState();
+  //       if (item && chatBox.childElementCount) {
+  //         persistChatScrollSnapshot(item, chatBox);
+  //       }
+  //       return;
+  //     }
+  //     chatBoxViewportState = current;
+  //   },
+  // });
+
+  // const clearSelectedImageState = (itemId: number) =>
+  //   clearSelectedImageState_(pinnedImageKeys, itemId);
+
+  // const clearSelectedFileState = (itemId: number) =>
+  //   clearSelectedFileState_(pinnedFileKeys, itemId);
+
+  // const hasUserTurnsForCurrentConversation = (): boolean => {
+  //   if (!item) return false;
+  //   const history = chatHistory.get(getConversationKey(item)) || [];
+  //   return history.some((message) => message.role === "user");
+  // };
+
+  // getPaperModeOverride, setPaperModeOverride, clearPaperModeOverrides
+  // → imported from ./contexts/paperContextState
+
+  // const consumePaperModeState = (
+  //   itemId: number,
+  //   opts?: { webchatGreyOut?: boolean },
+  // ) => {
+  //   if (!item || item.id !== itemId) {
+  //     // clearPaperModeOverrides(itemId);
+  //     return;
+  //   }
+  //   // Standard path: consume full-next mode for non-PDF papers
+  //   const fullTextPaperContexts = getEffectiveFullTextPaperContexts(item);
+  //   for (const paperContext of fullTextPaperContexts) {
+  //     const mode = resolvePaperContextNextSendMode(itemId, paperContext);
+  //     if (mode === "full-next") {
+  //       // setPaperModeOverride(itemId, paperContext, "retrieval");
+  //     }
+  //   }
+  //   // [webchat] Also consume full-next for PDF-source papers.
+  //   // getEffectiveFullTextPaperContexts excludes PDF-source papers,
+  //   // but in webchat mode these papers also use full-next/full-sticky semantics
+  //   // for controlling whether to send the PDF binary to ChatGPT.
+  //   if (opts?.webchatGreyOut) {
+  //     const allPaperContexts = getAllEffectivePaperContexts(item);
+  //     for (const paperContext of allPaperContexts) {
+  //       if (resolvePaperContentSourceMode(itemId, paperContext) !== "pdf")
+  //         continue;
+  //       const mode = resolvePaperContextNextSendMode(itemId, paperContext);
+  //       if (mode === "full-next") {
+  //         // setPaperModeOverride(itemId, paperContext, "retrieval");
+  //       }
+  //     }
+  //   }
+  // };
+
+  // isPaperContextFullTextMode, getPaperContentSourceOverride,
+  // setPaperContentSourceOverride, clearPaperContentSourceOverrides
+  // → imported from ./contexts/paperContextState
+
+  const resolvePaperContentSourceMode = (
+    itemId: number,
+    paperContext: PaperContextRef,
+  ): PaperContentSourceMode => {
+    // [webchat] Always use PDF content source — webchat sends raw PDF via drag-and-drop
+    //if (isWebChatMode()) return "pdf";
+    // const explicit = getPaperContentSourceOverride(itemId, paperContext);
+    // return (
+    //   explicit ||
+    //   paperContext.contentSourceMode ||
+    //   (isPaperContextMineru(paperContext) ? "mineru" : "text")
+    // );
+    return paperContext.contentSourceMode === "mineru" ? "mineru" : "text";
+  };
+
+  const withResolvedPaperContentSourceMode = (
+    itemId: number,
+    paperContext: PaperContextRef,
+  ): PaperContextRef => ({
+    ...paperContext,
+    contentSourceMode: resolvePaperContentSourceMode(itemId, paperContext),
+  });
+
+  // // Lightweight sync cache: once checkAndApplyMineruChipStyle confirms MinerU
+  // // exists on disk, the contextItemId is added here so isPaperContextMineru
+  // // returns true immediately without waiting for pdfTextCache to be populated.
+  // const mineruAvailableIds = new Set<number>();
+  // const pendingMineruAvailabilityChecks = new Map<number, Promise<void>>();
+  // let mineruChipStyleDepsPromise: Promise<{
+  //   getMineruAvailabilityForAttachmentId: typeof import("./mineruSync").getMineruAvailabilityForAttachmentId;
+  // }> | null = null;
+  // const loadMineruChipStyleDeps = () => {
+  //   if (!mineruChipStyleDepsPromise) {
+  //     mineruChipStyleDepsPromise = import("./mineruSync").then(
+  //       (mineruSync) => ({
+  //         getMineruAvailabilityForAttachmentId:
+  //           mineruSync.getMineruAvailabilityForAttachmentId,
+  //       }),
+  //     );
+  //   }
+  //   return mineruChipStyleDepsPromise;
+  // };
+
+  // const isPaperContextMineru = (paperContext: PaperContextRef): boolean => {
+  //   if (mineruAvailableIds.has(paperContext.contextItemId)) return true;
+  //   // Check in-memory pdfTextCache (populated after ensurePDFTextCached)
+  //   const cached = pdfTextCache.get(paperContext.contextItemId);
+  //   if (cached?.sourceType === "mineru") {
+  //     mineruAvailableIds.add(paperContext.contextItemId);
+  //     return true;
+  //   }
+  //   // Cache may not be populated yet — trigger async check and update chip later
+  //   if (!cached) {
+  //     void checkAndApplyMineruChipStyle(paperContext.contextItemId);
+  //   }
+  //   return false;
+  // };
+
+  // const checkAndApplyMineruChipStyle = async (
+  //   contextItemId: number,
+  // ): Promise<void> => {
+  //   if (mineruAvailableIds.has(contextItemId)) return;
+  //   return getOrCreateKeyedInFlightTask(
+  //     pendingMineruAvailabilityChecks,
+  //     contextItemId,
+  //     async () => {
+  //       try {
+  //         if (mineruAvailableIds.has(contextItemId)) return;
+  //         const { getMineruAvailabilityForAttachmentId } =
+  //           await loadMineruChipStyleDeps();
+  //         const availability = await getMineruAvailabilityForAttachmentId(
+  //           contextItemId,
+  //           {
+  //             validateSyncedPackage: false,
+  //           },
+  //         );
+  //         if (availability.status === "missing") return;
+  //         mineruAvailableIds.add(contextItemId);
+  //         upgradePaperContextsToMineruForAttachment(contextItemId);
+  //         // MinerU is now available; re-render chips so the default mode flips.
+  //         schedulePanelStateRefresh();
+  //         refreshOpenPaperChipMenu();
+  //       } catch {
+  //         /* ignore */
+  //       }
+  //     },
+  //   );
+  // };
+
+  // const resolvePaperContextNextSendMode = (
+  //   itemId: number,
+  //   paperContext: PaperContextRef,
+  // ): PaperContextSendMode => {
+  //   if (
+  //     isPaperContextFullTextOnlySourceMode(
+  //       resolvePaperContentSourceMode(itemId, paperContext),
+  //     )
+  //   ) {
+  //     return "full-sticky";
+  //   }
+  //   const explicitMode = getPaperModeOverride(itemId, paperContext);
+  //   if (explicitMode) return explicitMode;
+  //   const autoLoadedPaperContext =
+  //     item && item.id === itemId ? resolveAutoLoadedPaperContext() : null;
+  //   if (
+  //     autoLoadedPaperContext &&
+  //     buildPaperKey(autoLoadedPaperContext) === buildPaperKey(paperContext) &&
+  //     !hasUserTurnsForCurrentConversation()
+  //   ) {
+  //     return "full-next";
+  //   }
+  //   return "retrieval";
+  // };
+
+  // const getManualPaperContextsForItem = (
+  //   itemId: number,
+  //   autoLoadedPaperContext: PaperContextRef | null,
+  //   selectedPaperContexts?: PaperContextRef[],
+  // ): PaperContextRef[] => {
+  //   const fromCache = selectedPaperContexts === undefined;
+  //   const normalized = normalizePaperContextEntries(
+  //     fromCache
+  //       ? selectedPaperContextCache.get(itemId) || []
+  //       : selectedPaperContexts,
+  //   );
+  //   const filtered = filterManualPaperContextsAgainstAutoLoaded(
+  //     normalized,
+  //     autoLoadedPaperContext,
+  //   );
+  //   if (fromCache && filtered.length !== normalized.length) {
+  //     if (filtered.length) {
+  //       selectedPaperContextCache.set(itemId, filtered);
+  //     } else {
+  //       selectedPaperContextCache.delete(itemId);
+  //     }
+  //   }
+  //   return filtered;
+  // };
+
+  // const getAllEffectivePaperContexts = (
+  //   currentItem: Zotero.Item,
+  //   selectedPaperContexts?: PaperContextRef[],
+  // ): PaperContextRef[] => {
+  //   const autoLoadedPaperContext = isGlobalPortalItem(currentItem)
+  //     ? null
+  //     : resolveAutoLoadedPaperContext();
+  //   const selectedPapers = getManualPaperContextsForItem(
+  //     currentItem.id,
+  //     autoLoadedPaperContext,
+  //     selectedPaperContexts,
+  //   );
+  //   return normalizePaperContextEntries([
+  //     ...(autoLoadedPaperContext ? [autoLoadedPaperContext] : []),
+  //     ...selectedPapers,
+  //   ]).map((paperContext) =>
+  //     withResolvedPaperContentSourceMode(currentItem.id, paperContext),
+  //   );
+  // };
+
+  // const getEffectiveFullTextPaperContexts = (
+  //   currentItem: Zotero.Item,
+  //   selectedPaperContexts?: PaperContextRef[],
+  // ): PaperContextRef[] => {
+  //   return getAllEffectivePaperContexts(currentItem, selectedPaperContexts)
+  //     .filter(
+  //       (paperContext) =>
+  //         resolvePaperContentSourceMode(currentItem.id, paperContext) !==
+  //           "pdf" &&
+  //         isPaperContextFullTextMode(
+  //           resolvePaperContextNextSendMode(currentItem.id, paperContext),
+  //         ),
+  //     )
+  //     .slice(0, MAX_FULL_TEXT_PAPER_CONTEXTS);
+  // };
+
+  // const getEffectivePdfModePaperContexts = (
+  //   currentItem: Zotero.Item,
+  //   selectedPaperContexts?: PaperContextRef[],
+  // ): PaperContextRef[] => {
+  //   return getAllEffectivePaperContexts(
+  //     currentItem,
+  //     selectedPaperContexts,
+  //   ).filter(
+  //     (paperContext) =>
+  //       resolvePaperContentSourceMode(currentItem.id, paperContext) === "pdf",
+  //   );
+  // };
+
+  /** [webchat] Check if any paper has PDF content source AND full-text send mode (purple chip). */
+  // const hasActivePdfFullTextPapers = (
+  //   currentItem: Zotero.Item,
+  //   selectedPaperContexts?: PaperContextRef[],
+  // ): boolean => {
+  //   return getAllEffectivePaperContexts(
+  //     currentItem,
+  //     selectedPaperContexts,
+  //   ).some(
+  //     (paperContext) =>
+  //       resolvePaperContentSourceMode(currentItem.id, paperContext) === "pdf" &&
+  //       isPaperContextFullTextMode(
+  //         resolvePaperContextNextSendMode(currentItem.id, paperContext),
+  //       ),
+  //   );
+  // };
+
+  // clearSelectedPaperState, clearAllRefContextState
+  // → imported from ./contexts/paperContextState
+
+  // const clearSelectedTextState = (itemId: number) =>
+  //   clearSelectedTextState_(pinnedSelectedTextKeys, itemId);
+  // const setDraftInputForConversation = (
+  //   conversationKey: number,
+  //   value: string,
+  // ) => {
+  //   if (!Number.isFinite(conversationKey) || conversationKey <= 0) return;
+  //   const normalizedKey = Math.floor(conversationKey);
+  //   if (value) {
+  //     draftInputCache.set(normalizedKey, value);
+  //   } else {
+  //     draftInputCache.delete(normalizedKey);
+  //   }
+  // };
+  // const persistDraftInputForCurrentConversation = () => {
+  //   // Don't persist the edit-mode text as a draft; the real draft was saved in
+  //   // inlineEditSavedDraft when edit mode was entered.
+  //   if (!item || !inputBox || inlineEditTarget) return;
+  //   if (isWebChatModeActive()) return;
+  //   setDraftInputForConversation(getConversationKey(item), inputBox.value);
+  // };
+  // const restoreDraftInputForCurrentConversation = () => {
+  //   if (!item || !inputBox) return;
+  //   // Don't overwrite the user's in-progress edit text; the real draft was saved
+  //   // in inlineEditSavedDraft when edit mode was entered and will be restored by
+  //   // inlineEditCleanup when the edit session ends.
+  //   if (inlineEditTarget) return;
+  //   if (isWebChatModeActive()) {
+  //     inputBox.value = "";
+  //     return;
+  //   }
+  //   inputBox.value = draftInputCache.get(getConversationKey(item)) || "";
+  // };
+  // const clearDraftInputState = (itemId: number) => {
+  //   draftInputCache.delete(itemId);
+  // };
+  // const retainPinnedImageState = (itemId: number) =>
+  //   retainPinnedImageState_(pinnedImageKeys, itemId);
+  // const retainPinnedFileState = (itemId: number) =>
+  //   retainPinnedFileState_(pinnedFileKeys, itemId);
+  // const retainPaperState = (itemId: number) => {
+  //   const autoLoadedPaperContext =
+  //     item && item.id === itemId ? resolveAutoLoadedPaperContext() : null;
+  //   const retained = getManualPaperContextsForItem(
+  //     itemId,
+  //     autoLoadedPaperContext,
+  //   );
+  //   if (retained.length) {
+  //     selectedPaperContextCache.set(itemId, retained);
+  //   } else {
+  //     selectedPaperContextCache.delete(itemId);
+  //   }
+  //   // Retain other ref contexts across sends (they persist like paper contexts).
+  //   // Prune orphaned mode overrides for papers that are no longer selected.
+  //   const validPaperKeys = new Set(
+  //     retained.map((paperContext) => buildPaperKey(paperContext)),
+  //   );
+  //   if (autoLoadedPaperContext) {
+  //     validPaperKeys.add(buildPaperKey(autoLoadedPaperContext));
+  //   }
+  //   const prefix = `${itemId}:`;
+  //   for (const key of Array.from(paperContextModeOverrides.keys())) {
+  //     if (key.startsWith(prefix)) {
+  //       const paperKey = key.slice(prefix.length);
+  //       if (!validPaperKeys.has(paperKey)) {
+  //         paperContextModeOverrides.delete(key);
+  //       }
+  //     }
+  //   }
+  //   if (retained.length) {
+  //     return;
+  //   }
+  //   if (!autoLoadedPaperContext) {
+  //     selectedPaperPreviewExpandedCache.delete(itemId);
+  //   }
+  // };
+  // const retainPinnedTextState = (itemId: number) =>
+  //   retainPinnedTextState_(pinnedSelectedTextKeys, itemId);
+  // const clearTransientComposeStateForItem = (itemId: number) => {
+  //   clearDraftInputState(itemId);
+  //   clearSelectedImageState(itemId);
+  //   clearAllRefContextState(itemId);
+  //   clearPaperContentSourceOverrides(itemId);
+  //   clearSelectedFileState(itemId);
+  //   clearSelectedTextState(itemId);
+  // };
+  // const runWithChatScrollGuard = (fn: () => void) => {
+  //   withScrollGuard(chatBox, conversationKey, fn);
+  // };
+  // const EDIT_STALE_STATUS_TEXT = t(
+  //   "Edit target changed. Please edit latest prompt again.",
+  // );
+  // const getLatestEditablePair = async () => {
+  //   if (!item) return null;
+  //   await ensureConversationLoaded(item as Zotero.Item);
+  //   const key = getConversationKey(item);
+  //   const history = chatHistory.get(key) || [];
+  //   const pair = findLatestRetryPair(history);
+  //   if (!pair) return null;
+  //   return { conversationKey: key, pair };
+  // };
+
+  let autoLoadedContextSourceSnapshot: ResolvedContextSource | null | undefined;
+  let autoLoadedPaperContextOwnerItemId: number | null = null;
+  let autoLoadedPaperContextItemId: number | null = null;
+  let autoLoadedPaperContextContentSourceMode: string | null = null;
+  let autoLoadedContextPanelItemKey: string | null = null;
+  let autoLoadedContextSourceSnapshotIsExplicit = false;
+  let autoLoadedPaperContextGeneration = 0;
+  let autoLoadedPaperContextPromise: Promise<PaperContextRef | null> | null =
+    null;
+  let requestAutoLoadedPaperContextRefresh: (() => void) | null = null;
+
+  const writeAutoLoadedContextItemId = (
+    contextSource: ResolvedContextSource | null,
+  ) => {
+    const sourceItem = contextSource?.contextItem || null;
+    const paperContext = contextSource?.paperContext || null;
+    const contextItemId = Math.floor(
+      Number(paperContext?.contextItemId || sourceItem?.id || 0),
+    );
+    panelRoot.dataset.contextItemId =
+      Number.isFinite(contextItemId) && contextItemId > 0
+        ? `${contextItemId}`
+        : "";
+  };
+
+  const setAutoLoadedContextSnapshot = (
+    contextSource: ResolvedContextSource | null,
+    contextPanelItem?: Zotero.Item | null,
+    options?: { explicitSourceSelection?: boolean },
+  ) => {
+    if (isGlobalMode()) {
+      panelRoot.dataset.contextItemId = "";
+      return;
+    }
+    const sourceItem = contextSource?.contextItem || null;
+    const paperContext = contextSource?.paperContext || null;
+    const ownerItemId = Math.floor(
+      Number(paperContext?.itemId || resolveCurrentPaperBaseItem()?.id || 0),
+    );
+    autoLoadedPaperContextOwnerItemId =
+      Number.isFinite(ownerItemId) && ownerItemId > 0 ? ownerItemId : null;
+    const contextItemId = Math.floor(
+      Number(paperContext?.contextItemId || sourceItem?.id || 0),
+    );
+    autoLoadedPaperContextItemId =
+      Number.isFinite(contextItemId) && contextItemId > 0
+        ? contextItemId
+        : null;
+    autoLoadedPaperContextContentSourceMode =
+      paperContext?.contentSourceMode || null;
+    const contextPanelItemId = Math.floor(
+      Number(contextPanelItem?.id || sourceItem?.id || 0),
+    );
+    autoLoadedContextPanelItemKey =
+      Number.isFinite(contextPanelItemId) && contextPanelItemId > 0
+        ? `${contextPanelItemId}`
+        : null;
+    autoLoadedContextSourceSnapshot = contextSource;
+    autoLoadedContextSourceSnapshotIsExplicit =
+      options?.explicitSourceSelection === true;
+    writeAutoLoadedContextItemId(contextSource);
+    // requestAutoLoadedPaperContextRefresh?.();
+  };
+
+  const clearAutoLoadedContextSnapshot = () => {
+    autoLoadedPaperContextGeneration += 1;
+    autoLoadedContextSourceSnapshot = undefined;
+    autoLoadedPaperContextOwnerItemId = null;
+    autoLoadedPaperContextItemId = null;
+    autoLoadedPaperContextContentSourceMode = null;
+    autoLoadedContextPanelItemKey = null;
+    autoLoadedContextSourceSnapshotIsExplicit = false;
+    autoLoadedPaperContextPromise = null;
+    panelRoot.dataset.contextItemId = "";
+  };
+
+  const getCurrentAutoLoadedPaperOwnerItemId = (): number | null => {
+    if (!item || isGlobalMode()) return null;
+    const ownerItemId = Math.floor(
+      Number(resolveCurrentPaperBaseItem()?.id || 0),
+    );
+    return Number.isFinite(ownerItemId) && ownerItemId > 0 ? ownerItemId : null;
+  };
+
+  // const isAutoLoadedContextSnapshotCurrent = (): boolean => {
+  //   const currentPanelItem = resolveAutoLoadedContextPanelItem();
+  //   const currentPanelItemId = Math.floor(Number(currentPanelItem?.id || 0));
+  //   const currentPanelItemKey =
+  //     Number.isFinite(currentPanelItemId) && currentPanelItemId > 0
+  //       ? `${currentPanelItemId}`
+  //       : null;
+  //   if (
+  //     autoLoadedContextPanelItemKey &&
+  //     currentPanelItemKey &&
+  //     autoLoadedContextPanelItemKey !== currentPanelItemKey
+  //   ) {
+  //     return false;
+  //   }
+  //   const currentContextSource =
+  //     resolveAutoLoadedContextSourceSync(currentPanelItem);
+  //   const currentContextSourceItem = currentContextSource?.contextItem || null;
+  //   const currentPaperContext = currentContextSource?.paperContext || null;
+  //   return isAutoLoadedSnapshotForCurrentPaper({
+  //     currentOwnerItemId: getCurrentAutoLoadedPaperOwnerItemId(),
+  //     snapshotOwnerItemId: autoLoadedPaperContextOwnerItemId,
+  //     currentContextItemId:
+  //       currentPaperContext?.contextItemId ||
+  //       (currentContextSourceItem
+  //         ? Math.floor(Number(currentContextSourceItem.id || 0))
+  //         : null),
+  //     snapshotContextItemId: autoLoadedPaperContextItemId,
+  //     currentContentSourceMode: currentPaperContext?.contentSourceMode || null,
+  //     snapshotContentSourceMode: autoLoadedPaperContextContentSourceMode,
+  //     allowExplicitContextOverride: autoLoadedContextSourceSnapshotIsExplicit,
+  //   });
+  // };
+
+  // const resolveAutoLoadedContextPanelItem = (): Zotero.Item | null => {
+  //   const liveRawPanelItem = resolveLiveRawPanelItem();
+  //   return chooseAutoLoadedContextPanelItem({
+  //     isGlobalMode: isGlobalMode(),
+  //     currentItem: item,
+  //     currentPaperBaseItem: resolveCurrentPaperBaseItem(),
+  //     liveRawPanelItem,
+  //     liveRawPanelItemIsSupportedAttachment:
+  //       isSupportedContextAttachment(liveRawPanelItem),
+  //   });
+  // };
+
+  // const resolveAutoLoadedContextSourceSync = (
+  //   panelItemOverride?: Zotero.Item | null,
+  // ): ResolvedContextSource | null => {
+  //   if (!item) return null;
+  //   const noteSession = resolveCurrentNoteSession();
+  //   if (noteSession?.noteKind === "standalone") return null;
+  //   if (noteSession?.noteKind === "item") {
+  //     const parentItem = resolveCurrentNoteParentItem();
+  //     if (!parentItem) return null;
+  //     const activeReaderAttachment = getActiveContextAttachmentFromTabs();
+  //     if (activeReaderAttachment?.parentID === parentItem.id) {
+  //       return resolveContextSourceItem(activeReaderAttachment);
+  //     }
+  //     return null;
+  //   }
+  //   if (isGlobalMode()) return null;
+  //   const sourceItem =
+  //     panelItemOverride === undefined
+  //       ? resolveAutoLoadedContextPanelItem()
+  //       : panelItemOverride;
+  //   if (
+  //     sourceItem?.isAttachment?.() &&
+  //     resolvePaperContextRefFromAttachment(sourceItem)
+  //   ) {
+  //     return resolveContextSourceItem(sourceItem);
+  //   }
+  //   const activeReaderAttachment = getActiveContextAttachmentFromTabs();
+  //   if (activeReaderAttachment) {
+  //     return resolveContextSourceItem(activeReaderAttachment);
+  //   }
+  //   return null;
+  // };
+
+  // const resolveAutoLoadedPaperContext = (): PaperContextRef | null => {
+  //   if (isGlobalMode()) {
+  //     panelRoot.dataset.contextItemId = "";
+  //     return null;
+  //   }
+  //   if (autoLoadedContextSourceSnapshot !== undefined) {
+  //     if (isAutoLoadedContextSnapshotCurrent()) {
+  //       writeAutoLoadedContextItemId(autoLoadedContextSourceSnapshot);
+  //       return autoLoadedContextSourceSnapshot?.paperContext || null;
+  //     }
+  //     clearAutoLoadedContextSnapshot();
+  //   }
+  //   return resolveAutoLoadedContextSourceSync()?.paperContext || null;
+  // };
+
+  // const resolveAutoLoadedContextSourceAsync =
+  //   async (): Promise<ResolvedContextSource | null> => {
+  //     await resolveAutoLoadedPaperContextAsync();
+  //     return autoLoadedContextSourceSnapshot ?? null;
+  //   };
+
+  // const resolveAutoLoadedPaperContextAsync =
+  //   async (): Promise<PaperContextRef | null> => {
+  //     if (!item) return null;
+  //     if (isGlobalMode()) {
+  //       panelRoot.dataset.contextItemId = "";
+  //       return null;
+  //     }
+  //     if (autoLoadedContextSourceSnapshot !== undefined) {
+  //       if (isAutoLoadedContextSnapshotCurrent()) {
+  //         writeAutoLoadedContextItemId(autoLoadedContextSourceSnapshot);
+  //         return autoLoadedContextSourceSnapshot?.paperContext || null;
+  //       }
+  //       clearAutoLoadedContextSnapshot();
+  //     }
+  //     if (autoLoadedPaperContextPromise) return autoLoadedPaperContextPromise;
+  //     const requestGeneration = autoLoadedPaperContextGeneration;
+  //     autoLoadedPaperContextPromise = (async () => {
+  //       const panelItem = resolveAutoLoadedContextPanelItem();
+  //       if (!panelItem) return null;
+  //       const contextSource = await resolveContextSourceItemAsync(panelItem);
+  //       const paperContext = contextSource.paperContext || null;
+  //       if (
+  //         panelRoot.dataset.handlersAttached === thisGen &&
+  //         requestGeneration === autoLoadedPaperContextGeneration
+  //       ) {
+  //         setAutoLoadedContextSnapshot(contextSource, panelItem);
+  //       }
+  //       return paperContext;
+  //     })();
+  //     try {
+  //       return await autoLoadedPaperContextPromise;
+  //     } finally {
+  //       autoLoadedPaperContextPromise = null;
+  //     }
+  //   };
+
+  // const refreshAutoLoadedPaperContextForCurrentItem = () => {
+  //   clearAutoLoadedContextSnapshot();
+  //   if (!item || isGlobalMode()) return;
+  //   const panelItem = resolveAutoLoadedContextPanelItem();
+  //   const contextSource = resolveAutoLoadedContextSourceSync(panelItem);
+  //   const paperContext = contextSource?.paperContext || null;
+  //   if (paperContext) {
+  //     setAutoLoadedContextSnapshot(contextSource, panelItem);
+  //     return;
+  //   }
+  //   void resolveAutoLoadedPaperContextAsync();
+  // };
+
+  let paperChipMenu: HTMLDivElement | null = null;
+  let paperChipMineruCacheMenu: HTMLDivElement | null = null;
+  let paperChipMineruCacheMenuTarget: { contextItemId: number } | null = null;
+  let paperChipMenuAnchor: HTMLDivElement | null = null;
+  let paperChipMenuSticky = false;
+  let paperChipMenuTarget: PaperContextRef | null = null;
+  let paperChipMenuHideTimer: number | null = null;
+  let refreshOpenPaperChipMenu = () => {};
+  const clearPaperChipMenuHideTimer = () => {
+    if (paperChipMenuHideTimer === null) return;
+    const win = body.ownerDocument?.defaultView;
+    if (win) {
+      win.clearTimeout(paperChipMenuHideTimer);
+    } else {
+      clearTimeout(
+        paperChipMenuHideTimer as unknown as ReturnType<typeof setTimeout>,
       );
-      // if (
-      //   !Number.isFinite(paperItemId) ||
-      //   paperItemId <= 0 ||
-      //   !Number.isFinite(contextItemId) ||
-      //   contextItemId <= 0
-      // ) {
-      //   return null;
-      // }
-      // if (item) {
-      //   const selectedPapers = getManualPaperContextsForItem(
-      //     item.id,
-      //     resolveAutoLoadedPaperContext(),
-      //   );
-      //   const matchedPaper = selectedPapers.find(
-      //     (paperContext) =>
-      //       paperContext.itemId === paperItemId &&
-      //       paperContext.contextItemId === contextItemId,
-      //   );
-      //   if (matchedPaper) {
-      //     return matchedPaper;
-      //   }
-      // }
-      // const attachment = Zotero.Items.get(contextItemId) || null;
-      // return resolvePaperContextRefFromAttachment(attachment);
-      return null;
-    };
-    const focusPaperContextInActiveTab = async (
-      paperContext: PaperContextRef,
-    ): Promise<boolean> => {
-      const tabs = (
-        Zotero as unknown as {
-          Tabs?: {
-            selectedType?: string;
-            getTabIDByItemID?: (itemID: number) => string;
-            select?: (id: string, reopening?: boolean, options?: unknown) => void;
-          };
+    }
+    paperChipMenuHideTimer = null;
+  };
+  const closePaperChipMineruCacheMenu = () => {
+    if (paperChipMineruCacheMenu) {
+      paperChipMineruCacheMenu.style.display = "none";
+    }
+    paperChipMineruCacheMenuTarget = null;
+  };
+  const closePaperChipMenu = () => {
+    closePaperChipMineruCacheMenu();
+    clearPaperChipMenuHideTimer();
+    if (paperChipMenu) {
+      paperChipMenu.style.display = "none";
+    }
+    paperChipMenuAnchor?.classList.remove(
+      "paperpilot-paper-context-chip-menu-open",
+    );
+    paperChipMenuAnchor = null;
+    paperChipMenuTarget = null;
+    paperChipMenuSticky = false;
+  };
+  const buildPaperMetaText = (paper: {
+    firstCreator?: string;
+    year?: string;
+  }): string => {
+    const parts = [paper.firstCreator || "", paper.year || ""].filter(Boolean);
+    return parts.join(" · ");
+  };
+
+  // const resolveCurrentPdfSupport = () => {
+  //   const selectedProfile = getSelectedProfile();
+  //   const modelName = (
+  //     selectedProfile?.model ||
+  //     getSelectedModelInfo().currentModel ||
+  //     ""
+  //   ).trim();
+  //   const inputMode = getAdvancedModelParamsForEntry(
+  //     selectedProfile?.entryId,
+  //   )?.inputMode;
+  //   return getModelPdfSupport(
+  //     modelName,
+  //     selectedProfile?.providerProtocol,
+  //     selectedProfile?.authMode,
+  //     selectedProfile?.apiBase,
+  //     inputMode,
+  //   );
+  // };
+
+  const getMineruDisabledParsingMessage = (): string =>
+    t("⚠️ enable MinerU to start PDF parsing");
+
+  // const buildPaperSourceOptions = (
+  //   paperContext: PaperContextRef,
+  // ): PaperSourceOption[] => {
+  //   return buildPaperSourceOptionsController({
+  //     paperContext,
+  //     getItemById: (itemId) => Zotero.Items.get(itemId) || null,
+  //     webChatMode: isWebChatMode(),
+  //     pdfSupport: resolveCurrentPdfSupport(),
+  //     isMineruEnabled: isMineruEnabled(),
+  //     getItemStatus,
+  //     isPaperContextMineru,
+  //     mineruAvailableIds,
+  //     fullPdfUnsupportedMessage: FULL_PDF_UNSUPPORTED_MESSAGE,
+  //     mineruDisabledParsingMessage: getMineruDisabledParsingMessage(),
+  //     translate: t,
+  //   });
+  // };
+
+  // const buildPaperChipMenuCard = (
+  //   ownerDoc: Document,
+  //   paperContext: PaperContextRef,
+  //   options?: {
+  //     contentSourceMode?: PaperContentSourceMode;
+  //     badge?: string;
+  //     title?: string;
+  //     description?: string;
+  //     disabledReason?: string;
+  //     selected?: boolean;
+  //     sourceOption?: boolean;
+  //     mineruState?: MineruSourceUiState;
+  //     mineruAction?: MineruSourceAction;
+  //     mineruActionTitle?: string;
+  //     mineruCacheReveal?: boolean;
+  //   },
+  // ): HTMLButtonElement => {
+  //   const card = createElement(
+  //     ownerDoc,
+  //     "button",
+  //     `paperpilot-paper-picker-item paperpilot-paper-picker-group-row paperpilot-paper-chip-menu-row ${getContextSourceModeCssClassName(options?.contentSourceMode)}`,
+  //     {
+  //       type: "button",
+  //       title: options?.sourceOption
+  //         ? options.description || options.title || paperContext.title
+  //         : `Jump to ${paperContext.title}`,
+  //     },
+  //   ) as HTMLButtonElement;
+  //   if (options?.sourceOption) {
+  //     card.dataset.sourceMode = options.contentSourceMode || "";
+  //     card.dataset.contextItemId = `${paperContext.contextItemId}`;
+  //     card.dataset.paperItemId = `${paperContext.itemId}`;
+  //   }
+  //   if (options?.mineruState) {
+  //     card.dataset.mineruState = options.mineruState;
+  //     card.classList.add(
+  //       `paperpilot-paper-chip-menu-row-mineru-${options.mineruState}`,
+  //     );
+  //     if (options.mineruAction && options.mineruAction !== "select") {
+  //       card.dataset.mineruAction = options.mineruAction;
+  //     }
+  //     if (options.mineruActionTitle) {
+  //       card.title = options.mineruActionTitle;
+  //     }
+  //   }
+  //   if (options?.mineruCacheReveal) {
+  //     card.dataset.mineruCacheReveal = "true";
+  //   }
+  //   if (options?.disabledReason) {
+  //     card.disabled = true;
+  //     card.setAttribute("aria-disabled", "true");
+  //     card.classList.add("paperpilot-paper-chip-menu-row-disabled");
+  //     card.title = options.disabledReason;
+  //   }
+  //   if (options?.selected) {
+  //     card.setAttribute("aria-selected", "true");
+  //   }
+  //   const rowMain = createElement(
+  //     ownerDoc,
+  //     "div",
+  //     "paperpilot-paper-picker-group-row-main",
+  //   );
+  //   const titleLine = createElement(
+  //     ownerDoc,
+  //     "div",
+  //     "paperpilot-paper-picker-group-title-line",
+  //   );
+  //   const title = createElement(ownerDoc, "span", "paperpilot-paper-picker-title", {
+  //     textContent: options?.title || paperContext.title,
+  //     title: options?.title || paperContext.title,
+  //   });
+  //   titleLine.appendChild(title);
+  //   const mode = options?.contentSourceMode;
+  //   const badgeText =
+  //     options?.badge ||
+  //     (mode === "mineru" || mode === "markdown"
+  //       ? "MD"
+  //       : mode === "pdf"
+  //         ? "PDF"
+  //         : mode === "text"
+  //           ? "Text"
+  //           : mode === "html"
+  //             ? "HTML"
+  //             : mode === "txt"
+  //               ? "TXT"
+  //               : mode === "docx"
+  //                 ? "DOCX"
+  //                 : null);
+  //   if (badgeText) {
+  //     const badge = createElement(ownerDoc, "span", "paperpilot-paper-picker-badge", {
+  //       textContent: badgeText,
+  //       title: options?.mineruActionTitle,
+  //     });
+  //     titleLine.appendChild(badge);
+  //   }
+  //   rowMain.appendChild(titleLine);
+  //   const metaText = isTextLikeAttachmentSourceMode(mode)
+  //     ? ""
+  //     : buildPaperMetaText(paperContext);
+  //   if (metaText) {
+  //     rowMain.appendChild(
+  //       createElement(ownerDoc, "span", "paperpilot-paper-picker-meta", {
+  //         textContent: metaText,
+  //         title: metaText,
+  //       }),
+  //     );
+  //   }
+  //   const displayAttachmentText =
+  //     options?.description ||
+  //     formatPaperContextCardAttachmentLine(paperContext, mode);
+  //   const disabledReasonAlreadyShown =
+  //     !!options?.disabledReason &&
+  //     (displayAttachmentText === options.disabledReason ||
+  //       displayAttachmentText.endsWith(`· ${options.disabledReason}`));
+  //   if (displayAttachmentText) {
+  //     rowMain.appendChild(
+  //       createElement(
+  //         ownerDoc,
+  //         "span",
+  //         "paperpilot-paper-picker-meta paperpilot-paper-context-card-attachment",
+  //         {
+  //           textContent: displayAttachmentText,
+  //           title: displayAttachmentText,
+  //         },
+  //       ),
+  //     );
+  //   }
+  //   if (options?.disabledReason && !disabledReasonAlreadyShown) {
+  //     rowMain.appendChild(
+  //       createElement(
+  //         ownerDoc,
+  //         "span",
+  //         "paperpilot-paper-picker-meta paperpilot-paper-chip-disabled-reason",
+  //         {
+  //           textContent: options.disabledReason,
+  //           title: options.disabledReason,
+  //         },
+  //       ),
+  //     );
+  //   }
+  //   card.appendChild(rowMain);
+  //   return card;
+  // };
+
+  // const upgradePaperContextsToMineruForAttachment = (
+  //   contextItemId: number,
+  // ): boolean => {
+  //   if (!item || !Number.isFinite(contextItemId) || contextItemId <= 0) {
+  //     return false;
+  //   }
+  //   const currentItem = item;
+  //   let didUpgrade = false;
+  //   const autoLoadedPaperContext = resolveAutoLoadedPaperContext();
+
+  //   if (autoLoadedPaperContext?.contextItemId === contextItemId) {
+  //     const currentMode = resolvePaperContentSourceMode(
+  //       currentItem.id,
+  //       autoLoadedPaperContext,
+  //     );
+  //     if (currentMode !== "pdf" && currentMode !== "mineru") {
+  //       setPaperContentSourceOverride(
+  //         currentItem.id,
+  //         autoLoadedPaperContext,
+  //         "mineru",
+  //       );
+  //       didUpgrade = true;
+  //     }
+  //   }
+
+  //   const selectedPapers = getManualPaperContextsForItem(
+  //     currentItem.id,
+  //     autoLoadedPaperContext,
+  //   );
+  //   if (!selectedPapers.length) return didUpgrade;
+
+  //   const nextPapers = selectedPapers.map((paperContext) => {
+  //     if (paperContext.contextItemId !== contextItemId) return paperContext;
+  //     const currentMode = resolvePaperContentSourceMode(
+  //       currentItem.id,
+  //       paperContext,
+  //     );
+  //     if (currentMode === "pdf" || currentMode === "mineru") {
+  //       return paperContext;
+  //     }
+  //     didUpgrade = true;
+  //     const nextContext: PaperContextRef = {
+  //       ...paperContext,
+  //       contentSourceMode: "mineru",
+  //     };
+  //     setPaperContentSourceOverride(currentItem.id, nextContext, "mineru");
+  //     return nextContext;
+  //   });
+
+  //   if (didUpgrade) {
+  //     selectedPaperContextCache.set(currentItem.id, nextPapers);
+  //   }
+  //   return didUpgrade;
+  // };
+
+  // const syncMineruPaperSourceState = (): void => {
+  //   if (!item) return;
+  //   const autoLoadedPaperContext = resolveAutoLoadedPaperContext();
+  //   const selectedPapers = getManualPaperContextsForItem(
+  //     item.id,
+  //     autoLoadedPaperContext,
+  //   );
+  //   const paperContexts = [
+  //     ...(autoLoadedPaperContext ? [autoLoadedPaperContext] : []),
+  //     ...selectedPapers,
+  //   ];
+  //   let didRefresh = false;
+  //   for (const paperContext of paperContexts) {
+  //     const status = getItemStatus(paperContext.contextItemId);
+  //     if (status?.status !== "cached") continue;
+  //     mineruAvailableIds.add(paperContext.contextItemId);
+  //     if (
+  //       upgradePaperContextsToMineruForAttachment(paperContext.contextItemId)
+  //     ) {
+  //       didRefresh = true;
+  //     }
+  //   }
+  //   if (didRefresh) {
+  //     updatePaperPreviewPreservingScroll();
+  //   }
+  // };
+
+  // const handleMineruSourceAction = async (
+  //   sourceOption: PaperSourceOption,
+  // ): Promise<void> => {
+  //   const action = sourceOption.mineruAction;
+  //   if (!action || action === "select") return;
+  //   const attachmentId = sourceOption.paperContext.contextItemId;
+
+  //   if (action === "pause") {
+  //     const batchState = getMineruBatchState();
+  //     if (batchState.running && !batchState.paused) {
+  //       pauseBatchProcessing();
+  //     } else {
+  //       const autoWatchStatus = getAutoWatchStatus();
+  //       if (autoWatchStatus.isProcessing && !autoWatchStatus.isPaused) {
+  //         pauseAutoWatch();
+  //       }
+  //     }
+  //     if (status) setStatus(status, t("Click to do MinerU parsing"), "ready");
+  //     return;
+  //   }
+
+  //   if (!isMineruEnabled()) {
+  //     if (status) {
+  //       setStatus(status, getMineruDisabledParsingMessage(), "warning");
+  //     }
+  //     return;
+  //   }
+
+  //   const batchState = getMineruBatchState();
+  //   if (batchState.running) {
+  //     if (status) setStatus(status, t("MinerU parsing…"), "warning");
+  //     return;
+  //   }
+
+  //   if (status) setStatus(status, t("MinerU parsing…"), "ready");
+  //   await processSelectedItems([attachmentId], { overrideEligibility: true });
+  //   refreshOpenPaperChipMenu();
+  // };
+
+  // const resolvePaperChipMenuSourceOptionFromCard = (
+  //   card: HTMLButtonElement,
+  // ): PaperSourceOption | null => {
+  //   if (!paperChipMenuTarget) return null;
+  //   const mode = card.dataset.sourceMode as PaperContentSourceMode | "";
+  //   const contextItemId = Number.parseInt(card.dataset.contextItemId || "", 10);
+  //   const paperItemId = Number.parseInt(card.dataset.paperItemId || "", 10);
+  //   if (!mode || !Number.isFinite(contextItemId) || contextItemId <= 0) {
+  //     return null;
+  //   }
+  //   return (
+  //     buildPaperSourceOptions(paperChipMenuTarget).find(
+  //       (candidate) =>
+  //         candidate.mode === mode &&
+  //         candidate.paperContext.contextItemId === contextItemId &&
+  //         candidate.paperContext.itemId === paperItemId,
+  //     ) || null
+  //   );
+  // };
+
+  // const handleShowMineruCacheInFileSystem = async (): Promise<void> => {
+  //   const target = paperChipMineruCacheMenuTarget;
+  //   closePaperChipMineruCacheMenu();
+  //   if (!target) return;
+
+  //   const attachment = Zotero.Items.get(target.contextItemId) || null;
+  //   if (!attachment) {
+  //     if (status) {
+  //       setStatus(status, t("Could not find this paper attachment."), "error");
+  //     }
+  //     return;
+  //   }
+
+  //   try {
+  //     const { ensureMineruCacheDirForAttachment } =
+  //       await import("./mineruSync");
+  //     const cacheDir = await ensureMineruCacheDirForAttachment(attachment);
+  //     if (!cacheDir) {
+  //       if (status) {
+  //         setStatus(
+  //           status,
+  //           t("MinerU cache is not available in the file system."),
+  //           "error",
+  //         );
+  //       }
+  //       return;
+  //     }
+  //     if (!revealLocalPath(cacheDir)) {
+  //       if (status) {
+  //         setStatus(
+  //           status,
+  //           t("Could not show MinerU cache in file system."),
+  //           "error",
+  //         );
+  //       }
+  //       return;
+  //     }
+  //     if (status) {
+  //       setStatus(status, t("Showing MinerU cache in file system."), "ready");
+  //     }
+  //   } catch (error) {
+  //     ztoolkit.log("LLM: Failed to show MinerU cache folder", error);
+  //     if (status) {
+  //       setStatus(
+  //         status,
+  //         t("Could not show MinerU cache in file system."),
+  //         "error",
+  //       );
+  //     }
+  //   }
+  // };
+
+  const ensurePaperChipMineruCacheMenu = (): HTMLDivElement | null => {
+    if (paperChipMineruCacheMenu?.isConnected) {
+      return paperChipMineruCacheMenu;
+    }
+    const ownerDoc = body.ownerDocument;
+    if (!ownerDoc) return null;
+    const menu = createElement(
+      ownerDoc,
+      "div",
+      "paperpilot-model-menu paperpilot-paper-chip-cache-menu",
+    );
+    menu.style.display = "none";
+    menu.addEventListener("pointerdown", (event: Event) => {
+      event.stopPropagation();
+    });
+    menu.addEventListener("mousedown", (event: Event) => {
+      event.stopPropagation();
+    });
+    menu.addEventListener("contextmenu", (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+
+    const showCacheButton = createElement(
+      ownerDoc,
+      "button",
+      "paperpilot-paper-chip-cache-menu-item",
+      {
+        type: "button",
+        textContent: t("Show MinerU cache in file system"),
+      },
+    ) as HTMLButtonElement;
+    showCacheButton.addEventListener("click", (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      // void handleShowMineruCacheInFileSystem();
+    });
+    menu.appendChild(showCacheButton);
+
+    ownerDoc.addEventListener(
+      "keydown",
+      (event: Event) => {
+        const keyboardEvent = event as KeyboardEvent;
+        if (
+          keyboardEvent.key !== "Escape" ||
+          !paperChipMineruCacheMenu ||
+          paperChipMineruCacheMenu.style.display === "none"
+        ) {
+          return;
         }
-      ).Tabs;
-      const selectedType = String(tabs?.selectedType || "").toLowerCase();
-      if (selectedType.includes("reader")) {
-        const existingReaderTabId =
-          tabs?.getTabIDByItemID?.(paperContext.contextItemId) ||
-          tabs?.getTabIDByItemID?.(paperContext.itemId);
-        if (existingReaderTabId && typeof tabs?.select === "function") {
-          tabs.select(existingReaderTabId);
-          return true;
+        closePaperChipMineruCacheMenu();
+        event.preventDefault();
+        event.stopPropagation();
+      },
+      true,
+    );
+
+    body.appendChild(menu);
+    paperChipMineruCacheMenu = menu;
+    return menu;
+  };
+
+  const openPaperChipMineruCacheMenu = (
+    contextItemId: number,
+    clientX: number,
+    clientY: number,
+  ): void => {
+    const menu = ensurePaperChipMineruCacheMenu();
+    if (!menu) return;
+    paperChipMineruCacheMenuTarget = { contextItemId };
+    // positionMenuAtPointer(body, menu, clientX, clientY);
+    menu.style.display = "grid";
+  };
+
+  const ensurePaperChipMenu = (): HTMLDivElement | null => {
+    if (paperChipMenu?.isConnected) return paperChipMenu;
+    const ownerDoc = body.ownerDocument;
+    if (!ownerDoc) return null;
+    const menu = createElement(
+      ownerDoc,
+      "div",
+      "paperpilot-model-menu paperpilot-paper-chip-menu",
+    );
+    menu.style.display = "none";
+    menu.addEventListener("mouseenter", () => {
+      clearPaperChipMenuHideTimer();
+    });
+    menu.addEventListener("mouseleave", () => {
+      if (!paperChipMenuSticky) {
+        const win = body.ownerDocument?.defaultView;
+        if (!win) {
+          closePaperChipMenu();
+          return;
         }
-        const readerApi = Zotero.Reader as
-          | {
-              open?: (
-                itemID: number,
-                location?: _ZoteroTypes.Reader.Location,
-              ) => Promise<void | _ZoteroTypes.ReaderInstance>;
-            }
-          | undefined;
-        if (typeof readerApi?.open === "function") {
-          await readerApi.open(paperContext.contextItemId);
-          return true;
-        }
+        clearPaperChipMenuHideTimer();
+        paperChipMenuHideTimer = win.setTimeout(() => {
+          closePaperChipMenu();
+        }, 100);
       }
-      const pane = Zotero.getActiveZoteroPane?.() as
-        | _ZoteroTypes.ZoteroPane
+    });
+    // menu.addEventListener("click", (e: Event) => {
+    //   const target = e.target as Element | null;
+    //   if (!target) return;
+    //   const card = target.closest(
+    //     ".paperpilot-paper-chip-menu-row",
+    //   ) as HTMLButtonElement | null;
+    //   if (!card || !paperChipMenuTarget) return;
+    //   e.preventDefault();
+    //   e.stopPropagation();
+    //   if (card.disabled || card.getAttribute("aria-disabled") === "true") {
+    //     if (status && card.title) setStatus(status, card.title, "error");
+    //     return;
+    //   }
+    //   const option = resolvePaperChipMenuSourceOptionFromCard(card);
+    //   if (!option || option.disabledReason) {
+    //     if (status && option?.disabledReason) {
+    //       setStatus(status, option.disabledReason, "error");
+    //     }
+    //     return;
+    //   }
+    //   if (option.mineruAction && option.mineruAction !== "select") {
+    //     void handleMineruSourceAction(option);
+    //     return;
+    //   }
+    //   const currentItem = item;
+    //   if (!currentItem) return;
+    //   const mode = option.mode;
+    //   const selectedContext = option.paperContext;
+    //   if (paperChipMenuAnchor?.dataset.autoLoaded === "true") {
+    //     const contextItem =
+    //       Zotero.Items.get(selectedContext.contextItemId) || null;
+    //     const contextSource = contextItem
+    //       ? {
+    //           ...resolveContextSourceItem(contextItem),
+    //           paperContext: selectedContext,
+    //           contentSourceMode: selectedContext.contentSourceMode,
+    //         }
+    //       : {
+    //           contextItem: null,
+    //           paperContext: selectedContext,
+    //           statusText: selectedContext.attachmentTitle
+    //             ? `using the selected ${selectedContext.attachmentTitle} as context`
+    //             : "using the selected attachment as context",
+    //           contentSourceMode: selectedContext.contentSourceMode,
+    //         };
+    //     setAutoLoadedContextSnapshot(
+    //       contextSource,
+    //       resolveAutoLoadedContextPanelItem(),
+    //       { explicitSourceSelection: true },
+    //     );
+    //   } else {
+    //     const selectedPapers = getManualPaperContextsForItem(
+    //       currentItem.id,
+    //       resolveAutoLoadedPaperContext(),
+    //     );
+    //     const currentIndex = selectedPapers.findIndex(
+    //       (paper) =>
+    //         paper.itemId === paperChipMenuTarget?.itemId &&
+    //         paper.contextItemId === paperChipMenuTarget?.contextItemId,
+    //     );
+    //     const nextPapers =
+    //       currentIndex >= 0
+    //         ? selectedPapers.map((paper, index) =>
+    //             index === currentIndex ? selectedContext : paper,
+    //           )
+    //         : [...selectedPapers, selectedContext];
+    //     selectedPaperContextCache.set(currentItem.id, nextPapers);
+    //   }
+    //   setPaperContentSourceOverride(currentItem.id, selectedContext, mode);
+    //   closePaperChipMenu();
+    //   updatePaperPreviewPreservingScroll();
+    //   if (status) {
+    //     setStatus(status, `${t("Content source:")} ${option.badge}`, "ready");
+    //   }
+    // });
+    // menu.addEventListener("contextmenu", (e: Event) => {
+    //   const target = e.target as Element | null;
+    //   if (!target) return;
+    //   const card = target.closest(
+    //     ".paperpilot-paper-chip-menu-row",
+    //   ) as HTMLButtonElement | null;
+    //   if (!card || !paperChipMenuTarget) return;
+    //   const option = resolvePaperChipMenuSourceOptionFromCard(card);
+    //   if (
+    //     card.dataset.mineruCacheReveal !== "true" ||
+    //     !option ||
+    //     !canRevealMineruCacheForSourceOption(option)
+    //   ) {
+    //     closePaperChipMineruCacheMenu();
+    //     return;
+    //   }
+    //   e.preventDefault();
+    //   e.stopPropagation();
+    //   const mouseEvent = e as MouseEvent;
+    //   openPaperChipMineruCacheMenu(
+    //     option.paperContext.contextItemId,
+    //     mouseEvent.clientX,
+    //     mouseEvent.clientY,
+    //   );
+    // });
+    body.appendChild(menu);
+    paperChipMenu = menu;
+    return menu;
+  };
+  const positionPaperChipMenuAboveAnchor = (
+    menu: HTMLDivElement,
+    anchor: HTMLElement,
+  ) => {
+    const win = body.ownerDocument?.defaultView;
+    if (!win) return;
+
+    const viewportMargin = 8;
+    const gap = 6;
+    const panelRect = body.getBoundingClientRect();
+    const minLeftBound = Math.max(
+      viewportMargin,
+      Math.round(panelRect.left) + 2,
+    );
+    const minTopBound = Math.max(viewportMargin, Math.round(panelRect.top) + 2);
+    const maxRightBound = Math.round(panelRect.right) - 2;
+    const maxBottomBound = Math.round(panelRect.bottom) - 2;
+    const anchorRect = anchor.getBoundingClientRect();
+    const availableWidth = Math.max(
+      160,
+      Math.floor(panelRect.width) - viewportMargin * 2 - 4,
+    );
+
+    menu.style.position = "fixed";
+    menu.style.display = "grid";
+    menu.style.visibility = "hidden";
+    menu.style.boxSizing = "border-box";
+    menu.style.maxWidth = `${availableWidth}px`;
+    menu.style.maxHeight = `${Math.max(120, Math.floor(panelRect.height) - viewportMargin * 2)}px`;
+    menu.style.overflowY = "auto";
+    menu.style.overflowX = "hidden";
+
+    const menuRect = menu.getBoundingClientRect();
+    const maxLeft = Math.max(
+      minLeftBound,
+      Math.min(
+        win.innerWidth - menuRect.width - viewportMargin,
+        maxRightBound - menuRect.width,
+      ),
+    );
+    const maxTop = Math.max(
+      minTopBound,
+      Math.min(
+        win.innerHeight - menuRect.height - viewportMargin,
+        maxBottomBound - menuRect.height,
+      ),
+    );
+    const preferredLeft =
+      anchorRect.left + menuRect.width <= maxRightBound
+        ? anchorRect.left
+        : anchorRect.right - menuRect.width;
+    const spaceAbove = anchorRect.top - minTopBound;
+    const spaceBelow = maxBottomBound - anchorRect.bottom;
+    const preferredTop =
+      spaceAbove >= menuRect.height || spaceAbove >= spaceBelow
+        ? anchorRect.top - menuRect.height - gap
+        : anchorRect.bottom + gap;
+    const left = Math.min(Math.max(minLeftBound, preferredLeft), maxLeft);
+    const top = Math.min(Math.max(minTopBound, preferredTop), maxTop);
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+    menu.style.visibility = "visible";
+  };
+  const openPaperChipMenu = (
+    chip: HTMLDivElement,
+    paperContext: PaperContextRef,
+    options?: { sticky?: boolean },
+  ) => {
+    const ownerDoc = body.ownerDocument;
+    if (!ownerDoc) return;
+    const currentMode =
+      (chip.dataset.contentSource as PaperContentSourceMode) ||
+      paperContext.contentSourceMode ||
+      "text";
+    // const sourceOptions = buildPaperSourceOptions(paperContext);
+    // if (!hasPaperChipSourceMenuOption(sourceOptions)) {
+    //   closePaperChipMenu();
+    //   return;
+    // }
+    const menu = ensurePaperChipMenu();
+    if (!menu) return;
+    clearPaperChipMenuHideTimer();
+    if (paperChipMenuAnchor && paperChipMenuAnchor !== chip) {
+      paperChipMenuAnchor.classList.remove(
+        "paperpilot-paper-context-chip-menu-open",
+      );
+    }
+    paperChipMenuAnchor = chip;
+    chip.classList.add("paperpilot-paper-context-chip-menu-open");
+    chip.classList.remove("expanded");
+    chip.classList.add("collapsed");
+    if (item) {
+      selectedPaperPreviewExpandedCache.delete(item.id);
+    }
+    paperChipMenuSticky = options?.sticky === true;
+    paperChipMenuTarget = paperContext;
+    closePaperChipMineruCacheMenu();
+    menu.innerHTML = "";
+    // for (const sourceOption of sourceOptions) {
+    //   menu.appendChild(
+    //     buildPaperChipMenuCard(ownerDoc, sourceOption.paperContext, {
+    //       contentSourceMode: sourceOption.mode,
+    //       badge: sourceOption.badge,
+    //       title: sourceOption.title,
+    //       description: sourceOption.description,
+    //       disabledReason: sourceOption.disabledReason,
+    //       mineruState: sourceOption.mineruState,
+    //       mineruAction: sourceOption.mineruAction,
+    //       mineruActionTitle: sourceOption.mineruActionTitle,
+    //       mineruCacheReveal: canRevealMineruCacheForSourceOption(sourceOption),
+    //       selected:
+    //         sourceOption.mode === currentMode &&
+    //         sourceOption.paperContext.contextItemId ===
+    //           paperContext.contextItemId,
+    //       sourceOption: true,
+    //     }),
+    //   );
+    // }
+    // if (!menu.childElementCount) {
+    //   menu.appendChild(
+    //     buildPaperChipMenuCard(ownerDoc, paperContext, {
+    //       contentSourceMode: currentMode,
+    //     }),
+    //   );
+    // }
+    positionPaperChipMenuAboveAnchor(menu, chip);
+    menu.style.display = "grid";
+  };
+  refreshOpenPaperChipMenu = () => {
+    if (
+      !paperChipMenu ||
+      !paperChipMenuAnchor ||
+      !paperChipMenuTarget ||
+      paperChipMenu.style.display === "none"
+    ) {
+      return;
+    }
+    openPaperChipMenu(paperChipMenuAnchor, paperChipMenuTarget, {
+      sticky: paperChipMenuSticky,
+    });
+  };
+  const schedulePaperChipMenuClose = () => {
+    if (paperChipMenuSticky) return;
+    const win = body.ownerDocument?.defaultView;
+    if (!win) {
+      closePaperChipMenu();
+      return;
+    }
+    clearPaperChipMenuHideTimer();
+    paperChipMenuHideTimer = win.setTimeout(() => {
+      closePaperChipMenu();
+    }, 100);
+  };
+  const resolvePaperContextFromChipElement = (
+    chip: HTMLElement,
+  ): PaperContextRef | null => {
+    // if (chip.dataset.autoLoaded === "true") {
+    //   return resolveAutoLoadedPaperContext();
+    // }
+    const paperItemId = Number.parseInt(chip.dataset.paperItemId || "", 10);
+    const contextItemId = Number.parseInt(
+      chip.dataset.paperContextItemId || "",
+      10,
+    );
+    // if (
+    //   !Number.isFinite(paperItemId) ||
+    //   paperItemId <= 0 ||
+    //   !Number.isFinite(contextItemId) ||
+    //   contextItemId <= 0
+    // ) {
+    //   return null;
+    // }
+    // if (item) {
+    //   const selectedPapers = getManualPaperContextsForItem(
+    //     item.id,
+    //     resolveAutoLoadedPaperContext(),
+    //   );
+    //   const matchedPaper = selectedPapers.find(
+    //     (paperContext) =>
+    //       paperContext.itemId === paperItemId &&
+    //       paperContext.contextItemId === contextItemId,
+    //   );
+    //   if (matchedPaper) {
+    //     return matchedPaper;
+    //   }
+    // }
+    // const attachment = Zotero.Items.get(contextItemId) || null;
+    // return resolvePaperContextRefFromAttachment(attachment);
+    return null;
+  };
+  const focusPaperContextInActiveTab = async (
+    paperContext: PaperContextRef,
+  ): Promise<boolean> => {
+    const tabs = (
+      Zotero as unknown as {
+        Tabs?: {
+          selectedType?: string;
+          getTabIDByItemID?: (itemID: number) => string;
+          select?: (id: string, reopening?: boolean, options?: unknown) => void;
+        };
+      }
+    ).Tabs;
+    const selectedType = String(tabs?.selectedType || "").toLowerCase();
+    if (selectedType.includes("reader")) {
+      const existingReaderTabId =
+        tabs?.getTabIDByItemID?.(paperContext.contextItemId) ||
+        tabs?.getTabIDByItemID?.(paperContext.itemId);
+      if (existingReaderTabId && typeof tabs?.select === "function") {
+        tabs.select(existingReaderTabId);
+        return true;
+      }
+      const readerApi = Zotero.Reader as
+        | {
+            open?: (
+              itemID: number,
+              location?: _ZoteroTypes.Reader.Location,
+            ) => Promise<void | _ZoteroTypes.ReaderInstance>;
+          }
         | undefined;
-      if (pane) {
+      if (typeof readerApi?.open === "function") {
+        await readerApi.open(paperContext.contextItemId);
+        return true;
+      }
+    }
+    const pane = Zotero.getActiveZoteroPane?.() as
+      _ZoteroTypes.ZoteroPane | undefined;
+    if (pane) {
+      if (typeof pane.selectItems === "function") {
+        const selectItems = pane.selectItems as (
+          itemIDs: number[],
+          options?: { selectInLibrary?: boolean },
+        ) => unknown;
+        const selected = await selectItems([paperContext.itemId], {
+          selectInLibrary: true,
+        });
+        if (selected !== false) return true;
+      }
+      if (typeof pane.selectItem === "function") {
+        const selected = pane.selectItem(paperContext.itemId, true);
+        if (selected !== false) return true;
+      }
+      if (paperContext.contextItemId !== paperContext.itemId) {
         if (typeof pane.selectItems === "function") {
           const selectItems = pane.selectItems as (
             itemIDs: number[],
             options?: { selectInLibrary?: boolean },
           ) => unknown;
-          const selected = await selectItems([paperContext.itemId], {
+          const selected = await selectItems([paperContext.contextItemId], {
             selectInLibrary: true,
           });
           if (selected !== false) return true;
         }
         if (typeof pane.selectItem === "function") {
-          const selected = pane.selectItem(paperContext.itemId, true);
+          const selected = pane.selectItem(paperContext.contextItemId, true);
           if (selected !== false) return true;
         }
-        if (paperContext.contextItemId !== paperContext.itemId) {
-          if (typeof pane.selectItems === "function") {
-            const selectItems = pane.selectItems as (
-              itemIDs: number[],
-              options?: { selectInLibrary?: boolean },
-            ) => unknown;
-            const selected = await selectItems([paperContext.contextItemId], {
-              selectInLibrary: true,
-            });
-            if (selected !== false) return true;
-          }
-          if (typeof pane.selectItem === "function") {
-            const selected = pane.selectItem(paperContext.contextItemId, true);
-            if (selected !== false) return true;
-          }
-        }
       }
-      return false;
-    };
+    }
+    return false;
+  };
 
-    const appendPaperChip = (
-      ownerDoc: Document,
-      list: HTMLDivElement,
-      paperContext: PaperContextRef,
-      options?: {
-        removable?: boolean;
-        removableIndex?: number;
-        autoLoaded?: boolean;
-        fullText?: boolean;
-        contentSourceMode?: PaperContentSourceMode;
+  const appendPaperChip = (
+    ownerDoc: Document,
+    list: HTMLDivElement,
+    paperContext: PaperContextRef,
+    options?: {
+      removable?: boolean;
+      removableIndex?: number;
+      autoLoaded?: boolean;
+      fullText?: boolean;
+      contentSourceMode?: PaperContentSourceMode;
+    },
+  ) => {
+    const removable = options?.removable === true;
+    const fullText = options?.fullText === true;
+    const contentSourceMode = options?.contentSourceMode || "text";
+    // const sourceOptions = buildPaperSourceOptions(paperContext);
+    // const hasSourceMenu = hasPaperChipSourceMenuOption(sourceOptions);
+    // const hasReaderFocus =
+    //   isPaperContextReaderFocusableSourceMode(contentSourceMode);
+    const isStaticChip = true; // !hasSourceMenu && !hasReaderFocus;
+    const chip = createElement(
+      ownerDoc,
+      "div",
+      "paperpilot-selected-context paperpilot-paper-context-chip",
+    );
+    chip.dataset.paperContextMenu = "false"; // hasSourceMenu ? "true" : "false";
+    chip.classList.toggle("paperpilot-paper-context-chip-static", isStaticChip);
+    if (options?.autoLoaded) {
+      chip.classList.add("paperpilot-paper-context-chip-autoloaded");
+      chip.dataset.autoLoaded = "true";
+    }
+    chip.dataset.paperItemId = `${paperContext.itemId}`;
+    chip.dataset.paperContextItemId = `${paperContext.contextItemId}`;
+    if (removable) {
+      chip.dataset.paperContextIndex = `${options?.removableIndex ?? -1}`;
+    }
+    chip.dataset.fullText = fullText ? "true" : "false";
+    chip.classList.toggle("paperpilot-paper-context-chip-full", fullText);
+    chip.dataset.contentSource = contentSourceMode;
+    // chip.classList.add(
+    //   getContextSourceModeCssClassName(
+    //     isWebChatMode() && contentSourceMode === "pdf" && !fullText
+    //       ? "text"
+    //       : contentSourceMode,
+    //   ),
+    // );
+    chip.classList.add("collapsed");
+
+    const chipHeader = createElement(
+      ownerDoc,
+      "div",
+      "paperpilot-image-preview-header paperpilot-selected-context-header paperpilot-paper-context-chip-header",
+    );
+    const chipLabel = createElement(
+      ownerDoc,
+      "span",
+      "paperpilot-paper-context-chip-label",
+      {
+        // title: formatPaperContextChipTitle(paperContext, contentSourceMode),
       },
-    ) => {
-      const removable = options?.removable === true;
-      const fullText = options?.fullText === true;
-      const contentSourceMode = options?.contentSourceMode || "text";
-      // const sourceOptions = buildPaperSourceOptions(paperContext);
-      // const hasSourceMenu = hasPaperChipSourceMenuOption(sourceOptions);
-      // const hasReaderFocus =
-      //   isPaperContextReaderFocusableSourceMode(contentSourceMode);
-      const isStaticChip = true; // !hasSourceMenu && !hasReaderFocus;
-      const chip = createElement(
-        ownerDoc,
-        "div",
-        "paperpilot-selected-context paperpilot-paper-context-chip",
-      );
-      chip.dataset.paperContextMenu = "false"; // hasSourceMenu ? "true" : "false";
-      chip.classList.toggle("paperpilot-paper-context-chip-static", isStaticChip);
-      if (options?.autoLoaded) {
-        chip.classList.add("paperpilot-paper-context-chip-autoloaded");
-        chip.dataset.autoLoaded = "true";
-      }
-      chip.dataset.paperItemId = `${paperContext.itemId}`;
-      chip.dataset.paperContextItemId = `${paperContext.contextItemId}`;
-      if (removable) {
-        chip.dataset.paperContextIndex = `${options?.removableIndex ?? -1}`;
-      }
-      chip.dataset.fullText = fullText ? "true" : "false";
-      chip.classList.toggle("paperpilot-paper-context-chip-full", fullText);
-      chip.dataset.contentSource = contentSourceMode;
-      // chip.classList.add(
-      //   getContextSourceModeCssClassName(
-      //     isWebChatMode() && contentSourceMode === "pdf" && !fullText
-      //       ? "text"
-      //       : contentSourceMode,
-      //   ),
-      // );
-      chip.classList.add("collapsed");
-
-      const chipHeader = createElement(
-        ownerDoc,
-        "div",
-        "paperpilot-image-preview-header paperpilot-selected-context-header paperpilot-paper-context-chip-header",
-      );
-      const chipLabel = createElement(
-        ownerDoc,
-        "span",
-        "paperpilot-paper-context-chip-label",
-        {
-          // title: formatPaperContextChipTitle(paperContext, contentSourceMode),
-        },
-      );
-      // const chipIcon = createContextIcon(
-      //   ownerDoc,
-      //   "paper",
-      //   "paperpilot-paper-context-chip-icon",
-      // );
-      const chipText = createElement(
-        ownerDoc,
-        "span",
-        "paperpilot-paper-context-chip-text",
-        {
-          // textContent: formatPaperContextChipLabel(
-          //   paperContext,
-          //   contentSourceMode,
-          // ),
-        },
-      );
-      // chipLabel.append(chipIcon, chipText);
-      chipHeader.append(chipLabel);
-
-      if (removable) {
-        const removeBtn = createElement(
-          ownerDoc,
-          "button",
-          "paperpilot-remove-img-btn paperpilot-paper-context-clear",
-          {
-            type: "button",
-            textContent: "×",
-            title: `Remove ${paperContext.title}`,
-          },
-        ) as HTMLButtonElement;
-        removeBtn.dataset.paperContextIndex = `${options?.removableIndex ?? -1}`;
-        removeBtn.setAttribute("aria-label", `Remove ${paperContext.title}`);
-        chipHeader.append(removeBtn);
-      }
-
-      // Inline expanded paper card (shown on hover via CSS, or sticky when .expanded class present)
-      const chipExpanded = createElement(
-        ownerDoc,
-        "div",
-        "paperpilot-selected-context-expanded paperpilot-paper-context-chip-expanded",
-      );
-      // chipExpanded.appendChild(
-      //   buildPaperChipMenuCard(ownerDoc, paperContext, { contentSourceMode }),
-      // );
-      chip.append(chipExpanded);
-      chip.append(chipHeader);
-
-      // Restore expanded (sticky) state after re-render
-      const currentExpandedId = item
-        ? selectedPaperPreviewExpandedCache.get(item.id)
-        : undefined;
-      if (
-        typeof currentExpandedId === "number" &&
-        currentExpandedId === paperContext.contextItemId
-      ) {
-        chip.classList.add("expanded");
-        chip.classList.remove("collapsed");
-      }
-      list.appendChild(chip);
-    };
-
-    const appendPaperSummaryChip = (
-      ownerDoc: Document,
-      list: HTMLDivElement,
-      params: {
-        paperCount: number;
-        expanded: boolean;
-        label: string;
+    );
+    // const chipIcon = createContextIcon(
+    //   ownerDoc,
+    //   "paper",
+    //   "paperpilot-paper-context-chip-icon",
+    // );
+    const chipText = createElement(
+      ownerDoc,
+      "span",
+      "paperpilot-paper-context-chip-text",
+      {
+        // textContent: formatPaperContextChipLabel(
+        //   paperContext,
+        //   contentSourceMode,
+        // ),
       },
-    ) => {
-      const summaryChip = createElement(
-        ownerDoc,
-        "div",
-        "paperpilot-selected-context paperpilot-paper-context-summary-chip",
-      ) as HTMLDivElement;
-      summaryChip.dataset.paperContextSummary = "true";
-      summaryChip.dataset.paperContextCount = `${params.paperCount}`;
+    );
+    // chipLabel.append(chipIcon, chipText);
+    chipHeader.append(chipLabel);
 
-      const summaryToggle = createElement(
+    if (removable) {
+      const removeBtn = createElement(
         ownerDoc,
         "button",
-        "paperpilot-paper-context-summary-toggle",
+        "paperpilot-remove-img-btn paperpilot-paper-context-clear",
         {
           type: "button",
-          title: params.expanded
-            ? t("Collapse paper contexts")
-            : t("Expand paper contexts"),
+          textContent: "×",
+          title: `Remove ${paperContext.title}`,
         },
       ) as HTMLButtonElement;
-      summaryToggle.setAttribute(
-        "aria-expanded",
-        params.expanded ? "true" : "false",
-      );
-      summaryToggle.setAttribute(
-        "aria-label",
-        params.expanded
+      removeBtn.dataset.paperContextIndex = `${options?.removableIndex ?? -1}`;
+      removeBtn.setAttribute("aria-label", `Remove ${paperContext.title}`);
+      chipHeader.append(removeBtn);
+    }
+
+    // Inline expanded paper card (shown on hover via CSS, or sticky when .expanded class present)
+    const chipExpanded = createElement(
+      ownerDoc,
+      "div",
+      "paperpilot-selected-context-expanded paperpilot-paper-context-chip-expanded",
+    );
+    // chipExpanded.appendChild(
+    //   buildPaperChipMenuCard(ownerDoc, paperContext, { contentSourceMode }),
+    // );
+    chip.append(chipExpanded);
+    chip.append(chipHeader);
+
+    // Restore expanded (sticky) state after re-render
+    const currentExpandedId = item
+      ? selectedPaperPreviewExpandedCache.get(item.id)
+      : undefined;
+    if (
+      typeof currentExpandedId === "number" &&
+      currentExpandedId === paperContext.contextItemId
+    ) {
+      chip.classList.add("expanded");
+      chip.classList.remove("collapsed");
+    }
+    list.appendChild(chip);
+  };
+
+  const appendPaperSummaryChip = (
+    ownerDoc: Document,
+    list: HTMLDivElement,
+    params: {
+      paperCount: number;
+      expanded: boolean;
+      label: string;
+    },
+  ) => {
+    const summaryChip = createElement(
+      ownerDoc,
+      "div",
+      "paperpilot-selected-context paperpilot-paper-context-summary-chip",
+    ) as HTMLDivElement;
+    summaryChip.dataset.paperContextSummary = "true";
+    summaryChip.dataset.paperContextCount = `${params.paperCount}`;
+
+    const summaryToggle = createElement(
+      ownerDoc,
+      "button",
+      "paperpilot-paper-context-summary-toggle",
+      {
+        type: "button",
+        title: params.expanded
           ? t("Collapse paper contexts")
           : t("Expand paper contexts"),
-      );
+      },
+    ) as HTMLButtonElement;
+    summaryToggle.setAttribute(
+      "aria-expanded",
+      params.expanded ? "true" : "false",
+    );
+    summaryToggle.setAttribute(
+      "aria-label",
+      params.expanded
+        ? t("Collapse paper contexts")
+        : t("Expand paper contexts"),
+    );
 
-      // const summaryIcon = createContextIcon(
-      //   ownerDoc,
-      //   "papers",
-      //   "paperpilot-paper-context-summary-icon",
-      // );
-      const summaryText = createElement(
-        ownerDoc,
-        "span",
-        "paperpilot-paper-context-summary-text",
-        { textContent: params.label },
-      );
-      // summaryToggle.append(summaryIcon, summaryText);
-      const clearButton = createElement(
-        ownerDoc,
-        "button",
-        "paperpilot-remove-img-btn paperpilot-paper-context-summary-clear",
-        {
-          type: "button",
-          textContent: "×",
-          title: t("Clear all context"),
-        },
-      ) as HTMLButtonElement;
-      clearButton.setAttribute("aria-label", t("Clear all context"));
-      summaryChip.append(summaryToggle, clearButton);
-      list.appendChild(summaryChip);
-    };
+    // const summaryIcon = createContextIcon(
+    //   ownerDoc,
+    //   "papers",
+    //   "paperpilot-paper-context-summary-icon",
+    // );
+    const summaryText = createElement(
+      ownerDoc,
+      "span",
+      "paperpilot-paper-context-summary-text",
+      { textContent: params.label },
+    );
+    // summaryToggle.append(summaryIcon, summaryText);
+    const clearButton = createElement(
+      ownerDoc,
+      "button",
+      "paperpilot-remove-img-btn paperpilot-paper-context-summary-clear",
+      {
+        type: "button",
+        textContent: "×",
+        title: t("Clear all context"),
+      },
+    ) as HTMLButtonElement;
+    clearButton.setAttribute("aria-label", t("Clear all context"));
+    summaryChip.append(summaryToggle, clearButton);
+    list.appendChild(summaryChip);
+  };
 
-    const appendOtherRefChip = (
-      ownerDoc: Document,
-      list: HTMLDivElement,
-      ref: OtherContextRef,
-      removableIndex: number,
-    ) => {
-      const chip = createElement(
-        ownerDoc,
-        "div",
-        `paperpilot-selected-context paperpilot-other-ref-chip paperpilot-other-ref-chip-${ref.refKind}`,
-      );
-      chip.dataset.otherRefItemId = `${ref.contextItemId}`;
-      chip.dataset.otherRefIndex = `${removableIndex}`;
-      chip.classList.add("collapsed");
+  const appendOtherRefChip = (
+    ownerDoc: Document,
+    list: HTMLDivElement,
+    ref: OtherContextRef,
+    removableIndex: number,
+  ) => {
+    const chip = createElement(
+      ownerDoc,
+      "div",
+      `paperpilot-selected-context paperpilot-other-ref-chip paperpilot-other-ref-chip-${ref.refKind}`,
+    );
+    chip.dataset.otherRefItemId = `${ref.contextItemId}`;
+    chip.dataset.otherRefIndex = `${removableIndex}`;
+    chip.classList.add("collapsed");
 
-      const chipHeader = createElement(
-        ownerDoc,
-        "div",
-        "paperpilot-image-preview-header paperpilot-selected-context-header paperpilot-other-ref-chip-header",
-      );
-      const chipLabel = createElement(
-        ownerDoc,
-        "span",
-        "paperpilot-other-ref-chip-label",
-        {
-          title: `${ref.refKind === "figure" ? "Figure" : "File"}: ${ref.title}`,
-        },
-      );
-      // const chipIcon = createContextIcon(
-      //   ownerDoc,
-      //   ref.refKind === "figure" ? "image" : "file",
-      //   "paperpilot-other-ref-chip-icon",
-      // );
-      const chipTitle = createElement(
-        ownerDoc,
-        "span",
-        "paperpilot-other-ref-chip-title",
-        { textContent: ref.title },
-      );
-      // chipLabel.append(chipIcon, chipTitle);
-      const removeBtn = createElement(
-        ownerDoc,
-        "button",
-        "paperpilot-remove-img-btn paperpilot-other-ref-clear",
-        {
-          type: "button",
-          textContent: "×",
-          title: `Remove ${ref.title}`,
-        },
-      ) as HTMLButtonElement;
-      removeBtn.dataset.otherRefIndex = `${removableIndex}`;
-      removeBtn.setAttribute("aria-label", `Remove ${ref.title}`);
-      chipHeader.append(chipLabel, removeBtn);
-      chip.appendChild(chipHeader);
-      list.appendChild(chip);
-    };
+    const chipHeader = createElement(
+      ownerDoc,
+      "div",
+      "paperpilot-image-preview-header paperpilot-selected-context-header paperpilot-other-ref-chip-header",
+    );
+    const chipLabel = createElement(
+      ownerDoc,
+      "span",
+      "paperpilot-other-ref-chip-label",
+      {
+        title: `${ref.refKind === "figure" ? "Figure" : "File"}: ${ref.title}`,
+      },
+    );
+    // const chipIcon = createContextIcon(
+    //   ownerDoc,
+    //   ref.refKind === "figure" ? "image" : "file",
+    //   "paperpilot-other-ref-chip-icon",
+    // );
+    const chipTitle = createElement(
+      ownerDoc,
+      "span",
+      "paperpilot-other-ref-chip-title",
+      { textContent: ref.title },
+    );
+    // chipLabel.append(chipIcon, chipTitle);
+    const removeBtn = createElement(
+      ownerDoc,
+      "button",
+      "paperpilot-remove-img-btn paperpilot-other-ref-clear",
+      {
+        type: "button",
+        textContent: "×",
+        title: `Remove ${ref.title}`,
+      },
+    ) as HTMLButtonElement;
+    removeBtn.dataset.otherRefIndex = `${removableIndex}`;
+    removeBtn.setAttribute("aria-label", `Remove ${ref.title}`);
+    chipHeader.append(chipLabel, removeBtn);
+    chip.appendChild(chipHeader);
+    list.appendChild(chip);
+  };
 
-    const appendCollectionChip = (
-      ownerDoc: Document,
-      list: HTMLDivElement,
-      ref: CollectionContextRef,
-      removableIndex: number,
-    ) => {
-      const chip = createElement(
-        ownerDoc,
-        "div",
-        "paperpilot-selected-context paperpilot-collection-context-chip",
-      );
-      chip.dataset.collectionId = `${ref.collectionId}`;
-      chip.dataset.collectionIndex = `${removableIndex}`;
-      chip.classList.add("collapsed");
+  const appendCollectionChip = (
+    ownerDoc: Document,
+    list: HTMLDivElement,
+    ref: CollectionContextRef,
+    removableIndex: number,
+  ) => {
+    const chip = createElement(
+      ownerDoc,
+      "div",
+      "paperpilot-selected-context paperpilot-collection-context-chip",
+    );
+    chip.dataset.collectionId = `${ref.collectionId}`;
+    chip.dataset.collectionIndex = `${removableIndex}`;
+    chip.classList.add("collapsed");
 
-      const chipHeader = createElement(
-        ownerDoc,
-        "div",
-        "paperpilot-image-preview-header paperpilot-selected-context-header paperpilot-collection-chip-header",
-      );
-      const chipLabel = createElement(
-        ownerDoc,
-        "span",
-        "paperpilot-collection-chip-label",
-        {
-          title: `Collection: ${ref.name}`,
-        },
-      );
-      // const chipIcon = createContextIcon(
-      //   ownerDoc,
-      //   "collection",
-      //   "paperpilot-collection-chip-icon",
-      // );
-      const chipTitle = createElement(
-        ownerDoc,
-        "span",
-        "paperpilot-collection-chip-title",
-        { textContent: ref.name },
-      );
-      // chipLabel.append(chipIcon, chipTitle);
-      const removeBtn = createElement(
-        ownerDoc,
-        "button",
-        "paperpilot-remove-img-btn paperpilot-collection-clear",
-        {
-          type: "button",
-          textContent: "\u00D7",
-          title: `Remove ${ref.name}`,
-        },
-      ) as HTMLButtonElement;
-      removeBtn.dataset.collectionIndex = `${removableIndex}`;
-      removeBtn.setAttribute("aria-label", `Remove ${ref.name}`);
-      chipHeader.append(chipLabel, removeBtn);
-      chip.appendChild(chipHeader);
-      list.appendChild(chip);
-    };
+    const chipHeader = createElement(
+      ownerDoc,
+      "div",
+      "paperpilot-image-preview-header paperpilot-selected-context-header paperpilot-collection-chip-header",
+    );
+    const chipLabel = createElement(
+      ownerDoc,
+      "span",
+      "paperpilot-collection-chip-label",
+      {
+        title: `Collection: ${ref.name}`,
+      },
+    );
+    // const chipIcon = createContextIcon(
+    //   ownerDoc,
+    //   "collection",
+    //   "paperpilot-collection-chip-icon",
+    // );
+    const chipTitle = createElement(
+      ownerDoc,
+      "span",
+      "paperpilot-collection-chip-title",
+      { textContent: ref.name },
+    );
+    // chipLabel.append(chipIcon, chipTitle);
+    const removeBtn = createElement(
+      ownerDoc,
+      "button",
+      "paperpilot-remove-img-btn paperpilot-collection-clear",
+      {
+        type: "button",
+        textContent: "\u00D7",
+        title: `Remove ${ref.name}`,
+      },
+    ) as HTMLButtonElement;
+    removeBtn.dataset.collectionIndex = `${removableIndex}`;
+    removeBtn.setAttribute("aria-label", `Remove ${ref.name}`);
+    chipHeader.append(chipLabel, removeBtn);
+    chip.appendChild(chipHeader);
+    list.appendChild(chip);
+  };
 
-    const appendTagChip = (
-      ownerDoc: Document,
-      list: HTMLDivElement,
-      ref: TagContextRef,
-      removableIndex: number,
-    ) => {
-      const chip = createElement(
-        ownerDoc,
-        "div",
-        "paperpilot-selected-context paperpilot-tag-context-chip",
-      );
-      chip.dataset.tagIndex = `${removableIndex}`;
-      chip.classList.add("collapsed");
+  const appendTagChip = (
+    ownerDoc: Document,
+    list: HTMLDivElement,
+    ref: TagContextRef,
+    removableIndex: number,
+  ) => {
+    const chip = createElement(
+      ownerDoc,
+      "div",
+      "paperpilot-selected-context paperpilot-tag-context-chip",
+    );
+    chip.dataset.tagIndex = `${removableIndex}`;
+    chip.classList.add("collapsed");
 
-      const chipHeader = createElement(
-        ownerDoc,
-        "div",
-        "paperpilot-image-preview-header paperpilot-selected-context-header paperpilot-tag-chip-header",
-      );
-      const chipLabel = createElement(ownerDoc, "span", "paperpilot-tag-chip-label", {
+    const chipHeader = createElement(
+      ownerDoc,
+      "div",
+      "paperpilot-image-preview-header paperpilot-selected-context-header paperpilot-tag-chip-header",
+    );
+    const chipLabel = createElement(
+      ownerDoc,
+      "span",
+      "paperpilot-tag-chip-label",
+      {
         title: `Tag: ${ref.name}`,
-      });
-      // const chipIcon = createContextIcon(ownerDoc, "tag", "paperpilot-tag-chip-icon");
-      const chipTitle = createElement(ownerDoc, "span", "paperpilot-tag-chip-title", {
+      },
+    );
+    // const chipIcon = createContextIcon(ownerDoc, "tag", "paperpilot-tag-chip-icon");
+    const chipTitle = createElement(
+      ownerDoc,
+      "span",
+      "paperpilot-tag-chip-title",
+      {
         textContent: ref.name,
-      });
-      // chipLabel.append(chipIcon, chipTitle);
-      const removeBtn = createElement(
-        ownerDoc,
-        "button",
-        "paperpilot-remove-img-btn paperpilot-tag-clear",
-        {
-          type: "button",
-          textContent: "\u00D7",
-          title: `Remove ${ref.name}`,
-        },
-      ) as HTMLButtonElement;
-      removeBtn.dataset.tagIndex = `${removableIndex}`;
-      removeBtn.setAttribute("aria-label", `Remove ${ref.name}`);
-      chipHeader.append(chipLabel, removeBtn);
-      chip.appendChild(chipHeader);
-      list.appendChild(chip);
+      },
+    );
+    // chipLabel.append(chipIcon, chipTitle);
+    const removeBtn = createElement(
+      ownerDoc,
+      "button",
+      "paperpilot-remove-img-btn paperpilot-tag-clear",
+      {
+        type: "button",
+        textContent: "\u00D7",
+        title: `Remove ${ref.name}`,
+      },
+    ) as HTMLButtonElement;
+    removeBtn.dataset.tagIndex = `${removableIndex}`;
+    removeBtn.setAttribute("aria-label", `Remove ${ref.name}`);
+    chipHeader.append(chipLabel, removeBtn);
+    chip.appendChild(chipHeader);
+    list.appendChild(chip);
+  };
+
+  // const updatePaperPreview = () => {
+  //   if (!item || !paperPreview || !paperPreviewList) return;
+  //   closePaperChipMenu();
+  //   const itemId = item.id;
+  //   const autoLoadedPaperContext = resolveAutoLoadedPaperContext();
+  //   const selectedPapers = getManualPaperContextsForItem(
+  //     itemId,
+  //     autoLoadedPaperContext,
+  //   );
+  //   const selectedOtherRefs = selectedOtherRefContextCache.get(itemId) || [];
+  //   const selectedCollections =
+  //     selectedCollectionContextCache.get(itemId) || [];
+  //   const selectedTags = selectedTagContextCache.get(itemId) || [];
+  //   const hasAnyContext =
+  //     selectedPapers.length > 0 ||
+  //     selectedOtherRefs.length > 0 ||
+  //     selectedCollections.length > 0 ||
+  //     selectedTags.length > 0 ||
+  //     !!autoLoadedPaperContext;
+  //   if (!hasAnyContext) {
+  //     paperPreview.style.display = "none";
+  //     paperPreviewList.innerHTML = "";
+  //     clearSelectedPaperState(itemId);
+  //     clearPaperContentSourceOverrides(itemId);
+  //     return;
+  //   }
+  //   if (selectedPapers.length) {
+  //     selectedPaperContextCache.set(itemId, selectedPapers);
+  //   } else {
+  //     selectedPaperContextCache.delete(itemId);
+  //     selectedPaperPreviewExpandedCache.delete(itemId);
+  //     // Don't clear mode overrides when an auto-loaded paper exists — its
+  //     // override (e.g. webchat PDF toggle) must survive re-renders.
+  //     if (!autoLoadedPaperContext) {
+  //       clearPaperModeOverrides(itemId);
+  //     }
+  //   }
+  //   // Do not reset expanded state here — preserve which chip was sticky across re-renders
+  //   paperPreview.style.display = "contents";
+  //   paperPreviewList.style.display = "contents";
+  //   paperPreviewList.innerHTML = "";
+  //   const ownerDoc = body.ownerDocument;
+  //   if (!ownerDoc) return;
+  //   const effectivePaperCount =
+  //     selectedPapers.length + (autoLoadedPaperContext ? 1 : 0);
+  //   const paperCollapseState = getPaperContextCollapseState({
+  //     itemId,
+  //     paperCount: effectivePaperCount,
+  //     expandedByItem: selectedPaperContextListExpandedCache,
+  //   });
+  //   if (paperCollapseState.showSummaryChip) {
+  //     appendPaperSummaryChip(ownerDoc, paperPreviewList, {
+  //       paperCount: effectivePaperCount,
+  //       expanded: paperCollapseState.expanded,
+  //       label: paperCollapseState.summaryLabel,
+  //     });
+  //   }
+  //   if (paperCollapseState.showPaperChips) {
+  //     if (autoLoadedPaperContext) {
+  //       appendPaperChip(ownerDoc, paperPreviewList, autoLoadedPaperContext, {
+  //         autoLoaded: true,
+  //         fullText: isPaperContextFullTextMode(
+  //           resolvePaperContextNextSendMode(itemId, autoLoadedPaperContext),
+  //         ),
+  //         contentSourceMode: resolvePaperContentSourceMode(
+  //           itemId,
+  //           autoLoadedPaperContext,
+  //         ),
+  //       });
+  //     }
+  //     selectedPapers.forEach((paperContext, index) => {
+  //       appendPaperChip(ownerDoc, paperPreviewList, paperContext, {
+  //         removable: true,
+  //         removableIndex: index,
+  //         fullText: isPaperContextFullTextMode(
+  //           resolvePaperContextNextSendMode(itemId, paperContext),
+  //         ),
+  //         contentSourceMode: resolvePaperContentSourceMode(
+  //           itemId,
+  //           paperContext,
+  //         ),
+  //       });
+  //     });
+  //   }
+  //   selectedOtherRefs.forEach((ref, index) => {
+  //     appendOtherRefChip(ownerDoc, paperPreviewList, ref, index);
+  //   });
+  //   selectedCollections.forEach((ref, index) => {
+  //     appendCollectionChip(ownerDoc, paperPreviewList, ref, index);
+  //   });
+  //   selectedTags.forEach((ref, index) => {
+  //     appendTagChip(ownerDoc, paperPreviewList, ref, index);
+  //   });
+  // };
+
+  // const updateFilePreview = () => {
+  //   if (
+  //     !item ||
+  //     !filePreview ||
+  //     !filePreviewMeta ||
+  //     !filePreviewExpanded ||
+  //     !filePreviewList
+  //   )
+  //     return;
+  //   const itemId = item.id;
+  //   const allFiles = selectedFileAttachmentCache.get(itemId) || [];
+  //   // Exclude PDF-paper attachments from file preview — they're shown under the paper chip instead
+  //   const files = allFiles.filter(
+  //     (f) =>
+  //       !(
+  //         typeof f.id === "string" &&
+  //         (f.id.startsWith("pdf-paper-") || f.id.startsWith("pdf-page-"))
+  //       ),
+  //   );
+  //   prunePinnedFileKeys(pinnedFileKeys, itemId, files);
+  //   if (!files.length) {
+  //     filePreview.style.display = "none";
+  //     filePreview.classList.remove("expanded", "collapsed");
+  //     filePreviewExpanded.style.display = "none";
+  //     filePreviewMeta.textContent = formatFileCountLabel(0);
+  //     filePreviewMeta.classList.remove("expanded");
+  //     filePreviewMeta.setAttribute("aria-expanded", "false");
+  //     filePreviewMeta.title = t("Expand files panel");
+  //     filePreviewList.innerHTML = "";
+  //     clearSelectedFileState(itemId);
+  //     return;
+  //   }
+  //   let expanded = selectedFilePreviewExpandedCache.get(itemId);
+  //   if (typeof expanded !== "boolean") {
+  //     expanded = false;
+  //     selectedFilePreviewExpandedCache.set(itemId, false);
+  //   }
+  //   filePreview.style.display = "flex";
+  //   filePreview.classList.toggle("expanded", expanded);
+  //   filePreview.classList.toggle("collapsed", !expanded);
+  //   filePreviewExpanded.style.display = "grid";
+  //   filePreviewMeta.textContent = formatFileCountLabel(files.length);
+  //   filePreviewMeta.classList.toggle("expanded", expanded);
+  //   filePreviewMeta.setAttribute("aria-expanded", expanded ? "true" : "false");
+  //   filePreviewMeta.title = expanded
+  //     ? t("Collapse files panel")
+  //     : t("Expand files panel");
+  //   filePreviewList.innerHTML = "";
+  //   const ownerDoc = body.ownerDocument;
+  //   if (!ownerDoc) return;
+  //   files.forEach((attachment, index) => {
+  //     const row = createElement(ownerDoc, "div", "paperpilot-file-context-item");
+  //     row.dataset.fileContextIndex = `${index}`;
+  //     const pinned = isPinnedFile(pinnedFileKeys, itemId, attachment);
+  //     row.classList.toggle("paperpilot-file-context-item-pinned", pinned);
+  //     row.dataset.pinned = pinned ? "true" : "false";
+  //     const type = createElement(ownerDoc, "span", "paperpilot-file-context-type", {
+  //       textContent: getAttachmentTypeLabel(attachment),
+  //       title: attachment.mimeType || attachment.category || "file",
+  //     });
+  //     const info = createElement(ownerDoc, "div", "paperpilot-file-context-text");
+  //     const name = createElement(ownerDoc, "span", "paperpilot-file-context-name", {
+  //       textContent: attachment.name,
+  //       title: attachment.name,
+  //     });
+  //     const meta = createElement(
+  //       ownerDoc,
+  //       "span",
+  //       "paperpilot-file-context-meta-info",
+  //       {
+  //         textContent: `${attachment.mimeType || "application/octet-stream"} · ${(attachment.sizeBytes / 1024 / 1024).toFixed(2)} MB`,
+  //       },
+  //     );
+  //     const removeBtn = createElement(
+  //       ownerDoc,
+  //       "button",
+  //       "paperpilot-file-context-remove",
+  //       {
+  //         type: "button",
+  //         textContent: "×",
+  //         title: `Remove ${attachment.name}`,
+  //       },
+  //     );
+  //     removeBtn.addEventListener("click", (e: Event) => {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       if (!item) return;
+  //       const currentFiles = selectedFileAttachmentCache.get(item.id) || [];
+  //       const removedEntry = attachment;
+  //       const nextFiles = currentFiles.filter((f) => f.id !== removedEntry.id);
+  //       removePinnedFile(pinnedFileKeys, item.id, removedEntry);
+  //       if (nextFiles.length) {
+  //         selectedFileAttachmentCache.set(item.id, nextFiles);
+  //       } else {
+  //         clearSelectedFileState(item.id);
+  //       }
+  //       if (
+  //         removedEntry?.storedPath &&
+  //         !removedEntry.contentHash &&
+  //         !isManagedBlobPath(removedEntry.storedPath)
+  //       ) {
+  //         void removeAttachmentFile(removedEntry.storedPath).catch((err) => {
+  //           ztoolkit.log(
+  //             "LLM: Failed to remove discarded attachment file",
+  //             err,
+  //           );
+  //         });
+  //       } else if (removedEntry?.storedPath) {
+  //         scheduleAttachmentGc();
+  //       }
+  //       updateFilePreviewPreservingScroll();
+  //       if (status) {
+  //         setStatus(
+  //           status,
+  //           `${t("Attachment removed")} (${nextFiles.length})`,
+  //           "ready",
+  //         );
+  //       }
+  //     });
+  //     info.append(name, meta);
+  //     row.append(type, info, removeBtn);
+  //     filePreviewList.appendChild(row);
+  //   });
+  // };
+
+  // Helper to update image preview UI
+  // const updateImagePreview = () => {
+  //   if (
+  //     !item ||
+  //     !imagePreview ||
+  //     !previewStrip ||
+  //     !previewExpanded ||
+  //     !previewSelected ||
+  //     !previewSelectedImg ||
+  //     !previewMeta ||
+  //     !screenshotBtn
+  //   )
+  //     return;
+  //   const ownerDoc = body.ownerDocument;
+  //   if (!ownerDoc) return;
+  //   const selectedProfile = getSelectedProfile();
+  //   const currentModel = (
+  //     selectedProfile?.model ||
+  //     getSelectedModelInfo().currentModel ||
+  //     ""
+  //   ).trim();
+  //   const inputMode = getAdvancedModelParamsForEntry(
+  //     selectedProfile?.entryId,
+  //   )?.inputMode;
+  //   const screenshotUnsupported = isScreenshotUnsupportedModel(
+  //     currentModel,
+  //     selectedProfile?.providerProtocol,
+  //     selectedProfile?.authMode,
+  //     selectedProfile?.apiBase,
+  //     inputMode,
+  //   );
+  //   const screenshotDisabledHint = getScreenshotDisabledHint(currentModel);
+  //   let selectedImages = selectedImageCache.get(item.id) || [];
+  //   if (screenshotUnsupported && selectedImages.length) {
+  //     clearSelectedImageState(item.id);
+  //     selectedImages = [];
+  //   }
+  //   prunePinnedImageKeys(pinnedImageKeys, item.id, selectedImages);
+  //   if (selectedImages.length) {
+  //     const imageCount = selectedImages.length;
+  //     let expanded = selectedImagePreviewExpandedCache.get(item.id);
+  //     if (typeof expanded !== "boolean") {
+  //       expanded = false;
+  //       selectedImagePreviewExpandedCache.set(item.id, false);
+  //     }
+
+  //     let activeIndex = selectedImagePreviewActiveIndexCache.get(item.id);
+  //     if (typeof activeIndex !== "number" || !Number.isFinite(activeIndex)) {
+  //       activeIndex = imageCount - 1;
+  //     }
+  //     activeIndex = Math.max(
+  //       0,
+  //       Math.min(imageCount - 1, Math.floor(activeIndex)),
+  //     );
+  //     selectedImagePreviewActiveIndexCache.set(item.id, activeIndex);
+
+  //     previewMeta.textContent = formatFigureCountLabel(imageCount);
+  //     previewMeta.classList.toggle("expanded", expanded);
+  //     previewMeta.setAttribute("aria-expanded", expanded ? "true" : "false");
+  //     previewMeta.title = expanded
+  //       ? t("Collapse figures panel")
+  //       : t("Expand figures panel");
+
+  //     imagePreview.style.display = "flex";
+  //     imagePreview.classList.toggle("expanded", expanded);
+  //     imagePreview.classList.toggle("collapsed", !expanded);
+  //     previewExpanded.hidden = false;
+  //     previewExpanded.style.display = "grid";
+  //     previewSelected.style.display = "";
+
+  //     previewStrip.innerHTML = "";
+  //     for (const [index, imageUrl] of selectedImages.entries()) {
+  //       const thumbItem = createElement(ownerDoc, "div", "paperpilot-preview-item");
+  //       thumbItem.dataset.imageContextIndex = `${index}`;
+  //       const pinned = isPinnedImage(pinnedImageKeys, item.id, imageUrl);
+  //       thumbItem.classList.toggle("paperpilot-preview-item-pinned", pinned);
+  //       thumbItem.dataset.pinned = pinned ? "true" : "false";
+  //       const thumbBtn = createElement(
+  //         ownerDoc,
+  //         "button",
+  //         "paperpilot-preview-thumb",
+  //         {
+  //           type: "button",
+  //           title: `Screenshot ${index + 1}`,
+  //         },
+  //       ) as HTMLButtonElement;
+  //       thumbBtn.classList.toggle("active", index === activeIndex);
+  //       const thumb = createElement(ownerDoc, "img", "paperpilot-preview-img", {
+  //         alt: "Selected screenshot",
+  //       }) as HTMLImageElement;
+  //       thumb.src = imageUrl;
+  //       thumbBtn.appendChild(thumb);
+  //       thumbBtn.addEventListener("click", (e: Event) => {
+  //         e.preventDefault();
+  //         e.stopPropagation();
+  //         if (!item) return;
+  //         selectedImagePreviewActiveIndexCache.set(item.id, index);
+  //         if (selectedImagePreviewExpandedCache.get(item.id) !== true) {
+  //           selectedImagePreviewExpandedCache.set(item.id, true);
+  //         }
+  //         updateImagePreviewPreservingScroll();
+  //       });
+
+  //       const removeOneBtn = createElement(
+  //         ownerDoc,
+  //         "button",
+  //         "paperpilot-preview-remove-one",
+  //         {
+  //           type: "button",
+  //           textContent: "×",
+  //           title: `Remove screenshot ${index + 1}`,
+  //         },
+  //       );
+  //       removeOneBtn.addEventListener("click", (e: Event) => {
+  //         e.preventDefault();
+  //         e.stopPropagation();
+  //         if (!item) return;
+  //         const currentImages = selectedImageCache.get(item.id) || [];
+  //         if (index < 0 || index >= currentImages.length) return;
+  //         const removedImage = currentImages[index];
+  //         if (removedImage) {
+  //           removePinnedImage(pinnedImageKeys, item.id, removedImage);
+  //         }
+  //         const nextImages = currentImages.filter((_, i) => i !== index);
+  //         if (nextImages.length) {
+  //           selectedImageCache.set(item.id, nextImages);
+  //           let nextActive =
+  //             selectedImagePreviewActiveIndexCache.get(item.id) || 0;
+  //           if (index < nextActive) {
+  //             nextActive -= 1;
+  //           }
+  //           if (nextActive >= nextImages.length) {
+  //             nextActive = nextImages.length - 1;
+  //           }
+  //           selectedImagePreviewActiveIndexCache.set(item.id, nextActive);
+  //         } else {
+  //           clearSelectedImageState(item.id);
+  //         }
+  //         updateImagePreviewPreservingScroll();
+  //         if (status) {
+  //           setStatus(
+  //             status,
+  //             `Screenshot removed (${nextImages.length})`,
+  //             "ready",
+  //           );
+  //         }
+  //       });
+  //       thumbItem.append(thumbBtn, removeOneBtn);
+  //       previewStrip.appendChild(thumbItem);
+  //     }
+  //     previewSelectedImg.src = selectedImages[activeIndex];
+  //     previewSelectedImg.alt = `Selected screenshot ${activeIndex + 1}`;
+  //     screenshotBtn.disabled =
+  //       screenshotUnsupported || imageCount >= MAX_SELECTED_IMAGES;
+  //     screenshotBtn.title = screenshotUnsupported
+  //       ? screenshotDisabledHint
+  //       : imageCount >= MAX_SELECTED_IMAGES
+  //         ? `Max ${MAX_SELECTED_IMAGES} screenshots`
+  //         : `Add screenshot (${imageCount})`;
+  //   } else {
+  //     imagePreview.style.display = "none";
+  //     imagePreview.classList.remove("expanded", "collapsed");
+  //     previewExpanded.hidden = true;
+  //     previewExpanded.style.display = "none";
+  //     previewStrip.innerHTML = "";
+  //     previewSelected.style.display = "none";
+  //     previewSelectedImg.removeAttribute("src");
+  //     previewSelectedImg.alt = "Selected screenshot preview";
+  //     previewMeta.textContent = formatFigureCountLabel(0);
+  //     previewMeta.classList.remove("expanded");
+  //     previewMeta.setAttribute("aria-expanded", "false");
+  //     previewMeta.title = t("Expand figures panel");
+  //     clearSelectedImageState(item.id);
+  //     screenshotBtn.disabled = screenshotUnsupported;
+  //     screenshotBtn.title = screenshotUnsupported
+  //       ? screenshotDisabledHint
+  //       : "Select figure screenshot";
+  //   }
+  //   applyResponsiveActionButtonsLayout();
+  // };
+
+  // const updateSelectedTextPreview = () => {
+  //   if (!item) return;
+  //   const textContextKey = getTextContextConversationKey();
+  //   if (!textContextKey) return;
+  //   applySelectedTextPreview(body, textContextKey);
+  // };
+  const measureContextPreviewHeight = (): number => {
+    if (!contextPreviews) return 0;
+    const rect = contextPreviews.getBoundingClientRect?.();
+    const rectHeight = Number(rect?.height);
+    if (Number.isFinite(rectHeight) && rectHeight >= 0) return rectHeight;
+    const scrollHeight = Number(contextPreviews.scrollHeight);
+    if (Number.isFinite(scrollHeight) && scrollHeight >= 0) {
+      return scrollHeight;
+    }
+    const offsetHeight = Number(contextPreviews.offsetHeight);
+    return Number.isFinite(offsetHeight) && offsetHeight >= 0
+      ? offsetHeight
+      : 0;
+  };
+  const syncConversationPanelState = () => {
+    syncRequestUiForCurrentConversation();
+    // restoreDraftInputForCurrentConversation();
+    // updatePaperPreview();
+    // updateFilePreview();
+    // updateImagePreview();
+    // updateSelectedTextPreview();
+  };
+  activeContextPanelStateSync.set(body, syncConversationPanelState);
+  // const runPanelStateRefreshNow = () => {
+  //   const previousHeight = measureContextPreviewHeight();
+  //   if (!item) {
+  //     runWithChatScrollGuard(syncConversationPanelState);
+  //   } else {
+  //     refreshConversationPanels(body, item, {
+  //       includeChat: false,
+  //       includePanelState: true,
+  //     });
+  //   }
+  //   const nextHeight = measureContextPreviewHeight();
+  //   hooks?.onContextPreviewRendered?.({
+  //     previousHeight,
+  //     nextHeight,
+  //   });
+  // };
+  // const panelStateRefreshScheduler = createCoalescedFrameScheduler({
+  //   getWindow: () => body.ownerDocument?.defaultView || null,
+  //   run: runPanelStateRefreshNow,
+  // });
+  // const schedulePanelStateRefresh = () => {
+  //   panelStateRefreshScheduler.schedule();
+  // };
+  const flushPanelStateRefreshNow = () => {
+    // panelStateRefreshScheduler.flush();
+  };
+  // const updatePaperPreviewPreservingScroll = () => {
+  //   schedulePanelStateRefresh();
+  // };
+  // requestAutoLoadedPaperContextRefresh = updatePaperPreviewPreservingScroll;
+  // const updateFilePreviewPreservingScroll = () => {
+  //   schedulePanelStateRefresh();
+  // };
+  // const updateImagePreviewPreservingScroll = () => {
+  //   schedulePanelStateRefresh();
+  // };
+  // const updateSelectedTextPreviewPreservingScroll = () => {
+  //   schedulePanelStateRefresh();
+  // };
+  // cleanupMineruPaperSourceObservers = (() => {
+  //   const unsubscribeProcessing = onProcessingStatusChange(() => {
+  //     syncMineruPaperSourceState();
+  //     updatePaperPreviewPreservingScroll();
+  //     refreshOpenPaperChipMenu();
+  //   });
+  //   const unsubscribeBatch = onBatchStateChange(() => {
+  //     refreshOpenPaperChipMenu();
+  //   });
+  //   return () => {
+  //     unsubscribeProcessing();
+  //     unsubscribeBatch();
+  //   };
+  // })();
+  // const refreshChatPreservingScroll = () => {
+  //   if (!item) {
+  //     runWithChatScrollGuard(() => {
+  //       refreshChat(body, item);
+  //     });
+  //     return;
+  //   }
+  //   refreshConversationPanels(body, item);
+  // };
+
+  // resetComposePreviewUI = () => {
+  //   updatePaperPreviewPreservingScroll();
+  //   updateFilePreviewPreservingScroll();
+  //   updateImagePreviewPreservingScroll();
+  //   updateSelectedTextPreviewPreservingScroll();
+  // };
+
+  // const historyLifecycleController = createHistoryLifecycleController({
+  //   body,
+  //   inputBox,
+  //   panelRoot,
+  //   status,
+  //   historyBar,
+  //   titleStatic,
+  //   historyNewBtn,
+  //   historyNewMenu,
+  //   historyNewOpenBtn,
+  //   historyNewPaperBtn,
+  //   historyToggleBtn,
+  //   historyMenu,
+  //   historyRowMenu,
+  //   historyRowRenameBtn,
+  //   historyUndo,
+  //   historyUndoText,
+  //   historyUndoBtn,
+  //   topToast,
+  //   modeChipBtn,
+  //   claudeSystemToggleBtn,
+  //   getItem: () => item,
+  //   setItem: (nextItem) => {
+  //     item = nextItem as any;
+  //   },
+  //   getBasePaperItem: () => basePaperItem,
+  //   setBasePaperItem: (nextItem) => {
+  //     basePaperItem = nextItem;
+  //   },
+  //   getConversationSystem,
+  //   isClaudeConversationSystem,
+  //   isCodexConversationSystem,
+  //   isRuntimeConversationSystem,
+  //   isNoteSession,
+  //   isGlobalMode,
+  //   isPaperMode,
+  //   isWebChatMode,
+  //   getCurrentLibraryID,
+  //   resolveCurrentPaperBaseItem,
+  //   getManualPaperContextsForItem,
+  //   resolveAutoLoadedPaperContext,
+  //   refreshAutoLoadedPaperContextForCurrentItem,
+  //   persistDraftInputForCurrentConversation,
+  //   restoreDraftInputForCurrentConversation,
+  //   syncConversationIdentity,
+  //   syncQueuedFollowUpRegistration,
+  //   updateRuntimeModeButton,
+  //   updateClaudeSystemToggle,
+  //   refreshChatPreservingScroll,
+  //   resetComposePreviewUI,
+  //   updateModelButton: () => updateModelButton(),
+  //   updateReasoningButton: () => updateReasoningButton(),
+  //   updatePaperPreviewPreservingScroll,
+  //   clearForcedSkill: () => clearForcedSkill(),
+  //   closePaperPicker: () => closePaperPicker(),
+  //   closePromptMenu,
+  //   closeResponseMenu,
+  //   closeRetryModelMenu,
+  //   closeExportMenu,
+  //   closeHistoryRowMenu,
+  //   closeHistoryNewMenu,
+  //   closeHistoryMenu,
+  //   isHistoryMenuOpen,
+  //   isHistoryNewMenuOpen,
+  //   runWithChatScrollGuard,
+  //   clearSelectedImageState,
+  //   clearSelectedFileState,
+  //   clearSelectedTextState,
+  //   clearDraftInputState,
+  //   clearTransientComposeStateForItem,
+  //   scheduleAttachmentGc,
+  //   notifyConversationHistoryChanged,
+  //   renderWebChatHistoryMenu: () => renderWebChatHistoryMenu(),
+  //   closeModelMenu: () => closeModelMenu(),
+  //   closeReasoningMenu: () => closeReasoningMenu(),
+  //   closeSlashMenu: () => closeSlashMenu(),
+  //   getSelectedModelInfo: () => getSelectedModelInfo(),
+  //   markNextWebChatSendAsNewChat: () => markNextWebChatSendAsNewChat(),
+  //   primeFreshWebChatPaperChipState: () => primeFreshWebChatPaperChipState(),
+  //   updateImagePreviewPreservingScroll,
+  //   getPreferredTargetSystem,
+  //   switchConversationSystem,
+  //   setActiveEditSession: (value) => {
+  //     activeEditSession = value;
+  //   },
+  //   getCoreAgentRuntime: initAgentSubsystem,
+  //   clearAgentToolCaches: clearAllAgentToolCaches,
+  //   clearAgentConversationState,
+  //   setStatusMessage: status
+  //     ? (message, level) => {
+  //         setStatus(status, message, level);
+  //       }
+  //     : undefined,
+  //   log: (message, ...args) => {
+  //     ztoolkit.log(message, ...args);
+  //   },
+  // });
+  // refreshGlobalHistoryHeader =
+  //   historyLifecycleController.refreshGlobalHistoryHeader;
+  // switchGlobalConversation =
+  //   historyLifecycleController.switchGlobalConversation;
+  // switchPaperConversation = historyLifecycleController.switchPaperConversation;
+  // createAndSwitchGlobalConversation =
+  //   historyLifecycleController.createAndSwitchGlobalConversation;
+  // createAndSwitchPaperConversation =
+  //   historyLifecycleController.createAndSwitchPaperConversation;
+  // queueTurnDeletion = historyLifecycleController.queueTurnDeletion;
+  // forkConversationFromTurn =
+  //   historyLifecycleController.forkConversationFromTurn;
+  // clearPendingTurnDeletion =
+  //   historyLifecycleController.clearPendingTurnDeletion;
+  // resetHistorySearchState = historyLifecycleController.resetHistorySearchState;
+  // hasPendingTurnDeletionForConversation =
+  //   historyLifecycleController.hasPendingTurnDeletionForConversation;
+
+  const maybeStartWithFreshConversation = () => {
+    const startupBody = body as Element & {
+      __paperpilotFreshStartupConversationInFlight?: boolean;
     };
-
-    // const updatePaperPreview = () => {
-    //   if (!item || !paperPreview || !paperPreviewList) return;
-    //   closePaperChipMenu();
-    //   const itemId = item.id;
-    //   const autoLoadedPaperContext = resolveAutoLoadedPaperContext();
-    //   const selectedPapers = getManualPaperContextsForItem(
-    //     itemId,
-    //     autoLoadedPaperContext,
-    //   );
-    //   const selectedOtherRefs = selectedOtherRefContextCache.get(itemId) || [];
-    //   const selectedCollections =
-    //     selectedCollectionContextCache.get(itemId) || [];
-    //   const selectedTags = selectedTagContextCache.get(itemId) || [];
-    //   const hasAnyContext =
-    //     selectedPapers.length > 0 ||
-    //     selectedOtherRefs.length > 0 ||
-    //     selectedCollections.length > 0 ||
-    //     selectedTags.length > 0 ||
-    //     !!autoLoadedPaperContext;
-    //   if (!hasAnyContext) {
-    //     paperPreview.style.display = "none";
-    //     paperPreviewList.innerHTML = "";
-    //     clearSelectedPaperState(itemId);
-    //     clearPaperContentSourceOverrides(itemId);
-    //     return;
-    //   }
-    //   if (selectedPapers.length) {
-    //     selectedPaperContextCache.set(itemId, selectedPapers);
-    //   } else {
-    //     selectedPaperContextCache.delete(itemId);
-    //     selectedPaperPreviewExpandedCache.delete(itemId);
-    //     // Don't clear mode overrides when an auto-loaded paper exists — its
-    //     // override (e.g. webchat PDF toggle) must survive re-renders.
-    //     if (!autoLoadedPaperContext) {
-    //       clearPaperModeOverrides(itemId);
-    //     }
-    //   }
-    //   // Do not reset expanded state here — preserve which chip was sticky across re-renders
-    //   paperPreview.style.display = "contents";
-    //   paperPreviewList.style.display = "contents";
-    //   paperPreviewList.innerHTML = "";
-    //   const ownerDoc = body.ownerDocument;
-    //   if (!ownerDoc) return;
-    //   const effectivePaperCount =
-    //     selectedPapers.length + (autoLoadedPaperContext ? 1 : 0);
-    //   const paperCollapseState = getPaperContextCollapseState({
-    //     itemId,
-    //     paperCount: effectivePaperCount,
-    //     expandedByItem: selectedPaperContextListExpandedCache,
-    //   });
-    //   if (paperCollapseState.showSummaryChip) {
-    //     appendPaperSummaryChip(ownerDoc, paperPreviewList, {
-    //       paperCount: effectivePaperCount,
-    //       expanded: paperCollapseState.expanded,
-    //       label: paperCollapseState.summaryLabel,
-    //     });
-    //   }
-    //   if (paperCollapseState.showPaperChips) {
-    //     if (autoLoadedPaperContext) {
-    //       appendPaperChip(ownerDoc, paperPreviewList, autoLoadedPaperContext, {
-    //         autoLoaded: true,
-    //         fullText: isPaperContextFullTextMode(
-    //           resolvePaperContextNextSendMode(itemId, autoLoadedPaperContext),
-    //         ),
-    //         contentSourceMode: resolvePaperContentSourceMode(
-    //           itemId,
-    //           autoLoadedPaperContext,
-    //         ),
-    //       });
-    //     }
-    //     selectedPapers.forEach((paperContext, index) => {
-    //       appendPaperChip(ownerDoc, paperPreviewList, paperContext, {
-    //         removable: true,
-    //         removableIndex: index,
-    //         fullText: isPaperContextFullTextMode(
-    //           resolvePaperContextNextSendMode(itemId, paperContext),
-    //         ),
-    //         contentSourceMode: resolvePaperContentSourceMode(
-    //           itemId,
-    //           paperContext,
-    //         ),
-    //       });
-    //     });
-    //   }
-    //   selectedOtherRefs.forEach((ref, index) => {
-    //     appendOtherRefChip(ownerDoc, paperPreviewList, ref, index);
-    //   });
-    //   selectedCollections.forEach((ref, index) => {
-    //     appendCollectionChip(ownerDoc, paperPreviewList, ref, index);
-    //   });
-    //   selectedTags.forEach((ref, index) => {
-    //     appendTagChip(ownerDoc, paperPreviewList, ref, index);
-    //   });
-    // };
-
-    // const updateFilePreview = () => {
-    //   if (
-    //     !item ||
-    //     !filePreview ||
-    //     !filePreviewMeta ||
-    //     !filePreviewExpanded ||
-    //     !filePreviewList
-    //   )
-    //     return;
-    //   const itemId = item.id;
-    //   const allFiles = selectedFileAttachmentCache.get(itemId) || [];
-    //   // Exclude PDF-paper attachments from file preview — they're shown under the paper chip instead
-    //   const files = allFiles.filter(
-    //     (f) =>
-    //       !(
-    //         typeof f.id === "string" &&
-    //         (f.id.startsWith("pdf-paper-") || f.id.startsWith("pdf-page-"))
-    //       ),
-    //   );
-    //   prunePinnedFileKeys(pinnedFileKeys, itemId, files);
-    //   if (!files.length) {
-    //     filePreview.style.display = "none";
-    //     filePreview.classList.remove("expanded", "collapsed");
-    //     filePreviewExpanded.style.display = "none";
-    //     filePreviewMeta.textContent = formatFileCountLabel(0);
-    //     filePreviewMeta.classList.remove("expanded");
-    //     filePreviewMeta.setAttribute("aria-expanded", "false");
-    //     filePreviewMeta.title = t("Expand files panel");
-    //     filePreviewList.innerHTML = "";
-    //     clearSelectedFileState(itemId);
-    //     return;
-    //   }
-    //   let expanded = selectedFilePreviewExpandedCache.get(itemId);
-    //   if (typeof expanded !== "boolean") {
-    //     expanded = false;
-    //     selectedFilePreviewExpandedCache.set(itemId, false);
-    //   }
-    //   filePreview.style.display = "flex";
-    //   filePreview.classList.toggle("expanded", expanded);
-    //   filePreview.classList.toggle("collapsed", !expanded);
-    //   filePreviewExpanded.style.display = "grid";
-    //   filePreviewMeta.textContent = formatFileCountLabel(files.length);
-    //   filePreviewMeta.classList.toggle("expanded", expanded);
-    //   filePreviewMeta.setAttribute("aria-expanded", expanded ? "true" : "false");
-    //   filePreviewMeta.title = expanded
-    //     ? t("Collapse files panel")
-    //     : t("Expand files panel");
-    //   filePreviewList.innerHTML = "";
-    //   const ownerDoc = body.ownerDocument;
-    //   if (!ownerDoc) return;
-    //   files.forEach((attachment, index) => {
-    //     const row = createElement(ownerDoc, "div", "paperpilot-file-context-item");
-    //     row.dataset.fileContextIndex = `${index}`;
-    //     const pinned = isPinnedFile(pinnedFileKeys, itemId, attachment);
-    //     row.classList.toggle("paperpilot-file-context-item-pinned", pinned);
-    //     row.dataset.pinned = pinned ? "true" : "false";
-    //     const type = createElement(ownerDoc, "span", "paperpilot-file-context-type", {
-    //       textContent: getAttachmentTypeLabel(attachment),
-    //       title: attachment.mimeType || attachment.category || "file",
-    //     });
-    //     const info = createElement(ownerDoc, "div", "paperpilot-file-context-text");
-    //     const name = createElement(ownerDoc, "span", "paperpilot-file-context-name", {
-    //       textContent: attachment.name,
-    //       title: attachment.name,
-    //     });
-    //     const meta = createElement(
-    //       ownerDoc,
-    //       "span",
-    //       "paperpilot-file-context-meta-info",
-    //       {
-    //         textContent: `${attachment.mimeType || "application/octet-stream"} · ${(attachment.sizeBytes / 1024 / 1024).toFixed(2)} MB`,
-    //       },
-    //     );
-    //     const removeBtn = createElement(
-    //       ownerDoc,
-    //       "button",
-    //       "paperpilot-file-context-remove",
-    //       {
-    //         type: "button",
-    //         textContent: "×",
-    //         title: `Remove ${attachment.name}`,
-    //       },
-    //     );
-    //     removeBtn.addEventListener("click", (e: Event) => {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       if (!item) return;
-    //       const currentFiles = selectedFileAttachmentCache.get(item.id) || [];
-    //       const removedEntry = attachment;
-    //       const nextFiles = currentFiles.filter((f) => f.id !== removedEntry.id);
-    //       removePinnedFile(pinnedFileKeys, item.id, removedEntry);
-    //       if (nextFiles.length) {
-    //         selectedFileAttachmentCache.set(item.id, nextFiles);
-    //       } else {
-    //         clearSelectedFileState(item.id);
-    //       }
-    //       if (
-    //         removedEntry?.storedPath &&
-    //         !removedEntry.contentHash &&
-    //         !isManagedBlobPath(removedEntry.storedPath)
-    //       ) {
-    //         void removeAttachmentFile(removedEntry.storedPath).catch((err) => {
-    //           ztoolkit.log(
-    //             "LLM: Failed to remove discarded attachment file",
-    //             err,
-    //           );
-    //         });
-    //       } else if (removedEntry?.storedPath) {
-    //         scheduleAttachmentGc();
-    //       }
-    //       updateFilePreviewPreservingScroll();
-    //       if (status) {
-    //         setStatus(
-    //           status,
-    //           `${t("Attachment removed")} (${nextFiles.length})`,
-    //           "ready",
-    //         );
-    //       }
-    //     });
-    //     info.append(name, meta);
-    //     row.append(type, info, removeBtn);
-    //     filePreviewList.appendChild(row);
-    //   });
-    // };
-
-    // Helper to update image preview UI
-    // const updateImagePreview = () => {
-    //   if (
-    //     !item ||
-    //     !imagePreview ||
-    //     !previewStrip ||
-    //     !previewExpanded ||
-    //     !previewSelected ||
-    //     !previewSelectedImg ||
-    //     !previewMeta ||
-    //     !screenshotBtn
-    //   )
-    //     return;
-    //   const ownerDoc = body.ownerDocument;
-    //   if (!ownerDoc) return;
-    //   const selectedProfile = getSelectedProfile();
-    //   const currentModel = (
-    //     selectedProfile?.model ||
-    //     getSelectedModelInfo().currentModel ||
-    //     ""
-    //   ).trim();
-    //   const inputMode = getAdvancedModelParamsForEntry(
-    //     selectedProfile?.entryId,
-    //   )?.inputMode;
-    //   const screenshotUnsupported = isScreenshotUnsupportedModel(
-    //     currentModel,
-    //     selectedProfile?.providerProtocol,
-    //     selectedProfile?.authMode,
-    //     selectedProfile?.apiBase,
-    //     inputMode,
-    //   );
-    //   const screenshotDisabledHint = getScreenshotDisabledHint(currentModel);
-    //   let selectedImages = selectedImageCache.get(item.id) || [];
-    //   if (screenshotUnsupported && selectedImages.length) {
-    //     clearSelectedImageState(item.id);
-    //     selectedImages = [];
-    //   }
-    //   prunePinnedImageKeys(pinnedImageKeys, item.id, selectedImages);
-    //   if (selectedImages.length) {
-    //     const imageCount = selectedImages.length;
-    //     let expanded = selectedImagePreviewExpandedCache.get(item.id);
-    //     if (typeof expanded !== "boolean") {
-    //       expanded = false;
-    //       selectedImagePreviewExpandedCache.set(item.id, false);
-    //     }
-
-    //     let activeIndex = selectedImagePreviewActiveIndexCache.get(item.id);
-    //     if (typeof activeIndex !== "number" || !Number.isFinite(activeIndex)) {
-    //       activeIndex = imageCount - 1;
-    //     }
-    //     activeIndex = Math.max(
-    //       0,
-    //       Math.min(imageCount - 1, Math.floor(activeIndex)),
-    //     );
-    //     selectedImagePreviewActiveIndexCache.set(item.id, activeIndex);
-
-    //     previewMeta.textContent = formatFigureCountLabel(imageCount);
-    //     previewMeta.classList.toggle("expanded", expanded);
-    //     previewMeta.setAttribute("aria-expanded", expanded ? "true" : "false");
-    //     previewMeta.title = expanded
-    //       ? t("Collapse figures panel")
-    //       : t("Expand figures panel");
-
-    //     imagePreview.style.display = "flex";
-    //     imagePreview.classList.toggle("expanded", expanded);
-    //     imagePreview.classList.toggle("collapsed", !expanded);
-    //     previewExpanded.hidden = false;
-    //     previewExpanded.style.display = "grid";
-    //     previewSelected.style.display = "";
-
-    //     previewStrip.innerHTML = "";
-    //     for (const [index, imageUrl] of selectedImages.entries()) {
-    //       const thumbItem = createElement(ownerDoc, "div", "paperpilot-preview-item");
-    //       thumbItem.dataset.imageContextIndex = `${index}`;
-    //       const pinned = isPinnedImage(pinnedImageKeys, item.id, imageUrl);
-    //       thumbItem.classList.toggle("paperpilot-preview-item-pinned", pinned);
-    //       thumbItem.dataset.pinned = pinned ? "true" : "false";
-    //       const thumbBtn = createElement(
-    //         ownerDoc,
-    //         "button",
-    //         "paperpilot-preview-thumb",
-    //         {
-    //           type: "button",
-    //           title: `Screenshot ${index + 1}`,
-    //         },
-    //       ) as HTMLButtonElement;
-    //       thumbBtn.classList.toggle("active", index === activeIndex);
-    //       const thumb = createElement(ownerDoc, "img", "paperpilot-preview-img", {
-    //         alt: "Selected screenshot",
-    //       }) as HTMLImageElement;
-    //       thumb.src = imageUrl;
-    //       thumbBtn.appendChild(thumb);
-    //       thumbBtn.addEventListener("click", (e: Event) => {
-    //         e.preventDefault();
-    //         e.stopPropagation();
-    //         if (!item) return;
-    //         selectedImagePreviewActiveIndexCache.set(item.id, index);
-    //         if (selectedImagePreviewExpandedCache.get(item.id) !== true) {
-    //           selectedImagePreviewExpandedCache.set(item.id, true);
-    //         }
-    //         updateImagePreviewPreservingScroll();
-    //       });
-
-    //       const removeOneBtn = createElement(
-    //         ownerDoc,
-    //         "button",
-    //         "paperpilot-preview-remove-one",
-    //         {
-    //           type: "button",
-    //           textContent: "×",
-    //           title: `Remove screenshot ${index + 1}`,
-    //         },
-    //       );
-    //       removeOneBtn.addEventListener("click", (e: Event) => {
-    //         e.preventDefault();
-    //         e.stopPropagation();
-    //         if (!item) return;
-    //         const currentImages = selectedImageCache.get(item.id) || [];
-    //         if (index < 0 || index >= currentImages.length) return;
-    //         const removedImage = currentImages[index];
-    //         if (removedImage) {
-    //           removePinnedImage(pinnedImageKeys, item.id, removedImage);
-    //         }
-    //         const nextImages = currentImages.filter((_, i) => i !== index);
-    //         if (nextImages.length) {
-    //           selectedImageCache.set(item.id, nextImages);
-    //           let nextActive =
-    //             selectedImagePreviewActiveIndexCache.get(item.id) || 0;
-    //           if (index < nextActive) {
-    //             nextActive -= 1;
-    //           }
-    //           if (nextActive >= nextImages.length) {
-    //             nextActive = nextImages.length - 1;
-    //           }
-    //           selectedImagePreviewActiveIndexCache.set(item.id, nextActive);
-    //         } else {
-    //           clearSelectedImageState(item.id);
-    //         }
-    //         updateImagePreviewPreservingScroll();
-    //         if (status) {
-    //           setStatus(
-    //             status,
-    //             `Screenshot removed (${nextImages.length})`,
-    //             "ready",
-    //           );
-    //         }
-    //       });
-    //       thumbItem.append(thumbBtn, removeOneBtn);
-    //       previewStrip.appendChild(thumbItem);
-    //     }
-    //     previewSelectedImg.src = selectedImages[activeIndex];
-    //     previewSelectedImg.alt = `Selected screenshot ${activeIndex + 1}`;
-    //     screenshotBtn.disabled =
-    //       screenshotUnsupported || imageCount >= MAX_SELECTED_IMAGES;
-    //     screenshotBtn.title = screenshotUnsupported
-    //       ? screenshotDisabledHint
-    //       : imageCount >= MAX_SELECTED_IMAGES
-    //         ? `Max ${MAX_SELECTED_IMAGES} screenshots`
-    //         : `Add screenshot (${imageCount})`;
-    //   } else {
-    //     imagePreview.style.display = "none";
-    //     imagePreview.classList.remove("expanded", "collapsed");
-    //     previewExpanded.hidden = true;
-    //     previewExpanded.style.display = "none";
-    //     previewStrip.innerHTML = "";
-    //     previewSelected.style.display = "none";
-    //     previewSelectedImg.removeAttribute("src");
-    //     previewSelectedImg.alt = "Selected screenshot preview";
-    //     previewMeta.textContent = formatFigureCountLabel(0);
-    //     previewMeta.classList.remove("expanded");
-    //     previewMeta.setAttribute("aria-expanded", "false");
-    //     previewMeta.title = t("Expand figures panel");
-    //     clearSelectedImageState(item.id);
-    //     screenshotBtn.disabled = screenshotUnsupported;
-    //     screenshotBtn.title = screenshotUnsupported
-    //       ? screenshotDisabledHint
-    //       : "Select figure screenshot";
-    //   }
-    //   applyResponsiveActionButtonsLayout();
-    // };
-
-    // const updateSelectedTextPreview = () => {
-    //   if (!item) return;
-    //   const textContextKey = getTextContextConversationKey();
-    //   if (!textContextKey) return;
-    //   applySelectedTextPreview(body, textContextKey);
-    // };
-    const measureContextPreviewHeight = (): number => {
-      if (!contextPreviews) return 0;
-      const rect = contextPreviews.getBoundingClientRect?.();
-      const rectHeight = Number(rect?.height);
-      if (Number.isFinite(rectHeight) && rectHeight >= 0) return rectHeight;
-      const scrollHeight = Number(contextPreviews.scrollHeight);
-      if (Number.isFinite(scrollHeight) && scrollHeight >= 0) {
-        return scrollHeight;
+    if (!hooks?.startWithFreshConversation) return;
+    if (isStandalonePanel /*|| isWebChatMode()*/) return;
+    if (!item || startupBody.__paperpilotFreshStartupConversationInFlight)
+      return;
+    startupBody.__paperpilotFreshStartupConversationInFlight = true;
+    void (async () => {
+      try {
+        const kind = resolveDisplayConversationKind(item);
+        if (kind === "global") {
+          await createAndSwitchGlobalConversation(true);
+        } else if (kind === "paper") {
+          await createAndSwitchPaperConversation(true);
+        }
+      } catch (err) {
+        ztoolkit.log("LLM: Failed to start fresh startup conversation", err);
+      } finally {
+        delete startupBody.__paperpilotFreshStartupConversationInFlight;
       }
-      const offsetHeight = Number(contextPreviews.offsetHeight);
-      return Number.isFinite(offsetHeight) && offsetHeight >= 0
-        ? offsetHeight
-        : 0;
-    };
-    const syncConversationPanelState = () => {
-      syncRequestUiForCurrentConversation();
-      // restoreDraftInputForCurrentConversation();
-      // updatePaperPreview();
-      // updateFilePreview();
-      // updateImagePreview();
-      // updateSelectedTextPreview();
-    };
-    activeContextPanelStateSync.set(body, syncConversationPanelState);
-    // const runPanelStateRefreshNow = () => {
-    //   const previousHeight = measureContextPreviewHeight();
-    //   if (!item) {
-    //     runWithChatScrollGuard(syncConversationPanelState);
-    //   } else {
-    //     refreshConversationPanels(body, item, {
-    //       includeChat: false,
-    //       includePanelState: true,
-    //     });
-    //   }
-    //   const nextHeight = measureContextPreviewHeight();
-    //   hooks?.onContextPreviewRendered?.({
-    //     previousHeight,
-    //     nextHeight,
-    //   });
-    // };
-    // const panelStateRefreshScheduler = createCoalescedFrameScheduler({
-    //   getWindow: () => body.ownerDocument?.defaultView || null,
-    //   run: runPanelStateRefreshNow,
-    // });
-    // const schedulePanelStateRefresh = () => {
-    //   panelStateRefreshScheduler.schedule();
-    // };
-    const flushPanelStateRefreshNow = () => {
-      // panelStateRefreshScheduler.flush();
-    };
-    // const updatePaperPreviewPreservingScroll = () => {
-    //   schedulePanelStateRefresh();
-    // };
-    // requestAutoLoadedPaperContextRefresh = updatePaperPreviewPreservingScroll;
-    // const updateFilePreviewPreservingScroll = () => {
-    //   schedulePanelStateRefresh();
-    // };
-    // const updateImagePreviewPreservingScroll = () => {
-    //   schedulePanelStateRefresh();
-    // };
-    // const updateSelectedTextPreviewPreservingScroll = () => {
-    //   schedulePanelStateRefresh();
-    // };
-    // cleanupMineruPaperSourceObservers = (() => {
-    //   const unsubscribeProcessing = onProcessingStatusChange(() => {
-    //     syncMineruPaperSourceState();
-    //     updatePaperPreviewPreservingScroll();
-    //     refreshOpenPaperChipMenu();
-    //   });
-    //   const unsubscribeBatch = onBatchStateChange(() => {
-    //     refreshOpenPaperChipMenu();
-    //   });
-    //   return () => {
-    //     unsubscribeProcessing();
-    //     unsubscribeBatch();
-    //   };
-    // })();
-    // const refreshChatPreservingScroll = () => {
-    //   if (!item) {
-    //     runWithChatScrollGuard(() => {
-    //       refreshChat(body, item);
-    //     });
-    //     return;
-    //   }
-    //   refreshConversationPanels(body, item);
-    // };
+    })();
+  };
+  maybeStartWithFreshConversation();
 
-    // resetComposePreviewUI = () => {
-    //   updatePaperPreviewPreservingScroll();
-    //   updateFilePreviewPreservingScroll();
-    //   updateImagePreviewPreservingScroll();
-    //   updateSelectedTextPreviewPreservingScroll();
-    // };
+  const getModelChoices = () => {
+    const choices = getAvailableModelEntries();
+    const groupedChoices: Array<{
+      providerLabel: string;
+      entries: RuntimeModelEntry[];
+    }> = [];
+    const groupedByProvider = new Map<string, RuntimeModelEntry[]>();
 
-    // const historyLifecycleController = createHistoryLifecycleController({
-    //   body,
-    //   inputBox,
-    //   panelRoot,
-    //   status,
-    //   historyBar,
-    //   titleStatic,
-    //   historyNewBtn,
-    //   historyNewMenu,
-    //   historyNewOpenBtn,
-    //   historyNewPaperBtn,
-    //   historyToggleBtn,
-    //   historyMenu,
-    //   historyRowMenu,
-    //   historyRowRenameBtn,
-    //   historyUndo,
-    //   historyUndoText,
-    //   historyUndoBtn,
-    //   topToast,
-    //   modeChipBtn,
-    //   claudeSystemToggleBtn,
-    //   getItem: () => item,
-    //   setItem: (nextItem) => {
-    //     item = nextItem as any;
-    //   },
-    //   getBasePaperItem: () => basePaperItem,
-    //   setBasePaperItem: (nextItem) => {
-    //     basePaperItem = nextItem;
-    //   },
-    //   getConversationSystem,
-    //   isClaudeConversationSystem,
-    //   isCodexConversationSystem,
-    //   isRuntimeConversationSystem,
-    //   isNoteSession,
-    //   isGlobalMode,
-    //   isPaperMode,
-    //   isWebChatMode,
-    //   getCurrentLibraryID,
-    //   resolveCurrentPaperBaseItem,
-    //   getManualPaperContextsForItem,
-    //   resolveAutoLoadedPaperContext,
-    //   refreshAutoLoadedPaperContextForCurrentItem,
-    //   persistDraftInputForCurrentConversation,
-    //   restoreDraftInputForCurrentConversation,
-    //   syncConversationIdentity,
-    //   syncQueuedFollowUpRegistration,
-    //   updateRuntimeModeButton,
-    //   updateClaudeSystemToggle,
-    //   refreshChatPreservingScroll,
-    //   resetComposePreviewUI,
-    //   updateModelButton: () => updateModelButton(),
-    //   updateReasoningButton: () => updateReasoningButton(),
-    //   updatePaperPreviewPreservingScroll,
-    //   clearForcedSkill: () => clearForcedSkill(),
-    //   closePaperPicker: () => closePaperPicker(),
-    //   closePromptMenu,
-    //   closeResponseMenu,
-    //   closeRetryModelMenu,
-    //   closeExportMenu,
-    //   closeHistoryRowMenu,
-    //   closeHistoryNewMenu,
-    //   closeHistoryMenu,
-    //   isHistoryMenuOpen,
-    //   isHistoryNewMenuOpen,
-    //   runWithChatScrollGuard,
-    //   clearSelectedImageState,
-    //   clearSelectedFileState,
-    //   clearSelectedTextState,
-    //   clearDraftInputState,
-    //   clearTransientComposeStateForItem,
-    //   scheduleAttachmentGc,
-    //   notifyConversationHistoryChanged,
-    //   renderWebChatHistoryMenu: () => renderWebChatHistoryMenu(),
-    //   closeModelMenu: () => closeModelMenu(),
-    //   closeReasoningMenu: () => closeReasoningMenu(),
-    //   closeSlashMenu: () => closeSlashMenu(),
-    //   getSelectedModelInfo: () => getSelectedModelInfo(),
-    //   markNextWebChatSendAsNewChat: () => markNextWebChatSendAsNewChat(),
-    //   primeFreshWebChatPaperChipState: () => primeFreshWebChatPaperChipState(),
-    //   updateImagePreviewPreservingScroll,
-    //   getPreferredTargetSystem,
-    //   switchConversationSystem,
-    //   setActiveEditSession: (value) => {
-    //     activeEditSession = value;
-    //   },
-    //   getCoreAgentRuntime: initAgentSubsystem,
-    //   clearAgentToolCaches: clearAllAgentToolCaches,
-    //   clearAgentConversationState,
-    //   setStatusMessage: status
-    //     ? (message, level) => {
-    //         setStatus(status, message, level);
-    //       }
-    //     : undefined,
-    //   log: (message, ...args) => {
-    //     ztoolkit.log(message, ...args);
-    //   },
-    // });
-    // refreshGlobalHistoryHeader =
-    //   historyLifecycleController.refreshGlobalHistoryHeader;
-    // switchGlobalConversation =
-    //   historyLifecycleController.switchGlobalConversation;
-    // switchPaperConversation = historyLifecycleController.switchPaperConversation;
-    // createAndSwitchGlobalConversation =
-    //   historyLifecycleController.createAndSwitchGlobalConversation;
-    // createAndSwitchPaperConversation =
-    //   historyLifecycleController.createAndSwitchPaperConversation;
-    // queueTurnDeletion = historyLifecycleController.queueTurnDeletion;
-    // forkConversationFromTurn =
-    //   historyLifecycleController.forkConversationFromTurn;
-    // clearPendingTurnDeletion =
-    //   historyLifecycleController.clearPendingTurnDeletion;
-    // resetHistorySearchState = historyLifecycleController.resetHistorySearchState;
-    // hasPendingTurnDeletionForConversation =
-    //   historyLifecycleController.hasPendingTurnDeletionForConversation;
+    for (const entry of choices) {
+      const existing = groupedByProvider.get(entry.providerLabel);
+      if (existing) {
+        existing.push(entry);
+        continue;
+      }
+      const entries = [entry];
+      groupedByProvider.set(entry.providerLabel, entries);
+      groupedChoices.push({
+        providerLabel: entry.providerLabel,
+        entries,
+      });
+    }
 
-    const maybeStartWithFreshConversation = () => {
-      const startupBody = body as Element & {
-        __paperpilotFreshStartupConversationInFlight?: boolean;
-      };
-      if (!hooks?.startWithFreshConversation) return;
-      if (isStandalonePanel /*|| isWebChatMode()*/) return;
-      if (!item || startupBody.__paperpilotFreshStartupConversationInFlight) return;
-      startupBody.__paperpilotFreshStartupConversationInFlight = true;
-      void (async () => {
-        try {
-          const kind = resolveDisplayConversationKind(item);
-          if (kind === "global") {
-            await createAndSwitchGlobalConversation(true);
-          } else if (kind === "paper") {
-            await createAndSwitchPaperConversation(true);
+    return { choices, groupedChoices };
+  };
+
+  getSelectedModelInfo = () => {
+    const { choices, groupedChoices } = getModelChoices();
+    const selectedEntry = item ? getSelectedModelEntryForItem(item.id) : null;
+    const currentModel =
+      selectedEntry?.model ||
+      choices[0]?.model ||
+      getStringPref("modelPrimary") ||
+      getStringPref("model") ||
+      "default";
+    const currentModelDisplay =
+      selectedEntry?.displayModelLabel || currentModel;
+    const currentModelHint = selectedEntry
+      ? `${selectedEntry.providerLabel} · ${selectedEntry.displayModelLabel || selectedEntry.model}`
+      : currentModel;
+    return {
+      selectedEntryId: selectedEntry?.entryId || "",
+      selectedEntry,
+      choices,
+      groupedChoices,
+      currentModel,
+      currentModelDisplay,
+      currentModelHint,
+    };
+  };
+
+  updateModelButton = () => {
+    if (!item || !modelBtn) return;
+    withScrollGuard(chatBox, conversationKey, () => {
+      const { choices, currentModel, currentModelDisplay, currentModelHint } =
+        getSelectedModelInfo();
+      const hasSecondary = choices.length > 1;
+      const modelLabel = currentModelDisplay || currentModel || "default";
+      const modelDisplayLabel =
+        [...modelLabel].length > 10
+          ? `${[...modelLabel].slice(0, 7).join("")}...`
+          : modelLabel;
+      modelBtn.dataset.modelLabel = modelLabel;
+      modelBtn.dataset.modelDisplayLabel = modelDisplayLabel;
+      modelBtn.dataset.modelHint = hasSecondary
+        ? currentModelHint
+        : currentModelHint || "Only one model is configured";
+      modelBtn.textContent = modelDisplayLabel;
+      modelBtn.disabled = !item;
+      // scheduleResponsiveLayoutSync();
+      // updateImagePreviewPreservingScroll();
+    });
+  };
+
+  // const isPrimaryPointerEvent = (e: Event): boolean => {
+  //   const me = e as MouseEvent;
+  //   return typeof me.button !== "number" || me.button === 0;
+  // };
+
+  // const appendDropdownInstruction = (
+  //   menu: HTMLDivElement,
+  //   text: string,
+  //   className: string,
+  // ) => {
+  //   const hint = createElement(
+  //     body.ownerDocument as Document,
+  //     "div",
+  //     className,
+  //     {
+  //       textContent: text,
+  //     },
+  //   );
+  //   hint.setAttribute("aria-hidden", "true");
+  //   menu.appendChild(hint);
+  // };
+
+  // const appendModelProviderSection = (
+  //   menu: HTMLDivElement,
+  //   providerLabel: string,
+  // ) => {
+  //   const section = createElement(
+  //     body.ownerDocument as Document,
+  //     "div",
+  //     "paperpilot-model-menu-section",
+  //     {
+  //       textContent: providerLabel,
+  //     },
+  //   );
+  //   section.setAttribute("aria-hidden", "true");
+  //   menu.appendChild(section);
+  // };
+
+  // const appendModelMenuEmptyState = (
+  //   menu: HTMLDivElement,
+  //   text: string,
+  // ): HTMLDivElement => {
+  //   const empty = createElement(
+  //     body.ownerDocument as Document,
+  //     "div",
+  //     "paperpilot-model-menu-empty",
+  //     {
+  //       textContent: text,
+  //     },
+  //   );
+  //   empty.setAttribute("aria-hidden", "true");
+  //   menu.appendChild(empty);
+  //   return empty;
+  // };
+
+  // const appendModelMenuAction = (
+  //   menu: HTMLDivElement,
+  //   text: string,
+  //   onActivate: (event: Event) => void,
+  // ) => {
+  //   const action = createElement(
+  //     body.ownerDocument as Document,
+  //     "button",
+  //     "paperpilot-response-menu-item paperpilot-model-option",
+  //     {
+  //       type: "button",
+  //       textContent: text,
+  //     },
+  //   );
+  //   action.addEventListener("pointerdown", onActivate);
+  //   action.addEventListener("click", onActivate);
+  //   menu.appendChild(action);
+  // };
+
+  // const appendCodexModelCatalogStatus = (menu: HTMLDivElement) => {
+  //   if (!isCodexConversationSystem()) return;
+  //   if (codexModelCatalogStatus === "loading") {
+  //     appendModelMenuEmptyState(menu, t("Loading Codex models…"));
+  //     return;
+  //   }
+  //   if (codexModelCatalogStatus === "error") {
+  //     const message = appendModelMenuEmptyState(
+  //       menu,
+  //       t("Could not load Codex models. Showing current model only."),
+  //     );
+  //     if (codexModelCatalogError) message.title = codexModelCatalogError;
+  //     appendModelMenuAction(menu, t("Retry loading Codex models"), (event) => {
+  //       if (!isPrimaryPointerEvent(event)) return;
+  //       event.preventDefault();
+  //       event.stopPropagation();
+  //       codexModelCatalogStatus = "idle";
+  //       codexModelCatalogError = "";
+  //       void ensureCodexModelCatalogLoaded();
+  //     });
+  //     return;
+  //   }
+  //   if (
+  //     codexModelCatalogStatus === "ready" &&
+  //     !codexModelCatalogModels.length
+  //   ) {
+  //     appendModelMenuEmptyState(
+  //       menu,
+  //       t("Codex did not return any available models."),
+  //     );
+  //   }
+  // };
+
+  let ollamaDiscoveryStarted = false;
+  const rebuildModelMenu = () => {
+    if (!item || !modelMenu) return;
+    modelMenu.style.minHeight = "72px";
+    if (typeof modelMenu.replaceChildren === "function") {
+      modelMenu.replaceChildren();
+    } else {
+      modelMenu.textContent = "";
+    }
+    const { groupedChoices, selectedEntryId } = getSelectedModelInfo();
+    const hasOllama =
+      getModelProviderGroups().some(
+        (group) => detectProviderPreset(group.apiBase) === "ollama",
+      ) ||
+      groupedChoices.some((group) =>
+        group.entries.some((entry) => entry.providerLabel === "Ollama"),
+      );
+    if (hasOllama && !ollamaDiscoveryStarted) {
+      ollamaDiscoveryStarted = true;
+      const loading = createElement(body.ownerDocument!, "div", "", {
+        textContent: t("Loading Ollama models..."),
+      });
+      modelMenu.appendChild(loading);
+      void refreshOllamaProviderModels()
+        .then((count) => {
+          if (status) {
+            setStatus(
+              status,
+              count
+                ? `${t("Ollama models loaded")}: ${count}`
+                : t("No Ollama models found"),
+              count ? "ready" : "warning",
+            );
           }
-        } catch (err) {
-          ztoolkit.log("LLM: Failed to start fresh startup conversation", err);
-        } finally {
-          delete startupBody.__paperpilotFreshStartupConversationInFlight;
-        }
-      })();
-    };
-    maybeStartWithFreshConversation();
-    
-    const getModelChoices = () => {
-      const choices = getAvailableModelEntries();
-      const groupedChoices: Array<{
-        providerLabel: string;
-        entries: RuntimeModelEntry[];
-      }> = [];
-      const groupedByProvider = new Map<string, RuntimeModelEntry[]>();
-
-      for (const entry of choices) {
-        const existing = groupedByProvider.get(entry.providerLabel);
-        if (existing) {
-          existing.push(entry);
-          continue;
-        }
-        const entries = [entry];
-        groupedByProvider.set(entry.providerLabel, entries);
-        groupedChoices.push({
-          providerLabel: entry.providerLabel,
-          entries,
+          rebuildModelMenu();
+          updateModelButton();
+        })
+        .catch((error) => {
+          ztoolkit.log("Paper Pilot: failed to discover Ollama models", error);
+          if (status) {
+            setStatus(status, t("Could not load Ollama models"), "error");
+          }
+          rebuildModelMenu();
         });
-      }
-
-      return { choices, groupedChoices };
-    };
-
-    getSelectedModelInfo = () => {
-      const { choices, groupedChoices } = getModelChoices();
-      const selectedEntry =  item
-        ? getSelectedModelEntryForItem(item.id)
-        : null;
-      const currentModel =
-        selectedEntry?.model ||
-        choices[0]?.model ||
-        getStringPref("modelPrimary") ||
-        getStringPref("model") ||
-        "default";
-      const currentModelDisplay =
-        selectedEntry?.displayModelLabel || currentModel;
-      const currentModelHint = selectedEntry
-        ? `${selectedEntry.providerLabel} · ${selectedEntry.displayModelLabel || selectedEntry.model}`
-        : currentModel;
-      return {
-        selectedEntryId: selectedEntry?.entryId || "",
-        selectedEntry,
-        choices,
-        groupedChoices,
-        currentModel,
-        currentModelDisplay,
-        currentModelHint,
-      };
-    };
-
-    updateModelButton = () => {
-      if (!item || !modelBtn) return;
-      withScrollGuard(chatBox, conversationKey, () => {
-        const { choices, currentModel, currentModelDisplay, currentModelHint } =
-          getSelectedModelInfo();
-        const hasSecondary = choices.length > 1;
-        modelBtn.dataset.modelLabel = `${currentModelDisplay || currentModel || "default"}`;
-        modelBtn.dataset.modelHint = hasSecondary
-          ? currentModelHint
-          : currentModelHint || "Only one model is configured";
-        modelBtn.disabled = !item;
-        // scheduleResponsiveLayoutSync();
-        // updateImagePreviewPreservingScroll();
+      return;
+    }
+    if (!groupedChoices.length) {
+      const empty = createElement(body.ownerDocument!, "div", "", {
+        textContent: t("No models configured yet."),
       });
-    };
-
-    // const isPrimaryPointerEvent = (e: Event): boolean => {
-    //   const me = e as MouseEvent;
-    //   return typeof me.button !== "number" || me.button === 0;
-    // };
-
-    // const appendDropdownInstruction = (
-    //   menu: HTMLDivElement,
-    //   text: string,
-    //   className: string,
-    // ) => {
-    //   const hint = createElement(
-    //     body.ownerDocument as Document,
-    //     "div",
-    //     className,
-    //     {
-    //       textContent: text,
-    //     },
-    //   );
-    //   hint.setAttribute("aria-hidden", "true");
-    //   menu.appendChild(hint);
-    // };
-
-    // const appendModelProviderSection = (
-    //   menu: HTMLDivElement,
-    //   providerLabel: string,
-    // ) => {
-    //   const section = createElement(
-    //     body.ownerDocument as Document,
-    //     "div",
-    //     "paperpilot-model-menu-section",
-    //     {
-    //       textContent: providerLabel,
-    //     },
-    //   );
-    //   section.setAttribute("aria-hidden", "true");
-    //   menu.appendChild(section);
-    // };
-
-    // const appendModelMenuEmptyState = (
-    //   menu: HTMLDivElement,
-    //   text: string,
-    // ): HTMLDivElement => {
-    //   const empty = createElement(
-    //     body.ownerDocument as Document,
-    //     "div",
-    //     "paperpilot-model-menu-empty",
-    //     {
-    //       textContent: text,
-    //     },
-    //   );
-    //   empty.setAttribute("aria-hidden", "true");
-    //   menu.appendChild(empty);
-    //   return empty;
-    // };
-
-    // const appendModelMenuAction = (
-    //   menu: HTMLDivElement,
-    //   text: string,
-    //   onActivate: (event: Event) => void,
-    // ) => {
-    //   const action = createElement(
-    //     body.ownerDocument as Document,
-    //     "button",
-    //     "paperpilot-response-menu-item paperpilot-model-option",
-    //     {
-    //       type: "button",
-    //       textContent: text,
-    //     },
-    //   );
-    //   action.addEventListener("pointerdown", onActivate);
-    //   action.addEventListener("click", onActivate);
-    //   menu.appendChild(action);
-    // };
-
-    // const appendCodexModelCatalogStatus = (menu: HTMLDivElement) => {
-    //   if (!isCodexConversationSystem()) return;
-    //   if (codexModelCatalogStatus === "loading") {
-    //     appendModelMenuEmptyState(menu, t("Loading Codex models…"));
-    //     return;
-    //   }
-    //   if (codexModelCatalogStatus === "error") {
-    //     const message = appendModelMenuEmptyState(
-    //       menu,
-    //       t("Could not load Codex models. Showing current model only."),
-    //     );
-    //     if (codexModelCatalogError) message.title = codexModelCatalogError;
-    //     appendModelMenuAction(menu, t("Retry loading Codex models"), (event) => {
-    //       if (!isPrimaryPointerEvent(event)) return;
-    //       event.preventDefault();
-    //       event.stopPropagation();
-    //       codexModelCatalogStatus = "idle";
-    //       codexModelCatalogError = "";
-    //       void ensureCodexModelCatalogLoaded();
-    //     });
-    //     return;
-    //   }
-    //   if (
-    //     codexModelCatalogStatus === "ready" &&
-    //     !codexModelCatalogModels.length
-    //   ) {
-    //     appendModelMenuEmptyState(
-    //       menu,
-    //       t("Codex did not return any available models."),
-    //     );
-    //   }
-    // };
-
-    const rebuildModelMenu = () => {
+      modelMenu.appendChild(empty);
+      return;
+    }
+    for (const group of groupedChoices) {
+      const heading = createElement(body.ownerDocument!, "div", "", {
+        textContent: group.providerLabel,
+      });
+      heading.style.fontWeight = "600";
+      modelMenu.appendChild(heading);
+      for (const entry of group.entries) {
+        const option = createElement(
+          body.ownerDocument!,
+          "button",
+          "paperpilot-response-menu-item paperpilot-model-option",
+          {
+            type: "button",
+            textContent:
+              entry.entryId === selectedEntryId
+                ? `\u2713 ${entry.displayModelLabel || entry.model}`
+                : entry.displayModelLabel || entry.model,
+            title: `${entry.providerLabel} · ${entry.model}`,
+          },
+        ) as HTMLButtonElement;
+        option.addEventListener("click", (event: Event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!item) return;
+          if (!setSelectedModelEntryForItem(item.id, entry.entryId)) return;
+          closeModelMenu();
+          updateModelButton();
+        });
+        modelMenu.appendChild(option);
+      }
+    }
+    return;
     //   if (!item || !modelMenu) return;
     //   const { groupedChoices, selectedEntryId } = getSelectedModelInfo();
-
     //   modelMenu.innerHTML = "";
     //   appendDropdownInstruction(
     //     modelMenu,
@@ -4033,7 +4989,6 @@ export function setupHandlers(
     //     appendModelMenuEmptyState(modelMenu, t("No models configured yet."));
     //     return;
     //   }
-
     //   for (const group of groupedChoices) {
     //     appendModelProviderSection(modelMenu, group.providerLabel);
     //     for (const entry of group.entries) {
@@ -4087,11 +5042,9 @@ export function setupHandlers(
     //           const { selectedEntryId } = getSelectedModelInfo();
     //           previousNonWebchatModelId = selectedEntryId || null;
     //         }
-
     //         setSelectedModelEntryForItem(item.id, entry.entryId);
     //         setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
     //         setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
-
     //         // Auto-correct PDF mode for models that don't support native full-PDF
     //         // input. Downgrade to text/mineru so the user doesn't end up with a
     //         // broken send.
@@ -4133,7 +5086,6 @@ export function setupHandlers(
     //             }
     //           }
     //         }
-
     //         // [webchat] Entering webchat mode → fresh session, then apply webchat UI AFTER re-render
     //         if (entry.authMode === "webchat" && !wasWebChat) {
     //           // Clear cached images so stale screenshots don't auto-attach to ChatGPT
@@ -4160,7 +5112,6 @@ export function setupHandlers(
     //             if (!isWebChatMode()) return;
     //             resetCurrentWebChatConversation();
     //             refreshChatPreservingScroll();
-
     //             // Show preloading screen to verify connectivity before enabling webchat
     //             const chatShellEl = body.querySelector(
     //               ".paperpilot-chat-shell",
@@ -4195,7 +5146,6 @@ export function setupHandlers(
     //                 webchatPreloadAbort = null;
     //               }
     //             }
-
     //             // If user exited webchat during preload, don't re-apply webchat UI
     //             if (!isWebChatMode()) return;
     //             // Re-apply after conversation switch re-renders (refreshes connection dot etc.)
@@ -4204,7 +5154,6 @@ export function setupHandlers(
     //         } else {
     //           applyWebChatModeUI();
     //         }
-
     //         updateModelButton();
     //         updateReasoningButton();
     //       };
@@ -4213,2587 +5162,2608 @@ export function setupHandlers(
     //       modelMenu.appendChild(option);
     //     }
     //   }
-    };
+  };
 
-    // const rebuildRetryModelMenu = () => {
-    //   if (!item || !retryModelMenu) return;
-    //   const { groupedChoices } = getModelChoices();
-    //   // Show checkmark on the model that generated the current response, not the currently selected model
-    //   const convKey = getConversationKey(item);
-    //   const historyForRetry = chatHistory.get(convKey) || [];
-    //   const latestPair = findLatestRetryPair(historyForRetry);
-    //   const latestAssistantModelName =
-    //     latestPair?.assistantMessage?.modelName?.trim() || "";
-    //   const latestAssistantModelEntryId =
-    //     latestPair?.assistantMessage?.modelEntryId?.trim() || "";
-    //   const latestAssistantProviderLabel =
-    //     latestPair?.assistantMessage?.modelProviderLabel?.trim() || "";
-    //   const matchingLegacyEntries = latestAssistantModelName
-    //     ? groupedChoices.flatMap((group) =>
-    //         group.entries.filter(
-    //           (entry) => entry.model === latestAssistantModelName,
-    //         ),
-    //       )
-    //     : [];
-    //   retryModelMenu.innerHTML = "";
-    //   if (!groupedChoices.length) {
-    //     appendModelMenuEmptyState(retryModelMenu, t("No models configured yet."));
-    //     return;
-    //   }
-    //   for (const group of groupedChoices) {
-    //     appendModelProviderSection(retryModelMenu, group.providerLabel);
-    //     for (const entry of group.entries) {
-    //       const isSelected = latestAssistantModelEntryId
-    //         ? entry.entryId === latestAssistantModelEntryId
-    //         : latestAssistantModelName
-    //           ? entry.model === latestAssistantModelName &&
-    //             (latestAssistantProviderLabel
-    //               ? entry.providerLabel === latestAssistantProviderLabel
-    //               : matchingLegacyEntries.length === 1)
-    //           : false;
-    //       const option = createElement(
-    //         body.ownerDocument as Document,
-    //         "button",
-    //         "paperpilot-response-menu-item paperpilot-model-option",
-    //         {
-    //           type: "button",
-    //           textContent: isSelected
-    //             ? `\u2713 ${entry.displayModelLabel || "default"}`
-    //             : entry.displayModelLabel || "default",
-    //           title: `${entry.providerLabel} · ${entry.model}`,
-    //         },
-    //       );
-    //       const runRetry = async (e: Event) => {
-    //         if (!isPrimaryPointerEvent(e)) return;
-    //         e.preventDefault();
-    //         e.stopPropagation();
-    //         if (!item) return;
-    //         closeRetryModelMenu();
-    //         const retryReasoning = getSelectedReasoningForItem(
-    //           item.id,
-    //           entry.model,
-    //           entry.apiBase,
-    //           entry.providerProtocol,
-    //         );
-    //         const retryAdvanced = getAdvancedModelParams(entry.entryId);
-    //         await retryLatestAssistantResponse(
-    //           body,
-    //           item,
-    //           entry.model,
-    //           entry.apiBase,
-    //           entry.apiKey,
-    //           entry.authMode,
-    //           entry.providerProtocol,
-    //           entry.entryId,
-    //           entry.providerLabel,
-    //           retryReasoning,
-    //           retryAdvanced,
-    //         );
-    //       };
-    //       option.addEventListener("click", (e: Event) => {
-    //         void runRetry(e);
-    //       });
-    //       retryModelMenu.appendChild(option);
-    //     }
-    //   }
-    // };
+  // const rebuildRetryModelMenu = () => {
+  //   if (!item || !retryModelMenu) return;
+  //   const { groupedChoices } = getModelChoices();
+  //   // Show checkmark on the model that generated the current response, not the currently selected model
+  //   const convKey = getConversationKey(item);
+  //   const historyForRetry = chatHistory.get(convKey) || [];
+  //   const latestPair = findLatestRetryPair(historyForRetry);
+  //   const latestAssistantModelName =
+  //     latestPair?.assistantMessage?.modelName?.trim() || "";
+  //   const latestAssistantModelEntryId =
+  //     latestPair?.assistantMessage?.modelEntryId?.trim() || "";
+  //   const latestAssistantProviderLabel =
+  //     latestPair?.assistantMessage?.modelProviderLabel?.trim() || "";
+  //   const matchingLegacyEntries = latestAssistantModelName
+  //     ? groupedChoices.flatMap((group) =>
+  //         group.entries.filter(
+  //           (entry) => entry.model === latestAssistantModelName,
+  //         ),
+  //       )
+  //     : [];
+  //   retryModelMenu.innerHTML = "";
+  //   if (!groupedChoices.length) {
+  //     appendModelMenuEmptyState(retryModelMenu, t("No models configured yet."));
+  //     return;
+  //   }
+  //   for (const group of groupedChoices) {
+  //     appendModelProviderSection(retryModelMenu, group.providerLabel);
+  //     for (const entry of group.entries) {
+  //       const isSelected = latestAssistantModelEntryId
+  //         ? entry.entryId === latestAssistantModelEntryId
+  //         : latestAssistantModelName
+  //           ? entry.model === latestAssistantModelName &&
+  //             (latestAssistantProviderLabel
+  //               ? entry.providerLabel === latestAssistantProviderLabel
+  //               : matchingLegacyEntries.length === 1)
+  //           : false;
+  //       const option = createElement(
+  //         body.ownerDocument as Document,
+  //         "button",
+  //         "paperpilot-response-menu-item paperpilot-model-option",
+  //         {
+  //           type: "button",
+  //           textContent: isSelected
+  //             ? `\u2713 ${entry.displayModelLabel || "default"}`
+  //             : entry.displayModelLabel || "default",
+  //           title: `${entry.providerLabel} · ${entry.model}`,
+  //         },
+  //       );
+  //       const runRetry = async (e: Event) => {
+  //         if (!isPrimaryPointerEvent(e)) return;
+  //         e.preventDefault();
+  //         e.stopPropagation();
+  //         if (!item) return;
+  //         closeRetryModelMenu();
+  //         const retryReasoning = getSelectedReasoningForItem(
+  //           item.id,
+  //           entry.model,
+  //           entry.apiBase,
+  //           entry.providerProtocol,
+  //         );
+  //         const retryAdvanced = getAdvancedModelParams(entry.entryId);
+  //         await retryLatestAssistantResponse(
+  //           body,
+  //           item,
+  //           entry.model,
+  //           entry.apiBase,
+  //           entry.apiKey,
+  //           entry.authMode,
+  //           entry.providerProtocol,
+  //           entry.entryId,
+  //           entry.providerLabel,
+  //           retryReasoning,
+  //           retryAdvanced,
+  //         );
+  //       };
+  //       option.addEventListener("click", (e: Event) => {
+  //         void runRetry(e);
+  //       });
+  //       retryModelMenu.appendChild(option);
+  //     }
+  //   }
+  // };
 
-    // type ClaudeReasoningDisplayMode =
-    //   | "auto"
-    //   | "low"
-    //   | "medium"
-    //   | "high"
-    //   | "xhigh"
-    //   | "max";
+  // type ClaudeReasoningDisplayMode =
+  //   | "auto"
+  //   | "low"
+  //   | "medium"
+  //   | "high"
+  //   | "xhigh"
+  //   | "max";
 
-    // let claudeReasoningDisplayOverride: {
-    //   mode: ClaudeReasoningDisplayMode;
-    //   modelKey: string;
-    // } | null = null;
+  // let claudeReasoningDisplayOverride: {
+  //   mode: ClaudeReasoningDisplayMode;
+  //   modelKey: string;
+  // } | null = null;
 
-    // const getClaudeReasoningDisplayScopeKey = () => {
-    //   const { selectedEntryId, currentModel } = getSelectedModelInfo();
-    //   return `${selectedEntryId || "claude-runtime"}::${currentModel}`;
-    // };
+  // const getClaudeReasoningDisplayScopeKey = () => {
+  //   const { selectedEntryId, currentModel } = getSelectedModelInfo();
+  //   return `${selectedEntryId || "claude-runtime"}::${currentModel}`;
+  // };
 
-    // const normalizeClaudeReasoningDisplayMode = (
-    //   value: unknown,
-    // ): ClaudeReasoningDisplayMode | null => {
-    //   if (typeof value !== "string") return null;
-    //   const normalized = value.trim().toLowerCase();
-    //   if (normalized === "default" || normalized === "none") return "auto";
-    //   if (
-    //     normalized === "auto" ||
-    //     normalized === "low" ||
-    //     normalized === "medium" ||
-    //     normalized === "high" ||
-    //     normalized === "xhigh" ||
-    //     normalized === "max"
-    //   ) {
-    //     return normalized;
-    //   }
-    //   return null;
-    // };
+  // const normalizeClaudeReasoningDisplayMode = (
+  //   value: unknown,
+  // ): ClaudeReasoningDisplayMode | null => {
+  //   if (typeof value !== "string") return null;
+  //   const normalized = value.trim().toLowerCase();
+  //   if (normalized === "default" || normalized === "none") return "auto";
+  //   if (
+  //     normalized === "auto" ||
+  //     normalized === "low" ||
+  //     normalized === "medium" ||
+  //     normalized === "high" ||
+  //     normalized === "xhigh" ||
+  //     normalized === "max"
+  //   ) {
+  //     return normalized;
+  //   }
+  //   return null;
+  // };
 
-    // const getClaudeReasoningDisplayMode = (): ClaudeReasoningDisplayMode => {
-    //   if (claudeReasoningDisplayOverride) {
-    //     if (
-    //       claudeReasoningDisplayOverride.modelKey ===
-    //       getClaudeReasoningDisplayScopeKey()
-    //     ) {
-    //       return claudeReasoningDisplayOverride.mode;
-    //     }
-    //     claudeReasoningDisplayOverride = null;
-    //   }
-    //   return getClaudeReasoningModePref();
-    // };
+  // const getClaudeReasoningDisplayMode = (): ClaudeReasoningDisplayMode => {
+  //   if (claudeReasoningDisplayOverride) {
+  //     if (
+  //       claudeReasoningDisplayOverride.modelKey ===
+  //       getClaudeReasoningDisplayScopeKey()
+  //     ) {
+  //       return claudeReasoningDisplayOverride.mode;
+  //     }
+  //     claudeReasoningDisplayOverride = null;
+  //   }
+  //   return getClaudeReasoningModePref();
+  // };
 
-    // const getClaudeReasoningDisplayLabel = (mode: ClaudeReasoningDisplayMode) => {
-    //   if (mode === "auto") return "Auto";
-    //   if (mode === "xhigh") return "XHigh";
-    //   if (mode === "max") return "Max";
-    //   if (mode === "high") return "High";
-    //   if (mode === "medium") return "Medium";
-    //   if (mode === "low") return "Low";
-    //   return "Auto";
-    // };
+  // const getClaudeReasoningDisplayLabel = (mode: ClaudeReasoningDisplayMode) => {
+  //   if (mode === "auto") return "Auto";
+  //   if (mode === "xhigh") return "XHigh";
+  //   if (mode === "max") return "Max";
+  //   if (mode === "high") return "High";
+  //   if (mode === "medium") return "Medium";
+  //   if (mode === "low") return "Low";
+  //   return "Auto";
+  // };
 
-    // const buildClaudeReasoningConfigForDisplayMode = (
-    //   mode: ClaudeReasoningDisplayMode,
-    // ): LLMReasoningConfig | undefined => {
-    //   if (mode === "auto") return undefined;
-    //   return {
-    //     provider: "anthropic",
-    //     level: mode === "max" ? "xhigh" : mode,
-    //   };
-    // };
+  // const buildClaudeReasoningConfigForDisplayMode = (
+  //   mode: ClaudeReasoningDisplayMode,
+  // ): LLMReasoningConfig | undefined => {
+  //   if (mode === "auto") return undefined;
+  //   return {
+  //     provider: "anthropic",
+  //     level: mode === "max" ? "xhigh" : mode,
+  //   };
+  // };
 
-    // const clearClaudeReasoningDisplayOverride = () => {
-    //   claudeReasoningDisplayOverride = null;
-    // };
+  // const clearClaudeReasoningDisplayOverride = () => {
+  //   claudeReasoningDisplayOverride = null;
+  // };
 
-    // const applyClaudeResolvedReasoningDisplay = (effort: unknown) => {
-    //   if (!isClaudeConversationSystem()) return;
-    //   const mode = normalizeClaudeReasoningDisplayMode(effort);
-    //   if (!mode) return;
-    //   if (mode === getClaudeReasoningModePref()) {
-    //     claudeReasoningDisplayOverride = null;
-    //   } else {
-    //     claudeReasoningDisplayOverride = {
-    //       mode,
-    //       modelKey: getClaudeReasoningDisplayScopeKey(),
-    //     };
-    //   }
-    //   updateReasoningButton();
-    //   if (isFloatingMenuOpen(reasoningMenu)) {
-    //     rebuildReasoningMenu();
-    //   }
-    // };
+  // const applyClaudeResolvedReasoningDisplay = (effort: unknown) => {
+  //   if (!isClaudeConversationSystem()) return;
+  //   const mode = normalizeClaudeReasoningDisplayMode(effort);
+  //   if (!mode) return;
+  //   if (mode === getClaudeReasoningModePref()) {
+  //     claudeReasoningDisplayOverride = null;
+  //   } else {
+  //     claudeReasoningDisplayOverride = {
+  //       mode,
+  //       modelKey: getClaudeReasoningDisplayScopeKey(),
+  //     };
+  //   }
+  //   updateReasoningButton();
+  //   if (isFloatingMenuOpen(reasoningMenu)) {
+  //     rebuildReasoningMenu();
+  //   }
+  // };
 
-    // const getReasoningState = () => {
-    //   if (!item) {
-    //     return {
-    //       provider: "unsupported" as const,
-    //       currentModel: "",
-    //       options: [] as ReasoningOption[],
-    //       enabledLevels: [] as LLMReasoningLevel[],
-    //       selectedLevel: "none" as ReasoningLevelSelection,
-    //     };
-    //   }
-    //   const { currentModel } = getSelectedModelInfo();
-    //   if (isClaudeConversationSystem()) {
-    //     const selectedMode = getClaudeReasoningDisplayMode();
-    //     const options: ReasoningOption[] = [
-    //       { level: "low", enabled: true, label: "Low" },
-    //       { level: "medium", enabled: true, label: "Medium" },
-    //       { level: "high", enabled: true, label: "High" },
-    //       { level: "xhigh", enabled: true, label: "XHigh" },
-    //       {
-    //         level: "xhigh",
-    //         enabled: true,
-    //         label: "Max",
-    //       },
-    //     ];
-    //     const selectedLevel =
-    //       selectedMode === "auto"
-    //         ? "none"
-    //         : selectedMode === "max"
-    //           ? ("xhigh" as ReasoningLevelSelection)
-    //           : (selectedMode as ReasoningLevelSelection);
-    //     return {
-    //       provider: "anthropic" as const,
-    //       currentModel,
-    //       options,
-    //       enabledLevels: options.map((option) => option.level),
-    //       selectedLevel,
-    //     };
-    //   }
-    //   if (isCodexConversationSystem()) {
-    //     const selectedMode = getCodexReasoningModePref();
-    //     const options: ReasoningOption[] = getCodexReasoningChoices()
-    //       .filter((choice) => choice.value !== "auto")
-    //       .map((choice) => ({
-    //         level: choice.value as LLMReasoningLevel,
-    //         enabled: true,
-    //         label: choice.label,
-    //       }));
-    //     return {
-    //       provider: "openai" as const,
-    //       currentModel,
-    //       options,
-    //       enabledLevels: options.map((option) => option.level),
-    //       selectedLevel:
-    //         selectedMode === "auto"
-    //           ? "none"
-    //           : (selectedMode as ReasoningLevelSelection),
-    //     };
-    //   }
-    //   const selectedProfile = getSelectedModelEntryForItem(item.id);
-    //   const provider = detectReasoningProvider(currentModel);
-    //   const options = getReasoningOptions(
-    //     provider,
-    //     currentModel,
-    //     selectedProfile?.apiBase,
-    //     selectedProfile?.providerProtocol,
-    //   );
-    //   const enabledLevels = options
-    //     .filter((option) => option.enabled)
-    //     .map((option) => option.level);
-    //   const cachedProvider = selectedReasoningProviderCache.get(item.id);
-    //   const cachedLevel =
-    //     cachedProvider === provider ? selectedReasoningCache.get(item.id) : null;
-    //   let selectedLevel =
-    //     cachedLevel ||
-    //     getLastUsedReasoningLevelForProvider(provider) ||
-    //     (provider === "anthropic"
-    //       ? "none"
-    //       : getLastUsedReasoningLevel() || "none");
-    //   if (provider === "anthropic") {
-    //     if (!enabledLevels.includes(selectedLevel as LLMReasoningLevel)) {
-    //       selectedLevel = "none";
-    //     }
-    //   } else if (enabledLevels.length > 0) {
-    //     if (
-    //       selectedLevel === "none" ||
-    //       !enabledLevels.includes(selectedLevel as LLMReasoningLevel)
-    //     ) {
-    //       selectedLevel = enabledLevels[0];
-    //     }
-    //   } else {
-    //     selectedLevel = "none";
-    //   }
-    //   selectedReasoningCache.set(item.id, selectedLevel);
-    //   selectedReasoningProviderCache.set(item.id, provider);
-    //   return { provider, currentModel, options, enabledLevels, selectedLevel };
-    // };
+  // const getReasoningState = () => {
+  //   if (!item) {
+  //     return {
+  //       provider: "unsupported" as const,
+  //       currentModel: "",
+  //       options: [] as ReasoningOption[],
+  //       enabledLevels: [] as LLMReasoningLevel[],
+  //       selectedLevel: "none" as ReasoningLevelSelection,
+  //     };
+  //   }
+  //   const { currentModel } = getSelectedModelInfo();
+  //   if (isClaudeConversationSystem()) {
+  //     const selectedMode = getClaudeReasoningDisplayMode();
+  //     const options: ReasoningOption[] = [
+  //       { level: "low", enabled: true, label: "Low" },
+  //       { level: "medium", enabled: true, label: "Medium" },
+  //       { level: "high", enabled: true, label: "High" },
+  //       { level: "xhigh", enabled: true, label: "XHigh" },
+  //       {
+  //         level: "xhigh",
+  //         enabled: true,
+  //         label: "Max",
+  //       },
+  //     ];
+  //     const selectedLevel =
+  //       selectedMode === "auto"
+  //         ? "none"
+  //         : selectedMode === "max"
+  //           ? ("xhigh" as ReasoningLevelSelection)
+  //           : (selectedMode as ReasoningLevelSelection);
+  //     return {
+  //       provider: "anthropic" as const,
+  //       currentModel,
+  //       options,
+  //       enabledLevels: options.map((option) => option.level),
+  //       selectedLevel,
+  //     };
+  //   }
+  //   if (isCodexConversationSystem()) {
+  //     const selectedMode = getCodexReasoningModePref();
+  //     const options: ReasoningOption[] = getCodexReasoningChoices()
+  //       .filter((choice) => choice.value !== "auto")
+  //       .map((choice) => ({
+  //         level: choice.value as LLMReasoningLevel,
+  //         enabled: true,
+  //         label: choice.label,
+  //       }));
+  //     return {
+  //       provider: "openai" as const,
+  //       currentModel,
+  //       options,
+  //       enabledLevels: options.map((option) => option.level),
+  //       selectedLevel:
+  //         selectedMode === "auto"
+  //           ? "none"
+  //           : (selectedMode as ReasoningLevelSelection),
+  //     };
+  //   }
+  //   const selectedProfile = getSelectedModelEntryForItem(item.id);
+  //   const provider = detectReasoningProvider(currentModel);
+  //   const options = getReasoningOptions(
+  //     provider,
+  //     currentModel,
+  //     selectedProfile?.apiBase,
+  //     selectedProfile?.providerProtocol,
+  //   );
+  //   const enabledLevels = options
+  //     .filter((option) => option.enabled)
+  //     .map((option) => option.level);
+  //   const cachedProvider = selectedReasoningProviderCache.get(item.id);
+  //   const cachedLevel =
+  //     cachedProvider === provider ? selectedReasoningCache.get(item.id) : null;
+  //   let selectedLevel =
+  //     cachedLevel ||
+  //     getLastUsedReasoningLevelForProvider(provider) ||
+  //     (provider === "anthropic"
+  //       ? "none"
+  //       : getLastUsedReasoningLevel() || "none");
+  //   if (provider === "anthropic") {
+  //     if (!enabledLevels.includes(selectedLevel as LLMReasoningLevel)) {
+  //       selectedLevel = "none";
+  //     }
+  //   } else if (enabledLevels.length > 0) {
+  //     if (
+  //       selectedLevel === "none" ||
+  //       !enabledLevels.includes(selectedLevel as LLMReasoningLevel)
+  //     ) {
+  //       selectedLevel = enabledLevels[0];
+  //     }
+  //   } else {
+  //     selectedLevel = "none";
+  //   }
+  //   selectedReasoningCache.set(item.id, selectedLevel);
+  //   selectedReasoningProviderCache.set(item.id, provider);
+  //   return { provider, currentModel, options, enabledLevels, selectedLevel };
+  // };
 
-    // // [webchat] ChatGPT mode options: maps reasoning levels to ChatGPT modes
-    // const WEBCHAT_MODES: Array<{
-    //   level: string;
-    //   label: string;
-    //   chatgptMode: string | undefined;
-    // }> = [
-    //   { level: "none", label: "Instant", chatgptMode: "instant" },
-    //   {
-    //     level: "medium",
-    //     label: "Standard Thinking",
-    //     chatgptMode: "thinking_standard",
-    //   },
-    //   {
-    //     level: "high",
-    //     label: "Extended Thinking",
-    //     chatgptMode: "thinking_extended",
-    //   },
-    // ];
+  // // [webchat] ChatGPT mode options: maps reasoning levels to ChatGPT modes
+  // const WEBCHAT_MODES: Array<{
+  //   level: string;
+  //   label: string;
+  //   chatgptMode: string | undefined;
+  // }> = [
+  //   { level: "none", label: "Instant", chatgptMode: "instant" },
+  //   {
+  //     level: "medium",
+  //     label: "Standard Thinking",
+  //     chatgptMode: "thinking_standard",
+  //   },
+  //   {
+  //     level: "high",
+  //     label: "Extended Thinking",
+  //     chatgptMode: "thinking_extended",
+  //   },
+  // ];
 
-    // isWebChatMode = () => {
-    //   const { selectedEntry } = getSelectedModelInfo();
-    //   return selectedEntry?.authMode === "webchat";
-    // };
-    // isWebChatModeActive = () => {
-    //   try {
-    //     return isWebChatMode();
-    //   } catch (_err) {
-    //     void _err;
-    //     return panelRoot.dataset.webchatMode === "true";
-    //   }
-    // };
+  // isWebChatMode = () => {
+  //   const { selectedEntry } = getSelectedModelInfo();
+  //   return selectedEntry?.authMode === "webchat";
+  // };
+  // isWebChatModeActive = () => {
+  //   try {
+  //     return isWebChatMode();
+  //   } catch (_err) {
+  //     void _err;
+  //     return panelRoot.dataset.webchatMode === "true";
+  //   }
+  // };
 
-    // // [webchat] Remember the previous model so "Exit" can restore it
-    // let previousNonWebchatModelId: string | null = null;
-    // let webchatConnectionTimer: ReturnType<typeof setInterval> | null = null;
-    // // Simple abort token — Zotero's Gecko context lacks AbortController.
-    // let webchatPreloadAbort: { aborted: boolean } | null = null;
+  // // [webchat] Remember the previous model so "Exit" can restore it
+  // let previousNonWebchatModelId: string | null = null;
+  // let webchatConnectionTimer: ReturnType<typeof setInterval> | null = null;
+  // // Simple abort token — Zotero's Gecko context lacks AbortController.
+  // let webchatPreloadAbort: { aborted: boolean } | null = null;
 
-    // const abortWebChatPreload = () => {
-    //   if (webchatPreloadAbort) {
-    //     webchatPreloadAbort.aborted = true;
-    //     webchatPreloadAbort = null;
-    //   }
-    // };
+  // const abortWebChatPreload = () => {
+  //   if (webchatPreloadAbort) {
+  //     webchatPreloadAbort.aborted = true;
+  //     webchatPreloadAbort = null;
+  //   }
+  // };
 
-    // markNextWebChatSendAsNewChat = () => {
-    //   if (!item) return;
-    //   markWebChatConversationForceNewChat(getConversationKey(item));
-    // };
+  // markNextWebChatSendAsNewChat = () => {
+  //   if (!item) return;
+  //   markWebChatConversationForceNewChat(getConversationKey(item));
+  // };
 
-    // const clearNextWebChatNewChatIntent = () => {
-    //   if (!item) return;
-    //   clearWebChatConversationForceNewChat(getConversationKey(item));
-    // };
+  // const clearNextWebChatNewChatIntent = () => {
+  //   if (!item) return;
+  //   clearWebChatConversationForceNewChat(getConversationKey(item));
+  // };
 
-    // const consumeWebChatForceNewChatIntent = () => {
-    //   if (!item) return false;
-    //   return consumeWebChatConversationForceNewChat(getConversationKey(item));
-    // };
+  // const consumeWebChatForceNewChatIntent = () => {
+  //   if (!item) return false;
+  //   return consumeWebChatConversationForceNewChat(getConversationKey(item));
+  // };
 
-    // primeFreshWebChatPaperChipState = () => {
-    //   if (!item) return;
-    //   const autoLoadedPaperContext = resolveAutoLoadedPaperContext();
-    //   if (autoLoadedPaperContext) {
-    //     // Default to "full-next" (purple chip = send PDF to ChatGPT).
-    //     // Users can right-click the chip to toggle to "retrieval" (grey)
-    //     // when they want to skip attaching the PDF.
-    //     setPaperModeOverride(item.id, autoLoadedPaperContext, "full-next");
-    //   }
-    //   updatePaperPreviewPreservingScroll();
-    // };
+  // primeFreshWebChatPaperChipState = () => {
+  //   if (!item) return;
+  //   const autoLoadedPaperContext = resolveAutoLoadedPaperContext();
+  //   if (autoLoadedPaperContext) {
+  //     // Default to "full-next" (purple chip = send PDF to ChatGPT).
+  //     // Users can right-click the chip to toggle to "retrieval" (grey)
+  //     // when they want to skip attaching the PDF.
+  //     setPaperModeOverride(item.id, autoLoadedPaperContext, "full-next");
+  //   }
+  //   updatePaperPreviewPreservingScroll();
+  // };
 
-    // const hasUploadedPdfInCurrentWebChatConversation = () =>
-    //   item
-    //     ? hasWebChatPdfUploadedForConversation(getConversationKey(item))
-    //     : false;
+  // const hasUploadedPdfInCurrentWebChatConversation = () =>
+  //   item
+  //     ? hasWebChatPdfUploadedForConversation(getConversationKey(item))
+  //     : false;
 
-    // const markWebChatPdfUploadedForCurrentConversation = () => {
-    //   if (!item) return;
-    //   markWebChatPdfUploadedForConversation(getConversationKey(item));
-    // };
+  // const markWebChatPdfUploadedForCurrentConversation = () => {
+  //   if (!item) return;
+  //   markWebChatPdfUploadedForConversation(getConversationKey(item));
+  // };
 
-    // const resetWebChatPdfUploadedForCurrentConversation = () => {
-    //   if (!item) return;
-    //   resetWebChatPdfUploadedForConversation(getConversationKey(item));
-    // };
+  // const resetWebChatPdfUploadedForCurrentConversation = () => {
+  //   if (!item) return;
+  //   resetWebChatPdfUploadedForConversation(getConversationKey(item));
+  // };
 
-    // const resetCurrentWebChatConversation = () => {
-    //   if (!item) return;
-    //   const key = getConversationKey(item);
-    //   webChatIsolatedConversationKeys.add(key);
-    //   chatHistory.set(key, []);
-    //   loadedConversationKeys.add(key);
-    //   markNextWebChatSendAsNewChat();
-    //   primeFreshWebChatPaperChipState();
-    //   if (inputBox && !inlineEditTarget) inputBox.value = "";
-    // };
+  // const resetCurrentWebChatConversation = () => {
+  //   if (!item) return;
+  //   const key = getConversationKey(item);
+  //   webChatIsolatedConversationKeys.add(key);
+  //   chatHistory.set(key, []);
+  //   loadedConversationKeys.add(key);
+  //   markNextWebChatSendAsNewChat();
+  //   primeFreshWebChatPaperChipState();
+  //   if (inputBox && !inlineEditTarget) inputBox.value = "";
+  // };
 
-    // const initializeWebChatConversationForCurrentItem = () => {
-    //   if (!item) return;
-    //   const key = getConversationKey(item);
-    //   const hadWebChatSession =
-    //     webChatIsolatedConversationKeys.has(key) && chatHistory.has(key);
-    //   webChatIsolatedConversationKeys.add(key);
-    //   if (!hadWebChatSession) {
-    //     chatHistory.set(key, []);
-    //   }
-    //   loadedConversationKeys.add(key);
-    //   if (!hadWebChatSession) {
-    //     markNextWebChatSendAsNewChat();
-    //     primeFreshWebChatPaperChipState();
-    //     if (inputBox && !inlineEditTarget) inputBox.value = "";
-    //   }
-    // };
+  // const initializeWebChatConversationForCurrentItem = () => {
+  //   if (!item) return;
+  //   const key = getConversationKey(item);
+  //   const hadWebChatSession =
+  //     webChatIsolatedConversationKeys.has(key) && chatHistory.has(key);
+  //   webChatIsolatedConversationKeys.add(key);
+  //   if (!hadWebChatSession) {
+  //     chatHistory.set(key, []);
+  //   }
+  //   loadedConversationKeys.add(key);
+  //   if (!hadWebChatSession) {
+  //     markNextWebChatSendAsNewChat();
+  //     primeFreshWebChatPaperChipState();
+  //     if (inputBox && !inlineEditTarget) inputBox.value = "";
+  //   }
+  // };
 
-    // const hasExistingWebChatSessionForCurrentItem = () => {
-    //   if (!item) return false;
-    //   const key = getConversationKey(item);
-    //   return webChatIsolatedConversationKeys.has(key) && chatHistory.has(key);
-    // };
+  // const hasExistingWebChatSessionForCurrentItem = () => {
+  //   if (!item) return false;
+  //   const key = getConversationKey(item);
+  //   return webChatIsolatedConversationKeys.has(key) && chatHistory.has(key);
+  // };
 
-    // // Expose webchat intent clearing via hooks so standalone can call it
-    // // when loading a conversation from its own sidebar/popup.
-    // if (hooks) {
-    //   hooks.clearWebChatNewChatIntent = () => {
-    //     clearNextWebChatNewChatIntent();
-    //     resetWebChatPdfUploadedForCurrentConversation();
-    //   };
-    //   hooks.getCurrentModelName = () =>
-    //     getSelectedModelInfo().currentModel || null;
+  // // Expose webchat intent clearing via hooks so standalone can call it
+  // // when loading a conversation from its own sidebar/popup.
+  // if (hooks) {
+  //   hooks.clearWebChatNewChatIntent = () => {
+  //     clearNextWebChatNewChatIntent();
+  //     resetWebChatPdfUploadedForCurrentConversation();
+  //   };
+  //   hooks.getCurrentModelName = () =>
+  //     getSelectedModelInfo().currentModel || null;
+  // }
+
+  // const startWebChatConnectionCheck = (dot: HTMLElement) => {
+  //   stopWebChatConnectionCheck();
+  //   const check = async () => {
+  //     try {
+  //       // Always use dynamic port — saved apiBase may be stale
+  //       const { getRelayBaseUrl } = await import("../../webchat/relayServer");
+  //       const host = getRelayBaseUrl();
+  //       const { testConnection } = await import("../../webchat/client");
+  //       const alive = await testConnection(host);
+  //       dot.className = alive
+  //         ? "paperpilot-webchat-dot paperpilot-webchat-dot-connected"
+  //         : "paperpilot-webchat-dot paperpilot-webchat-dot-disconnected";
+  //     } catch {
+  //       dot.className = "paperpilot-webchat-dot paperpilot-webchat-dot-disconnected";
+  //     }
+  //   };
+  //   void check(); // immediate first check
+  //   webchatConnectionTimer = setInterval(check, 5000);
+  // };
+
+  // const stopWebChatConnectionCheck = () => {
+  //   if (webchatConnectionTimer !== null) {
+  //     clearInterval(webchatConnectionTimer);
+  //     webchatConnectionTimer = null;
+  //   }
+  // };
+
+  // updateReasoningButton = () => {
+  //   if (!item || !reasoningBtn) return;
+  //   withScrollGuard(chatBox, conversationKey, () => {
+  //     // [webchat] Hide reasoning dropdown — users control thinking mode on chatgpt.com
+  //     if (isWebChatMode()) {
+  //       reasoningBtn.style.display = "none";
+  //       scheduleResponsiveLayoutSync();
+  //       return;
+  //     }
+  //     reasoningBtn.style.display = "";
+
+  //     const { provider, currentModel, options, enabledLevels, selectedLevel } =
+  //       getReasoningState();
+  //     const available = enabledLevels.length > 0;
+  //     const resolvedReasoningLabel = isClaudeConversationSystem()
+  //       ? (() => {
+  //           return getClaudeReasoningDisplayLabel(
+  //             getClaudeReasoningDisplayMode(),
+  //           );
+  //         })()
+  //       : isCodexConversationSystem()
+  //         ? (() => {
+  //             const mode = getCodexReasoningModePref();
+  //             return (
+  //               getCodexReasoningChoices().find(
+  //                 (choice) => choice.value.toLowerCase() === mode.toLowerCase(),
+  //               )?.label || "Auto"
+  //             );
+  //           })()
+  //         : selectedLevel === "none"
+  //           ? "off"
+  //           : available
+  //             ? getReasoningLevelDisplayLabel(
+  //                 selectedLevel as LLMReasoningLevel,
+  //                 provider,
+  //                 currentModel,
+  //                 options,
+  //               )
+  //             : "off";
+  //     const active =
+  //       available && isReasoningDisplayLabelActive(resolvedReasoningLabel);
+  //     const reasoningLabel = resolvedReasoningLabel;
+  //     reasoningBtn.disabled = !item;
+  //     reasoningBtn.classList.toggle(
+  //       "paperpilot-reasoning-btn-unavailable",
+  //       !available,
+  //     );
+  //     reasoningBtn.classList.toggle("paperpilot-reasoning-btn-active", active);
+  //     reasoningBtn.style.background = "";
+  //     reasoningBtn.style.borderColor = "";
+  //     reasoningBtn.style.color = "";
+  //     const reasoningHint = "Click to adjust reasoning level";
+  //     reasoningBtn.dataset.reasoningLabel = reasoningLabel;
+  //     reasoningBtn.dataset.reasoningHint = reasoningHint;
+  //     scheduleResponsiveLayoutSync();
+  //   });
+  // };
+
+  // const rebuildReasoningMenu = () => {
+  //   if (!item || !reasoningMenu) return;
+  //   const { provider, currentModel, options, selectedLevel, enabledLevels } =
+  //     getReasoningState();
+  //   reasoningMenu.innerHTML = "";
+
+  //   // [webchat] Show dedicated ChatGPT mode options
+  //   if (isWebChatMode()) {
+  //     reasoningMenu.innerHTML = "";
+  //     appendDropdownInstruction(
+  //       reasoningMenu,
+  //       "Webchat mode",
+  //       "paperpilot-reasoning-menu-section",
+  //     );
+  //     const currentSel = selectedReasoningCache.get(item.id) || "none";
+  //     for (const mode of WEBCHAT_MODES) {
+  //       const isSelected = currentSel === mode.level;
+  //       const option = createElement(
+  //         body.ownerDocument as Document,
+  //         "button",
+  //         "paperpilot-response-menu-item paperpilot-reasoning-option",
+  //         {
+  //           type: "button",
+  //           textContent: isSelected ? `\u2713 ${mode.label}` : mode.label,
+  //         },
+  //       );
+  //       const applyMode = (e: Event) => {
+  //         if (!isPrimaryPointerEvent(e)) return;
+  //         e.preventDefault();
+  //         e.stopPropagation();
+  //         if (!item) return;
+  //         if (isClaudeConversationSystem()) {
+  //           clearClaudeReasoningDisplayOverride();
+  //           setClaudeReasoningModePref(
+  //             mode.level === "none" ? "auto" : (mode.level as any),
+  //           );
+  //         } else {
+  //           selectedReasoningCache.clear();
+  //           selectedReasoningCache.set(item.id, mode.level as any);
+  //           selectedReasoningProviderCache.set(item.id, "unsupported");
+  //           setLastUsedReasoningLevel(mode.level as any);
+  //         }
+  //         setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
+  //         updateReasoningButton();
+  //       };
+  //       option.addEventListener("pointerdown", applyMode);
+  //       option.addEventListener("click", applyMode);
+  //       reasoningMenu.appendChild(option);
+  //     }
+  //     return;
+  //   }
+
+  //   appendDropdownInstruction(
+  //     reasoningMenu,
+  //     t("Reasoning level"),
+  //     "paperpilot-reasoning-menu-section",
+  //   );
+  //   if (isClaudeConversationSystem()) {
+  //     const claudeModes: Array<{
+  //       value: "auto" | "low" | "medium" | "high" | "xhigh" | "max";
+  //       label: string;
+  //     }> = [
+  //       { value: "auto", label: "Auto" },
+  //       { value: "low", label: "Low" },
+  //       { value: "medium", label: "Medium" },
+  //       { value: "high", label: "High" },
+  //       { value: "xhigh", label: "XHigh" },
+  //       { value: "max", label: "Max" },
+  //     ];
+  //     const currentMode = getClaudeReasoningDisplayMode();
+  //     for (const mode of claudeModes) {
+  //       const option = createElement(
+  //         body.ownerDocument as Document,
+  //         "button",
+  //         "paperpilot-response-menu-item paperpilot-reasoning-option",
+  //         {
+  //           type: "button",
+  //           textContent:
+  //             currentMode === mode.value ? `\u2713 ${mode.label}` : mode.label,
+  //         },
+  //       );
+  //       const applyClaudeSelection = (e: Event) => {
+  //         if (!isPrimaryPointerEvent(e)) return;
+  //         e.preventDefault();
+  //         e.stopPropagation();
+  //         if (!item) return;
+  //         clearClaudeReasoningDisplayOverride();
+  //         setClaudeReasoningModePref(mode.value as any);
+  //         setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
+  //         updateReasoningButton();
+  //       };
+  //       option.addEventListener("pointerdown", applyClaudeSelection);
+  //       option.addEventListener("click", applyClaudeSelection);
+  //       reasoningMenu.appendChild(option);
+  //     }
+  //     return;
+  //   }
+  //   if (isCodexConversationSystem()) {
+  //     const codexModes = getCodexReasoningChoices();
+  //     const currentMode = getCodexReasoningModePref();
+  //     for (const mode of codexModes) {
+  //       const option = createElement(
+  //         body.ownerDocument as Document,
+  //         "button",
+  //         "paperpilot-response-menu-item paperpilot-reasoning-option",
+  //         {
+  //           type: "button",
+  //           textContent:
+  //             currentMode === mode.value ? `\u2713 ${mode.label}` : mode.label,
+  //         },
+  //       );
+  //       const applyCodexSelection = (e: Event) => {
+  //         if (!isPrimaryPointerEvent(e)) return;
+  //         e.preventDefault();
+  //         e.stopPropagation();
+  //         setCodexReasoningModePref(mode.value);
+  //         setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
+  //         updateReasoningButton();
+  //       };
+  //       option.addEventListener("pointerdown", applyCodexSelection);
+  //       option.addEventListener("click", applyCodexSelection);
+  //       reasoningMenu.appendChild(option);
+  //     }
+  //     return;
+  //   }
+  //   if (!enabledLevels.length) {
+  //     const offOption = createElement(
+  //       body.ownerDocument as Document,
+  //       "button",
+  //       "paperpilot-response-menu-item paperpilot-reasoning-option",
+  //       {
+  //         type: "button",
+  //         textContent: "\u2713 off",
+  //       },
+  //     );
+  //     const applyOffSelection = (e: Event) => {
+  //       if (!isPrimaryPointerEvent(e)) return;
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       if (!item) return;
+  //       if (isClaudeConversationSystem()) {
+  //         clearClaudeReasoningDisplayOverride();
+  //         setClaudeReasoningModePref("auto");
+  //       } else {
+  //         selectedReasoningCache.clear();
+  //         selectedReasoningCache.set(item.id, "none");
+  //         selectedReasoningProviderCache.set(item.id, provider);
+  //         setLastUsedReasoningLevelForProvider(provider, "none");
+  //         if (provider !== "anthropic") {
+  //           setLastUsedReasoningLevel("none");
+  //         }
+  //       }
+  //       setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
+  //       updateReasoningButton();
+  //     };
+  //     offOption.addEventListener("pointerdown", applyOffSelection);
+  //     offOption.addEventListener("click", applyOffSelection);
+  //     reasoningMenu.appendChild(offOption);
+  //     return;
+  //   }
+  //   if (provider === "anthropic") {
+  //     const isSelected = selectedLevel === "none";
+  //     const offOption = createElement(
+  //       body.ownerDocument as Document,
+  //       "button",
+  //       "paperpilot-response-menu-item paperpilot-reasoning-option",
+  //       {
+  //         type: "button",
+  //         textContent: isSelected ? "\u2713 Off" : "Off",
+  //       },
+  //     );
+  //     const applyAnthropicOffSelection = (e: Event) => {
+  //       if (!isPrimaryPointerEvent(e)) return;
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       if (!item) return;
+  //       selectedReasoningCache.set(item.id, "none");
+  //       selectedReasoningProviderCache.set(item.id, provider);
+  //       setLastUsedReasoningLevelForProvider(provider, "none");
+  //       setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
+  //       updateReasoningButton();
+  //     };
+  //     offOption.addEventListener("pointerdown", applyAnthropicOffSelection);
+  //     offOption.addEventListener("click", applyAnthropicOffSelection);
+  //     reasoningMenu.appendChild(offOption);
+  //   }
+  //   for (const optionState of options) {
+  //     const level = optionState.level;
+  //     const option = createElement(
+  //       body.ownerDocument as Document,
+  //       "button",
+  //       "paperpilot-response-menu-item paperpilot-reasoning-option",
+  //       {
+  //         type: "button",
+  //         textContent:
+  //           selectedLevel === level
+  //             ? `\u2713 ${getReasoningLevelDisplayLabel(level, provider, currentModel, options)}`
+  //             : getReasoningLevelDisplayLabel(
+  //                 level,
+  //                 provider,
+  //                 currentModel,
+  //                 options,
+  //               ),
+  //       },
+  //     );
+  //     if (optionState.enabled) {
+  //       const applyReasoningSelection = (e: Event) => {
+  //         if (!isPrimaryPointerEvent(e)) return;
+  //         e.preventDefault();
+  //         e.stopPropagation();
+  //         if (!item) return;
+  //         if (isClaudeConversationSystem()) {
+  //           const nextMode = optionState.label === "Max" ? "max" : level;
+  //           clearClaudeReasoningDisplayOverride();
+  //           setClaudeReasoningModePref(nextMode as any);
+  //         } else {
+  //           selectedReasoningCache.clear();
+  //           selectedReasoningCache.set(item.id, level);
+  //           selectedReasoningProviderCache.set(item.id, provider);
+  //           setLastUsedReasoningLevelForProvider(provider, level);
+  //           if (provider !== "anthropic") {
+  //             setLastUsedReasoningLevel(level);
+  //           }
+  //         }
+  //         setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
+  //         updateReasoningButton();
+  //       };
+  //       option.addEventListener("pointerdown", applyReasoningSelection);
+  //       option.addEventListener("click", applyReasoningSelection);
+  //     } else {
+  //       option.disabled = true;
+  //       option.classList.add("paperpilot-reasoning-option-disabled");
+  //     }
+  //     reasoningMenu.appendChild(option);
+  //   }
+  // };
+
+  // (body as any).__paperpilotApplyResolvedClaudeEffort =
+  //   applyClaudeResolvedReasoningDisplay;
+
+  // const syncModelFromPrefs = () => {
+  //   updateModelButton();
+  //   updateReasoningButton();
+  //   if (isFloatingMenuOpen(modelMenu)) {
+  //     rebuildModelMenu();
+  //   }
+  //   if (isFloatingMenuOpen(reasoningMenu)) {
+  //     rebuildReasoningMenu();
+  //   }
+  // };
+
+  // (body as any).__paperpilotRefreshContextSourceForCurrentItem = () => {
+  //   withScrollGuard(chatBox, conversationKey, () => {
+  //     refreshAutoLoadedPaperContextForCurrentItem();
+  //     updatePaperPreviewPreservingScroll();
+  //     syncModelFromPrefs();
+  //     flushResponsiveLayoutSyncNow();
+  //     flushPanelStateRefreshNow();
+  //     if (item && chatBox && !chatBox.childElementCount) {
+  //       refreshChat(body, item);
+  //     }
+  //   });
+  // };
+
+  // const webChatHistoryController = createWebChatHistoryController({
+  //   body,
+  //   historyMenu,
+  //   getItem: () => item,
+  //   getSelectedModelInfo,
+  //   closeHistoryMenu,
+  //   getConversationKey,
+  //   setConversationHistory: (conversationKey, messages) => {
+  //     webChatIsolatedConversationKeys.add(conversationKey);
+  //     chatHistory.set(conversationKey, messages);
+  //     loadedConversationKeys.add(conversationKey);
+  //   },
+  //   refreshChatPreservingScroll,
+  //   isWebChatMode,
+  //   resetWebChatPdfUploadedForCurrentConversation,
+  //   clearNextWebChatNewChatIntent,
+  //   setSelectedReasoningLevel: (itemId, level) => {
+  //     selectedReasoningCache.set(itemId, level);
+  //   },
+  //   setSelectedReasoningProvider: (itemId, provider) => {
+  //     selectedReasoningProviderCache.set(itemId, provider);
+  //   },
+  //   updateReasoningButton,
+  //   setStatusMessage: status
+  //     ? (message, level) => {
+  //         setStatus(status, message, level);
+  //       }
+  //     : undefined,
+  //   log: (message, ...args) => {
+  //     ztoolkit.log(message, ...args);
+  //   },
+  // });
+  // const { warmUpWebChatHistory } = webChatHistoryController;
+  // renderWebChatHistoryMenu = webChatHistoryController.renderWebChatHistoryMenu;
+
+  // // [webchat] Apply webchat-specific UI changes. Safe to call any time —
+  // // only modifies UI when actually in webchat mode, restores defaults otherwise.
+  // const applyWebChatModeUI = () => {
+  //   let isWebChat = false;
+  //   try {
+  //     const { selectedEntry } = getSelectedModelInfo();
+  //     isWebChat = selectedEntry?.authMode === "webchat";
+  //   } catch {
+  //     // getSelectedModelInfo may not be ready during initial render —
+  //     // fall back to checking the last-used model entry directly.
+  //     try {
+  //       const lastId = getLastUsedModelEntryId();
+  //       const entry = lastId ? getModelEntryById(lastId) : null;
+  //       isWebChat = entry?.authMode === "webchat";
+  //     } catch {
+  //       return;
+  //     }
+  //   }
+
+  //   panelRoot.dataset.webchatMode = isWebChat ? "true" : "false";
+  //   syncQueuedFollowUpRegistration();
+
+  //   // Mode chip: show target site name with connection dot, or restore original
+  //   if (modeChipBtn) {
+  //     if (isWebChat) {
+  //       // Resolve the target label from the current model name
+  //       let webchatChipLabel = "chatgpt";
+  //       let webchatChipTitle = "WebChat Sync";
+  //       try {
+  //         const { currentModel } = getSelectedModelInfo();
+  //         const { getWebChatTargetByModelName } =
+  //           require("../../webchat/types") as typeof import("../../webchat/types");
+  //         const entry = getWebChatTargetByModelName(currentModel || "");
+  //         if (entry) {
+  //           webchatChipLabel = entry.displayName;
+  //           webchatChipTitle = `${entry.label} Web Sync (${entry.modelName})`;
+  //         }
+  //       } catch {
+  //         /* fallback to defaults */
+  //       }
+
+  //       let dot = modeChipBtn.querySelector(
+  //         ".paperpilot-webchat-dot",
+  //       ) as HTMLElement | null;
+  //       if (!dot) {
+  //         dot = (modeChipBtn.ownerDocument as Document).createElement("span");
+  //         dot.className = "paperpilot-webchat-dot paperpilot-webchat-dot-disconnected";
+  //       }
+  //       modeChipBtn.textContent = "";
+  //       modeChipBtn.appendChild(dot);
+  //       modeChipBtn.appendChild(
+  //         (modeChipBtn.ownerDocument as Document).createTextNode(
+  //           ` ${webchatChipLabel}`,
+  //         ),
+  //       );
+  //       modeChipBtn.title = webchatChipTitle;
+  //       modeChipBtn.disabled = true;
+  //       modeChipBtn.setAttribute("aria-disabled", "true");
+  //       modeChipBtn.dataset.webchatStatic = "true";
+  //       modeChipBtn.style.cursor = "default";
+  //       startWebChatConnectionCheck(dot);
+  //     } else {
+  //       const oldDot = modeChipBtn.querySelector(".paperpilot-webchat-dot");
+  //       if (oldDot) {
+  //         oldDot.remove();
+  //         // Restore mode chip text — the normal render sync skips it while the dot is present
+  //         const chipLabel = isGlobalMode() ? "Library chat" : "Paper chat";
+  //         modeChipBtn.textContent = chipLabel;
+  //         modeChipBtn.title = isGlobalMode()
+  //           ? "Switch to paper chat"
+  //           : "Switch to library chat";
+  //       }
+  //       stopWebChatConnectionCheck();
+  //       modeChipBtn.disabled = false;
+  //       modeChipBtn.removeAttribute("aria-disabled");
+  //       delete modeChipBtn.dataset.webchatStatic;
+  //       modeChipBtn.style.cursor = "";
+  //     }
+  //   }
+
+  //   // Model dropdown: fully disabled in webchat (model is ChatGPT, use Exit to change)
+  //   if (modelBtn) {
+  //     (modelBtn as HTMLButtonElement).disabled = isWebChat;
+  //     modelBtn.style.opacity = isWebChat ? "0.5" : "";
+  //     modelBtn.style.cursor = isWebChat ? "default" : "";
+  //     modelBtn.style.pointerEvents = isWebChat ? "none" : "";
+  //   }
+
+  //   // [webchat] Pre-fetch history in background so it's ready when user clicks
+  //   if (isWebChat && !hasExistingWebChatSessionForCurrentItem()) {
+  //     void warmUpWebChatHistory();
+  //   }
+
+  //   // Clear button → "Exit" in webchat, restore "Clear" otherwise
+  //   if (clearBtn) {
+  //     if (isWebChat) {
+  //       clearBtn.textContent = "Exit";
+  //       (clearBtn as HTMLButtonElement).disabled = false;
+  //       clearBtn.style.opacity = "";
+  //       clearBtn.title = "Exit webchat and return to previous model";
+  //     } else {
+  //       clearBtn.textContent = "Clear";
+  //       clearBtn.title = "";
+  //     }
+  //   }
+
+  //   // [webchat] Hide the "/" action button — slash menu is disabled in webchat
+  //   if (uploadBtn) {
+  //     uploadBtn.style.display = isWebChat ? "none" : "";
+  //   }
+
+  //   // [webchat] Re-render paper chips to reflect forced PDF content source
+  //   if (isWebChat) {
+  //     updatePaperPreviewPreservingScroll();
+  //   }
+
+  //   updateRuntimeModeButton();
+  //   updateClaudeSystemToggle();
+
+  //   // Notify standalone window (or other listeners) of webchat mode change
+  //   hooks?.onWebChatModeChanged?.(isWebChat);
+  //   syncRequestUiForCurrentConversation();
+  // };
+
+  // // Initialize model and preview state.  Keep panel-state DOM refresh queued
+  // // until setup-local helpers are ready, then flush once.
+  // refreshAutoLoadedPaperContextForCurrentItem();
+  // syncModelFromPrefs();
+  // flushResponsiveLayoutSyncNow();
+  // // Set active_target before applyWebChatModeUI so sidebar filters by the correct site
+  // try {
+  //   if (isWebChatMode()) {
+  //     const { getWebChatTargetByModelName: getColdTarget } =
+  //       require("../../webchat/types") as typeof import("../../webchat/types");
+  //     const { relaySetActiveTarget: setColdTarget } =
+  //       require("../../webchat/relayServer") as typeof import("../../webchat/relayServer");
+  //     const { currentModel: coldStartModel } = getSelectedModelInfo();
+  //     const coldEntry = getColdTarget(coldStartModel || "");
+  //     if (coldEntry?.id) setColdTarget(coldEntry.id);
+  //   }
+  // } catch {
+  //   /* isWebChatMode may not be ready */
+  // }
+  // applyWebChatModeUI();
+  // resetComposePreviewUI();
+  // flushPanelStateRefreshNow();
+  // // [webchat] Cold startup → show preload screen so user knows they're in webchat mode
+  // try {
+  //   if (isWebChatMode() && !hasExistingWebChatSessionForCurrentItem()) {
+  //     const chatShellEl = body.querySelector(
+  //       ".paperpilot-chat-shell",
+  //     ) as HTMLElement | null;
+  //     if (chatShellEl) {
+  //       void (async () => {
+  //         try {
+  //           abortWebChatPreload();
+  //           const token = { aborted: false };
+  //           webchatPreloadAbort = token;
+  //           const { showWebChatPreloadScreen } =
+  //             await import("../../webchat/preloadScreen");
+  //           const { getWebChatTargetByModelName } =
+  //             await import("../../webchat/types");
+  //           const { relaySetActiveTarget: relaySetTarget2 } =
+  //             await import("../../webchat/relayServer");
+  //           const { currentModel: coldModel } = getSelectedModelInfo();
+  //           const coldTargetEntry = getWebChatTargetByModelName(
+  //             coldModel || "",
+  //           );
+  //           if (coldTargetEntry?.id) relaySetTarget2(coldTargetEntry.id);
+  //           await showWebChatPreloadScreen(
+  //             chatShellEl,
+  //             token,
+  //             coldTargetEntry?.label,
+  //             coldTargetEntry?.modelName,
+  //           );
+  //         } catch {
+  //           // Preload failed or was aborted — dot will show connection status
+  //         } finally {
+  //           webchatPreloadAbort = null;
+  //         }
+  //       })();
+  //     }
+  //   }
+  // } catch {
+  //   // isWebChatMode may not be ready during initial render
+  // }
+  // restoreDraftInputForCurrentConversation();
+  // if (isWebChatMode()) {
+  //   initializeWebChatConversationForCurrentItem();
+  //   refreshChatPreservingScroll();
+  // } else if (isPaperMode()) {
+  //   // In the standalone window, mountChatPanel's own async IIFE handles
+  //   // conversation loading.  The parameter-less auto-fire would race with it
+  //   // and resolve to a different (default) conversation, overwriting the
+  //   // explicitly targeted one.
+  //   if (!isStandalonePanel) {
+  //     void switchPaperConversation().catch((err) => {
+  //       ztoolkit.log("LLM: Failed to restore paper conversation session", err);
+  //     });
+  //   }
+  // } else {
+  //   void refreshGlobalHistoryHeader();
+  // }
+
+  // // Preferences can change outside this panel (e.g., settings window).
+  // // Re-sync model label when the user comes back (pointerenter).
+  // // NOTE: We intentionally do NOT sync on "focusin" because focusin fires
+  // // on every internal focus change (e.g. clicking the input box).
+  // // syncModelFromPrefs → updateModelButton → applyResponsiveActionButtonsLayout
+  // // mutates DOM → changes flex layout → resizes .paperpilot-messages → shifts scroll
+  // // position.  pointerenter is sufficient and fires before interaction.
+  // body.addEventListener("pointerenter", () => {
+  //   withScrollGuard(chatBox, conversationKey, () => {
+  //     syncModelFromPrefs();
+  //     syncConversationPanelState();
+  //   });
+  // });
+  // const ResizeObserverCtor = body.ownerDocument?.defaultView?.ResizeObserver;
+  // if (ResizeObserverCtor && panelRoot && modelBtn) {
+  //   const newObservers: ResizeObserver[] = [];
+  //   const ro = new ResizeObserverCtor(() => {
+  //     // Keep layout mutations on the guarded scheduler so resize callbacks
+  //     // stay cheap during sidebar drags.
+  //     scheduleResponsiveLayoutSync();
+  //   });
+  //   newObservers.push(ro);
+  //   ro.observe(panelRoot);
+  //   if (actionsRow) ro.observe(actionsRow);
+  //   if (actionsLeft) ro.observe(actionsLeft);
+  //   if (chatBox) {
+  //     const chatBoxResizeObserver = new ResizeObserverCtor(() => {
+  //       if (!chatBox) return;
+  //       if (!isChatViewportVisible(chatBox)) return;
+  //       if (!pendingChatBoxResizePreviousState) {
+  //         pendingChatBoxResizePreviousState = chatBoxViewportState;
+  //       }
+  //       chatBoxViewportResizeScheduler.schedule();
+  //     });
+  //     newObservers.push(chatBoxResizeObserver);
+  //     chatBoxResizeObserver.observe(chatBox);
+  //   }
+  //   // Store observers on body so they can be disconnected on next
+  //   // setupHandlers call (prevents accumulation across tab switches).
+  //   (body as any).__paperpilotResizeObservers = newObservers;
+  //   (body as any).__paperpilotResizeSchedulers = [
+  //     responsiveLayoutScheduler,
+  //     chatBoxViewportResizeScheduler,
+  //   ];
+  // }
+
+  // function getSelectedProfile() {
+  //   if (!item) return null;
+  //   if (isClaudeConversationSystem()) {
+  //     return getSelectedClaudeRuntimeEntry();
+  //   }
+  //   if (isCodexConversationSystem()) {
+  //     return getSelectedCodexRuntimeEntry();
+  //   }
+  //   return getSelectedModelEntryForItem(item.id);
+  // }
+
+  // const getAdvancedModelParams = (
+  //   entryId: string | undefined,
+  // ): AdvancedModelParams | undefined => {
+  //   if (!entryId) return undefined;
+  //   if (isClaudeConversationSystem()) {
+  //     return getSelectedClaudeRuntimeEntry().advanced;
+  //   }
+  //   if (isCodexConversationSystem()) {
+  //     return getSelectedCodexRuntimeEntry().advanced;
+  //   }
+  //   return getAdvancedModelParamsForEntry(entryId);
+  // };
+
+  // const getSelectedReasoning = (): LLMReasoningConfig | undefined => {
+  //   if (!item) return undefined;
+  //   if (isClaudeConversationSystem()) {
+  //     return buildClaudeReasoningConfigForDisplayMode(
+  //       getClaudeReasoningDisplayMode(),
+  //     );
+  //   }
+  //   if (isCodexConversationSystem()) {
+  //     const mode =
+  //       codexModelCatalogStatus === "ready"
+  //         ? reconcileSelectedCodexReasoningMode()
+  //         : getCodexReasoningModePref();
+  //     return buildCodexAppServerReasoningConfig(mode);
+  //   }
+  //   const { provider, enabledLevels, selectedLevel } = getReasoningState();
+  //   if (provider === "unsupported" || selectedLevel === "none")
+  //     return undefined;
+  //   if (!enabledLevels.includes(selectedLevel as LLMReasoningLevel)) {
+  //     return undefined;
+  //   }
+  //   return { provider, level: selectedLevel as LLMReasoningLevel };
+  // };
+
+  // const { processIncomingFiles } = createFileIntakeController({
+  //   body,
+  //   getItem: () => item,
+  //   getCurrentModel: () => getSelectedModelInfo().currentModel,
+  //   getCurrentPdfSupport: () => {
+  //     const profile = getSelectedProfile();
+  //     const modelName = (
+  //       profile?.model ||
+  //       getSelectedModelInfo().currentModel ||
+  //       ""
+  //     ).trim();
+  //     const inputMode = getAdvancedModelParamsForEntry(
+  //       profile?.entryId,
+  //     )?.inputMode;
+  //     return getModelPdfSupport(
+  //       modelName,
+  //       profile?.providerProtocol,
+  //       profile?.authMode,
+  //       profile?.apiBase,
+  //       inputMode,
+  //     );
+  //   },
+  //   isScreenshotUnsupportedModel: (modelName) => {
+  //     const profile = getSelectedProfile();
+  //     const inputMode = getAdvancedModelParamsForEntry(
+  //       profile?.entryId,
+  //     )?.inputMode;
+  //     return isScreenshotUnsupportedModel(
+  //       (profile?.model || modelName || "").trim(),
+  //       profile?.providerProtocol,
+  //       profile?.authMode,
+  //       profile?.apiBase,
+  //       inputMode,
+  //     );
+  //   },
+  //   optimizeImageDataUrl,
+  //   persistAttachmentBlob,
+  //   selectedImageCache,
+  //   selectedFileAttachmentCache,
+  //   updateImagePreview,
+  //   updateFilePreview,
+  //   scheduleAttachmentGc,
+  //   setStatusMessage: status
+  //     ? (message, level) => {
+  //         setStatus(status, message, level);
+  //       }
+  //     : undefined,
+  // });
+
+  // const setInputDropActive = (active: boolean) => {
+  //   if (inputSection) {
+  //     inputSection.classList.toggle("paperpilot-input-drop-active", active);
+  //   }
+  //   if (inputBox) {
+  //     inputBox.classList.toggle("paperpilot-input-drop-active", active);
+  //   }
+  // };
+
+  // const paperPickerController = createPaperPickerController({
+  //   body,
+  //   panelRoot,
+  //   inputBox,
+  //   paperPicker,
+  //   paperPickerList,
+  //   getItem: () => item,
+  //   getCurrentLibraryID,
+  //   isWebChatMode,
+  //   resolveAutoLoadedPaperContext,
+  //   getManualPaperContextsForItem,
+  //   isPaperContextMineru,
+  //   getTextContextConversationKey,
+  //   persistDraftInputForCurrentConversation,
+  //   updatePaperPreviewPreservingScroll,
+  //   updateSelectedTextPreviewPreservingScroll,
+  //   setStatusMessage: status
+  //     ? (message, level) => {
+  //         setStatus(status, message, level);
+  //       }
+  //     : undefined,
+  //   log: (message, ...args) => {
+  //     ztoolkit.log(message, ...args);
+  //   },
+  // });
+  // const {
+  //   getActiveAtToken,
+  //   isPaperPickerOpen,
+  //   closePaperPicker: closePaperPickerFromController,
+  //   schedulePaperPickerSearch,
+  //   moveActiveRow: movePaperPickerActiveRow,
+  //   selectActiveRow: selectActivePaperPickerRow,
+  //   handleArrowRight: handlePaperPickerArrowRight,
+  //   handleArrowLeft: handlePaperPickerArrowLeft,
+  //   addZoteroItemsAsPaperContext,
+  // } = paperPickerController;
+  // closePaperPicker = closePaperPickerFromController;
+  // const getActiveActionToken = (): ActiveActionToken | null => {
+  //   const caretEnd =
+  //     typeof inputBox.selectionStart === "number"
+  //       ? inputBox.selectionStart
+  //       : inputBox.value.length;
+  //   const slashToken = parsePaperSearchSlashToken(inputBox.value, caretEnd);
+  //   const dollarToken = parseSkillSearchDollarToken(inputBox.value, caretEnd);
+  //   if (slashToken && dollarToken) {
+  //     return slashToken.slashStart > dollarToken.slashStart
+  //       ? { ...slashToken, trigger: "/" }
+  //       : { ...dollarToken, trigger: "$" };
+  //   }
+  //   if (dollarToken) return { ...dollarToken, trigger: "$" };
+  //   if (slashToken) return { ...slashToken, trigger: "/" };
+  //   return null;
+  // };
+  // let doSend: (options?: {
+  //   overrideText?: string;
+  //   preserveInputDraft?: boolean;
+  // }) => Promise<void> = async () => {};
+
+  // const actionCommandController = createActionCommandController({
+  //   body,
+  //   panelRoot,
+  //   inputBox,
+  //   slashMenu,
+  //   uploadBtn,
+  //   actionPicker,
+  //   actionPickerList,
+  //   actionHitlPanel,
+  //   chatBox,
+  //   getItem: () => item,
+  //   getActiveActionToken,
+  //   persistDraftInputForCurrentConversation,
+  //   shouldRenderDynamicSlashMenu:
+  //     shouldRenderDynamicSlashMenuForCurrentConversation,
+  //   shouldRenderSkillSlashMenu:
+  //     shouldRenderSkillSlashMenuForCurrentConversation,
+  //   isWebChatMode,
+  //   isClaudeConversationSystem,
+  //   getCurrentRuntimeMode,
+  //   setCurrentRuntimeMode,
+  //   getCurrentLibraryID,
+  //   resolveCurrentPaperBaseItem,
+  //   getAllEffectivePaperContexts,
+  //   getEffectivePdfModePaperContexts,
+  //   getEffectiveFullTextPaperContexts,
+  //   getSelectedProfile,
+  //   getDoSend: () => doSend,
+  //   closeRetryModelMenu,
+  //   closeModelMenu,
+  //   closeReasoningMenu,
+  //   closeHistoryNewMenu,
+  //   closeHistoryMenu,
+  //   closeResponseMenu,
+  //   closePromptMenu,
+  //   closeExportMenu,
+  //   setStatusMessage: status
+  //     ? (message, level) => {
+  //         setStatus(status, message, level);
+  //       }
+  //     : undefined,
+  //   logError: (message, error) => {
+  //     ztoolkit.log(message, error);
+  //   },
+  // });
+  // const {
+  //   isActionPickerOpen,
+  //   closeActionPicker,
+  //   moveActionPickerSelection,
+  //   selectActiveActionPickerItem,
+  //   renderDynamicSlashMenuSections,
+  //   scheduleActionPickerTrigger,
+  //   closeSlashMenu: closeActionSlashMenu,
+  //   openSlashMenuWithSelection,
+  //   moveSlashMenuSelection,
+  //   selectActiveSlashMenuItem,
+  //   syncHasActionCardAttr,
+  //   clearForcedSkill: clearForcedSkillFromActionController,
+  //   clearCommandChip,
+  //   clearCommandRowSelection,
+  //   getActiveCommandAction,
+  //   consumeForcedSkillIds,
+  //   handleInlineCommand,
+  //   handleNaturalLanguageActionIntent,
+  //   consumeActiveActionToken,
+  // } = actionCommandController;
+  // closeSlashMenu = closeActionSlashMenu;
+  // clearForcedSkill = clearForcedSkillFromActionController;
+
+  // if (inputSection && inputBox) {
+  //   let fileDragDepth = 0;
+
+  //   const isDragRelevant = (dragEvent: DragEvent): boolean =>
+  //     isFileDragEvent(dragEvent) || isZoteroItemDragEvent(dragEvent);
+
+  //   inputSection.addEventListener("dragenter", (e: Event) => {
+  //     const dragEvent = e as DragEvent;
+  //     if (!isDragRelevant(dragEvent)) return;
+  //     dragEvent.preventDefault();
+  //     dragEvent.stopPropagation();
+  //     fileDragDepth += 1;
+  //     setInputDropActive(true);
+  //   });
+
+  //   inputSection.addEventListener("dragover", (e: Event) => {
+  //     const dragEvent = e as DragEvent;
+  //     if (!isDragRelevant(dragEvent)) return;
+  //     dragEvent.preventDefault();
+  //     dragEvent.stopPropagation();
+  //     if (dragEvent.dataTransfer) {
+  //       dragEvent.dataTransfer.dropEffect = "copy";
+  //     }
+  //     if (!inputSection.classList.contains("paperpilot-input-drop-active")) {
+  //       setInputDropActive(true);
+  //     }
+  //   });
+
+  //   inputSection.addEventListener("dragleave", (e: Event) => {
+  //     const dragEvent = e as DragEvent;
+  //     if (!isDragRelevant(dragEvent)) return;
+  //     dragEvent.preventDefault();
+  //     dragEvent.stopPropagation();
+  //     fileDragDepth = Math.max(0, fileDragDepth - 1);
+  //     if (fileDragDepth === 0) {
+  //       setInputDropActive(false);
+  //     }
+  //   });
+
+  //   inputSection.addEventListener("drop", (e: Event) => {
+  //     const dragEvent = e as DragEvent;
+  //     if (!isDragRelevant(dragEvent)) return;
+  //     dragEvent.preventDefault();
+  //     dragEvent.stopPropagation();
+  //     fileDragDepth = 0;
+  //     setInputDropActive(false);
+
+  //     // Handle Zotero library item drops
+  //     if (isZoteroItemDragEvent(dragEvent)) {
+  //       const data = dragEvent.dataTransfer?.getData("zotero/item");
+  //       const itemIds = parseZoteroItemDragData(data);
+  //       const zoteroItems = itemIds
+  //         .map((id) => Zotero.Items.get(id))
+  //         .filter((zi): zi is Zotero.Item => Boolean(zi));
+  //       if (zoteroItems.length) {
+  //         addZoteroItemsAsPaperContext(zoteroItems);
+  //       }
+  //       inputBox.focus({ preventScroll: true });
+  //       return;
+  //     }
+
+  //     // Handle file drops (existing logic)
+  //     const files = dragEvent.dataTransfer?.files
+  //       ? Array.from(dragEvent.dataTransfer.files)
+  //       : [];
+  //     if (!files.length) return;
+  //     void processIncomingFiles(files);
+  //     inputBox.focus({ preventScroll: true });
+  //   });
+
+  //   inputBox.addEventListener("paste", (e: Event) => {
+  //     if (!item) return;
+  //     const clipboardEvent = e as ClipboardEvent;
+  //     const files = extractFilesFromClipboard(clipboardEvent);
+  //     if (!files.length) return;
+  //     clipboardEvent.preventDefault();
+  //     clipboardEvent.stopPropagation();
+  //     void processIncomingFiles(files);
+  //     inputBox.focus({ preventScroll: true });
+  //   });
+
+  //   /** Auto-resize the textarea to fit its content, up to max-height. */
+  //   const autoResizeInput = (): void => {
+  //     inputBox.style.height = "auto";
+  //     const max = 220; // matches CSS max-height
+  //     inputBox.style.height = `${Math.min(inputBox.scrollHeight, max)}px`;
+  //   };
+
+  //   inputBox.addEventListener("input", () => {
+  //     autoResizeInput();
+  //     persistDraftInputForCurrentConversation();
+  //     schedulePaperPickerSearch();
+  //     scheduleActionPickerTrigger();
+  //   });
+  //   inputBox.addEventListener("click", () => {
+  //     schedulePaperPickerSearch();
+  //     scheduleActionPickerTrigger();
+  //   });
+
+  //   // Command row dismiss button (reuses .paperpilot-paper-context-clear class)
+  //   const commandRowClearBtn = body.querySelector(
+  //     "#paperpilot-command-row .paperpilot-paper-context-clear",
+  //   );
+  //   if (commandRowClearBtn) {
+  //     commandRowClearBtn.addEventListener("click", () => {
+  //       clearCommandRowSelection();
+  //       inputBox.focus({ preventScroll: true });
+  //     });
+  //   }
+
+  //   inputBox.addEventListener("keyup", (e: Event) => {
+  //     const key = (e as KeyboardEvent).key;
+  //     if (
+  //       key === "ArrowUp" ||
+  //       key === "ArrowDown" ||
+  //       key === "ArrowLeft" ||
+  //       key === "ArrowRight"
+  //     )
+  //       return;
+  //     if (key === "Enter" || key === "Tab" || key === "Escape") return;
+  //     schedulePaperPickerSearch();
+  //     scheduleActionPickerTrigger();
+  //   });
+  // }
+
+  // const resetComposerInputHeight = (): void => {
+  //   inputBox.style.height = "";
+  // };
+
+  // let queuedFollowUpDrainTimer: number | null = null;
+
+  // const getQueuedFollowUpInputs = () =>
+  //   getQueuedFollowUps(getQueuedFollowUpThreadKey());
+
+  // renderQueuedFollowUpInputs = () => {
+  //   if (!queueBar) return;
+  //   const queuedFollowUpInputs = getQueuedFollowUpInputs();
+  //   if (!queuedFollowUpInputs.length) {
+  //     queueBar.textContent = "";
+  //     queueBar.style.display = "none";
+  //     return;
+  //   }
+
+  //   const ownerDoc = body.ownerDocument!;
+  //   queueBar.textContent = "";
+  //   queueBar.style.display = "flex";
+
+  //   const rail = ownerDoc.createElement("div") as HTMLDivElement;
+  //   rail.className = "paperpilot-queued-input-rail";
+
+  //   const list = ownerDoc.createElement("div") as HTMLDivElement;
+  //   list.className = "paperpilot-queued-input-list";
+  //   for (const entry of queuedFollowUpInputs) {
+  //     const row = ownerDoc.createElement("div") as HTMLDivElement;
+  //     row.className = "paperpilot-queued-input-item";
+
+  //     const text = ownerDoc.createElement("span") as HTMLSpanElement;
+  //     text.className = "paperpilot-queued-input-chip";
+  //     text.textContent = entry.text;
+  //     text.title = entry.text;
+
+  //     const removeBtn = ownerDoc.createElement("button") as HTMLButtonElement;
+  //     removeBtn.type = "button";
+  //     removeBtn.className = "paperpilot-queued-input-remove";
+  //     removeBtn.textContent = "×";
+  //     removeBtn.title = "Remove queued input";
+  //     removeBtn.setAttribute("aria-label", "Remove queued input");
+  //     removeBtn.addEventListener("click", (event: Event) => {
+  //       event.preventDefault();
+  //       event.stopPropagation();
+  //       removeQueuedFollowUp(getQueuedFollowUpThreadKey(), entry.id);
+  //       renderQueuedFollowUpInputs();
+  //     });
+
+  //     row.append(text, removeBtn);
+  //     list.appendChild(row);
+  //   }
+
+  //   rail.append(list);
+  //   queueBar.appendChild(rail);
+  // };
+
+  // scheduleQueuedFollowUpDrain = () => {
+  //   const threadKey = getQueuedFollowUpThreadKey();
+  //   if (!threadKey) return;
+  //   if (queuedFollowUpDrainTimer !== null) return;
+  //   const win = body.ownerDocument?.defaultView;
+  //   if (!win) return;
+  //   queuedFollowUpDrainTimer = win.setTimeout(() => {
+  //     queuedFollowUpDrainTimer = null;
+  //     void drainQueuedFollowUpInput();
+  //   }, 220) as unknown as number;
+  // };
+  // (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_DRAIN_PROPERTY] =
+  //   scheduleQueuedFollowUpDrain;
+  // (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_THREAD_DRAIN_PROPERTY] = () => {
+  //   scheduleQueuedFollowUpDrainForThread(getQueuedFollowUpThreadKey());
+  // };
+
+  // isQueuedFollowUpSendAvailable = () => {
+  //   const activeConversationKey = item ? getConversationKey(item) : null;
+  //   return Boolean(
+  //     getQueuedFollowUpThreadKey() &&
+  //     activeConversationKey !== null &&
+  //     isRequestPending(activeConversationKey),
+  //   );
+  // };
+
+  // queueFollowUpInput = (text: string) => {
+  //   const nextQueue = enqueueQueuedFollowUp(getQueuedFollowUpThreadKey(), text);
+  //   if (!nextQueue.length) return;
+  //   inputBox.value = "";
+  //   persistDraftInputForCurrentConversation();
+  //   renderQueuedFollowUpInputs();
+  //   if (status) {
+  //     setStatus(
+  //       status,
+  //       nextQueue.length === 1
+  //         ? t("Queued 1 follow-up")
+  //         : t(`Queued ${nextQueue.length} follow-ups`),
+  //       "ready",
+  //     );
+  //   }
+  // };
+
+  // syncRequestUiForCurrentConversation();
+  // const pdfPaperResolver = createPdfPaperAttachmentResolver({
+  //   logError: (message, ...args) => {
+  //     ztoolkit.log(message, ...args);
+  //   },
+  // });
+
+  // const sendFlowController = createSendFlowController({
+  //   body,
+  //   inputBox,
+  //   getItem: () => item,
+  //   resolveContextSource: resolveAutoLoadedContextSourceAsync,
+  //   closeSlashMenu,
+  //   closePaperPicker,
+  //   getSelectedTextContextEntries,
+  //   getSelectedPaperContexts: (itemId) =>
+  //     getManualPaperContextsForItem(
+  //       itemId,
+  //       item && item.id === itemId ? resolveAutoLoadedPaperContext() : null,
+  //     ).map((paperContext) =>
+  //       withResolvedPaperContentSourceMode(itemId, paperContext),
+  //     ),
+  //   getSelectedCollectionContexts: (itemId) =>
+  //     selectedCollectionContextCache.get(itemId) || [],
+  //   getSelectedTagContexts: (itemId) =>
+  //     selectedTagContextCache.get(itemId) || [],
+  //   getFullTextPaperContexts: (currentItem, selectedPaperContexts) =>
+  //     getEffectiveFullTextPaperContexts(currentItem, selectedPaperContexts),
+  //   getPdfModePaperContexts: (currentItem, selectedPaperContexts) =>
+  //     getEffectivePdfModePaperContexts(currentItem, selectedPaperContexts),
+  //   hasActivePdfFullTextPapers: (
+  //     currentItem: Zotero.Item,
+  //     selectedPaperContexts?: any[],
+  //   ) => hasActivePdfFullTextPapers(currentItem, selectedPaperContexts),
+  //   hasUploadedPdfInCurrentWebChatConversation,
+  //   markWebChatPdfUploadedForCurrentConversation,
+  //   resolvePdfPaperAttachments: pdfPaperResolver.resolvePdfPaperAttachments,
+  //   renderPdfPagesAsImages: pdfPaperResolver.renderPdfPagesAsImages,
+  //   getModelPdfSupport: (modelName, protocol, authMode, apiBase, inputMode) =>
+  //     getModelPdfSupport(modelName, protocol, authMode, apiBase, inputMode),
+  //   uploadPdfForProvider: pdfPaperResolver.uploadPdfForProvider,
+  //   resolvePdfBytes: pdfPaperResolver.resolvePdfBytes,
+  //   getSelectedFiles: (itemId) => selectedFileAttachmentCache.get(itemId) || [],
+  //   getSelectedImages: (itemId) => selectedImageCache.get(itemId) || [],
+  //   resolvePromptText,
+  //   buildQuestionWithSelectedTextContexts,
+  //   buildModelPromptWithFileContext,
+  //   isAgentMode: () => false,
+  //   isGlobalMode,
+  //   normalizeConversationTitleSeed,
+  //   getConversationKey,
+  //   touchGlobalConversationTitle,
+  //   touchPaperConversationTitle,
+  //   getSelectedProfile,
+  //   getCurrentModelName: () => getSelectedModelInfo().currentModel,
+  //   isScreenshotUnsupportedModel,
+  //   getSelectedReasoning,
+  //   getAdvancedModelParams,
+  //   getActiveEditSession: () => activeEditSession,
+  //   setActiveEditSession: (nextEditSession) => {
+  //     activeEditSession = nextEditSession;
+  //   },
+  //   getLatestEditablePair,
+  //   editLatestUserMessageAndRetry,
+  //   sendQuestion: async (opts) => {
+  //     const workflowTestSendInterceptor = getWorkflowTestSendInterceptor();
+  //     if (workflowTestSendInterceptor) {
+  //       await workflowTestSendInterceptor(opts);
+  //       return;
+  //     }
+  //     await sendQuestion(opts);
+  //   },
+  //   retainClaudeRuntime: async (sendBody, sendItem) => {
+  //     await retainClaudeRuntimeForBody(sendBody, sendItem);
+  //   },
+  //   retainPinnedImageState,
+  //   retainPaperState,
+  //   consumePaperModeState,
+  //   consumeWebChatForceNewChatIntent,
+  //   retainPinnedFileState,
+  //   retainPinnedTextState,
+  //   updatePaperPreviewPreservingScroll,
+  //   updateFilePreviewPreservingScroll,
+  //   updateImagePreviewPreservingScroll,
+  //   updateSelectedTextPreviewPreservingScroll,
+  //   scheduleAttachmentGc,
+  //   refreshGlobalHistoryHeader: () => {
+  //     void refreshGlobalHistoryHeader();
+  //   },
+  //   persistDraftInput: persistDraftInputForCurrentConversation,
+  //   autoLockGlobalChat: () => {
+  //     if (isRuntimeConversationSystem()) return;
+  //     if (!item || !isGlobalMode() || isNoteSession()) return;
+  //     const ck = conversationKey;
+  //     if (ck === null) return;
+  //     const libraryID = getCurrentLibraryID();
+  //     const existingLock = getLockedGlobalConversationKey(libraryID);
+  //     if (existingLock) return; // already manually locked — don't override
+  //     setLockedGlobalConversationKey(libraryID, ck);
+  //     addAutoLockedGlobalConversationKey(ck);
+  //     syncConversationIdentity();
+  //   },
+  //   autoUnlockGlobalChat: () => {
+  //     if (isRuntimeConversationSystem()) return;
+  //     const ck = conversationKey;
+  //     if (ck === null || !isAutoLockedGlobalConversation(ck)) return;
+  //     removeAutoLockedGlobalConversationKey(ck);
+  //     const libraryID = getCurrentLibraryID();
+  //     const currentLock = getLockedGlobalConversationKey(libraryID);
+  //     if (currentLock === ck) {
+  //       setLockedGlobalConversationKey(libraryID, null);
+  //       syncConversationIdentity();
+  //     }
+  //   },
+  //   setStatusMessage: status
+  //     ? (message, level) => {
+  //         setStatus(status, message, level);
+  //       }
+  //     : undefined,
+  //   editStaleStatusText: EDIT_STALE_STATUS_TEXT,
+  //   onComposerDraftCleared: resetComposerInputHeight,
+  //   consumeForcedSkillIds,
+  // });
+  // doSend = sendFlowController.doSend;
+  // const { clearCurrentConversation } = createClearConversationController({
+  //   getConversationKey: () => (item ? getConversationKey(item) : null),
+  //   getCurrentItemID: () =>
+  //     item && Number.isFinite(item.id) && item.id > 0 ? item.id : null,
+  //   getPendingRequestId,
+  //   getAbortController,
+  //   setCancelledRequestId,
+  //   setPendingRequestId,
+  //   setAbortController,
+  //   clearPendingTurnDeletion: (conversationKey) => {
+  //     if (hasPendingTurnDeletionForConversation(conversationKey)) {
+  //       clearPendingTurnDeletion();
+  //     }
+  //   },
+  //   validateConversationScope: async (conversationKey) => {
+  //     if (!item) return true;
+  //     const conversationSystem = resolveConversationSystemForItem(item);
+  //     const storageSystem = resolveConversationStorageSystem({
+  //       conversationKey,
+  //       conversationSystem,
+  //     });
+  //     const kind = resolveDisplayConversationKind(item);
+  //     const libraryID = Number(item.libraryID || 0);
+  //     if (
+  //       !storageSystem ||
+  //       !kind ||
+  //       !Number.isFinite(libraryID) ||
+  //       libraryID <= 0
+  //     ) {
+  //       return true;
+  //     }
+  //     if (kind === "global") {
+  //       return validateConversationScope({
+  //         conversationKey,
+  //         system: storageSystem,
+  //         kind: "global",
+  //         libraryID: Math.floor(libraryID),
+  //       });
+  //     }
+  //     const baseItem = resolveConversationBaseItem(item);
+  //     const paperItemID = Number(baseItem?.id || 0);
+  //     const paperLibraryID = Number(baseItem?.libraryID || libraryID);
+  //     if (
+  //       !Number.isFinite(paperItemID) ||
+  //       paperItemID <= 0 ||
+  //       !Number.isFinite(paperLibraryID) ||
+  //       paperLibraryID <= 0
+  //     ) {
+  //       return true;
+  //     }
+  //     return validateConversationScope({
+  //       conversationKey,
+  //       system: storageSystem,
+  //       kind: "paper",
+  //       libraryID: Math.floor(paperLibraryID),
+  //       paperItemID: Math.floor(paperItemID),
+  //     });
+  //   },
+  //   clearTransientComposeStateForItem,
+  //   resetComposePreviewUI,
+  //   resetConversationHistory: (conversationKey) => {
+  //     chatHistory.set(conversationKey, []);
+  //   },
+  //   markConversationLoaded: (conversationKey) => {
+  //     loadedConversationKeys.add(conversationKey);
+  //   },
+  //   invalidateConversationSession: async (conversationKey) => {
+  //     if (!isClaudeConversationSystem() || !item) return;
+  //     const libraryID = Number(item.libraryID || 0);
+  //     const currentKind = resolveDisplayConversationKind(item);
+  //     const baseItem = resolveConversationBaseItem(item);
+  //     if (!Number.isFinite(libraryID) || libraryID <= 0 || !currentKind) return;
+  //     const scope = buildClaudeScope({
+  //       libraryID: Math.floor(libraryID),
+  //       kind: currentKind,
+  //       paperItemID:
+  //         currentKind === "paper"
+  //           ? Number(baseItem?.id || 0) || undefined
+  //           : undefined,
+  //       paperTitle:
+  //         currentKind === "paper"
+  //           ? String(baseItem?.getField?.("title") || "").trim() || undefined
+  //           : undefined,
+  //     });
+  //     await invalidateClaudeConversationSession(await initAgentSubsystem(), {
+  //       conversationKey,
+  //       scope,
+  //     });
+  //     void touchClaudeConversation(conversationKey, {
+  //       providerSessionId: undefined,
+  //       scopedConversationKey: undefined,
+  //       scopeType: undefined,
+  //       scopeId: undefined,
+  //       scopeLabel: undefined,
+  //       cwd: undefined,
+  //       updatedAt: Date.now(),
+  //     });
+  //   },
+  //   clearStoredConversation: (conversationKey) =>
+  //     isClaudeConversationSystem()
+  //       ? clearClaudeConversation(conversationKey)
+  //       : isCodexConversationSystem()
+  //         ? clearCodexConversation(conversationKey)
+  //         : clearStoredConversation(conversationKey),
+  //   resetConversationTitle: (conversationKey) =>
+  //     conversationRepository.clearCatalogTitle({
+  //       system: getConversationSystem(),
+  //       conversationKey,
+  //     }),
+  //   clearOwnerAttachmentRefs,
+  //   removeConversationAttachmentFiles,
+  //   refreshChatPreservingScroll,
+  //   refreshGlobalHistoryHeader: () => {
+  //     void refreshGlobalHistoryHeader();
+  //   },
+  //   scheduleAttachmentGc,
+  //   clearAgentToolCaches: clearAllAgentToolCaches,
+  //   clearAgentConversationState,
+  //   setStatusMessage: status
+  //     ? (message, level) => {
+  //         setStatus(status, message, level);
+  //       }
+  //     : undefined,
+  //   logError: (message, err) => {
+  //     ztoolkit.log(message, err);
+  //   },
+  //   // [webchat] Check if the currently selected model uses webchat auth
+  //   isWebChatActive: () => {
+  //     const { selectedEntry } = getSelectedModelInfo();
+  //     return selectedEntry?.authMode === "webchat";
+  //   },
+  //   getWebChatHost: () => {
+  //     const port = Zotero.Prefs.get("httpServer.port") || 23119;
+  //     return `http://127.0.0.1:${port}/paperpilot-for-zotero/webchat`;
+  //   },
+  //   markNextWebChatSendAsNewChat,
+  // });
+  // const executeSend = async () => {
+  //   // If the inline edit widget is active, route through editUserTurnAndRetry
+  //   // instead of the normal send flow.
+  //   if (inlineEditTarget && item) {
+  //     const currentItem = item;
+  //     const editTarget = inlineEditTarget;
+  //     const newText = inputBox?.value.trim() ?? "";
+  //     const textContextKey = getTextContextConversationKey();
+  //     const selectedContexts = textContextKey
+  //       ? getSelectedTextContextEntries(textContextKey)
+  //       : [];
+  //     const {
+  //       selectedTexts,
+  //       selectedTextSources,
+  //       selectedTextPaperContexts,
+  //       selectedTextNoteContexts,
+  //       selectedCollectionContexts,
+  //       selectedTagContexts,
+  //     } = buildInlineEditRetryContextSnapshot({
+  //       selectedContexts,
+  //       selectedCollectionContexts: selectedCollectionContextCache.get(
+  //         currentItem.id,
+  //       ),
+  //       selectedTagContexts: selectedTagContextCache.get(currentItem.id),
+  //     });
+  //     const contextSource = await resolveAutoLoadedContextSourceAsync();
+  //     const allPaperContexts = getManualPaperContextsForItem(
+  //       currentItem.id,
+  //       currentItem.id === item?.id ? resolveAutoLoadedPaperContext() : null,
+  //     );
+  //     const pdfModePapers = false
+  //       ? []
+  //       : getEffectivePdfModePaperContexts(currentItem, allPaperContexts);
+  //     const pdfModeKeys = new Set(
+  //       pdfModePapers.map((p) => `${p.itemId}:${p.contextItemId}`),
+  //     );
+  //     const selectedPaperContexts = allPaperContexts.filter(
+  //       (p) => !pdfModeKeys.has(`${p.itemId}:${p.contextItemId}`),
+  //     );
+  //     const fullTextPaperContexts = getEffectiveFullTextPaperContexts(
+  //       currentItem,
+  //       selectedPaperContexts,
+  //     );
+  //     const selectedProfile = getSelectedProfile();
+  //     const activeModelName = (
+  //       selectedProfile?.model ||
+  //       getSelectedModelInfo().currentModel ||
+  //       ""
+  //     ).trim();
+  //     const advancedParams = getAdvancedModelParams(selectedProfile?.entryId);
+  //     const baseSelectedFiles =
+  //       selectedFileAttachmentCache.get(currentItem.id) || [];
+  //     const selectedImages = (
+  //       selectedImageCache.get(currentItem.id) || []
+  //     ).slice(0, MAX_SELECTED_IMAGES);
+  //     const pdfInputs = await resolvePdfModeModelInputs({
+  //       deps: {
+  //         setInputDisabled: (disabled) => {
+  //           inputBox.disabled = disabled;
+  //         },
+  //         setStatusMessage: status
+  //           ? (message, level) => {
+  //               setStatus(status, message, level);
+  //             }
+  //           : undefined,
+  //         logError: (message, ...args) => {
+  //           ztoolkit.log(message, ...args);
+  //         },
+  //         isScreenshotUnsupportedModel,
+  //         getModelPdfSupport,
+  //         resolvePdfPaperAttachments:
+  //           pdfPaperResolver.resolvePdfPaperAttachments,
+  //         renderPdfPagesAsImages: pdfPaperResolver.renderPdfPagesAsImages,
+  //         uploadPdfForProvider: pdfPaperResolver.uploadPdfForProvider,
+  //         resolvePdfBytes: pdfPaperResolver.resolvePdfBytes,
+  //       },
+  //       paperContexts: pdfModePapers,
+  //       selectedBaseFiles: baseSelectedFiles,
+  //       selectedImageCountForBudget: isScreenshotUnsupportedModel(
+  //         activeModelName,
+  //         selectedProfile?.providerProtocol,
+  //         selectedProfile?.authMode,
+  //         selectedProfile?.apiBase,
+  //         advancedParams?.inputMode,
+  //       )
+  //         ? 0
+  //         : selectedImages.length,
+  //       profile: selectedProfile
+  //         ? { ...selectedProfile, inputMode: advancedParams?.inputMode }
+  //         : null,
+  //       currentModelName: activeModelName,
+  //       isWebChat: isWebChatMode(),
+  //     });
+  //     if (!pdfInputs.ok) return;
+  //     const {
+  //       selectedFiles,
+  //       modelFiles,
+  //       pdfPageImageDataUrls,
+  //       pdfUploadSystemMessages,
+  //     } = pdfInputs;
+  //     const images = [
+  //       ...(isScreenshotUnsupportedModel(
+  //         activeModelName,
+  //         selectedProfile?.providerProtocol,
+  //         selectedProfile?.authMode,
+  //         selectedProfile?.apiBase,
+  //         advancedParams?.inputMode,
+  //       )
+  //         ? []
+  //         : selectedImages),
+  //       ...pdfPageImageDataUrls,
+  //     ].slice(0, MAX_SELECTED_IMAGES);
+  //     const selectedReasoning = getSelectedReasoning();
+  //     const targetRuntimeMode = getCurrentRuntimeMode();
+  //     inlineEditCleanup?.();
+  //     setInlineEditCleanup(null);
+  //     setInlineEditInputSection(null, null, null);
+  //     setInlineEditSavedDraft("");
+  //     setInlineEditTarget(null);
+  //     if (newText) {
+  //       consumePaperModeState(currentItem.id, {
+  //         webchatGreyOut: isWebChatMode(),
+  //       });
+  //       retainPaperState(currentItem.id);
+  //       updatePaperPreviewPreservingScroll();
+  //       void editUserTurnAndRetry({
+  //         body,
+  //         item: currentItem,
+  //         contextSource,
+  //         userTimestamp: editTarget.userTimestamp,
+  //         assistantTimestamp: editTarget.assistantTimestamp,
+  //         newText,
+  //         selectedTexts,
+  //         selectedTextSources,
+  //         selectedTextPaperContexts,
+  //         selectedTextNoteContexts,
+  //         selectedCollectionContexts,
+  //         selectedTagContexts,
+  //         screenshotImages: images,
+  //         paperContexts: selectedPaperContexts,
+  //         fullTextPaperContexts,
+  //         attachments: selectedFiles,
+  //         modelAttachments: modelFiles,
+  //         pdfUploadSystemMessages: pdfUploadSystemMessages.length
+  //           ? pdfUploadSystemMessages
+  //           : undefined,
+  //         targetRuntimeMode,
+  //         model: selectedProfile?.model,
+  //         apiBase: selectedProfile?.apiBase,
+  //         apiKey: selectedProfile?.apiKey,
+  //         reasoning: selectedReasoning,
+  //         advanced: advancedParams,
+  //       });
+  //     } else {
+  //       // Nothing to submit — refresh the chat to remove the stale inline
+  //       // edit widget (the "Editing" header div) that cleanup left in chatBox.
+  //       refreshConversationPanels(body, currentItem);
+  //     }
+  //     return;
+  //   }
+  //   if (isQueuedFollowUpSendAvailable()) {
+  //     const queuedText = inputBox?.value?.trim() ?? "";
+  //     if (queuedText) {
+  //       queueFollowUpInput(queuedText);
+  //       return;
+  //     }
+  //   }
+  //   closeActionPicker();
+  //   const clearSubmittedCommandDraft = () => {
+  //     inputBox.value = "";
+  //     const EvtCtor =
+  //       (inputBox.ownerDocument?.defaultView as any)?.Event ?? Event;
+  //     inputBox.dispatchEvent(new EvtCtor("input", { bubbles: true }));
+  //     persistDraftInputForCurrentConversation();
+  //   };
+  //   // Intercept command chip: if a command chip is active, route to action execution
+  //   const chipAction = getActiveCommandAction();
+  //   if (chipAction) {
+  //     const params = inputBox?.value?.trim() ?? "";
+  //     clearCommandChip(); // also restores placeholder
+  //     clearSubmittedCommandDraft();
+  //     void handleInlineCommand(chipAction.name, params);
+  //     return;
+  //   }
+  //   if (await handleNaturalLanguageActionIntent(inputBox?.value ?? "")) {
+  //     return;
+  //   }
+  //   const inlineCommand = parseInlineActionCommand(inputBox?.value ?? "");
+  //   if (inlineCommand) {
+  //     closeSlashMenu();
+  //     clearSubmittedCommandDraft();
+  //     void handleInlineCommand(inlineCommand.actionName, inlineCommand.params);
+  //     return;
+  //   }
+  //   await doSend();
+  //   persistDraftInputForCurrentConversation();
+  //   scheduleQueuedFollowUpDrainForThread(getQueuedFollowUpThreadKey());
+  // };
+
+  // async function drainQueuedFollowUpInput(): Promise<void> {
+  //   const queuedFollowUpInputs = getQueuedFollowUpInputs();
+  //   if (!queuedFollowUpInputs.length) {
+  //     renderQueuedFollowUpInputs();
+  //     return;
+  //   }
+  //   const activeConversationKey = item ? getConversationKey(item) : null;
+  //   const threadKey = getQueuedFollowUpThreadKey();
+  //   if (!threadKey || activeConversationKey === null) {
+  //     return;
+  //   }
+  //   if (isRequestPending(activeConversationKey)) {
+  //     scheduleQueuedFollowUpDrain();
+  //     return;
+  //   }
+  //   const next = shiftQueuedFollowUp(threadKey);
+  //   renderQueuedFollowUpInputs();
+  //   if (!next) return;
+  //   await doSend({
+  //     overrideText: next.text,
+  //     preserveInputDraft: true,
+  //   });
+  //   persistDraftInputForCurrentConversation();
+  //   scheduleQueuedFollowUpDrainForThread(getQueuedFollowUpThreadKey());
+  // }
+
+  // // Send button - use addEventListener
+  // sendBtn.addEventListener("click", (e: Event) => {
+  //   e.preventDefault();
+  //   e.stopPropagation();
+  //   void executeSend();
+  // });
+
+  // if (runtimeModeBtn) {
+  //   runtimeModeBtn.addEventListener("click", (e: Event) => {
+  //     e.preventDefault();
+  //     e.stopPropagation();
+  //     if (!item) return;
+  //     const nextMode: ChatRuntimeMode =
+  //       getCurrentRuntimeMode() === "agent" ? "chat" : "agent";
+  //     setCurrentRuntimeMode(nextMode);
+  //     if (status) {
+  //       setStatus(
+  //         status,
+  //         nextMode === "agent"
+  //           ? t("Chat mode enabled")
+  //           : t("Chat mode enabled"),
+  //         "ready",
+  //       );
+  //     }
+  //   });
+  // }
+
+  // // Enter key (Shift+Enter for newline)
+  // inputBox.addEventListener("keydown", (e: Event) => {
+  //   const ke = e as KeyboardEvent;
+  //   if (isFloatingMenuOpen(slashMenu)) {
+  //     if (ke.key === "ArrowDown") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       moveSlashMenuSelection(1);
+  //       return;
+  //     }
+  //     if (ke.key === "ArrowUp") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       moveSlashMenuSelection(-1);
+  //       return;
+  //     }
+  //     if (ke.key === "Escape") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       closeSlashMenu();
+  //       return;
+  //     }
+  //     if (ke.key === "Enter" || ke.key === "Tab") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       selectActiveSlashMenuItem();
+  //       return;
+  //     }
+  //   }
+  //   if (isActionPickerOpen()) {
+  //     if (ke.key === "ArrowDown") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       moveActionPickerSelection(1);
+  //       return;
+  //     }
+  //     if (ke.key === "ArrowUp") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       moveActionPickerSelection(-1);
+  //       return;
+  //     }
+  //     if (ke.key === "Escape") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       closeActionPicker();
+  //       return;
+  //     }
+  //     if (ke.key === "Enter" || ke.key === "Tab") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       void selectActiveActionPickerItem();
+  //       return;
+  //     }
+  //   }
+  //   if (isPaperPickerOpen()) {
+  //     if (ke.key === "ArrowDown") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       movePaperPickerActiveRow(1);
+  //       return;
+  //     }
+  //     if (ke.key === "ArrowUp") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       movePaperPickerActiveRow(-1);
+  //       return;
+  //     }
+  //     if (ke.key === "ArrowRight") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       handlePaperPickerArrowRight();
+  //       return;
+  //     }
+  //     if (ke.key === "ArrowLeft") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       handlePaperPickerArrowLeft();
+  //       return;
+  //     }
+  //     if (ke.key === "Escape") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       closePaperPicker();
+  //       return;
+  //     }
+  //     if (ke.key === "Enter" || ke.key === "Tab") {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       selectActivePaperPickerRow();
+  //       return;
+  //     }
+  //   }
+  //   // Backspace at position 0 with active badge: remove it
+  //   if (
+  //     ke.key === "Backspace" &&
+  //     inputBox.selectionStart === 0 &&
+  //     inputBox.selectionEnd === 0
+  //   ) {
+  //     if (clearCommandRowSelection()) {
+  //       e.preventDefault();
+  //       e.stopPropagation();
+  //       return;
+  //     }
+  //   }
+  //   // Escape with active command/skill badge: remove the badge
+  //   if (ke.key === "Escape" && clearCommandRowSelection()) {
+  //     e.preventDefault();
+  //     e.stopPropagation();
+  //     return;
+  //   }
+  //   // Up-arrow prompt recall: when input is empty or cursor is at position 0,
+  //   // recall the last user message from the current conversation.
+  //   if (ke.key === "ArrowUp" && !ke.shiftKey) {
+  //     const cursorAtStart =
+  //       inputBox.selectionStart === 0 && inputBox.selectionEnd === 0;
+  //     if (!inputBox.value.trim() || cursorAtStart) {
+  //       const convKey = item ? getConversationKey(item) : null;
+  //       const history = convKey != null ? chatHistory.get(convKey) || [] : [];
+  //       const lastUserMsg = [...history]
+  //         .reverse()
+  //         .find((m) => m.role === "user");
+  //       if (lastUserMsg?.text) {
+  //         e.preventDefault();
+  //         e.stopPropagation();
+  //         inputBox.value = lastUserMsg.text;
+  //         persistDraftInputForCurrentConversation();
+  //         inputBox.selectionStart = inputBox.value.length;
+  //         inputBox.selectionEnd = inputBox.value.length;
+  //         return;
+  //       }
+  //     }
+  //   }
+  //   if (ke.key === "Escape" && inlineEditTarget) {
+  //     e.preventDefault();
+  //     e.stopPropagation();
+  //     inlineEditCleanup?.();
+  //     setInlineEditCleanup(null);
+  //     setInlineEditInputSection(null, null, null);
+  //     setInlineEditSavedDraft("");
+  //     setInlineEditTarget(null);
+  //     refreshConversationPanels(body, item);
+  //     return;
+  //   }
+  //   if (ke.key === "Enter" && !ke.shiftKey) {
+  //     e.preventDefault();
+  //     e.stopPropagation();
+  //     void executeSend();
+  //   }
+  // });
+
+  // attachFontScaleShortcutController(panelDoc);
+
+  // attachComposeCaptureController({
+  //   body,
+  //   inputBox,
+  //   screenshotBtn,
+  //   uploadBtn,
+  //   uploadInput,
+  //   slashMenu,
+  //   slashUploadOption,
+  //   slashReferenceOption,
+  //   slashPdfPageOption,
+  //   slashPdfMultiplePagesOption,
+  //   modelMenu,
+  //   reasoningMenu,
+  //   retryModelMenu,
+  //   getItem: () => item,
+  //   getConversationKey,
+  //   getSelectedModelInfo,
+  //   getActiveAtToken,
+  //   consumeActiveActionToken,
+  //   persistDraftInputForCurrentConversation,
+  //   processIncomingFiles,
+  //   renderDynamicSlashMenuSections,
+  //   openSlashMenuWithSelection,
+  //   closeSlashMenu,
+  //   closeHistoryNewMenu,
+  //   closeHistoryMenu,
+  //   closeResponseMenu,
+  //   closePromptMenu,
+  //   closeExportMenu,
+  //   schedulePaperPickerSearch,
+  //   updateImagePreviewPreservingScroll,
+  //   isScreenshotUnsupportedModel: (modelName) => {
+  //     const profile = getSelectedProfile();
+  //     const inputMode = getAdvancedModelParamsForEntry(
+  //       profile?.entryId,
+  //     )?.inputMode;
+  //     return isScreenshotUnsupportedModel(
+  //       (profile?.model || modelName || "").trim(),
+  //       profile?.providerProtocol,
+  //       profile?.authMode,
+  //       profile?.apiBase,
+  //       inputMode,
+  //     );
+  //   },
+  //   setStatusMessage: status
+  //     ? (message, level) => {
+  //         setStatus(status, message, level);
+  //       }
+  //     : undefined,
+  //   log: (message, ...args) => {
+  //     ztoolkit.log(message, ...args);
+  //   },
+  // });
+
+  openModelMenu = () => {
+    if (!modelMenu || !modelBtn) return;
+    if ((modelBtn as HTMLButtonElement).disabled) return;
+    closeSlashMenu();
+    closeRetryModelMenu();
+    closeReasoningMenu();
+    closePromptMenu();
+    closeHistoryNewMenu();
+    closeHistoryMenu();
+    // if (isCodexConversationSystem()) {
+    //   void ensureCodexModelCatalogLoaded();
     // }
-
-    // const startWebChatConnectionCheck = (dot: HTMLElement) => {
-    //   stopWebChatConnectionCheck();
-    //   const check = async () => {
-    //     try {
-    //       // Always use dynamic port — saved apiBase may be stale
-    //       const { getRelayBaseUrl } = await import("../../webchat/relayServer");
-    //       const host = getRelayBaseUrl();
-    //       const { testConnection } = await import("../../webchat/client");
-    //       const alive = await testConnection(host);
-    //       dot.className = alive
-    //         ? "paperpilot-webchat-dot paperpilot-webchat-dot-connected"
-    //         : "paperpilot-webchat-dot paperpilot-webchat-dot-disconnected";
-    //     } catch {
-    //       dot.className = "paperpilot-webchat-dot paperpilot-webchat-dot-disconnected";
-    //     }
-    //   };
-    //   void check(); // immediate first check
-    //   webchatConnectionTimer = setInterval(check, 5000);
-    // };
-
-    // const stopWebChatConnectionCheck = () => {
-    //   if (webchatConnectionTimer !== null) {
-    //     clearInterval(webchatConnectionTimer);
-    //     webchatConnectionTimer = null;
-    //   }
-    // };
-
-    // updateReasoningButton = () => {
-    //   if (!item || !reasoningBtn) return;
-    //   withScrollGuard(chatBox, conversationKey, () => {
-    //     // [webchat] Hide reasoning dropdown — users control thinking mode on chatgpt.com
-    //     if (isWebChatMode()) {
-    //       reasoningBtn.style.display = "none";
-    //       scheduleResponsiveLayoutSync();
-    //       return;
-    //     }
-    //     reasoningBtn.style.display = "";
-
-    //     const { provider, currentModel, options, enabledLevels, selectedLevel } =
-    //       getReasoningState();
-    //     const available = enabledLevels.length > 0;
-    //     const resolvedReasoningLabel = isClaudeConversationSystem()
-    //       ? (() => {
-    //           return getClaudeReasoningDisplayLabel(
-    //             getClaudeReasoningDisplayMode(),
-    //           );
-    //         })()
-    //       : isCodexConversationSystem()
-    //         ? (() => {
-    //             const mode = getCodexReasoningModePref();
-    //             return (
-    //               getCodexReasoningChoices().find(
-    //                 (choice) => choice.value.toLowerCase() === mode.toLowerCase(),
-    //               )?.label || "Auto"
-    //             );
-    //           })()
-    //         : selectedLevel === "none"
-    //           ? "off"
-    //           : available
-    //             ? getReasoningLevelDisplayLabel(
-    //                 selectedLevel as LLMReasoningLevel,
-    //                 provider,
-    //                 currentModel,
-    //                 options,
-    //               )
-    //             : "off";
-    //     const active =
-    //       available && isReasoningDisplayLabelActive(resolvedReasoningLabel);
-    //     const reasoningLabel = resolvedReasoningLabel;
-    //     reasoningBtn.disabled = !item;
-    //     reasoningBtn.classList.toggle(
-    //       "paperpilot-reasoning-btn-unavailable",
-    //       !available,
-    //     );
-    //     reasoningBtn.classList.toggle("paperpilot-reasoning-btn-active", active);
-    //     reasoningBtn.style.background = "";
-    //     reasoningBtn.style.borderColor = "";
-    //     reasoningBtn.style.color = "";
-    //     const reasoningHint = "Click to adjust reasoning level";
-    //     reasoningBtn.dataset.reasoningLabel = reasoningLabel;
-    //     reasoningBtn.dataset.reasoningHint = reasoningHint;
-    //     scheduleResponsiveLayoutSync();
-    //   });
-    // };
-
-    // const rebuildReasoningMenu = () => {
-    //   if (!item || !reasoningMenu) return;
-    //   const { provider, currentModel, options, selectedLevel, enabledLevels } =
-    //     getReasoningState();
-    //   reasoningMenu.innerHTML = "";
-
-    //   // [webchat] Show dedicated ChatGPT mode options
-    //   if (isWebChatMode()) {
-    //     reasoningMenu.innerHTML = "";
-    //     appendDropdownInstruction(
-    //       reasoningMenu,
-    //       "Webchat mode",
-    //       "paperpilot-reasoning-menu-section",
-    //     );
-    //     const currentSel = selectedReasoningCache.get(item.id) || "none";
-    //     for (const mode of WEBCHAT_MODES) {
-    //       const isSelected = currentSel === mode.level;
-    //       const option = createElement(
-    //         body.ownerDocument as Document,
-    //         "button",
-    //         "paperpilot-response-menu-item paperpilot-reasoning-option",
-    //         {
-    //           type: "button",
-    //           textContent: isSelected ? `\u2713 ${mode.label}` : mode.label,
-    //         },
-    //       );
-    //       const applyMode = (e: Event) => {
-    //         if (!isPrimaryPointerEvent(e)) return;
-    //         e.preventDefault();
-    //         e.stopPropagation();
-    //         if (!item) return;
-    //         if (isClaudeConversationSystem()) {
-    //           clearClaudeReasoningDisplayOverride();
-    //           setClaudeReasoningModePref(
-    //             mode.level === "none" ? "auto" : (mode.level as any),
-    //           );
-    //         } else {
-    //           selectedReasoningCache.clear();
-    //           selectedReasoningCache.set(item.id, mode.level as any);
-    //           selectedReasoningProviderCache.set(item.id, "unsupported");
-    //           setLastUsedReasoningLevel(mode.level as any);
-    //         }
-    //         setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
-    //         updateReasoningButton();
-    //       };
-    //       option.addEventListener("pointerdown", applyMode);
-    //       option.addEventListener("click", applyMode);
-    //       reasoningMenu.appendChild(option);
-    //     }
-    //     return;
-    //   }
-
-    //   appendDropdownInstruction(
-    //     reasoningMenu,
-    //     t("Reasoning level"),
-    //     "paperpilot-reasoning-menu-section",
-    //   );
-    //   if (isClaudeConversationSystem()) {
-    //     const claudeModes: Array<{
-    //       value: "auto" | "low" | "medium" | "high" | "xhigh" | "max";
-    //       label: string;
-    //     }> = [
-    //       { value: "auto", label: "Auto" },
-    //       { value: "low", label: "Low" },
-    //       { value: "medium", label: "Medium" },
-    //       { value: "high", label: "High" },
-    //       { value: "xhigh", label: "XHigh" },
-    //       { value: "max", label: "Max" },
-    //     ];
-    //     const currentMode = getClaudeReasoningDisplayMode();
-    //     for (const mode of claudeModes) {
-    //       const option = createElement(
-    //         body.ownerDocument as Document,
-    //         "button",
-    //         "paperpilot-response-menu-item paperpilot-reasoning-option",
-    //         {
-    //           type: "button",
-    //           textContent:
-    //             currentMode === mode.value ? `\u2713 ${mode.label}` : mode.label,
-    //         },
-    //       );
-    //       const applyClaudeSelection = (e: Event) => {
-    //         if (!isPrimaryPointerEvent(e)) return;
-    //         e.preventDefault();
-    //         e.stopPropagation();
-    //         if (!item) return;
-    //         clearClaudeReasoningDisplayOverride();
-    //         setClaudeReasoningModePref(mode.value as any);
-    //         setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
-    //         updateReasoningButton();
-    //       };
-    //       option.addEventListener("pointerdown", applyClaudeSelection);
-    //       option.addEventListener("click", applyClaudeSelection);
-    //       reasoningMenu.appendChild(option);
-    //     }
-    //     return;
-    //   }
-    //   if (isCodexConversationSystem()) {
-    //     const codexModes = getCodexReasoningChoices();
-    //     const currentMode = getCodexReasoningModePref();
-    //     for (const mode of codexModes) {
-    //       const option = createElement(
-    //         body.ownerDocument as Document,
-    //         "button",
-    //         "paperpilot-response-menu-item paperpilot-reasoning-option",
-    //         {
-    //           type: "button",
-    //           textContent:
-    //             currentMode === mode.value ? `\u2713 ${mode.label}` : mode.label,
-    //         },
-    //       );
-    //       const applyCodexSelection = (e: Event) => {
-    //         if (!isPrimaryPointerEvent(e)) return;
-    //         e.preventDefault();
-    //         e.stopPropagation();
-    //         setCodexReasoningModePref(mode.value);
-    //         setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
-    //         updateReasoningButton();
-    //       };
-    //       option.addEventListener("pointerdown", applyCodexSelection);
-    //       option.addEventListener("click", applyCodexSelection);
-    //       reasoningMenu.appendChild(option);
-    //     }
-    //     return;
-    //   }
-    //   if (!enabledLevels.length) {
-    //     const offOption = createElement(
-    //       body.ownerDocument as Document,
-    //       "button",
-    //       "paperpilot-response-menu-item paperpilot-reasoning-option",
-    //       {
-    //         type: "button",
-    //         textContent: "\u2713 off",
-    //       },
-    //     );
-    //     const applyOffSelection = (e: Event) => {
-    //       if (!isPrimaryPointerEvent(e)) return;
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       if (!item) return;
-    //       if (isClaudeConversationSystem()) {
-    //         clearClaudeReasoningDisplayOverride();
-    //         setClaudeReasoningModePref("auto");
-    //       } else {
-    //         selectedReasoningCache.clear();
-    //         selectedReasoningCache.set(item.id, "none");
-    //         selectedReasoningProviderCache.set(item.id, provider);
-    //         setLastUsedReasoningLevelForProvider(provider, "none");
-    //         if (provider !== "anthropic") {
-    //           setLastUsedReasoningLevel("none");
-    //         }
-    //       }
-    //       setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
-    //       updateReasoningButton();
-    //     };
-    //     offOption.addEventListener("pointerdown", applyOffSelection);
-    //     offOption.addEventListener("click", applyOffSelection);
-    //     reasoningMenu.appendChild(offOption);
-    //     return;
-    //   }
-    //   if (provider === "anthropic") {
-    //     const isSelected = selectedLevel === "none";
-    //     const offOption = createElement(
-    //       body.ownerDocument as Document,
-    //       "button",
-    //       "paperpilot-response-menu-item paperpilot-reasoning-option",
-    //       {
-    //         type: "button",
-    //         textContent: isSelected ? "\u2713 Off" : "Off",
-    //       },
-    //     );
-    //     const applyAnthropicOffSelection = (e: Event) => {
-    //       if (!isPrimaryPointerEvent(e)) return;
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       if (!item) return;
-    //       selectedReasoningCache.set(item.id, "none");
-    //       selectedReasoningProviderCache.set(item.id, provider);
-    //       setLastUsedReasoningLevelForProvider(provider, "none");
-    //       setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
-    //       updateReasoningButton();
-    //     };
-    //     offOption.addEventListener("pointerdown", applyAnthropicOffSelection);
-    //     offOption.addEventListener("click", applyAnthropicOffSelection);
-    //     reasoningMenu.appendChild(offOption);
-    //   }
-    //   for (const optionState of options) {
-    //     const level = optionState.level;
-    //     const option = createElement(
-    //       body.ownerDocument as Document,
-    //       "button",
-    //       "paperpilot-response-menu-item paperpilot-reasoning-option",
-    //       {
-    //         type: "button",
-    //         textContent:
-    //           selectedLevel === level
-    //             ? `\u2713 ${getReasoningLevelDisplayLabel(level, provider, currentModel, options)}`
-    //             : getReasoningLevelDisplayLabel(
-    //                 level,
-    //                 provider,
-    //                 currentModel,
-    //                 options,
-    //               ),
-    //       },
-    //     );
-    //     if (optionState.enabled) {
-    //       const applyReasoningSelection = (e: Event) => {
-    //         if (!isPrimaryPointerEvent(e)) return;
-    //         e.preventDefault();
-    //         e.stopPropagation();
-    //         if (!item) return;
-    //         if (isClaudeConversationSystem()) {
-    //           const nextMode = optionState.label === "Max" ? "max" : level;
-    //           clearClaudeReasoningDisplayOverride();
-    //           setClaudeReasoningModePref(nextMode as any);
-    //         } else {
-    //           selectedReasoningCache.clear();
-    //           selectedReasoningCache.set(item.id, level);
-    //           selectedReasoningProviderCache.set(item.id, provider);
-    //           setLastUsedReasoningLevelForProvider(provider, level);
-    //           if (provider !== "anthropic") {
-    //             setLastUsedReasoningLevel(level);
-    //           }
-    //         }
-    //         setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
-    //         updateReasoningButton();
-    //       };
-    //       option.addEventListener("pointerdown", applyReasoningSelection);
-    //       option.addEventListener("click", applyReasoningSelection);
-    //     } else {
-    //       option.disabled = true;
-    //       option.classList.add("paperpilot-reasoning-option-disabled");
-    //     }
-    //     reasoningMenu.appendChild(option);
-    //   }
-    // };
-
-    // (body as any).__paperpilotApplyResolvedClaudeEffort =
-    //   applyClaudeResolvedReasoningDisplay;
-
-    // const syncModelFromPrefs = () => {
-    //   updateModelButton();
-    //   updateReasoningButton();
-    //   if (isFloatingMenuOpen(modelMenu)) {
-    //     rebuildModelMenu();
-    //   }
-    //   if (isFloatingMenuOpen(reasoningMenu)) {
-    //     rebuildReasoningMenu();
-    //   }
-    // };
-
-    // (body as any).__paperpilotRefreshContextSourceForCurrentItem = () => {
-    //   withScrollGuard(chatBox, conversationKey, () => {
-    //     refreshAutoLoadedPaperContextForCurrentItem();
-    //     updatePaperPreviewPreservingScroll();
-    //     syncModelFromPrefs();
-    //     flushResponsiveLayoutSyncNow();
-    //     flushPanelStateRefreshNow();
-    //     if (item && chatBox && !chatBox.childElementCount) {
-    //       refreshChat(body, item);
-    //     }
-    //   });
-    // };
-
-    // const webChatHistoryController = createWebChatHistoryController({
-    //   body,
-    //   historyMenu,
-    //   getItem: () => item,
-    //   getSelectedModelInfo,
-    //   closeHistoryMenu,
-    //   getConversationKey,
-    //   setConversationHistory: (conversationKey, messages) => {
-    //     webChatIsolatedConversationKeys.add(conversationKey);
-    //     chatHistory.set(conversationKey, messages);
-    //     loadedConversationKeys.add(conversationKey);
-    //   },
-    //   refreshChatPreservingScroll,
-    //   isWebChatMode,
-    //   resetWebChatPdfUploadedForCurrentConversation,
-    //   clearNextWebChatNewChatIntent,
-    //   setSelectedReasoningLevel: (itemId, level) => {
-    //     selectedReasoningCache.set(itemId, level);
-    //   },
-    //   setSelectedReasoningProvider: (itemId, provider) => {
-    //     selectedReasoningProviderCache.set(itemId, provider);
-    //   },
-    //   updateReasoningButton,
-    //   setStatusMessage: status
-    //     ? (message, level) => {
-    //         setStatus(status, message, level);
-    //       }
-    //     : undefined,
-    //   log: (message, ...args) => {
-    //     ztoolkit.log(message, ...args);
-    //   },
-    // });
-    // const { warmUpWebChatHistory } = webChatHistoryController;
-    // renderWebChatHistoryMenu = webChatHistoryController.renderWebChatHistoryMenu;
-
-    // // [webchat] Apply webchat-specific UI changes. Safe to call any time —
-    // // only modifies UI when actually in webchat mode, restores defaults otherwise.
-    // const applyWebChatModeUI = () => {
-    //   let isWebChat = false;
-    //   try {
-    //     const { selectedEntry } = getSelectedModelInfo();
-    //     isWebChat = selectedEntry?.authMode === "webchat";
-    //   } catch {
-    //     // getSelectedModelInfo may not be ready during initial render —
-    //     // fall back to checking the last-used model entry directly.
-    //     try {
-    //       const lastId = getLastUsedModelEntryId();
-    //       const entry = lastId ? getModelEntryById(lastId) : null;
-    //       isWebChat = entry?.authMode === "webchat";
-    //     } catch {
-    //       return;
-    //     }
-    //   }
-
-    //   panelRoot.dataset.webchatMode = isWebChat ? "true" : "false";
-    //   syncQueuedFollowUpRegistration();
-
-    //   // Mode chip: show target site name with connection dot, or restore original
-    //   if (modeChipBtn) {
-    //     if (isWebChat) {
-    //       // Resolve the target label from the current model name
-    //       let webchatChipLabel = "chatgpt";
-    //       let webchatChipTitle = "WebChat Sync";
-    //       try {
-    //         const { currentModel } = getSelectedModelInfo();
-    //         const { getWebChatTargetByModelName } =
-    //           require("../../webchat/types") as typeof import("../../webchat/types");
-    //         const entry = getWebChatTargetByModelName(currentModel || "");
-    //         if (entry) {
-    //           webchatChipLabel = entry.displayName;
-    //           webchatChipTitle = `${entry.label} Web Sync (${entry.modelName})`;
-    //         }
-    //       } catch {
-    //         /* fallback to defaults */
-    //       }
-
-    //       let dot = modeChipBtn.querySelector(
-    //         ".paperpilot-webchat-dot",
-    //       ) as HTMLElement | null;
-    //       if (!dot) {
-    //         dot = (modeChipBtn.ownerDocument as Document).createElement("span");
-    //         dot.className = "paperpilot-webchat-dot paperpilot-webchat-dot-disconnected";
-    //       }
-    //       modeChipBtn.textContent = "";
-    //       modeChipBtn.appendChild(dot);
-    //       modeChipBtn.appendChild(
-    //         (modeChipBtn.ownerDocument as Document).createTextNode(
-    //           ` ${webchatChipLabel}`,
-    //         ),
-    //       );
-    //       modeChipBtn.title = webchatChipTitle;
-    //       modeChipBtn.disabled = true;
-    //       modeChipBtn.setAttribute("aria-disabled", "true");
-    //       modeChipBtn.dataset.webchatStatic = "true";
-    //       modeChipBtn.style.cursor = "default";
-    //       startWebChatConnectionCheck(dot);
-    //     } else {
-    //       const oldDot = modeChipBtn.querySelector(".paperpilot-webchat-dot");
-    //       if (oldDot) {
-    //         oldDot.remove();
-    //         // Restore mode chip text — the normal render sync skips it while the dot is present
-    //         const chipLabel = isGlobalMode() ? "Library chat" : "Paper chat";
-    //         modeChipBtn.textContent = chipLabel;
-    //         modeChipBtn.title = isGlobalMode()
-    //           ? "Switch to paper chat"
-    //           : "Switch to library chat";
-    //       }
-    //       stopWebChatConnectionCheck();
-    //       modeChipBtn.disabled = false;
-    //       modeChipBtn.removeAttribute("aria-disabled");
-    //       delete modeChipBtn.dataset.webchatStatic;
-    //       modeChipBtn.style.cursor = "";
-    //     }
-    //   }
-
-    //   // Model dropdown: fully disabled in webchat (model is ChatGPT, use Exit to change)
-    //   if (modelBtn) {
-    //     (modelBtn as HTMLButtonElement).disabled = isWebChat;
-    //     modelBtn.style.opacity = isWebChat ? "0.5" : "";
-    //     modelBtn.style.cursor = isWebChat ? "default" : "";
-    //     modelBtn.style.pointerEvents = isWebChat ? "none" : "";
-    //   }
-
-    //   // [webchat] Pre-fetch history in background so it's ready when user clicks
-    //   if (isWebChat && !hasExistingWebChatSessionForCurrentItem()) {
-    //     void warmUpWebChatHistory();
-    //   }
-
-    //   // Clear button → "Exit" in webchat, restore "Clear" otherwise
-    //   if (clearBtn) {
-    //     if (isWebChat) {
-    //       clearBtn.textContent = "Exit";
-    //       (clearBtn as HTMLButtonElement).disabled = false;
-    //       clearBtn.style.opacity = "";
-    //       clearBtn.title = "Exit webchat and return to previous model";
-    //     } else {
-    //       clearBtn.textContent = "Clear";
-    //       clearBtn.title = "";
-    //     }
-    //   }
-
-    //   // [webchat] Hide the "/" action button — slash menu is disabled in webchat
-    //   if (uploadBtn) {
-    //     uploadBtn.style.display = isWebChat ? "none" : "";
-    //   }
-
-    //   // [webchat] Re-render paper chips to reflect forced PDF content source
-    //   if (isWebChat) {
-    //     updatePaperPreviewPreservingScroll();
-    //   }
-
-    //   updateRuntimeModeButton();
-    //   updateClaudeSystemToggle();
-
-    //   // Notify standalone window (or other listeners) of webchat mode change
-    //   hooks?.onWebChatModeChanged?.(isWebChat);
-    //   syncRequestUiForCurrentConversation();
-    // };
-
-    // // Initialize model and preview state.  Keep panel-state DOM refresh queued
-    // // until setup-local helpers are ready, then flush once.
-    // refreshAutoLoadedPaperContextForCurrentItem();
-    // syncModelFromPrefs();
-    // flushResponsiveLayoutSyncNow();
-    // // Set active_target before applyWebChatModeUI so sidebar filters by the correct site
-    // try {
-    //   if (isWebChatMode()) {
-    //     const { getWebChatTargetByModelName: getColdTarget } =
-    //       require("../../webchat/types") as typeof import("../../webchat/types");
-    //     const { relaySetActiveTarget: setColdTarget } =
-    //       require("../../webchat/relayServer") as typeof import("../../webchat/relayServer");
-    //     const { currentModel: coldStartModel } = getSelectedModelInfo();
-    //     const coldEntry = getColdTarget(coldStartModel || "");
-    //     if (coldEntry?.id) setColdTarget(coldEntry.id);
-    //   }
-    // } catch {
-    //   /* isWebChatMode may not be ready */
-    // }
-    // applyWebChatModeUI();
-    // resetComposePreviewUI();
-    // flushPanelStateRefreshNow();
-    // // [webchat] Cold startup → show preload screen so user knows they're in webchat mode
-    // try {
-    //   if (isWebChatMode() && !hasExistingWebChatSessionForCurrentItem()) {
-    //     const chatShellEl = body.querySelector(
-    //       ".paperpilot-chat-shell",
-    //     ) as HTMLElement | null;
-    //     if (chatShellEl) {
-    //       void (async () => {
-    //         try {
-    //           abortWebChatPreload();
-    //           const token = { aborted: false };
-    //           webchatPreloadAbort = token;
-    //           const { showWebChatPreloadScreen } =
-    //             await import("../../webchat/preloadScreen");
-    //           const { getWebChatTargetByModelName } =
-    //             await import("../../webchat/types");
-    //           const { relaySetActiveTarget: relaySetTarget2 } =
-    //             await import("../../webchat/relayServer");
-    //           const { currentModel: coldModel } = getSelectedModelInfo();
-    //           const coldTargetEntry = getWebChatTargetByModelName(
-    //             coldModel || "",
-    //           );
-    //           if (coldTargetEntry?.id) relaySetTarget2(coldTargetEntry.id);
-    //           await showWebChatPreloadScreen(
-    //             chatShellEl,
-    //             token,
-    //             coldTargetEntry?.label,
-    //             coldTargetEntry?.modelName,
-    //           );
-    //         } catch {
-    //           // Preload failed or was aborted — dot will show connection status
-    //         } finally {
-    //           webchatPreloadAbort = null;
-    //         }
-    //       })();
-    //     }
-    //   }
-    // } catch {
-    //   // isWebChatMode may not be ready during initial render
-    // }
-    // restoreDraftInputForCurrentConversation();
-    // if (isWebChatMode()) {
-    //   initializeWebChatConversationForCurrentItem();
-    //   refreshChatPreservingScroll();
-    // } else if (isPaperMode()) {
-    //   // In the standalone window, mountChatPanel's own async IIFE handles
-    //   // conversation loading.  The parameter-less auto-fire would race with it
-    //   // and resolve to a different (default) conversation, overwriting the
-    //   // explicitly targeted one.
-    //   if (!isStandalonePanel) {
-    //     void switchPaperConversation().catch((err) => {
-    //       ztoolkit.log("LLM: Failed to restore paper conversation session", err);
-    //     });
-    //   }
-    // } else {
-    //   void refreshGlobalHistoryHeader();
-    // }
-
-    // // Preferences can change outside this panel (e.g., settings window).
-    // // Re-sync model label when the user comes back (pointerenter).
-    // // NOTE: We intentionally do NOT sync on "focusin" because focusin fires
-    // // on every internal focus change (e.g. clicking the input box).
-    // // syncModelFromPrefs → updateModelButton → applyResponsiveActionButtonsLayout
-    // // mutates DOM → changes flex layout → resizes .paperpilot-messages → shifts scroll
-    // // position.  pointerenter is sufficient and fires before interaction.
-    // body.addEventListener("pointerenter", () => {
-    //   withScrollGuard(chatBox, conversationKey, () => {
-    //     syncModelFromPrefs();
-    //     syncConversationPanelState();
-    //   });
-    // });
-    // const ResizeObserverCtor = body.ownerDocument?.defaultView?.ResizeObserver;
-    // if (ResizeObserverCtor && panelRoot && modelBtn) {
-    //   const newObservers: ResizeObserver[] = [];
-    //   const ro = new ResizeObserverCtor(() => {
-    //     // Keep layout mutations on the guarded scheduler so resize callbacks
-    //     // stay cheap during sidebar drags.
-    //     scheduleResponsiveLayoutSync();
-    //   });
-    //   newObservers.push(ro);
-    //   ro.observe(panelRoot);
-    //   if (actionsRow) ro.observe(actionsRow);
-    //   if (actionsLeft) ro.observe(actionsLeft);
-    //   if (chatBox) {
-    //     const chatBoxResizeObserver = new ResizeObserverCtor(() => {
-    //       if (!chatBox) return;
-    //       if (!isChatViewportVisible(chatBox)) return;
-    //       if (!pendingChatBoxResizePreviousState) {
-    //         pendingChatBoxResizePreviousState = chatBoxViewportState;
-    //       }
-    //       chatBoxViewportResizeScheduler.schedule();
-    //     });
-    //     newObservers.push(chatBoxResizeObserver);
-    //     chatBoxResizeObserver.observe(chatBox);
-    //   }
-    //   // Store observers on body so they can be disconnected on next
-    //   // setupHandlers call (prevents accumulation across tab switches).
-    //   (body as any).__paperpilotResizeObservers = newObservers;
-    //   (body as any).__paperpilotResizeSchedulers = [
-    //     responsiveLayoutScheduler,
-    //     chatBoxViewportResizeScheduler,
-    //   ];
-    // }
-
-    // function getSelectedProfile() {
-    //   if (!item) return null;
-    //   if (isClaudeConversationSystem()) {
-    //     return getSelectedClaudeRuntimeEntry();
-    //   }
-    //   if (isCodexConversationSystem()) {
-    //     return getSelectedCodexRuntimeEntry();
-    //   }
-    //   return getSelectedModelEntryForItem(item.id);
-    // }
-
-    // const getAdvancedModelParams = (
-    //   entryId: string | undefined,
-    // ): AdvancedModelParams | undefined => {
-    //   if (!entryId) return undefined;
-    //   if (isClaudeConversationSystem()) {
-    //     return getSelectedClaudeRuntimeEntry().advanced;
-    //   }
-    //   if (isCodexConversationSystem()) {
-    //     return getSelectedCodexRuntimeEntry().advanced;
-    //   }
-    //   return getAdvancedModelParamsForEntry(entryId);
-    // };
-
-    // const getSelectedReasoning = (): LLMReasoningConfig | undefined => {
-    //   if (!item) return undefined;
-    //   if (isClaudeConversationSystem()) {
-    //     return buildClaudeReasoningConfigForDisplayMode(
-    //       getClaudeReasoningDisplayMode(),
-    //     );
-    //   }
-    //   if (isCodexConversationSystem()) {
-    //     const mode =
-    //       codexModelCatalogStatus === "ready"
-    //         ? reconcileSelectedCodexReasoningMode()
-    //         : getCodexReasoningModePref();
-    //     return buildCodexAppServerReasoningConfig(mode);
-    //   }
-    //   const { provider, enabledLevels, selectedLevel } = getReasoningState();
-    //   if (provider === "unsupported" || selectedLevel === "none")
-    //     return undefined;
-    //   if (!enabledLevels.includes(selectedLevel as LLMReasoningLevel)) {
-    //     return undefined;
-    //   }
-    //   return { provider, level: selectedLevel as LLMReasoningLevel };
-    // };
-
-    // const { processIncomingFiles } = createFileIntakeController({
-    //   body,
-    //   getItem: () => item,
-    //   getCurrentModel: () => getSelectedModelInfo().currentModel,
-    //   getCurrentPdfSupport: () => {
-    //     const profile = getSelectedProfile();
-    //     const modelName = (
-    //       profile?.model ||
-    //       getSelectedModelInfo().currentModel ||
-    //       ""
-    //     ).trim();
-    //     const inputMode = getAdvancedModelParamsForEntry(
-    //       profile?.entryId,
-    //     )?.inputMode;
-    //     return getModelPdfSupport(
-    //       modelName,
-    //       profile?.providerProtocol,
-    //       profile?.authMode,
-    //       profile?.apiBase,
-    //       inputMode,
-    //     );
-    //   },
-    //   isScreenshotUnsupportedModel: (modelName) => {
-    //     const profile = getSelectedProfile();
-    //     const inputMode = getAdvancedModelParamsForEntry(
-    //       profile?.entryId,
-    //     )?.inputMode;
-    //     return isScreenshotUnsupportedModel(
-    //       (profile?.model || modelName || "").trim(),
-    //       profile?.providerProtocol,
-    //       profile?.authMode,
-    //       profile?.apiBase,
-    //       inputMode,
-    //     );
-    //   },
-    //   optimizeImageDataUrl,
-    //   persistAttachmentBlob,
-    //   selectedImageCache,
-    //   selectedFileAttachmentCache,
-    //   updateImagePreview,
-    //   updateFilePreview,
-    //   scheduleAttachmentGc,
-    //   setStatusMessage: status
-    //     ? (message, level) => {
-    //         setStatus(status, message, level);
-    //       }
-    //     : undefined,
-    // });
-
-    // const setInputDropActive = (active: boolean) => {
-    //   if (inputSection) {
-    //     inputSection.classList.toggle("paperpilot-input-drop-active", active);
-    //   }
-    //   if (inputBox) {
-    //     inputBox.classList.toggle("paperpilot-input-drop-active", active);
-    //   }
-    // };
-
-    // const paperPickerController = createPaperPickerController({
-    //   body,
-    //   panelRoot,
-    //   inputBox,
-    //   paperPicker,
-    //   paperPickerList,
-    //   getItem: () => item,
-    //   getCurrentLibraryID,
-    //   isWebChatMode,
-    //   resolveAutoLoadedPaperContext,
-    //   getManualPaperContextsForItem,
-    //   isPaperContextMineru,
-    //   getTextContextConversationKey,
-    //   persistDraftInputForCurrentConversation,
-    //   updatePaperPreviewPreservingScroll,
-    //   updateSelectedTextPreviewPreservingScroll,
-    //   setStatusMessage: status
-    //     ? (message, level) => {
-    //         setStatus(status, message, level);
-    //       }
-    //     : undefined,
-    //   log: (message, ...args) => {
-    //     ztoolkit.log(message, ...args);
-    //   },
-    // });
-    // const {
-    //   getActiveAtToken,
-    //   isPaperPickerOpen,
-    //   closePaperPicker: closePaperPickerFromController,
-    //   schedulePaperPickerSearch,
-    //   moveActiveRow: movePaperPickerActiveRow,
-    //   selectActiveRow: selectActivePaperPickerRow,
-    //   handleArrowRight: handlePaperPickerArrowRight,
-    //   handleArrowLeft: handlePaperPickerArrowLeft,
-    //   addZoteroItemsAsPaperContext,
-    // } = paperPickerController;
-    // closePaperPicker = closePaperPickerFromController;
-    // const getActiveActionToken = (): ActiveActionToken | null => {
-    //   const caretEnd =
-    //     typeof inputBox.selectionStart === "number"
-    //       ? inputBox.selectionStart
-    //       : inputBox.value.length;
-    //   const slashToken = parsePaperSearchSlashToken(inputBox.value, caretEnd);
-    //   const dollarToken = parseSkillSearchDollarToken(inputBox.value, caretEnd);
-    //   if (slashToken && dollarToken) {
-    //     return slashToken.slashStart > dollarToken.slashStart
-    //       ? { ...slashToken, trigger: "/" }
-    //       : { ...dollarToken, trigger: "$" };
-    //   }
-    //   if (dollarToken) return { ...dollarToken, trigger: "$" };
-    //   if (slashToken) return { ...slashToken, trigger: "/" };
-    //   return null;
-    // };
-    // let doSend: (options?: {
-    //   overrideText?: string;
-    //   preserveInputDraft?: boolean;
-    // }) => Promise<void> = async () => {};
-
-    // const actionCommandController = createActionCommandController({
-    //   body,
-    //   panelRoot,
-    //   inputBox,
-    //   slashMenu,
-    //   uploadBtn,
-    //   actionPicker,
-    //   actionPickerList,
-    //   actionHitlPanel,
-    //   chatBox,
-    //   getItem: () => item,
-    //   getActiveActionToken,
-    //   persistDraftInputForCurrentConversation,
-    //   shouldRenderDynamicSlashMenu:
-    //     shouldRenderDynamicSlashMenuForCurrentConversation,
-    //   shouldRenderSkillSlashMenu:
-    //     shouldRenderSkillSlashMenuForCurrentConversation,
-    //   isWebChatMode,
-    //   isClaudeConversationSystem,
-    //   getCurrentRuntimeMode,
-    //   setCurrentRuntimeMode,
-    //   getCurrentLibraryID,
-    //   resolveCurrentPaperBaseItem,
-    //   getAllEffectivePaperContexts,
-    //   getEffectivePdfModePaperContexts,
-    //   getEffectiveFullTextPaperContexts,
-    //   getSelectedProfile,
-    //   getDoSend: () => doSend,
-    //   closeRetryModelMenu,
-    //   closeModelMenu,
-    //   closeReasoningMenu,
-    //   closeHistoryNewMenu,
-    //   closeHistoryMenu,
-    //   closeResponseMenu,
-    //   closePromptMenu,
-    //   closeExportMenu,
-    //   setStatusMessage: status
-    //     ? (message, level) => {
-    //         setStatus(status, message, level);
-    //       }
-    //     : undefined,
-    //   logError: (message, error) => {
-    //     ztoolkit.log(message, error);
-    //   },
-    // });
-    // const {
-    //   isActionPickerOpen,
-    //   closeActionPicker,
-    //   moveActionPickerSelection,
-    //   selectActiveActionPickerItem,
-    //   renderDynamicSlashMenuSections,
-    //   scheduleActionPickerTrigger,
-    //   closeSlashMenu: closeActionSlashMenu,
-    //   openSlashMenuWithSelection,
-    //   moveSlashMenuSelection,
-    //   selectActiveSlashMenuItem,
-    //   syncHasActionCardAttr,
-    //   clearForcedSkill: clearForcedSkillFromActionController,
-    //   clearCommandChip,
-    //   clearCommandRowSelection,
-    //   getActiveCommandAction,
-    //   consumeForcedSkillIds,
-    //   handleInlineCommand,
-    //   handleNaturalLanguageActionIntent,
-    //   consumeActiveActionToken,
-    // } = actionCommandController;
-    // closeSlashMenu = closeActionSlashMenu;
-    // clearForcedSkill = clearForcedSkillFromActionController;
-
-    // if (inputSection && inputBox) {
-    //   let fileDragDepth = 0;
-
-    //   const isDragRelevant = (dragEvent: DragEvent): boolean =>
-    //     isFileDragEvent(dragEvent) || isZoteroItemDragEvent(dragEvent);
-
-    //   inputSection.addEventListener("dragenter", (e: Event) => {
-    //     const dragEvent = e as DragEvent;
-    //     if (!isDragRelevant(dragEvent)) return;
-    //     dragEvent.preventDefault();
-    //     dragEvent.stopPropagation();
-    //     fileDragDepth += 1;
-    //     setInputDropActive(true);
-    //   });
-
-    //   inputSection.addEventListener("dragover", (e: Event) => {
-    //     const dragEvent = e as DragEvent;
-    //     if (!isDragRelevant(dragEvent)) return;
-    //     dragEvent.preventDefault();
-    //     dragEvent.stopPropagation();
-    //     if (dragEvent.dataTransfer) {
-    //       dragEvent.dataTransfer.dropEffect = "copy";
-    //     }
-    //     if (!inputSection.classList.contains("paperpilot-input-drop-active")) {
-    //       setInputDropActive(true);
-    //     }
-    //   });
-
-    //   inputSection.addEventListener("dragleave", (e: Event) => {
-    //     const dragEvent = e as DragEvent;
-    //     if (!isDragRelevant(dragEvent)) return;
-    //     dragEvent.preventDefault();
-    //     dragEvent.stopPropagation();
-    //     fileDragDepth = Math.max(0, fileDragDepth - 1);
-    //     if (fileDragDepth === 0) {
-    //       setInputDropActive(false);
-    //     }
-    //   });
-
-    //   inputSection.addEventListener("drop", (e: Event) => {
-    //     const dragEvent = e as DragEvent;
-    //     if (!isDragRelevant(dragEvent)) return;
-    //     dragEvent.preventDefault();
-    //     dragEvent.stopPropagation();
-    //     fileDragDepth = 0;
-    //     setInputDropActive(false);
-
-    //     // Handle Zotero library item drops
-    //     if (isZoteroItemDragEvent(dragEvent)) {
-    //       const data = dragEvent.dataTransfer?.getData("zotero/item");
-    //       const itemIds = parseZoteroItemDragData(data);
-    //       const zoteroItems = itemIds
-    //         .map((id) => Zotero.Items.get(id))
-    //         .filter((zi): zi is Zotero.Item => Boolean(zi));
-    //       if (zoteroItems.length) {
-    //         addZoteroItemsAsPaperContext(zoteroItems);
-    //       }
-    //       inputBox.focus({ preventScroll: true });
-    //       return;
-    //     }
-
-    //     // Handle file drops (existing logic)
-    //     const files = dragEvent.dataTransfer?.files
-    //       ? Array.from(dragEvent.dataTransfer.files)
-    //       : [];
-    //     if (!files.length) return;
-    //     void processIncomingFiles(files);
-    //     inputBox.focus({ preventScroll: true });
-    //   });
-
-    //   inputBox.addEventListener("paste", (e: Event) => {
-    //     if (!item) return;
-    //     const clipboardEvent = e as ClipboardEvent;
-    //     const files = extractFilesFromClipboard(clipboardEvent);
-    //     if (!files.length) return;
-    //     clipboardEvent.preventDefault();
-    //     clipboardEvent.stopPropagation();
-    //     void processIncomingFiles(files);
-    //     inputBox.focus({ preventScroll: true });
-    //   });
-
-    //   /** Auto-resize the textarea to fit its content, up to max-height. */
-    //   const autoResizeInput = (): void => {
-    //     inputBox.style.height = "auto";
-    //     const max = 220; // matches CSS max-height
-    //     inputBox.style.height = `${Math.min(inputBox.scrollHeight, max)}px`;
-    //   };
-
-    //   inputBox.addEventListener("input", () => {
-    //     autoResizeInput();
-    //     persistDraftInputForCurrentConversation();
-    //     schedulePaperPickerSearch();
-    //     scheduleActionPickerTrigger();
-    //   });
-    //   inputBox.addEventListener("click", () => {
-    //     schedulePaperPickerSearch();
-    //     scheduleActionPickerTrigger();
-    //   });
-
-    //   // Command row dismiss button (reuses .paperpilot-paper-context-clear class)
-    //   const commandRowClearBtn = body.querySelector(
-    //     "#paperpilot-command-row .paperpilot-paper-context-clear",
-    //   );
-    //   if (commandRowClearBtn) {
-    //     commandRowClearBtn.addEventListener("click", () => {
-    //       clearCommandRowSelection();
-    //       inputBox.focus({ preventScroll: true });
-    //     });
-    //   }
-
-    //   inputBox.addEventListener("keyup", (e: Event) => {
-    //     const key = (e as KeyboardEvent).key;
-    //     if (
-    //       key === "ArrowUp" ||
-    //       key === "ArrowDown" ||
-    //       key === "ArrowLeft" ||
-    //       key === "ArrowRight"
-    //     )
-    //       return;
-    //     if (key === "Enter" || key === "Tab" || key === "Escape") return;
-    //     schedulePaperPickerSearch();
-    //     scheduleActionPickerTrigger();
-    //   });
-    // }
-
-    // const resetComposerInputHeight = (): void => {
-    //   inputBox.style.height = "";
-    // };
-
-    // let queuedFollowUpDrainTimer: number | null = null;
-
-    // const getQueuedFollowUpInputs = () =>
-    //   getQueuedFollowUps(getQueuedFollowUpThreadKey());
-
-    // renderQueuedFollowUpInputs = () => {
-    //   if (!queueBar) return;
-    //   const queuedFollowUpInputs = getQueuedFollowUpInputs();
-    //   if (!queuedFollowUpInputs.length) {
-    //     queueBar.textContent = "";
-    //     queueBar.style.display = "none";
-    //     return;
-    //   }
-
-    //   const ownerDoc = body.ownerDocument!;
-    //   queueBar.textContent = "";
-    //   queueBar.style.display = "flex";
-
-    //   const rail = ownerDoc.createElement("div") as HTMLDivElement;
-    //   rail.className = "paperpilot-queued-input-rail";
-
-    //   const list = ownerDoc.createElement("div") as HTMLDivElement;
-    //   list.className = "paperpilot-queued-input-list";
-    //   for (const entry of queuedFollowUpInputs) {
-    //     const row = ownerDoc.createElement("div") as HTMLDivElement;
-    //     row.className = "paperpilot-queued-input-item";
-
-    //     const text = ownerDoc.createElement("span") as HTMLSpanElement;
-    //     text.className = "paperpilot-queued-input-chip";
-    //     text.textContent = entry.text;
-    //     text.title = entry.text;
-
-    //     const removeBtn = ownerDoc.createElement("button") as HTMLButtonElement;
-    //     removeBtn.type = "button";
-    //     removeBtn.className = "paperpilot-queued-input-remove";
-    //     removeBtn.textContent = "×";
-    //     removeBtn.title = "Remove queued input";
-    //     removeBtn.setAttribute("aria-label", "Remove queued input");
-    //     removeBtn.addEventListener("click", (event: Event) => {
-    //       event.preventDefault();
-    //       event.stopPropagation();
-    //       removeQueuedFollowUp(getQueuedFollowUpThreadKey(), entry.id);
-    //       renderQueuedFollowUpInputs();
-    //     });
-
-    //     row.append(text, removeBtn);
-    //     list.appendChild(row);
-    //   }
-
-    //   rail.append(list);
-    //   queueBar.appendChild(rail);
-    // };
-
-    // scheduleQueuedFollowUpDrain = () => {
-    //   const threadKey = getQueuedFollowUpThreadKey();
-    //   if (!threadKey) return;
-    //   if (queuedFollowUpDrainTimer !== null) return;
-    //   const win = body.ownerDocument?.defaultView;
-    //   if (!win) return;
-    //   queuedFollowUpDrainTimer = win.setTimeout(() => {
-    //     queuedFollowUpDrainTimer = null;
-    //     void drainQueuedFollowUpInput();
-    //   }, 220) as unknown as number;
-    // };
-    // (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_DRAIN_PROPERTY] =
-    //   scheduleQueuedFollowUpDrain;
-    // (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_THREAD_DRAIN_PROPERTY] = () => {
-    //   scheduleQueuedFollowUpDrainForThread(getQueuedFollowUpThreadKey());
-    // };
-
-    // isQueuedFollowUpSendAvailable = () => {
-    //   const activeConversationKey = item ? getConversationKey(item) : null;
-    //   return Boolean(
-    //     getQueuedFollowUpThreadKey() &&
-    //     activeConversationKey !== null &&
-    //     isRequestPending(activeConversationKey),
-    //   );
-    // };
-
-    // queueFollowUpInput = (text: string) => {
-    //   const nextQueue = enqueueQueuedFollowUp(getQueuedFollowUpThreadKey(), text);
-    //   if (!nextQueue.length) return;
-    //   inputBox.value = "";
-    //   persistDraftInputForCurrentConversation();
-    //   renderQueuedFollowUpInputs();
-    //   if (status) {
-    //     setStatus(
-    //       status,
-    //       nextQueue.length === 1
-    //         ? t("Queued 1 follow-up")
-    //         : t(`Queued ${nextQueue.length} follow-ups`),
-    //       "ready",
-    //     );
-    //   }
-    // };
-
-    // syncRequestUiForCurrentConversation();
-    // const pdfPaperResolver = createPdfPaperAttachmentResolver({
-    //   logError: (message, ...args) => {
-    //     ztoolkit.log(message, ...args);
-    //   },
-    // });
-
-    // const sendFlowController = createSendFlowController({
-    //   body,
-    //   inputBox,
-    //   getItem: () => item,
-    //   resolveContextSource: resolveAutoLoadedContextSourceAsync,
-    //   closeSlashMenu,
-    //   closePaperPicker,
-    //   getSelectedTextContextEntries,
-    //   getSelectedPaperContexts: (itemId) =>
-    //     getManualPaperContextsForItem(
-    //       itemId,
-    //       item && item.id === itemId ? resolveAutoLoadedPaperContext() : null,
-    //     ).map((paperContext) =>
-    //       withResolvedPaperContentSourceMode(itemId, paperContext),
-    //     ),
-    //   getSelectedCollectionContexts: (itemId) =>
-    //     selectedCollectionContextCache.get(itemId) || [],
-    //   getSelectedTagContexts: (itemId) =>
-    //     selectedTagContextCache.get(itemId) || [],
-    //   getFullTextPaperContexts: (currentItem, selectedPaperContexts) =>
-    //     getEffectiveFullTextPaperContexts(currentItem, selectedPaperContexts),
-    //   getPdfModePaperContexts: (currentItem, selectedPaperContexts) =>
-    //     getEffectivePdfModePaperContexts(currentItem, selectedPaperContexts),
-    //   hasActivePdfFullTextPapers: (
-    //     currentItem: Zotero.Item,
-    //     selectedPaperContexts?: any[],
-    //   ) => hasActivePdfFullTextPapers(currentItem, selectedPaperContexts),
-    //   hasUploadedPdfInCurrentWebChatConversation,
-    //   markWebChatPdfUploadedForCurrentConversation,
-    //   resolvePdfPaperAttachments: pdfPaperResolver.resolvePdfPaperAttachments,
-    //   renderPdfPagesAsImages: pdfPaperResolver.renderPdfPagesAsImages,
-    //   getModelPdfSupport: (modelName, protocol, authMode, apiBase, inputMode) =>
-    //     getModelPdfSupport(modelName, protocol, authMode, apiBase, inputMode),
-    //   uploadPdfForProvider: pdfPaperResolver.uploadPdfForProvider,
-    //   resolvePdfBytes: pdfPaperResolver.resolvePdfBytes,
-    //   getSelectedFiles: (itemId) => selectedFileAttachmentCache.get(itemId) || [],
-    //   getSelectedImages: (itemId) => selectedImageCache.get(itemId) || [],
-    //   resolvePromptText,
-    //   buildQuestionWithSelectedTextContexts,
-    //   buildModelPromptWithFileContext,
-    //   isAgentMode: () => getCurrentRuntimeMode() === "agent",
-    //   isGlobalMode,
-    //   normalizeConversationTitleSeed,
-    //   getConversationKey,
-    //   touchGlobalConversationTitle,
-    //   touchPaperConversationTitle,
-    //   getSelectedProfile,
-    //   getCurrentModelName: () => getSelectedModelInfo().currentModel,
-    //   isScreenshotUnsupportedModel,
-    //   getSelectedReasoning,
-    //   getAdvancedModelParams,
-    //   getActiveEditSession: () => activeEditSession,
-    //   setActiveEditSession: (nextEditSession) => {
-    //     activeEditSession = nextEditSession;
-    //   },
-    //   getLatestEditablePair,
-    //   editLatestUserMessageAndRetry,
-    //   sendQuestion: async (opts) => {
-    //     const workflowTestSendInterceptor = getWorkflowTestSendInterceptor();
-    //     if (workflowTestSendInterceptor) {
-    //       await workflowTestSendInterceptor(opts);
-    //       return;
-    //     }
-    //     await sendQuestion(opts);
-    //   },
-    //   retainClaudeRuntime: async (sendBody, sendItem) => {
-    //     await retainClaudeRuntimeForBody(sendBody, sendItem);
-    //   },
-    //   retainPinnedImageState,
-    //   retainPaperState,
-    //   consumePaperModeState,
-    //   consumeWebChatForceNewChatIntent,
-    //   retainPinnedFileState,
-    //   retainPinnedTextState,
-    //   updatePaperPreviewPreservingScroll,
-    //   updateFilePreviewPreservingScroll,
-    //   updateImagePreviewPreservingScroll,
-    //   updateSelectedTextPreviewPreservingScroll,
-    //   scheduleAttachmentGc,
-    //   refreshGlobalHistoryHeader: () => {
-    //     void refreshGlobalHistoryHeader();
-    //   },
-    //   persistDraftInput: persistDraftInputForCurrentConversation,
-    //   autoLockGlobalChat: () => {
-    //     if (isRuntimeConversationSystem()) return;
-    //     if (!item || !isGlobalMode() || isNoteSession()) return;
-    //     const ck = conversationKey;
-    //     if (ck === null) return;
-    //     const libraryID = getCurrentLibraryID();
-    //     const existingLock = getLockedGlobalConversationKey(libraryID);
-    //     if (existingLock) return; // already manually locked — don't override
-    //     setLockedGlobalConversationKey(libraryID, ck);
-    //     addAutoLockedGlobalConversationKey(ck);
-    //     syncConversationIdentity();
-    //   },
-    //   autoUnlockGlobalChat: () => {
-    //     if (isRuntimeConversationSystem()) return;
-    //     const ck = conversationKey;
-    //     if (ck === null || !isAutoLockedGlobalConversation(ck)) return;
-    //     removeAutoLockedGlobalConversationKey(ck);
-    //     const libraryID = getCurrentLibraryID();
-    //     const currentLock = getLockedGlobalConversationKey(libraryID);
-    //     if (currentLock === ck) {
-    //       setLockedGlobalConversationKey(libraryID, null);
-    //       syncConversationIdentity();
-    //     }
-    //   },
-    //   setStatusMessage: status
-    //     ? (message, level) => {
-    //         setStatus(status, message, level);
-    //       }
-    //     : undefined,
-    //   editStaleStatusText: EDIT_STALE_STATUS_TEXT,
-    //   onComposerDraftCleared: resetComposerInputHeight,
-    //   consumeForcedSkillIds,
-    // });
-    // doSend = sendFlowController.doSend;
-    // const { clearCurrentConversation } = createClearConversationController({
-    //   getConversationKey: () => (item ? getConversationKey(item) : null),
-    //   getCurrentItemID: () =>
-    //     item && Number.isFinite(item.id) && item.id > 0 ? item.id : null,
-    //   getPendingRequestId,
-    //   getAbortController,
-    //   setCancelledRequestId,
-    //   setPendingRequestId,
-    //   setAbortController,
-    //   clearPendingTurnDeletion: (conversationKey) => {
-    //     if (hasPendingTurnDeletionForConversation(conversationKey)) {
-    //       clearPendingTurnDeletion();
-    //     }
-    //   },
-    //   validateConversationScope: async (conversationKey) => {
-    //     if (!item) return true;
-    //     const conversationSystem = resolveConversationSystemForItem(item);
-    //     const storageSystem = resolveConversationStorageSystem({
-    //       conversationKey,
-    //       conversationSystem,
-    //     });
-    //     const kind = resolveDisplayConversationKind(item);
-    //     const libraryID = Number(item.libraryID || 0);
-    //     if (
-    //       !storageSystem ||
-    //       !kind ||
-    //       !Number.isFinite(libraryID) ||
-    //       libraryID <= 0
-    //     ) {
-    //       return true;
-    //     }
-    //     if (kind === "global") {
-    //       return validateConversationScope({
-    //         conversationKey,
-    //         system: storageSystem,
-    //         kind: "global",
-    //         libraryID: Math.floor(libraryID),
-    //       });
-    //     }
-    //     const baseItem = resolveConversationBaseItem(item);
-    //     const paperItemID = Number(baseItem?.id || 0);
-    //     const paperLibraryID = Number(baseItem?.libraryID || libraryID);
-    //     if (
-    //       !Number.isFinite(paperItemID) ||
-    //       paperItemID <= 0 ||
-    //       !Number.isFinite(paperLibraryID) ||
-    //       paperLibraryID <= 0
-    //     ) {
-    //       return true;
-    //     }
-    //     return validateConversationScope({
-    //       conversationKey,
-    //       system: storageSystem,
-    //       kind: "paper",
-    //       libraryID: Math.floor(paperLibraryID),
-    //       paperItemID: Math.floor(paperItemID),
-    //     });
-    //   },
-    //   clearTransientComposeStateForItem,
-    //   resetComposePreviewUI,
-    //   resetConversationHistory: (conversationKey) => {
-    //     chatHistory.set(conversationKey, []);
-    //   },
-    //   markConversationLoaded: (conversationKey) => {
-    //     loadedConversationKeys.add(conversationKey);
-    //   },
-    //   invalidateConversationSession: async (conversationKey) => {
-    //     if (!isClaudeConversationSystem() || !item) return;
-    //     const libraryID = Number(item.libraryID || 0);
-    //     const currentKind = resolveDisplayConversationKind(item);
-    //     const baseItem = resolveConversationBaseItem(item);
-    //     if (!Number.isFinite(libraryID) || libraryID <= 0 || !currentKind) return;
-    //     const scope = buildClaudeScope({
-    //       libraryID: Math.floor(libraryID),
-    //       kind: currentKind,
-    //       paperItemID:
-    //         currentKind === "paper"
-    //           ? Number(baseItem?.id || 0) || undefined
-    //           : undefined,
-    //       paperTitle:
-    //         currentKind === "paper"
-    //           ? String(baseItem?.getField?.("title") || "").trim() || undefined
-    //           : undefined,
-    //     });
-    //     await invalidateClaudeConversationSession(await initAgentSubsystem(), {
-    //       conversationKey,
-    //       scope,
-    //     });
-    //     void touchClaudeConversation(conversationKey, {
-    //       providerSessionId: undefined,
-    //       scopedConversationKey: undefined,
-    //       scopeType: undefined,
-    //       scopeId: undefined,
-    //       scopeLabel: undefined,
-    //       cwd: undefined,
-    //       updatedAt: Date.now(),
-    //     });
-    //   },
-    //   clearStoredConversation: (conversationKey) =>
-    //     isClaudeConversationSystem()
-    //       ? clearClaudeConversation(conversationKey)
-    //       : isCodexConversationSystem()
-    //         ? clearCodexConversation(conversationKey)
-    //         : clearStoredConversation(conversationKey),
-    //   resetConversationTitle: (conversationKey) =>
-    //     conversationRepository.clearCatalogTitle({
-    //       system: getConversationSystem(),
-    //       conversationKey,
-    //     }),
-    //   clearOwnerAttachmentRefs,
-    //   removeConversationAttachmentFiles,
-    //   refreshChatPreservingScroll,
-    //   refreshGlobalHistoryHeader: () => {
-    //     void refreshGlobalHistoryHeader();
-    //   },
-    //   scheduleAttachmentGc,
-    //   clearAgentToolCaches: clearAllAgentToolCaches,
-    //   clearAgentConversationState,
-    //   setStatusMessage: status
-    //     ? (message, level) => {
-    //         setStatus(status, message, level);
-    //       }
-    //     : undefined,
-    //   logError: (message, err) => {
-    //     ztoolkit.log(message, err);
-    //   },
-    //   // [webchat] Check if the currently selected model uses webchat auth
-    //   isWebChatActive: () => {
-    //     const { selectedEntry } = getSelectedModelInfo();
-    //     return selectedEntry?.authMode === "webchat";
-    //   },
-    //   getWebChatHost: () => {
-    //     const port = Zotero.Prefs.get("httpServer.port") || 23119;
-    //     return `http://127.0.0.1:${port}/paperpilot-for-zotero/webchat`;
-    //   },
-    //   markNextWebChatSendAsNewChat,
-    // });
-    // const executeSend = async () => {
-    //   // If the inline edit widget is active, route through editUserTurnAndRetry
-    //   // instead of the normal send flow.
-    //   if (inlineEditTarget && item) {
-    //     const currentItem = item;
-    //     const editTarget = inlineEditTarget;
-    //     const newText = inputBox?.value.trim() ?? "";
-    //     const textContextKey = getTextContextConversationKey();
-    //     const selectedContexts = textContextKey
-    //       ? getSelectedTextContextEntries(textContextKey)
-    //       : [];
-    //     const {
-    //       selectedTexts,
-    //       selectedTextSources,
-    //       selectedTextPaperContexts,
-    //       selectedTextNoteContexts,
-    //       selectedCollectionContexts,
-    //       selectedTagContexts,
-    //     } = buildInlineEditRetryContextSnapshot({
-    //       selectedContexts,
-    //       selectedCollectionContexts: selectedCollectionContextCache.get(
-    //         currentItem.id,
-    //       ),
-    //       selectedTagContexts: selectedTagContextCache.get(currentItem.id),
-    //     });
-    //     const contextSource = await resolveAutoLoadedContextSourceAsync();
-    //     const allPaperContexts = getManualPaperContextsForItem(
-    //       currentItem.id,
-    //       currentItem.id === item?.id ? resolveAutoLoadedPaperContext() : null,
-    //     );
-    //     // Agent mode always uses text/MinerU pipeline — it fetches PDF pages on demand
-    //     const isAgent = getCurrentRuntimeMode() === "agent";
-    //     const pdfModePapers = isAgent
-    //       ? []
-    //       : getEffectivePdfModePaperContexts(currentItem, allPaperContexts);
-    //     const pdfModeKeys = new Set(
-    //       pdfModePapers.map((p) => `${p.itemId}:${p.contextItemId}`),
-    //     );
-    //     const selectedPaperContexts = allPaperContexts.filter(
-    //       (p) => !pdfModeKeys.has(`${p.itemId}:${p.contextItemId}`),
-    //     );
-    //     const fullTextPaperContexts = getEffectiveFullTextPaperContexts(
-    //       currentItem,
-    //       selectedPaperContexts,
-    //     );
-    //     const selectedProfile = getSelectedProfile();
-    //     const activeModelName = (
-    //       selectedProfile?.model ||
-    //       getSelectedModelInfo().currentModel ||
-    //       ""
-    //     ).trim();
-    //     const advancedParams = getAdvancedModelParams(selectedProfile?.entryId);
-    //     const baseSelectedFiles =
-    //       selectedFileAttachmentCache.get(currentItem.id) || [];
-    //     const selectedImages = (
-    //       selectedImageCache.get(currentItem.id) || []
-    //     ).slice(0, MAX_SELECTED_IMAGES);
-    //     const pdfInputs = await resolvePdfModeModelInputs({
-    //       deps: {
-    //         setInputDisabled: (disabled) => {
-    //           inputBox.disabled = disabled;
-    //         },
-    //         setStatusMessage: status
-    //           ? (message, level) => {
-    //               setStatus(status, message, level);
-    //             }
-    //           : undefined,
-    //         logError: (message, ...args) => {
-    //           ztoolkit.log(message, ...args);
-    //         },
-    //         isScreenshotUnsupportedModel,
-    //         getModelPdfSupport,
-    //         resolvePdfPaperAttachments:
-    //           pdfPaperResolver.resolvePdfPaperAttachments,
-    //         renderPdfPagesAsImages: pdfPaperResolver.renderPdfPagesAsImages,
-    //         uploadPdfForProvider: pdfPaperResolver.uploadPdfForProvider,
-    //         resolvePdfBytes: pdfPaperResolver.resolvePdfBytes,
-    //       },
-    //       paperContexts: pdfModePapers,
-    //       selectedBaseFiles: baseSelectedFiles,
-    //       selectedImageCountForBudget: isScreenshotUnsupportedModel(
-    //         activeModelName,
-    //         selectedProfile?.providerProtocol,
-    //         selectedProfile?.authMode,
-    //         selectedProfile?.apiBase,
-    //         advancedParams?.inputMode,
-    //       )
-    //         ? 0
-    //         : selectedImages.length,
-    //       profile: selectedProfile
-    //         ? { ...selectedProfile, inputMode: advancedParams?.inputMode }
-    //         : null,
-    //       currentModelName: activeModelName,
-    //       isWebChat: isWebChatMode(),
-    //     });
-    //     if (!pdfInputs.ok) return;
-    //     const {
-    //       selectedFiles,
-    //       modelFiles,
-    //       pdfPageImageDataUrls,
-    //       pdfUploadSystemMessages,
-    //     } = pdfInputs;
-    //     const images = [
-    //       ...(isScreenshotUnsupportedModel(
-    //         activeModelName,
-    //         selectedProfile?.providerProtocol,
-    //         selectedProfile?.authMode,
-    //         selectedProfile?.apiBase,
-    //         advancedParams?.inputMode,
-    //       )
-    //         ? []
-    //         : selectedImages),
-    //       ...pdfPageImageDataUrls,
-    //     ].slice(0, MAX_SELECTED_IMAGES);
-    //     const selectedReasoning = getSelectedReasoning();
-    //     const targetRuntimeMode = getCurrentRuntimeMode();
-    //     inlineEditCleanup?.();
-    //     setInlineEditCleanup(null);
-    //     setInlineEditInputSection(null, null, null);
-    //     setInlineEditSavedDraft("");
-    //     setInlineEditTarget(null);
-    //     if (newText) {
-    //       consumePaperModeState(currentItem.id, {
-    //         webchatGreyOut: isWebChatMode(),
-    //       });
-    //       retainPaperState(currentItem.id);
-    //       updatePaperPreviewPreservingScroll();
-    //       void editUserTurnAndRetry({
-    //         body,
-    //         item: currentItem,
-    //         contextSource,
-    //         userTimestamp: editTarget.userTimestamp,
-    //         assistantTimestamp: editTarget.assistantTimestamp,
-    //         newText,
-    //         selectedTexts,
-    //         selectedTextSources,
-    //         selectedTextPaperContexts,
-    //         selectedTextNoteContexts,
-    //         selectedCollectionContexts,
-    //         selectedTagContexts,
-    //         screenshotImages: images,
-    //         paperContexts: selectedPaperContexts,
-    //         fullTextPaperContexts,
-    //         attachments: selectedFiles,
-    //         modelAttachments: modelFiles,
-    //         pdfUploadSystemMessages: pdfUploadSystemMessages.length
-    //           ? pdfUploadSystemMessages
-    //           : undefined,
-    //         targetRuntimeMode,
-    //         model: selectedProfile?.model,
-    //         apiBase: selectedProfile?.apiBase,
-    //         apiKey: selectedProfile?.apiKey,
-    //         reasoning: selectedReasoning,
-    //         advanced: advancedParams,
-    //       });
-    //     } else {
-    //       // Nothing to submit — refresh the chat to remove the stale inline
-    //       // edit widget (the "Editing" header div) that cleanup left in chatBox.
-    //       refreshConversationPanels(body, currentItem);
-    //     }
-    //     return;
-    //   }
-    //   if (isQueuedFollowUpSendAvailable()) {
-    //     const queuedText = inputBox?.value?.trim() ?? "";
-    //     if (queuedText) {
-    //       queueFollowUpInput(queuedText);
-    //       return;
-    //     }
-    //   }
-    //   closeActionPicker();
-    //   const clearSubmittedCommandDraft = () => {
-    //     inputBox.value = "";
-    //     const EvtCtor =
-    //       (inputBox.ownerDocument?.defaultView as any)?.Event ?? Event;
-    //     inputBox.dispatchEvent(new EvtCtor("input", { bubbles: true }));
-    //     persistDraftInputForCurrentConversation();
-    //   };
-    //   // Intercept command chip: if a command chip is active, route to action execution
-    //   const chipAction = getActiveCommandAction();
-    //   if (chipAction) {
-    //     const params = inputBox?.value?.trim() ?? "";
-    //     clearCommandChip(); // also restores placeholder
-    //     clearSubmittedCommandDraft();
-    //     void handleInlineCommand(chipAction.name, params);
-    //     return;
-    //   }
-    //   if (await handleNaturalLanguageActionIntent(inputBox?.value ?? "")) {
-    //     return;
-    //   }
-    //   const inlineCommand = parseInlineActionCommand(inputBox?.value ?? "");
-    //   if (inlineCommand) {
-    //     closeSlashMenu();
-    //     clearSubmittedCommandDraft();
-    //     void handleInlineCommand(inlineCommand.actionName, inlineCommand.params);
-    //     return;
-    //   }
-    //   await doSend();
-    //   persistDraftInputForCurrentConversation();
-    //   scheduleQueuedFollowUpDrainForThread(getQueuedFollowUpThreadKey());
-    // };
-
-    // async function drainQueuedFollowUpInput(): Promise<void> {
-    //   const queuedFollowUpInputs = getQueuedFollowUpInputs();
-    //   if (!queuedFollowUpInputs.length) {
-    //     renderQueuedFollowUpInputs();
-    //     return;
-    //   }
-    //   const activeConversationKey = item ? getConversationKey(item) : null;
-    //   const threadKey = getQueuedFollowUpThreadKey();
-    //   if (!threadKey || activeConversationKey === null) {
-    //     return;
-    //   }
-    //   if (isRequestPending(activeConversationKey)) {
-    //     scheduleQueuedFollowUpDrain();
-    //     return;
-    //   }
-    //   const next = shiftQueuedFollowUp(threadKey);
-    //   renderQueuedFollowUpInputs();
-    //   if (!next) return;
-    //   await doSend({
-    //     overrideText: next.text,
-    //     preserveInputDraft: true,
-    //   });
-    //   persistDraftInputForCurrentConversation();
-    //   scheduleQueuedFollowUpDrainForThread(getQueuedFollowUpThreadKey());
-    // }
-
-    // // Send button - use addEventListener
-    // sendBtn.addEventListener("click", (e: Event) => {
-    //   e.preventDefault();
-    //   e.stopPropagation();
-    //   void executeSend();
-    // });
-
-    // if (runtimeModeBtn) {
-    //   runtimeModeBtn.addEventListener("click", (e: Event) => {
-    //     e.preventDefault();
-    //     e.stopPropagation();
-    //     if (!item) return;
-    //     const nextMode: ChatRuntimeMode =
-    //       getCurrentRuntimeMode() === "agent" ? "chat" : "agent";
-    //     setCurrentRuntimeMode(nextMode);
-    //     if (status) {
-    //       setStatus(
-    //         status,
-    //         nextMode === "agent"
-    //           ? t("Agent mode enabled")
-    //           : t("Chat mode enabled"),
-    //         "ready",
-    //       );
-    //     }
-    //   });
-    // }
-
-    // // Enter key (Shift+Enter for newline)
-    // inputBox.addEventListener("keydown", (e: Event) => {
-    //   const ke = e as KeyboardEvent;
-    //   if (isFloatingMenuOpen(slashMenu)) {
-    //     if (ke.key === "ArrowDown") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       moveSlashMenuSelection(1);
-    //       return;
-    //     }
-    //     if (ke.key === "ArrowUp") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       moveSlashMenuSelection(-1);
-    //       return;
-    //     }
-    //     if (ke.key === "Escape") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       closeSlashMenu();
-    //       return;
-    //     }
-    //     if (ke.key === "Enter" || ke.key === "Tab") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       selectActiveSlashMenuItem();
-    //       return;
-    //     }
-    //   }
-    //   if (isActionPickerOpen()) {
-    //     if (ke.key === "ArrowDown") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       moveActionPickerSelection(1);
-    //       return;
-    //     }
-    //     if (ke.key === "ArrowUp") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       moveActionPickerSelection(-1);
-    //       return;
-    //     }
-    //     if (ke.key === "Escape") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       closeActionPicker();
-    //       return;
-    //     }
-    //     if (ke.key === "Enter" || ke.key === "Tab") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       void selectActiveActionPickerItem();
-    //       return;
-    //     }
-    //   }
-    //   if (isPaperPickerOpen()) {
-    //     if (ke.key === "ArrowDown") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       movePaperPickerActiveRow(1);
-    //       return;
-    //     }
-    //     if (ke.key === "ArrowUp") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       movePaperPickerActiveRow(-1);
-    //       return;
-    //     }
-    //     if (ke.key === "ArrowRight") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       handlePaperPickerArrowRight();
-    //       return;
-    //     }
-    //     if (ke.key === "ArrowLeft") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       handlePaperPickerArrowLeft();
-    //       return;
-    //     }
-    //     if (ke.key === "Escape") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       closePaperPicker();
-    //       return;
-    //     }
-    //     if (ke.key === "Enter" || ke.key === "Tab") {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       selectActivePaperPickerRow();
-    //       return;
-    //     }
-    //   }
-    //   // Backspace at position 0 with active badge: remove it
-    //   if (
-    //     ke.key === "Backspace" &&
-    //     inputBox.selectionStart === 0 &&
-    //     inputBox.selectionEnd === 0
-    //   ) {
-    //     if (clearCommandRowSelection()) {
-    //       e.preventDefault();
-    //       e.stopPropagation();
-    //       return;
-    //     }
-    //   }
-    //   // Escape with active command/skill badge: remove the badge
-    //   if (ke.key === "Escape" && clearCommandRowSelection()) {
-    //     e.preventDefault();
-    //     e.stopPropagation();
-    //     return;
-    //   }
-    //   // Up-arrow prompt recall: when input is empty or cursor is at position 0,
-    //   // recall the last user message from the current conversation.
-    //   if (ke.key === "ArrowUp" && !ke.shiftKey) {
-    //     const cursorAtStart =
-    //       inputBox.selectionStart === 0 && inputBox.selectionEnd === 0;
-    //     if (!inputBox.value.trim() || cursorAtStart) {
-    //       const convKey = item ? getConversationKey(item) : null;
-    //       const history = convKey != null ? chatHistory.get(convKey) || [] : [];
-    //       const lastUserMsg = [...history]
-    //         .reverse()
-    //         .find((m) => m.role === "user");
-    //       if (lastUserMsg?.text) {
-    //         e.preventDefault();
-    //         e.stopPropagation();
-    //         inputBox.value = lastUserMsg.text;
-    //         persistDraftInputForCurrentConversation();
-    //         inputBox.selectionStart = inputBox.value.length;
-    //         inputBox.selectionEnd = inputBox.value.length;
-    //         return;
-    //       }
-    //     }
-    //   }
-    //   if (ke.key === "Escape" && inlineEditTarget) {
-    //     e.preventDefault();
-    //     e.stopPropagation();
-    //     inlineEditCleanup?.();
-    //     setInlineEditCleanup(null);
-    //     setInlineEditInputSection(null, null, null);
-    //     setInlineEditSavedDraft("");
-    //     setInlineEditTarget(null);
-    //     refreshConversationPanels(body, item);
-    //     return;
-    //   }
-    //   if (ke.key === "Enter" && !ke.shiftKey) {
-    //     e.preventDefault();
-    //     e.stopPropagation();
-    //     void executeSend();
-    //   }
-    // });
-
-    // attachFontScaleShortcutController(panelDoc);
-
-    // attachComposeCaptureController({
-    //   body,
-    //   inputBox,
-    //   screenshotBtn,
-    //   uploadBtn,
-    //   uploadInput,
-    //   slashMenu,
-    //   slashUploadOption,
-    //   slashReferenceOption,
-    //   slashPdfPageOption,
-    //   slashPdfMultiplePagesOption,
-    //   modelMenu,
-    //   reasoningMenu,
-    //   retryModelMenu,
-    //   getItem: () => item,
-    //   getConversationKey,
-    //   getSelectedModelInfo,
-    //   getActiveAtToken,
-    //   consumeActiveActionToken,
-    //   persistDraftInputForCurrentConversation,
-    //   processIncomingFiles,
-    //   renderDynamicSlashMenuSections,
-    //   openSlashMenuWithSelection,
-    //   closeSlashMenu,
-    //   closeHistoryNewMenu,
-    //   closeHistoryMenu,
-    //   closeResponseMenu,
-    //   closePromptMenu,
-    //   closeExportMenu,
-    //   schedulePaperPickerSearch,
-    //   updateImagePreviewPreservingScroll,
-    //   isScreenshotUnsupportedModel: (modelName) => {
-    //     const profile = getSelectedProfile();
-    //     const inputMode = getAdvancedModelParamsForEntry(
-    //       profile?.entryId,
-    //     )?.inputMode;
-    //     return isScreenshotUnsupportedModel(
-    //       (profile?.model || modelName || "").trim(),
-    //       profile?.providerProtocol,
-    //       profile?.authMode,
-    //       profile?.apiBase,
-    //       inputMode,
-    //     );
-    //   },
-    //   setStatusMessage: status
-    //     ? (message, level) => {
-    //         setStatus(status, message, level);
-    //       }
-    //     : undefined,
-    //   log: (message, ...args) => {
-    //     ztoolkit.log(message, ...args);
-    //   },
-    // });
-
-    openModelMenu = () => {
-      if (!modelMenu || !modelBtn) return;
-      if ((modelBtn as HTMLButtonElement).disabled) return;
-      closeSlashMenu();
-      closeRetryModelMenu();
-      closeReasoningMenu();
-      closePromptMenu();
-      closeHistoryNewMenu();
-      closeHistoryMenu();
-      // if (isCodexConversationSystem()) {
-      //   void ensureCodexModelCatalogLoaded();
-      // }
-      updateModelButton();
-      flushResponsiveLayoutSyncNow();
-      flushPanelStateRefreshNow();
-      rebuildModelMenu();
-      if (!modelMenu.childElementCount) {
-        closeModelMenu();
-        return;
-      }
-      positionFloatingMenu(body, modelMenu, modelBtn);
-      setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, true);
-    };
-
-    // closeModelMenu = () => {
-    //   setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
-    // };
-
-    openReasoningMenu = () => {
-      if (!reasoningMenu || !reasoningBtn) return;
-      closeSlashMenu();
-      closeRetryModelMenu();
+    updateModelButton();
+    flushResponsiveLayoutSyncNow();
+    flushPanelStateRefreshNow();
+    ollamaDiscoveryStarted = false;
+    rebuildModelMenu();
+    if (!modelMenu.childElementCount) {
       closeModelMenu();
-      closePromptMenu();
-      closeHistoryNewMenu();
-      closeHistoryMenu();
+      return;
+    }
+    positionFloatingMenu(body, modelMenu, modelBtn, true);
+    setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, true);
+  };
 
-      updateReasoningButton();
-      // flushResponsiveLayoutSyncNow();
-      // rebuildReasoningMenu();
-      if (!reasoningMenu.childElementCount) {
-        closeReasoningMenu();
-        return;
+  closeModelMenu = () => {
+    if (!modelMenu) return;
+    setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
+  };
+
+  if (modelBtn) {
+    modelBtn.addEventListener("click", (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (isFloatingMenuOpen(modelMenu)) {
+        closeModelMenu();
+      } else {
+        openModelMenu();
       }
-      // positionFloatingMenu(body, reasoningMenu, reasoningBtn);
-      // setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, true);
-    };
+    });
+  }
 
-    closeReasoningMenu = () => {
-      // setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
-    };
+  openReasoningMenu = () => {
+    if (!reasoningMenu || !reasoningBtn) return;
+    closeSlashMenu();
+    closeRetryModelMenu();
+    closeModelMenu();
+    closePromptMenu();
+    closeHistoryNewMenu();
+    closeHistoryMenu();
 
-    const openRetryModelMenu = (anchor: HTMLButtonElement) => {
-      if (!item || !retryModelMenu) return;
-      closeSlashMenu();
-      closeResponseMenu();
+    updateReasoningButton();
+    // flushResponsiveLayoutSyncNow();
+    // rebuildReasoningMenu();
+    if (!reasoningMenu.childElementCount) {
+      closeReasoningMenu();
+      return;
+    }
+    // positionFloatingMenu(body, reasoningMenu, reasoningBtn);
+    // setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, true);
+  };
+
+  closeReasoningMenu = () => {
+    // setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
+  };
+
+  const openRetryModelMenu = (anchor: HTMLButtonElement) => {
+    if (!item || !retryModelMenu) return;
+    closeSlashMenu();
+    closeResponseMenu();
+    closeExportMenu();
+    closePromptMenu();
+    closeHistoryNewMenu();
+    closeHistoryMenu();
+    closeModelMenu();
+    closeReasoningMenu();
+    // rebuildRetryModelMenu();
+    if (!retryModelMenu.childElementCount) {
+      closeRetryModelMenu();
+      return;
+    }
+    retryMenuAnchor = anchor;
+    // positionFloatingMenu(body, retryModelMenu, anchor);
+    // setFloatingMenuOpen(retryModelMenu, RETRY_MODEL_MENU_OPEN_CLASS, true);
+  };
+
+  // attachFloatingMenuInteractionController({
+  //   body,
+  //   panelDoc,
+  //   chatBox,
+  //   modelBtn,
+  //   reasoningBtn,
+  //   modelMenu,
+  //   reasoningMenu,
+  //   retryModelMenu,
+  //   slashMenu,
+  //   historyMenu,
+  //   historyNewMenu,
+  //   historyRowMenu,
+  //   promptMenu,
+  //   shortcutMenu,
+  //   paperPicker,
+  //   getPaperChipMenu: () => paperChipMenu,
+  //   getPaperChipMineruCacheMenu: () => paperChipMineruCacheMenu,
+  //   getPaperChipMenuSticky: () => paperChipMenuSticky,
+  //   getPaperChipMenuAnchor: () => paperChipMenuAnchor,
+  //   closePaperChipMineruCacheMenu,
+  //   closePaperChipMenu,
+  //   getItem: () => item,
+  //   getInlineEditTarget: () => inlineEditTarget,
+  //   getInlineEditCleanup: () => inlineEditCleanup,
+  //   clearInlineEdit: () => {
+  //     setInlineEditCleanup(null);
+  //     setInlineEditTarget(null);
+  //   },
+  //   closePromptMenu,
+  //   closeRetryModelMenu,
+  //   closePaperPicker,
+  //   closeHistoryRowMenu,
+  //   openRetryModelMenu,
+  //   openModelMenu,
+  //   closeModelMenu,
+  //   openReasoningMenu,
+  //   closeReasoningMenu,
+  //   clearRetryMenuAnchor: () => {
+  //     retryMenuAnchor = null;
+  //   },
+  //   isElementNode,
+  // });
+
+  // attachComposePreviewInteractionController({
+  //   body,
+  //   imagePreview,
+  //   selectedContextList,
+  //   previewMeta,
+  //   removeImgBtn,
+  //   filePreview,
+  //   filePreviewMeta,
+  //   filePreviewClear,
+  //   filePreviewList,
+  //   previewStrip,
+  //   paperPreview,
+  //   getItem: () => item,
+  //   getTextContextConversationKey,
+  //   resolveAutoLoadedPaperContext,
+  //   getManualPaperContextsForItem,
+  //   resolvePaperContentSourceMode,
+  //   resolvePaperContextNextSendMode,
+  //   isWebChatMode,
+  //   resolveCurrentPaperBaseItem,
+  //   clearSelectedImageState,
+  //   clearSelectedFileState,
+  //   closePaperChipMenu,
+  //   openPaperChipMenu,
+  //   resolvePaperContextFromChipElement,
+  //   focusPaperContextInActiveTab,
+  //   updatePaperPreviewPreservingScroll,
+  //   updateFilePreviewPreservingScroll,
+  //   updateImagePreviewPreservingScroll,
+  //   updateSelectedTextPreviewPreservingScroll,
+  //   scheduleAttachmentGc,
+  //   setStatusMessage: status
+  //     ? (message, level) => {
+  //         setStatus(status, message, level);
+  //       }
+  //     : undefined,
+  //   logError: (message, error) => {
+  //     ztoolkit.log(message, error);
+  //   },
+  // });
+
+  // const unregisterContextSurfaceActions = registerContextSurfaceActionTarget(
+  //   body,
+  //   {
+  //     surfaceKind: isStandalonePanel ? "standalone" : "embedded",
+  //     addItemsAsDefaultContext: async (zoteroItems) => {
+  //       const result = await addZoteroItemsAsDefaultContext(
+  //         {
+  //           item,
+  //           resolveAutoLoadedPaperContext,
+  //           getManualPaperContextsForItem,
+  //           isPaperContextMineru,
+  //           getTextContextConversationKey,
+  //           updatePaperPreviewPreservingScroll,
+  //           updateSelectedTextPreviewPreservingScroll,
+  //         },
+  //         zoteroItems,
+  //       );
+  //       if (result.statusMessage && status) {
+  //         setStatus(
+  //           status,
+  //           result.statusMessage,
+  //           result.statusLevel || "ready",
+  //         );
+  //       }
+  //       inputBox.focus({ preventScroll: true });
+  //       return result;
+  //     },
+  //     afterItemsAsDefaultContextAdded: (result) => {
+  //       if (!isStandalonePanel || !result.changed) return;
+  //       flushPanelStateRefreshNow();
+  //       hooks?.onDefaultContextRendered?.();
+  //     },
+  //     prepareItemsAsDefaultContextTarget: isStandalonePanel
+  //       ? hooks?.prepareItemsAsDefaultContextTarget
+  //       : undefined,
+  //   },
+  // );
+
+  // const cancelActiveAgentAction = (options?: {
+  //   requireVisibleReviewCard?: boolean;
+  // }): boolean => {
+  //   const cancelledReviewRequestIds = cancelVisiblePendingConfirmationCards(
+  //     chatBox || body,
+  //     (requestId, resolution) =>
+  //       getAgentApi().resolveConfirmation(requestId, resolution),
+  //   );
+  //   if (
+  //     options?.requireVisibleReviewCard &&
+  //     !cancelledReviewRequestIds.length
+  //   ) {
+  //     return false;
+  //   }
+  //   syncHasActionCardAttr();
+  //   const cancelConvKey = item ? getConversationKey(item) : null;
+  //   if (cancelConvKey !== null) {
+  //     const ctrl = getAbortController(cancelConvKey);
+  //     if (ctrl) ctrl.abort();
+  //   }
+  //   // [webchat] Tell the browser extension to stop ChatGPT generation
+  //   if (isWebChatMode()) {
+  //     try {
+  //       const { relayRequestStop } = require("../../webchat/relayServer");
+  //       relayRequestStop();
+  //     } catch {
+  //       /* relay may not be loaded */
+  //     }
+  //   }
+  //   if (cancelConvKey !== null) {
+  //     setCancelledRequestId(cancelConvKey, getPendingRequestId(cancelConvKey));
+  //     clearPendingRequestIdAndSync(cancelConvKey, body, item);
+  //   }
+  //   if (status) setStatus(status, t("Cancelled"), "ready");
+  //   // Immediately mark the last assistant message as not streaming so any
+  //   // queued refresh won't bring back the loading dots.
+  //   if (item) {
+  //     const key = getConversationKey(item);
+  //     const history = chatHistory.get(key);
+  //     if (history) {
+  //       for (let i = history.length - 1; i >= 0; i--) {
+  //         if (history[i].role === "assistant") {
+  //           history[i].streaming = false;
+  //           if (!history[i].text) history[i].text = "[Cancelled]";
+  //           break;
+  //         }
+  //       }
+  //     }
+  //   }
+  //   body.querySelectorAll(".paperpilot-typing").forEach((el: Element) => el.remove());
+  //   // Re-enable UI for the cancelled conversation
+  //   if (inputBox) inputBox.disabled = false;
+  //   if (sendBtn) {
+  //     sendBtn.style.display = "";
+  //     sendBtn.disabled = false;
+  //   }
+  //   if (cancelBtn) cancelBtn.style.display = "none";
+  //   scheduleQueuedFollowUpDrainForThread(getQueuedFollowUpThreadKey());
+  //   return true;
+  // };
+
+  // Cancel button
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (item && !cancelQuestion(item) && status) {
+        setStatus(status, t("No active request"), "warning");
+      }
+    });
+  }
+
+  body.addEventListener("keydown", (e: Event) => {
+    const ke = e as KeyboardEvent;
+    if (ke.key !== "Escape" || ke.defaultPrevented) return;
+    if (item && !cancelQuestion(item)) return;
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  // Clear button
+  if (clearBtn) {
+    clearBtn.addEventListener("click", (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closePaperPicker();
       closeExportMenu();
       closePromptMenu();
       closeHistoryNewMenu();
       closeHistoryMenu();
-      closeModelMenu();
-      closeReasoningMenu();
-      // rebuildRetryModelMenu();
-      if (!retryModelMenu.childElementCount) {
-        closeRetryModelMenu();
-        return;
+      // activeEditSession = null;
+      // if (cancelActiveAgentAction({ requireVisibleReviewCard: true })) return;
+      if (!item) return;
+
+      // [webchat] "Exit" button → restore previous model and leave webchat mode
+      // if (isWebChatMode()) {
+      //   abortWebChatPreload();
+      //   // Immediately remove preload overlay for instant visual feedback
+      //   body.querySelector(".paperpilot-webchat-preload")?.remove();
+      //   stopWebChatConnectionCheck();
+      //   clearNextWebChatNewChatIntent();
+      //   resetWebChatPdfUploadedForCurrentConversation();
+      //   // Restore previous model, or fall back to first non-webchat model
+      //   const restoreId =
+      //     previousNonWebchatModelId ||
+      //     getAvailableModelEntries().find((e) => e.authMode !== "webchat")
+      //       ?.entryId ||
+      //     null;
+      //   if (restoreId) {
+      //     setSelectedModelEntryForItem(item.id, restoreId);
+      //   }
+      //   previousNonWebchatModelId = null;
+      //   // Refresh UI back to normal mode
+      //   updateModelButton();
+      //   updateReasoningButton();
+      //   applyWebChatModeUI();
+      //   // Drop only transient WebChat state. WebChat shares the normal paper
+      //   // key, so deleting persisted conversation rows here would erase the
+      //   // user's regular paper chat.
+      //   const key = getConversationKey(item);
+      //   resetWebChatConversationSessionState(key);
+      //   webChatIsolatedConversationKeys.delete(key);
+      //   chatHistory.delete(key);
+      //   loadedConversationKeys.delete(key);
+      //   void (async () => {
+      //     try {
+      //       await ensureConversationLoaded(item as Zotero.Item);
+      //     } catch (err) {
+      //       ztoolkit.log(
+      //         "LLM: Failed to reload conversation after webchat exit",
+      //         err,
+      //       );
+      //     }
+      //     restoreDraftInputForCurrentConversation();
+      //     refreshChatPreservingScroll();
+      //     resetComposePreviewUI();
+      //   })();
+      //   return;
+      // }
+
+      // void clearCurrentConversation();
+      const conversationKey = getConversationKey(item);
+      cancelQuestion(item);
+      chatHistory.set(conversationKey, []);
+      persistChatHistory();
+      refreshChat(body, item);
+      if (status) {
+        setStatus(status, t("Conversation cleared"), "ready");
       }
-      retryMenuAnchor = anchor;
-      // positionFloatingMenu(body, retryModelMenu, anchor);
-      // setFloatingMenuOpen(retryModelMenu, RETRY_MODEL_MENU_OPEN_CLASS, true);
-    };
-
-    // attachFloatingMenuInteractionController({
-    //   body,
-    //   panelDoc,
-    //   chatBox,
-    //   modelBtn,
-    //   reasoningBtn,
-    //   modelMenu,
-    //   reasoningMenu,
-    //   retryModelMenu,
-    //   slashMenu,
-    //   historyMenu,
-    //   historyNewMenu,
-    //   historyRowMenu,
-    //   promptMenu,
-    //   shortcutMenu,
-    //   paperPicker,
-    //   getPaperChipMenu: () => paperChipMenu,
-    //   getPaperChipMineruCacheMenu: () => paperChipMineruCacheMenu,
-    //   getPaperChipMenuSticky: () => paperChipMenuSticky,
-    //   getPaperChipMenuAnchor: () => paperChipMenuAnchor,
-    //   closePaperChipMineruCacheMenu,
-    //   closePaperChipMenu,
-    //   getItem: () => item,
-    //   getInlineEditTarget: () => inlineEditTarget,
-    //   getInlineEditCleanup: () => inlineEditCleanup,
-    //   clearInlineEdit: () => {
-    //     setInlineEditCleanup(null);
-    //     setInlineEditTarget(null);
-    //   },
-    //   closePromptMenu,
-    //   closeRetryModelMenu,
-    //   closePaperPicker,
-    //   closeHistoryRowMenu,
-    //   openRetryModelMenu,
-    //   openModelMenu,
-    //   closeModelMenu,
-    //   openReasoningMenu,
-    //   closeReasoningMenu,
-    //   clearRetryMenuAnchor: () => {
-    //     retryMenuAnchor = null;
-    //   },
-    //   isElementNode,
-    // });
-
-    // attachComposePreviewInteractionController({
-    //   body,
-    //   imagePreview,
-    //   selectedContextList,
-    //   previewMeta,
-    //   removeImgBtn,
-    //   filePreview,
-    //   filePreviewMeta,
-    //   filePreviewClear,
-    //   filePreviewList,
-    //   previewStrip,
-    //   paperPreview,
-    //   getItem: () => item,
-    //   getTextContextConversationKey,
-    //   resolveAutoLoadedPaperContext,
-    //   getManualPaperContextsForItem,
-    //   resolvePaperContentSourceMode,
-    //   resolvePaperContextNextSendMode,
-    //   isWebChatMode,
-    //   resolveCurrentPaperBaseItem,
-    //   clearSelectedImageState,
-    //   clearSelectedFileState,
-    //   closePaperChipMenu,
-    //   openPaperChipMenu,
-    //   resolvePaperContextFromChipElement,
-    //   focusPaperContextInActiveTab,
-    //   updatePaperPreviewPreservingScroll,
-    //   updateFilePreviewPreservingScroll,
-    //   updateImagePreviewPreservingScroll,
-    //   updateSelectedTextPreviewPreservingScroll,
-    //   scheduleAttachmentGc,
-    //   setStatusMessage: status
-    //     ? (message, level) => {
-    //         setStatus(status, message, level);
-    //       }
-    //     : undefined,
-    //   logError: (message, error) => {
-    //     ztoolkit.log(message, error);
-    //   },
-    // });
-
-    // const unregisterContextSurfaceActions = registerContextSurfaceActionTarget(
-    //   body,
-    //   {
-    //     surfaceKind: isStandalonePanel ? "standalone" : "embedded",
-    //     addItemsAsDefaultContext: async (zoteroItems) => {
-    //       const result = await addZoteroItemsAsDefaultContext(
-    //         {
-    //           item,
-    //           resolveAutoLoadedPaperContext,
-    //           getManualPaperContextsForItem,
-    //           isPaperContextMineru,
-    //           getTextContextConversationKey,
-    //           updatePaperPreviewPreservingScroll,
-    //           updateSelectedTextPreviewPreservingScroll,
-    //         },
-    //         zoteroItems,
-    //       );
-    //       if (result.statusMessage && status) {
-    //         setStatus(
-    //           status,
-    //           result.statusMessage,
-    //           result.statusLevel || "ready",
-    //         );
-    //       }
-    //       inputBox.focus({ preventScroll: true });
-    //       return result;
-    //     },
-    //     afterItemsAsDefaultContextAdded: (result) => {
-    //       if (!isStandalonePanel || !result.changed) return;
-    //       flushPanelStateRefreshNow();
-    //       hooks?.onDefaultContextRendered?.();
-    //     },
-    //     prepareItemsAsDefaultContextTarget: isStandalonePanel
-    //       ? hooks?.prepareItemsAsDefaultContextTarget
-    //       : undefined,
-    //   },
-    // );
-
-    // const cancelActiveAgentAction = (options?: {
-    //   requireVisibleReviewCard?: boolean;
-    // }): boolean => {
-    //   const cancelledReviewRequestIds = cancelVisiblePendingConfirmationCards(
-    //     chatBox || body,
-    //     (requestId, resolution) =>
-    //       getAgentApi().resolveConfirmation(requestId, resolution),
-    //   );
-    //   if (
-    //     options?.requireVisibleReviewCard &&
-    //     !cancelledReviewRequestIds.length
-    //   ) {
-    //     return false;
-    //   }
-    //   syncHasActionCardAttr();
-    //   const cancelConvKey = item ? getConversationKey(item) : null;
-    //   if (cancelConvKey !== null) {
-    //     const ctrl = getAbortController(cancelConvKey);
-    //     if (ctrl) ctrl.abort();
-    //   }
-    //   // [webchat] Tell the browser extension to stop ChatGPT generation
-    //   if (isWebChatMode()) {
-    //     try {
-    //       const { relayRequestStop } = require("../../webchat/relayServer");
-    //       relayRequestStop();
-    //     } catch {
-    //       /* relay may not be loaded */
-    //     }
-    //   }
-    //   if (cancelConvKey !== null) {
-    //     setCancelledRequestId(cancelConvKey, getPendingRequestId(cancelConvKey));
-    //     clearPendingRequestIdAndSync(cancelConvKey, body, item);
-    //   }
-    //   if (status) setStatus(status, t("Cancelled"), "ready");
-    //   // Immediately mark the last assistant message as not streaming so any
-    //   // queued refresh won't bring back the loading dots.
-    //   if (item) {
-    //     const key = getConversationKey(item);
-    //     const history = chatHistory.get(key);
-    //     if (history) {
-    //       for (let i = history.length - 1; i >= 0; i--) {
-    //         if (history[i].role === "assistant") {
-    //           history[i].streaming = false;
-    //           if (!history[i].text) history[i].text = "[Cancelled]";
-    //           break;
-    //         }
-    //       }
-    //     }
-    //   }
-    //   body.querySelectorAll(".paperpilot-typing").forEach((el: Element) => el.remove());
-    //   // Re-enable UI for the cancelled conversation
-    //   if (inputBox) inputBox.disabled = false;
-    //   if (sendBtn) {
-    //     sendBtn.style.display = "";
-    //     sendBtn.disabled = false;
-    //   }
-    //   if (cancelBtn) cancelBtn.style.display = "none";
-    //   scheduleQueuedFollowUpDrainForThread(getQueuedFollowUpThreadKey());
-    //   return true;
-    // };
-
-    // Cancel button
-    if (cancelBtn) {
-      cancelBtn.addEventListener("click", (e: Event) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // cancelActiveAgentAction();
-      });
-    }
-
-    body.addEventListener("keydown", (e: Event) => {
-      const ke = e as KeyboardEvent;
-      if (ke.key !== "Escape" || ke.defaultPrevented) return;
-      // if (!cancelActiveAgentAction({ requireVisibleReviewCard: true })) return;
-      e.preventDefault();
-      e.stopPropagation();
     });
+  }
 
-    // Clear button
-    if (clearBtn) {
-      clearBtn.addEventListener("click", (e: Event) => {
-        e.preventDefault();
-        e.stopPropagation();
-        closePaperPicker();
-        closeExportMenu();
-        closePromptMenu();
-        closeHistoryNewMenu();
-        closeHistoryMenu();
-        // activeEditSession = null;
-        // if (cancelActiveAgentAction({ requireVisibleReviewCard: true })) return;
-        if (!item) return;
-
-        // [webchat] "Exit" button → restore previous model and leave webchat mode
-        // if (isWebChatMode()) {
-        //   abortWebChatPreload();
-        //   // Immediately remove preload overlay for instant visual feedback
-        //   body.querySelector(".paperpilot-webchat-preload")?.remove();
-        //   stopWebChatConnectionCheck();
-        //   clearNextWebChatNewChatIntent();
-        //   resetWebChatPdfUploadedForCurrentConversation();
-        //   // Restore previous model, or fall back to first non-webchat model
-        //   const restoreId =
-        //     previousNonWebchatModelId ||
-        //     getAvailableModelEntries().find((e) => e.authMode !== "webchat")
-        //       ?.entryId ||
-        //     null;
-        //   if (restoreId) {
-        //     setSelectedModelEntryForItem(item.id, restoreId);
-        //   }
-        //   previousNonWebchatModelId = null;
-        //   // Refresh UI back to normal mode
-        //   updateModelButton();
-        //   updateReasoningButton();
-        //   applyWebChatModeUI();
-        //   // Drop only transient WebChat state. WebChat shares the normal paper
-        //   // key, so deleting persisted conversation rows here would erase the
-        //   // user's regular paper chat.
-        //   const key = getConversationKey(item);
-        //   resetWebChatConversationSessionState(key);
-        //   webChatIsolatedConversationKeys.delete(key);
-        //   chatHistory.delete(key);
-        //   loadedConversationKeys.delete(key);
-        //   void (async () => {
-        //     try {
-        //       await ensureConversationLoaded(item as Zotero.Item);
-        //     } catch (err) {
-        //       ztoolkit.log(
-        //         "LLM: Failed to reload conversation after webchat exit",
-        //         err,
-        //       );
-        //     }
-        //     restoreDraftInputForCurrentConversation();
-        //     refreshChatPreservingScroll();
-        //     resetComposePreviewUI();
-        //   })();
-        //   return;
-        // }
-
-        // void clearCurrentConversation();
-      });
-    }
-
-    // const cleanupBody = body as Element & {
-    //   __paperpilotQueuedFollowUpCleanupRegistered?: boolean;
-    //   __paperpilotQueuedFollowUpDisconnectCleanup?: () => void;
-    // };
-    // if (!cleanupBody.__paperpilotQueuedFollowUpCleanupRegistered) {
-    //   cleanupBody.__paperpilotQueuedFollowUpCleanupRegistered = true;
-    //   cleanupBody.__paperpilotQueuedFollowUpDisconnectCleanup =
-    //     observeElementDisconnected(body, () => {
-    //       cleanupPrefObservers?.();
-    //       cleanupMineruPaperSourceObservers?.();
-    //       unregisterQueuedFollowUpBody(registeredQueuedFollowUpThreadKey, body);
-    //       queuedFollowUpBody.__paperpilotQueuedFollowUpRegisteredThreadKey = null;
-    //       activeContextPanelStateSync.delete(body);
-    //       delete (body as any).__paperpilotApplyResolvedClaudeEffort;
-    //       delete (body as any).__paperpilotRefreshContextSourceForCurrentItem;
-    //       delete (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_DRAIN_PROPERTY];
-    //       delete (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_THREAD_DRAIN_PROPERTY];
-    //       delete (body as any).__paperpilotScheduleClaudeQueueDrain;
-    //       delete (body as any).__paperpilotScheduleClaudeThreadQueueDrain;
-    //       unregisterContextSurfaceActions();
-    //       void releaseClaudeRuntimeForBody(body);
-    //       delete cleanupBody.__paperpilotQueuedFollowUpDisconnectCleanup;
-    //       cleanupBody.__paperpilotQueuedFollowUpCleanupRegistered = false;
-    //     });
-    // }
-    panelRoot.dataset.handlersInitialized = thisGen;
+  // const cleanupBody = body as Element & {
+  //   __paperpilotQueuedFollowUpCleanupRegistered?: boolean;
+  //   __paperpilotQueuedFollowUpDisconnectCleanup?: () => void;
+  // };
+  // if (!cleanupBody.__paperpilotQueuedFollowUpCleanupRegistered) {
+  //   cleanupBody.__paperpilotQueuedFollowUpCleanupRegistered = true;
+  //   cleanupBody.__paperpilotQueuedFollowUpDisconnectCleanup =
+  //     observeElementDisconnected(body, () => {
+  //       cleanupPrefObservers?.();
+  //       cleanupMineruPaperSourceObservers?.();
+  //       unregisterQueuedFollowUpBody(registeredQueuedFollowUpThreadKey, body);
+  //       queuedFollowUpBody.__paperpilotQueuedFollowUpRegisteredThreadKey = null;
+  //       activeContextPanelStateSync.delete(body);
+  //       delete (body as any).__paperpilotApplyResolvedClaudeEffort;
+  //       delete (body as any).__paperpilotRefreshContextSourceForCurrentItem;
+  //       delete (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_DRAIN_PROPERTY];
+  //       delete (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_THREAD_DRAIN_PROPERTY];
+  //       delete (body as any).__paperpilotScheduleClaudeQueueDrain;
+  //       delete (body as any).__paperpilotScheduleClaudeThreadQueueDrain;
+  //       unregisterContextSurfaceActions();
+  //       void releaseClaudeRuntimeForBody(body);
+  //       delete cleanupBody.__paperpilotQueuedFollowUpDisconnectCleanup;
+  //       cleanupBody.__paperpilotQueuedFollowUpCleanupRegistered = false;
+  //     });
+  // }
+  panelRoot.dataset.handlersInitialized = thisGen;
 }
-

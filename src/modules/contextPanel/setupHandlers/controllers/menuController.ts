@@ -26,57 +26,60 @@ export function positionFloatingMenu(
   owner: Element,
   menu: HTMLDivElement,
   anchor: HTMLButtonElement,
+  preferAbove = false,
 ): void {
   const win = owner.ownerDocument?.defaultView;
   if (!win) return;
 
   const viewportMargin = 8;
   const gap = 6;
-  const ownerRect = owner.getBoundingClientRect();
-  const hasOwnerBounds = ownerRect.width > 0 && ownerRect.height > 0;
-  const boundaryLeft = hasOwnerBounds
-    ? Math.max(viewportMargin, ownerRect.left + viewportMargin)
-    : viewportMargin;
-  const boundaryTop = hasOwnerBounds
-    ? Math.max(viewportMargin, ownerRect.top + viewportMargin)
-    : viewportMargin;
-  const boundaryRight = hasOwnerBounds
-    ? Math.min(win.innerWidth - viewportMargin, ownerRect.right - viewportMargin)
-    : win.innerWidth - viewportMargin;
-  const boundaryBottom = hasOwnerBounds
-    ? Math.min(
-        win.innerHeight - viewportMargin,
-        ownerRect.bottom - viewportMargin,
-      )
-    : win.innerHeight - viewportMargin;
+  const boundaryLeft = viewportMargin;
+  const boundaryTop = viewportMargin;
+  const boundaryRight = win.innerWidth - viewportMargin;
+  const boundaryBottom = win.innerHeight - viewportMargin;
   const availableWidth = Math.max(120, boundaryRight - boundaryLeft);
   const availableHeight = Math.max(120, boundaryBottom - boundaryTop);
 
   menu.style.position = "fixed";
   menu.style.display = "grid";
   menu.style.visibility = "hidden";
+  menu.style.width = `${Math.min(360, availableWidth)}px`;
   menu.style.maxWidth = `${availableWidth}px`;
   menu.style.maxHeight = `${availableHeight}px`;
+  const fontScale = Number.parseFloat(
+    win?.getComputedStyle(menu)?.getPropertyValue("--paperpilot-font-scale") ||
+      "",
+  );
+  const minimumMenuHeight = Math.min(
+    availableHeight,
+    60 * (Number.isFinite(fontScale) ? fontScale : 1),
+  );
+  menu.style.minHeight = `${minimumMenuHeight}px`;
   menu.style.boxSizing = "border-box";
   menu.style.overflowY = "auto";
   menu.style.overflowX = "hidden";
 
   const anchorRect = anchor.getBoundingClientRect();
   const menuRect = menu.getBoundingClientRect();
+  const menuHeight = Math.min(
+    Math.max(menu.scrollHeight, menuRect.height, minimumMenuHeight),
+    availableHeight,
+  );
+  menu.style.height = `${menuHeight}px`;
 
   let left = anchorRect.left;
   const maxLeft = Math.max(boundaryLeft, boundaryRight - menuRect.width);
   left = Math.min(Math.max(boundaryLeft, left), maxLeft);
 
   const belowTop = anchorRect.bottom + gap;
-  const aboveTop = anchorRect.top - gap - menuRect.height;
-  let top = belowTop;
+  const aboveTop = anchorRect.top - gap - menuHeight;
+  let top = preferAbove && aboveTop >= boundaryTop ? aboveTop : belowTop;
 
-  if (belowTop + menuRect.height > boundaryBottom) {
+  if (!preferAbove && belowTop + menuHeight > boundaryBottom) {
     if (aboveTop >= boundaryTop) {
       top = aboveTop;
     } else {
-      top = Math.max(boundaryTop, boundaryBottom - menuRect.height);
+      top = Math.max(boundaryTop, boundaryBottom - menuHeight);
     }
   }
 

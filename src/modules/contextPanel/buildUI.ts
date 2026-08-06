@@ -10,6 +10,7 @@ import {
   formatFigureCountLabel,
   formatFileCountLabel,
 } from "./constants";
+import { renderPaperModeContext, renderPaperModeShortcuts } from "./paperModePresentation";
 
 import type { ActionDropdownSpec } from "./types";
 
@@ -186,44 +187,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
 
     modeSwitchWrap.append(modeChipBtn);
 
-    const claudeToggleBtn = createElement(
-        doc,
-        "button",
-        "paperpilot-claude-system-toggle",
-        {
-        id: "paperpilot-claude-system-toggle",
-        type: "button",
-        title: "Claude Code",
-        },
-    );
-    claudeToggleBtn.setAttribute("aria-label", "Claude Code");
-    const claudeToggleIcon = createElement(
-        doc,
-        "span",
-        "paperpilot-claude-system-toggle-icon",
-        {
-        id: "paperpilot-claude-system-toggle-icon",
-        },
-    );
-    claudeToggleIcon.setAttribute("aria-hidden", "true");
-    claudeToggleBtn.appendChild(claudeToggleIcon);
-
-    const claudeContextGauge = createElement(
-        doc,
-        "div",
-        "paperpilot-claude-context-gauge",
-        {
-        id: "paperpilot-claude-context-gauge",
-        },
-    ) as HTMLDivElement;
-    claudeContextGauge.style.display = "none";
-    claudeContextGauge.setAttribute("aria-hidden", "true");
-
-    headerModeControls.append(
-        modeSwitchWrap,
-        claudeToggleBtn,
-        claudeContextGauge,
-    );
+    headerModeControls.append(modeSwitchWrap);
     historyBar.append(historyNewBtn, historyToggle, headerModeControls);
 
     headerInfo.append(title, historyBar);
@@ -321,6 +285,18 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
 
     container.appendChild(header);
 
+    const paperModeContext = createElement(
+        doc,
+        "div",
+        "paperpilot-paper-mode-context",
+        { id: "paperpilot-paper-mode-context" },
+    );
+
+    // Paper-mode shortcuts sit above the composer, like the upstream panel.
+    const shortcutsRow = createElement(doc, "div", "paperpilot-shortcuts", {
+        id: "paperpilot-shortcuts",
+    });
+
     // Chat display area
     const chatShell = createElement(doc, "div", "paperpilot-chat-shell", {
         id: "paperpilot-chat-shell",
@@ -330,11 +306,6 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     });
     chatShell.append(chatBox);
     container.appendChild(chatShell);
-
-    // Shortcuts row
-    const shortcutsRow = createElement(doc, "div", "paperpilot-shortcuts", {
-        id: "paperpilot-shortcuts",
-    });
     container.appendChild(shortcutsRow);
 
     // Shortcut context menu
@@ -538,12 +509,13 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     //     pdfPage: slashPdfPageBtn,
     //     pdfMultiplePages: slashPdfMultiplePagesBtn,
     // };
-    // slashList.append(
-    //     ...getBaseSlashMenuItems(
-    //     resolveSlashActionChatMode(displayConversationKind),
-    //     ).map((entry) => slashBaseButtons[entry]),
-    // );
-    // slashMenu.append(slashList);
+    slashList.append(
+        slashUploadBtn,
+        slashReferenceBtn,
+        slashPdfPageBtn,
+        slashPdfMultiplePagesBtn,
+    );
+    slashMenu.append(slashList);
     // slashMenu is appended to composeArea below (after composeArea is created)
 
     // Retry model menu (opened from latest assistant retry action)
@@ -558,35 +530,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     const contextPreviews = createElement(doc, "div", "paperpilot-context-previews", {
         id: "paperpilot-context-previews",
     });
-    const runtimeModeBtn = createElement(
-        doc,
-        "button",
-        "paperpilot-context-agent-toggle paperpilot-agent-process-summary",
-        {
-        id: "paperpilot-runtime-mode-toggle",
-        type: "button",
-        title: t("Switch to Agent mode"),
-        disabled: !hasItem,
-        },
-    );
-    runtimeModeBtn.setAttribute("aria-label", t("Switch to Agent mode"));
-    runtimeModeBtn.setAttribute("aria-pressed", "false");
-    const runtimeModeIndicator = createElement(
-        doc,
-        "span",
-        "paperpilot-agent-toggle-indicator",
-    );
-    runtimeModeIndicator.setAttribute("aria-hidden", "true");
-    const runtimeModeLabel = createElement(
-        doc,
-        "span",
-        "paperpilot-agent-toggle-label paperpilot-agent-process-summary-label",
-        {
-        textContent: t("Agent mode"),
-        },
-    );
-    runtimeModeBtn.append(runtimeModeIndicator, runtimeModeLabel);
-    contextPreviews.appendChild(runtimeModeBtn);
+    contextPreviews.appendChild(paperModeContext);
     const selectedContextList = createElement(
         doc,
         "div",
@@ -961,8 +905,9 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     container.appendChild(inputSection);
     container.appendChild(statusBar);
     body.appendChild(container);
+    renderPaperModeContext(container, item);
+    renderPaperModeShortcuts(container, isPaperMode && hasItem);
 }
 
 
 export { buildUI };
-

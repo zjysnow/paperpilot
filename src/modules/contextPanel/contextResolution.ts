@@ -75,6 +75,55 @@ export function getLastKnownSelectedTabId(): string | number | null {
   return _lastKnownSelectedTabId;
 }
 
+export function getActiveReaderForSelectedTab(): any | null {
+  const selectedTabId = refreshLastKnownSelectedTabId();
+  if (selectedTabId === null) return null;
+  const tabs = getZoteroTabsState();
+  const tabList = Array.isArray(tabs?._tabs) ? tabs._tabs : [];
+  const selectedId = `${selectedTabId}`;
+  const activeTab = tabList.find((tab) => `${tab?.id || ""}` === selectedId) as
+    | {
+        reader?: any;
+        _reader?: any;
+        data?: any;
+      }
+    | undefined;
+  if (!activeTab) return null;
+  return (
+    activeTab.reader ||
+    activeTab._reader ||
+    activeTab.data?.reader ||
+    activeTab.data?.parentReader ||
+    null
+  );
+}
+
+export function getActiveReaderSelectionText(
+  panelDoc: Document,
+  currentItem?: Zotero.Item | null,
+): string {
+  void currentItem;
+  const reader = getActiveReaderForSelectedTab() as any;
+  const candidates: Array<{ toString?: () => string; text?: string } | null> = [
+    reader?.getSelectedText?.() || null,
+    reader?.getSelection?.() || null,
+    reader?._iframe?.contentWindow?.getSelection?.() || null,
+    reader?._window?.getSelection?.() || null,
+    panelDoc.defaultView?.getSelection?.() || null,
+  ];
+  for (const candidate of candidates) {
+    const text =
+      typeof candidate?.toString === "function"
+        ? candidate.toString()
+        : typeof candidate?.text === "string"
+          ? candidate.text
+          : "";
+    const normalized = sanitizeText(text).trim();
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
 function isTabsState(value: unknown): value is ZoteroTabsState {
   if (!value || typeof value !== "object") return false;
   const obj = value as any;
@@ -1376,4 +1425,3 @@ export function resolvePanelContextLifecycleState(
     isAsyncFinal: source.isAsyncFinal !== false,
   };
 }
-

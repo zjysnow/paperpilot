@@ -20,8 +20,7 @@ export type ConversationForkLink = {
   createdAt: number;
 };
 
-const CONVERSATION_FORK_LINKS_TABLE =
-  "paper_pilot_conversation_fork_links";
+const CONVERSATION_FORK_LINKS_TABLE = "paper_pilot_conversation_fork_links";
 const CONVERSATION_FORK_LINKS_SOURCE_INDEX =
   "paper_pilot_conversation_fork_links_source_idx";
 
@@ -34,9 +33,7 @@ function normalizePositiveInt(value: unknown): number {
 }
 
 function normalizeSystem(value: unknown): ConversationSystem | null {
-  return value === "upstream" // || value === "claude_code" || value === "codex"
-    ? value
-    : null;
+  return value === "upstream" ? value : null;
 }
 
 function normalizeKind(value: unknown): ConversationForkScopeKind | null {
@@ -48,10 +45,14 @@ function normalizeString(value: unknown): string | undefined {
 }
 
 function normalizeLink(value: ConversationForkLink): ConversationForkLink {
-  const targetConversationKey = normalizePositiveInt(value.targetConversationKey);
+  const targetConversationKey = normalizePositiveInt(
+    value.targetConversationKey,
+  );
   const targetSystem = normalizeSystem(value.targetSystem);
   const targetKind = normalizeKind(value.targetKind);
-  const sourceConversationKey = normalizePositiveInt(value.sourceConversationKey);
+  const sourceConversationKey = normalizePositiveInt(
+    value.sourceConversationKey,
+  );
   const sourceSystem = normalizeSystem(value.sourceSystem);
   const sourceKind = normalizeKind(value.sourceKind);
   const sourceLibraryID = normalizePositiveInt(value.sourceLibraryID);
@@ -137,8 +138,7 @@ function rowToForkLink(row: Record<string, unknown> | undefined | null) {
     sourceSystem,
     sourceKind,
     sourceLibraryID,
-    sourcePaperItemID:
-      normalizePositiveInt(row.sourcePaperItemID) || undefined,
+    sourcePaperItemID: normalizePositiveInt(row.sourcePaperItemID) || undefined,
     sourceAssistantTimestamp,
     targetAnchorAssistantTimestamp,
     createdAt,

@@ -7,9 +7,9 @@ import {
   getPaperChatStartPageHtml,
   getNoteEditingStartPageHtml,
 } from "../../utils/i18n";
+import { renderMarkdownInto, createStreamingRenderer } from "./markdownRenderer";
 
 import {
-  PERSISTED_HISTORY_LIMIT,
   MAX_FULL_TEXT_PAPER_CONTEXTS,
   MAX_SELECTED_IMAGES,
   formatFigureCountLabel,
@@ -38,6 +38,8 @@ import type {
   GeneratedChatImage,
   QuoteCitation,
 } from "../../shared/types";
+import type { RuntimeModelEntry } from "../../utils/modelProviders";
+import { detectProviderPreset } from "../../utils/providerPresets";
 
 import { toFileUrl } from "../../utils/pathFileUrl";
 
@@ -59,7 +61,6 @@ import type {
   // ContextAssemblyStrategy,
   ResolvedContextSource,
 } from "./types";
-
 
 import {
   selectedModelCache,
@@ -99,6 +100,8 @@ import {
 import {
   getBoolPref,
   getStringPref,
+  getSelectedModelEntryForItem,
+  setStringPref,
 } from "./prefHelpers";
 
 import {
@@ -122,9 +125,493 @@ import {
 
 export { getConversationKey } from "./conversationIdentity";
 
+type SendQuestionOptions = {
+  body: Element;
+  item: Zotero.Item;
+  message: Message;
+  modelEntry?: RuntimeModelEntry;
+};
 
-const blockedConversationLoadKeys = new Set<number>();
+type ChatMessageContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
 
+function chatContentToOllamaText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) =>
+      part &&
+      typeof part === "object" &&
+      "text" in part &&
+      typeof part.text === "string"
+        ? part.text
+        : "[image attachment]",
+    )
+    .join("\n");
+}
+
+type ResponsesMessageContentPart =
+  | { type: "input_text"; text: string }
+  | { type: "input_image"; image_url: string };
+
+const activeSendRequests = new Map<number, AbortController>();
+const CHAT_HISTORY_PREF_KEY = "conversationHistory";
+let chatHistoryHydrated = false;
+
+function persistableMessage(message: Message): Message {
+  return {
+    role: message.role,
+    text: message.text,
+    timestamp: message.timestamp,
+    runMode: "chat",
+    selectedTexts: message.selectedTexts,
+    selectedTextSources: message.selectedTextSources,
+    attachments: message.attachments?.map((attachment) => ({
+      ...attachment,
+      imageDataUrl: undefined,
+    })),
+    modelName: message.modelName,
+    modelEntryId: message.modelEntryId,
+    modelProviderLabel: message.modelProviderLabel,
+  };
+}
+
+export function persistChatHistory(): void {
+  const serialized = Object.fromEntries(
+    [...chatHistory.entries()].map(([key, messages]) => [
+      String(key),
+      messages.filter((message) => !message.streaming).map(persistableMessage),
+    ]),
+  );
+  setStringPref(CHAT_HISTORY_PREF_KEY, JSON.stringify(serialized));
+}
+
+function hydrateChatHistory(): void {
+  if (chatHistoryHydrated) return;
+  chatHistoryHydrated = true;
+  const raw = getStringPref(CHAT_HISTORY_PREF_KEY);
+  if (!raw.trim()) return;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(parsed)) {
+      const conversationKey = Number(key);
+      if (!Number.isFinite(conversationKey) || conversationKey <= 0) continue;
+      if (!Array.isArray(value)) continue;
+      const messages = value.filter((message): message is Message =>
+        Boolean(
+          message &&
+          typeof message === "object" &&
+          ((message as Message).role === "user" ||
+            (message as Message).role === "assistant") &&
+          typeof (message as Message).text === "string" &&
+          Number.isFinite(Number((message as Message).timestamp)),
+        ),
+      );
+      if (messages.length) {
+        chatHistory.set(Math.floor(conversationKey), messages);
+      }
+    }
+  } catch (error) {
+    ztoolkit.log("Paper Pilot: Failed to restore chat history", error);
+  }
+}
+
+function setSendControls(body: Element, sending: boolean): void {
+  const sendButton = body.querySelector(
+    "#paperpilot-send",
+  ) as HTMLButtonElement | null;
+  const cancelButton = body.querySelector(
+    "#paperpilot-cancel",
+  ) as HTMLButtonElement | null;
+  if (sendButton) {
+    sendButton.style.display = sending ? "none" : "";
+    sendButton.disabled = sending;
+  }
+  if (cancelButton) {
+    cancelButton.style.display = sending ? "" : "none";
+  }
+}
+
+function resolveProviderEndpoint(
+  apiBase: string,
+  protocol: "responses_api" | "openai_chat_compat",
+): string {
+  const normalized = apiBase.trim().replace(/\/+$/, "");
+  if (!normalized) throw new Error("The selected model has no API URL.");
+  const endpointPath =
+    protocol === "responses_api" ? "/responses" : "/chat/completions";
+  if (normalized.endsWith(endpointPath)) return normalized;
+  if (normalized.endsWith("/v1")) return `${normalized}${endpointPath}`;
+  return `${normalized}/v1${endpointPath}`;
+}
+
+function getAttachmentContext(message: Message): string {
+  const textAttachments = (message.attachments || [])
+    .map((attachment) => {
+      const content = attachment.textContent?.trim();
+      return content ? `### ${attachment.name}\n${content}` : "";
+    })
+    .filter(Boolean);
+  const selectedText = (message.selectedTexts || [])
+    .map((text) => text.trim())
+    .filter(Boolean);
+  const sections: string[] = [];
+  if (selectedText.length) {
+    sections.push(`Selected text:\n${selectedText.join("\n\n")}`);
+  }
+  if (textAttachments.length) {
+    sections.push(`Attached files:\n${textAttachments.join("\n\n")}`);
+  }
+  return sections.join("\n\n");
+}
+
+function buildUserPrompt(message: Message): string {
+  const context = getAttachmentContext(message);
+  return context ? `${message.text}\n\n${context}` : message.text;
+}
+
+function buildChatContent(message: Message): string | ChatMessageContentPart[] {
+  const prompt = buildUserPrompt(message);
+  const parts: ChatMessageContentPart[] = [{ type: "text", text: prompt }];
+  for (const image of message.screenshotImages || []) {
+    if (image.trim()) {
+      parts.push({ type: "image_url", image_url: { url: image } });
+    }
+  }
+  for (const attachment of message.attachments || []) {
+    if (attachment.imageDataUrl?.trim()) {
+      parts.push({
+        type: "image_url",
+        image_url: { url: attachment.imageDataUrl },
+      });
+    }
+  }
+  return parts.length === 1 ? prompt : parts;
+}
+
+function buildResponsesContent(
+  message: Message,
+): string | ResponsesMessageContentPart[] {
+  const prompt = buildUserPrompt(message);
+  const parts: ResponsesMessageContentPart[] = [
+    { type: "input_text", text: prompt },
+  ];
+  for (const image of message.screenshotImages || []) {
+    if (image.trim()) {
+      parts.push({ type: "input_image", image_url: image });
+    }
+  }
+  for (const attachment of message.attachments || []) {
+    if (attachment.imageDataUrl?.trim()) {
+      parts.push({ type: "input_image", image_url: attachment.imageDataUrl });
+    }
+  }
+  return parts.length === 1 ? prompt : parts;
+}
+
+function extractResponseText(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const value = payload as {
+    output_text?: unknown;
+    message?: { content?: unknown };
+    choices?: Array<{ message?: { content?: unknown } }>;
+    output?: Array<{ content?: Array<{ text?: unknown }> }>;
+  };
+  if (typeof value.output_text === "string") return value.output_text;
+  if (typeof value.message?.content === "string") return value.message.content;
+  const choiceContent = value.choices?.[0]?.message?.content;
+  if (typeof choiceContent === "string") return choiceContent;
+  if (Array.isArray(choiceContent)) {
+    return choiceContent
+      .map((part) =>
+        part && typeof part === "object" && "text" in part
+          ? String((part as { text?: unknown }).text || "")
+          : "",
+      )
+      .join("");
+  }
+  return (value.output || [])
+    .flatMap((entry) => entry.content || [])
+    .map((part) => (typeof part.text === "string" ? part.text : ""))
+    .join("");
+}
+
+function extractStreamDelta(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const value = payload as {
+    type?: unknown;
+    delta?: unknown;
+    choices?: Array<{ delta?: { content?: unknown } }>;
+  };
+  if (
+    value.type === "response.output_text.delta" &&
+    typeof value.delta === "string"
+  ) {
+    return value.delta;
+  }
+  const content = value.choices?.[0]?.delta?.content;
+  return typeof content === "string" ? content : "";
+}
+
+async function consumeProviderResponse(
+  response: Response,
+  onDelta: (text: string) => void,
+): Promise<string> {
+  if (!response.body) {
+    const payload = await response.json();
+    const text = extractResponseText(payload);
+    if (text) onDelta(text);
+    return text;
+  }
+  const reader =
+    response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result = "";
+  let streamFinished = false;
+  const consumeLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) return;
+    const data = trimmed.slice(5).trim();
+    if (!data) return;
+    if (data === "[DONE]") {
+      streamFinished = true;
+      return;
+    }
+    try {
+      const delta = extractStreamDelta(JSON.parse(data));
+      if (delta) {
+        result += delta;
+        onDelta(delta);
+      }
+    } catch (error) {
+      ztoolkit.log(
+        "Paper Pilot: Ignored malformed provider stream event",
+        error,
+      );
+    }
+  };
+  while (true) {
+    const chunk = await reader.read();
+    buffer += decoder.decode(chunk.value || new Uint8Array(), {
+      stream: !chunk.done,
+    });
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || "";
+    lines.forEach(consumeLine);
+    if (chunk.done || streamFinished) break;
+  }
+  if (!streamFinished) consumeLine(buffer);
+  if (streamFinished) {
+    void reader.cancel();
+  }
+  reader.releaseLock();
+  return result;
+}
+
+export async function sendQuestion(
+  options: SendQuestionOptions,
+): Promise<void> {
+  const conversationKey = getConversationKey(options.item);
+  if (activeSendRequests.has(conversationKey)) return;
+  const entry =
+    options.modelEntry || getSelectedModelEntryForItem(options.item.id);
+  if (!entry) {
+    const status = options.body.querySelector(
+      "#paperpilot-status",
+    ) as HTMLElement | null;
+    if (status) {
+      setStatus(
+        status,
+        "No model is configured. Open Settings to add one.",
+        "error",
+      );
+    }
+    return;
+  }
+  let canceller: (() => void) | null = null;
+  activeSendRequests.set(conversationKey, { abort: () => canceller?.() } as any);
+  setSendControls(options.body, true);
+  const assistant: Message = {
+    role: "assistant",
+    text: "",
+    timestamp: Date.now(),
+    streaming: true,
+    runMode: "chat",
+    modelName: entry.model,
+    modelEntryId: entry.entryId,
+    modelProviderLabel: entry.providerLabel,
+  };
+  const history = chatHistory.get(conversationKey) || [];
+  chatHistory.set(conversationKey, [...history, assistant]);
+  persistChatHistory();
+  refreshChat(options.body, options.item);
+  persistChatHistory();
+  try {
+    const protocol = entry.providerProtocol;
+    const isOllama = detectProviderPreset(entry.apiBase) === "ollama";
+    const endpoint = isOllama
+      ? `${new URL(entry.apiBase).origin}/api/chat`
+      : resolveProviderEndpoint(entry.apiBase, protocol);
+    ztoolkit.log(
+      "Paper Pilot: sending model request",
+      entry.providerLabel,
+      entry.model,
+      endpoint,
+    );
+    const priorMessages = history
+      .filter((message) => !message.streaming)
+      .map((message) => ({
+        role: message.role,
+        content:
+          protocol === "responses_api"
+            ? buildResponsesContent(message)
+            : buildChatContent(message),
+      }));
+    const systemPrompt = getStringPref("systemPrompt").trim();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (entry.apiKey.trim()) {
+      headers.Authorization = `Bearer ${entry.apiKey.trim()}`;
+    }
+    const requestBody = isOllama
+      ? {
+          model: entry.model,
+          stream: true,
+          think: false,
+          messages: [
+            ...(systemPrompt
+              ? [{ role: "system", content: systemPrompt }]
+              : []),
+            ...priorMessages.map((message) => ({
+              role: message.role,
+              content: chatContentToOllamaText(message.content),
+            })),
+            {
+              role: "user",
+              content: chatContentToOllamaText(
+                buildChatContent(options.message),
+              ),
+            },
+          ],
+          options: {
+            temperature: entry.advanced.temperature,
+            num_predict: entry.advanced.maxTokens,
+          },
+        }
+      : protocol === "responses_api"
+        ? {
+            model: entry.model,
+            stream: !isOllama,
+            input: [
+              ...(systemPrompt
+                ? [{ role: "system", content: systemPrompt }]
+                : []),
+              ...priorMessages,
+              {
+                role: "user",
+                content: buildResponsesContent(options.message),
+              },
+            ],
+            temperature: entry.advanced.temperature,
+            max_output_tokens: entry.advanced.maxTokens,
+          }
+        : {
+            model: entry.model,
+            stream: !isOllama,
+            messages: [
+              ...(systemPrompt
+                ? [{ role: "system", content: systemPrompt }]
+                : []),
+              ...priorMessages,
+              { role: "user", content: buildChatContent(options.message) },
+            ],
+            temperature: entry.advanced.temperature,
+            max_tokens: entry.advanced.maxTokens,
+          };
+    // Use Zotero.HTTP.request instead of fetch for better Zotero integration
+    ztoolkit.log("Paper Pilot: Making HTTP request to", endpoint);
+    try {
+      const xhr = await Zotero.HTTP.request("POST", endpoint, {
+        body: JSON.stringify(requestBody),
+        headers,
+        timeout: 120000,
+        successCodes: false,
+        cancellerReceiver: (cancelFunc: () => void) => {
+          canceller = cancelFunc;
+        },
+      });
+
+      if (!xhr.responseText) {
+        throw new Error("Empty response from model");
+      }
+
+      ztoolkit.log("Paper Pilot: Received response:", xhr.responseText.substring(0, 200));
+      
+      // Handle streaming response format (line-delimited JSON for Ollama)
+      if (isOllama && xhr.responseText.includes("\n")) {
+        const lines = xhr.responseText.trim().split("\n");
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const payload = JSON.parse(line);
+            const text = extractResponseText(payload);
+            if (text) {
+              assistant.text += text;
+            }
+          } catch (parseErr) {
+            ztoolkit.log("Failed to parse streaming line:", line, parseErr);
+          }
+        }
+      } else {
+        // Non-streaming response
+        const payload = JSON.parse(xhr.responseText);
+        const text = extractResponseText(payload);
+        if (text) {
+          assistant.text += text;
+        }
+      }
+      
+      refreshChat(options.body, options.item);
+    } catch (httpError) {
+      if (httpError instanceof Error && httpError.message.includes("Empty response")) {
+        throw httpError;
+      }
+      throw new Error(`HTTP request failed: ${httpError instanceof Error ? httpError.message : String(httpError)}`);
+    }
+    assistant.streaming = false;
+    if (!assistant.text.trim()) {
+      assistant.text = "The model returned an empty response.";
+    }
+    refreshChat(options.body, options.item);
+    persistChatHistory();
+  } catch (error) {
+    assistant.streaming = false;
+    assistant.text =
+      error instanceof DOMException && error.name === "AbortError"
+        ? "Request cancelled."
+        : `Error: ${error instanceof Error ? error.message : String(error)}`;
+    refreshChat(options.body, options.item);
+    const status = options.body.querySelector(
+      "#paperpilot-status",
+    ) as HTMLElement | null;
+    if (status) {
+      setStatus(status, assistant.text, "error");
+    }
+  } finally {
+    activeSendRequests.delete(conversationKey);
+    setSendControls(options.body, false);
+  }
+}
+
+export function cancelQuestion(item: Zotero.Item): boolean {
+  const controller = activeSendRequests.get(getConversationKey(item));
+  if (!controller) return false;
+  controller.abort();
+  return true;
+}
 
 export type LatestRetryPair = {
   userIndex: number;
@@ -152,7 +639,6 @@ export function findLatestRetryPair(
   return null;
 }
 
-
 function getUserBubbleElement(wrapper: HTMLElement): HTMLDivElement | null {
   const children = Array.from(wrapper.children) as HTMLElement[];
   for (const child of children) {
@@ -165,7 +651,6 @@ function getUserBubbleElement(wrapper: HTMLElement): HTMLDivElement | null {
   }
   return null;
 }
-
 
 function normalizeSelectedTexts(
   selectedTexts: unknown,
@@ -182,132 +667,37 @@ function normalizeSelectedTexts(
   return legacy ? [legacy] : [];
 }
 
-
 export async function ensureConversationLoaded(
-    item: Zotero.Item,
+  item: Zotero.Item,
 ): Promise<void> {
-    const conversationKey = getConversationKey(item);
-    const conversationSystem = resolveConversationSystemForItem(item);
-    // if (isEffectiveWebChatRequest(item)) {
-    //     isolateWebChatConversationKey(
-    //     conversationKey,
-    //     !webChatIsolatedConversationKeys.has(conversationKey),
-    //     );
-    //     conversationForkLinks.delete(conversationKey);
-    //     return;
-    // }
-    // if (webChatIsolatedConversationKeys.delete(conversationKey)) {
-    //     chatHistory.delete(conversationKey);
-    //     loadedConversationKeys.delete(conversationKey);
-    //     conversationForkLinks.delete(conversationKey);
-    // }
+  hydrateChatHistory();
+  const conversationKey = getConversationKey(item);
 
-    // if (loadedConversationKeys.has(conversationKey)) {
-    //     await loadConversationForkLinkCache(conversationKey);
-    //     return;
-    // }
-    // if (
-    //     chatHistory.has(conversationKey) &&
-    //     !blockedConversationLoadKeys.has(conversationKey)
-    // ) {
-    //     await loadConversationForkLinkCache(conversationKey);
-    //     loadedConversationKeys.add(conversationKey);
-    //     return;
-    // }
-    // if (blockedConversationLoadKeys.has(conversationKey)) {
-    //     chatHistory.delete(conversationKey);
-    //     conversationForkLinks.delete(conversationKey);
-    //     blockedConversationLoadKeys.delete(conversationKey);
-    // }
+  const existingTask = loadingConversationTasks.get(conversationKey);
+  if (existingTask) {
+    await existingTask;
+    return;
+  }
 
-    const existingTask = loadingConversationTasks.get(conversationKey);
-    if (existingTask) {
-        await existingTask;
-        return;
+  const task = (async () => {
+    try {
+      if (!chatHistory.has(conversationKey)) {
+        chatHistory.set(conversationKey, []);
+      }
+    } finally {
+      loadedConversationKeys.add(conversationKey);
+      loadingConversationTasks.delete(conversationKey);
     }
+  })();
 
-    const task = (async () => {
-        let shouldMarkLoaded = false;
-        try {
-            // const validScope = await validateConversationScopeForItem({
-            //     item,
-            //     conversationKey,
-            //     conversationSystem,
-            // });
-            // if (!validScope) {
-            //     blockedConversationLoadKeys.add(conversationKey);
-            //     chatHistory.set(conversationKey, []);
-            //     // conversationForkLinks.delete(conversationKey);
-            //     return;
-            // }
-            // const storedMessages = await loadStoredConversationByKey(
-            //     conversationKey,
-            //     PERSISTED_HISTORY_LIMIT,
-            //     conversationSystem,
-            // );
-            // if (
-            //     webChatIsolatedConversationKeys.has(conversationKey) ||
-            //     isEffectiveWebChatRequest(item)
-            // ) {
-            //     isolateWebChatConversationKey(conversationKey, false);
-            //     shouldMarkLoaded = true;
-            //     return;
-            // }
-            // if (!storedMessagesMatchActivePaper(item, storedMessages)) {
-            //     ztoolkit.log(
-            //     `Paper Pilot: Refused to render conversation ${conversationKey} because stored paper contexts do not include the active paper.`,
-            //     );
-            //     blockedConversationLoadKeys.add(conversationKey);
-            //     chatHistory.set(conversationKey, []);
-            //     conversationForkLinks.delete(conversationKey);
-            //     return;
-            // }
-            // const panelMessages = storedMessages.map((message) =>
-            //     toPanelMessage(message),
-            // );
-            // const latestAssistantWithContext = [...storedMessages]
-            //     .reverse()
-            //     .find(
-            //     (message) =>
-            //         message.role === "assistant" &&
-            //         typeof message.contextTokens === "number",
-            //     );
-            // if (latestAssistantWithContext?.contextTokens) {
-            //     setContextUsageSnapshot(conversationKey, {
-            //     contextTokens: latestAssistantWithContext.contextTokens,
-            //     contextWindow: latestAssistantWithContext.contextWindow,
-            //     estimated: true,
-            //     source: "persisted",
-            //     });
-            // }
-            // blockedConversationLoadKeys.delete(conversationKey);
-            // chatHistory.set(conversationKey, panelMessages);
-            // await loadConversationForkLinkCache(conversationKey);
-            // shouldMarkLoaded = true;
-            // } catch (err) {
-            // ztoolkit.log("LLM: Failed to load chat history", err);
-            // if (!chatHistory.has(conversationKey)) {
-            //     chatHistory.set(conversationKey, []);
-            // }
-            // conversationForkLinks.delete(conversationKey);
-            shouldMarkLoaded = true;
-        } finally {
-            if (shouldMarkLoaded) {
-                loadedConversationKeys.add(conversationKey);
-            } else {
-                loadedConversationKeys.delete(conversationKey);
-            }
-            loadingConversationTasks.delete(conversationKey);
-        }
-    })();
-
-    loadingConversationTasks.set(conversationKey, task);
-    await task;
+  loadingConversationTasks.set(conversationKey, task);
+  await task;
 }
 
-
 export function syncUserContextAlignmentWidths(body: Element): void {
-  const chatBox = body.querySelector("#paperpilot-chat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector(
+    "#paperpilot-chat-box",
+  ) as HTMLDivElement | null;
   if (!chatBox) return;
   const wrappers = Array.from(
     chatBox.querySelectorAll(
@@ -322,7 +712,10 @@ export function syncUserContextAlignmentWidths(body: Element): void {
     }
     const bubbleWidth = Math.round(bubble.getBoundingClientRect().width);
     if (bubbleWidth > 0) {
-      wrapper.style.setProperty("--paperpilot-user-bubble-width", `${bubbleWidth}px`);
+      wrapper.style.setProperty(
+        "--paperpilot-user-bubble-width",
+        `${bubbleWidth}px`,
+      );
     } else {
       wrapper.style.removeProperty("--paperpilot-user-bubble-width");
     }
@@ -332,7 +725,6 @@ export function syncUserContextAlignmentWidths(body: Element): void {
 function getMessageSelectedTexts(message: Message): string[] {
   return normalizeSelectedTexts(message.selectedTexts, message.selectedText);
 }
-
 
 function normalizeSelectedTextPaperContextsByIndex(
   selectedTextPaperContexts: unknown,
@@ -361,7 +753,6 @@ function normalizeTagContexts(tagContexts: unknown): TagContextRef[] {
   return normalizeTagContextRefs(tagContexts, { sanitizeText });
 }
 
-
 function getMessageSelectedTextExpandedIndex(
   message: Message,
   count: number,
@@ -377,7 +768,9 @@ function getMessageSelectedTextExpandedIndex(
 }
 
 export function refreshChat(body: Element, item?: Zotero.Item | null) {
-  const chatBox = body.querySelector("#paperpilot-chat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector(
+    "#paperpilot-chat-box",
+  ) as HTMLDivElement | null;
   if (!chatBox) return;
   const doc = body.ownerDocument!;
   // setPromptMenuTarget(null);
@@ -406,7 +799,9 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
   const tokenUsageEl = body.querySelector(
     "#paperpilot-token-usage",
   ) as HTMLElement | null;
-  const panelRoot = body.querySelector("#paperpilot-main") as HTMLDivElement | null;
+  const panelRoot = body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLDivElement | null;
   const isGlobalConversation =
     isGlobalPortalItem(item) ||
     panelRoot?.dataset.conversationKind === "global";
@@ -787,7 +1182,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           "button",
         ) as HTMLButtonElement;
         tagsBar.type = "button";
-        tagsBar.className = "paperpilot-user-papers-bar paperpilot-user-tags-bar";
+        tagsBar.className =
+          "paperpilot-user-papers-bar paperpilot-user-tags-bar";
 
         // const tagsIcon = createContextIcon(doc, "tag", "paperpilot-user-papers-icon");
         const tagsLabel = doc.createElement("span") as HTMLSpanElement;
@@ -805,10 +1201,12 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           "paperpilot-user-papers-expanded paperpilot-user-tags-expanded";
         tagsExpanded = tagsExpandedEl;
         const tagsList = doc.createElement("div") as HTMLDivElement;
-        tagsList.className = "paperpilot-user-papers-list paperpilot-user-tags-list";
+        tagsList.className =
+          "paperpilot-user-papers-list paperpilot-user-tags-list";
         for (const tagContext of selectedTagContexts) {
           const tagItem = doc.createElement("div") as HTMLDivElement;
-          tagItem.className = "paperpilot-user-papers-item paperpilot-user-tags-item";
+          tagItem.className =
+            "paperpilot-user-papers-item paperpilot-user-tags-item";
 
           const tagTitle = doc.createElement("span") as HTMLSpanElement;
           tagTitle.className = "paperpilot-user-papers-item-title";
@@ -1223,7 +1621,14 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       //     conversationKey,
       //   );
       // } else {
-      //   renderUserBubbleContent(bubble, sanitizeText(msg.text || ""), doc);
+      // Render the prompt directly so it remains visible even when optional
+      // editing actions are unavailable.
+      const userText = doc.createElement("div") as HTMLDivElement;
+      userText.className = "paperpilot-message-text";
+      userText.style.whiteSpace = "pre-wrap";
+      userText.style.overflowWrap = "anywhere";
+      userText.textContent = sanitizeText(msg.text || "");
+      bubble.appendChild(userText);
       //   if (canEditUserPrompt) {
       //     bubble.classList.add("paperpilot-bubble-editable");
       //     bubble.addEventListener("click", (e: Event) => {
@@ -1318,68 +1723,6 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       // const generatedImages = normalizeGeneratedChatImages(msg.generatedImages);
       // const hasGeneratedImages = generatedImages.length > 0;
       const hasAnswerText = Boolean(msg.text) || Boolean(msg.compactMarker);
-      const previousUserMessage =
-        index > 0 && history[index - 1]?.role === "user"
-          ? history[index - 1]
-          : null;
-
-      // const agentRunId = msg.agentRunId?.trim();
-      // const hasCachedTrace = agentRunId
-      //   ? agentRunTraceCache.has(agentRunId)
-      //   : false;
-      // const cachedTraceEvents = agentRunId
-      //   ? getCachedAgentRunEvents(agentRunId)
-      //   : [];
-      // const traceEvents = cachedTraceEvents.length
-      //   ? cachedTraceEvents
-      //   : msg.pendingAgentTraceEvents || [];
-      // let agentUsesInterleavedText = false;
-      // const agentTraceEl =
-      //   msg.runMode === "agent" && !msg.compactMarker
-      //     ? renderAgentTrace({
-      //         doc,
-      //         message: msg,
-      //         userMessage: previousUserMessage,
-      //         events: traceEvents,
-      //         onTraceMissing:
-      //           agentRunId && !hasCachedTrace
-      //             ? () => {
-      //                 void ensureAgentRunTraceLoaded(agentRunId, body, item);
-      //               }
-      //             : undefined,
-      //         onInterleavedText: () => {
-      //           agentUsesInterleavedText = true;
-      //         },
-      //       })
-      //     : null;
-      // if (hasAnswerText && !agentUsesInterleavedText) {
-      //   const safeText = buildAssistantDisplayMarkdownForRender(msg);
-      //   if (msg.streaming) bubble.classList.add("streaming");
-      //   if (msg.compactMarker) {
-      //     renderCompactMarkerInto(
-      //       bubble,
-      //       safeText ||
-      //         (msg.streaming ? "Compacting context..." : "Context compacted"),
-      //       doc,
-      //       Boolean(msg.streaming),
-      //     );
-      //   } else
-      //     try {
-      //       renderRenderedMarkdownInto(bubble, safeText, doc, {
-      //         onAsyncContentRendered: () => {
-      //           stabilizeFollowBottomAfterAsyncChatContent(
-      //             body,
-      //             conversationKey,
-      //             chatBox,
-      //           );
-      //         },
-      //       });
-      //     } catch (err) {
-      //       ztoolkit.log("LLM render error:", err);
-      //       bubble.textContent = safeText;
-      //     }
-      // }
-
       const bubbleHeaderNodes: HTMLElement[] = [];
 
       if (hasModelName && !msg.compactMarker) {
@@ -1395,7 +1738,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         //     suppressProviderPrefix:
         //       resolveConversationSystemForItem(item) === "claude_code",
         //   },
-        // );
+        modelName.textContent = msg.modelName || "Assistant";
         modelHeader.appendChild(modelName);
 
         // if (!hasAnswerText && msg.streaming && isClaudeStreamingConversation) {
@@ -1413,8 +1756,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
       const hasReasoningSummary = Boolean(msg.reasoningSummary?.trim());
       const hasReasoningDetails = Boolean(msg.reasoningDetails?.trim());
-      const showTopReasoningPanel =
-        (hasReasoningSummary || hasReasoningDetails); // && msg.runMode !== "agent";
+      const showTopReasoningPanel = hasReasoningSummary || hasReasoningDetails; // && msg.runMode !== "agent";
       if (showTopReasoningPanel) {
         const details = doc.createElement("details") as HTMLDetailsElement;
         details.className = "paperpilot-agent-reasoning";
@@ -1502,6 +1844,20 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
       for (let i = bubbleHeaderNodes.length - 1; i >= 0; i -= 1) {
         bubble.insertBefore(bubbleHeaderNodes[i], bubble.firstChild);
+      }
+
+      if (msg.text) {
+        const answerText = doc.createElement("div") as HTMLDivElement;
+        answerText.className = "paperpilot-message-text";
+        try {
+          renderMarkdownInto(answerText, sanitizeText(msg.text), doc);
+        } catch (error) {
+          ztoolkit.log("Markdown render error, falling back to plain text:", error);
+          answerText.style.whiteSpace = "pre-wrap";
+          answerText.style.overflowWrap = "anywhere";
+          answerText.textContent = sanitizeText(msg.text);
+        }
+        bubble.appendChild(answerText);
       }
 
       // if (hasGeneratedImages) {
@@ -1802,4 +2158,3 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
     }
   }
 }
-

@@ -104,7 +104,10 @@ export function createActionLayoutController(
 
   const applyResponsiveActionButtonsLayout = () => {
     if (!modelBtn || !actionsLeft) return;
-    const modelLabel = modelBtn.dataset.modelLabel || "default";
+    const modelLabel =
+      modelBtn.dataset.modelDisplayLabel ||
+      modelBtn.dataset.modelLabel ||
+      "default";
     const modelHint = modelBtn.dataset.modelHint || "";
     const modelCanUseTwoLineWrap =
       [...(modelLabel || "").trim()].length >
@@ -372,7 +375,10 @@ export function createActionLayoutController(
       modelBtn.title = modelHint;
 
       if (reasoningBtn) {
-        reasoningBtn.classList.toggle("paperpilot-reasoning-btn-collapsed", false);
+        reasoningBtn.classList.toggle(
+          "paperpilot-reasoning-btn-collapsed",
+          false,
+        );
         reasoningSlot?.classList.toggle(
           "paperpilot-reasoning-dropdown-collapsed",
           false,
@@ -404,7 +410,10 @@ export function createActionLayoutController(
       setSendButtonLabel(state.send);
 
       const modelCollapsed = state.model === "icon";
-      modelBtn.classList.toggle("paperpilot-model-btn-collapsed", modelCollapsed);
+      modelBtn.classList.toggle(
+        "paperpilot-model-btn-collapsed",
+        modelCollapsed,
+      );
       modelSlot?.classList.toggle(
         "paperpilot-model-dropdown-collapsed",
         modelCollapsed,

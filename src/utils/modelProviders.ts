@@ -15,8 +15,6 @@ import {
 import { detectProviderPreset, getProviderPreset } from "./providerPresets";
 import type { ProviderPresetId } from "./providerPresets";
 
-
-
 export type ModelProviderModel = AdvancedModelConfig & {
   id: string;
   model: string;
@@ -24,10 +22,7 @@ export type ModelProviderModel = AdvancedModelConfig & {
   providerProtocol?: ProviderProtocol;
 };
 
-
-export type ModelProviderAuthMode =
-  | "api_key"
-
+export type ModelProviderAuthMode = "api_key";
 
 export type AdvancedModelConfig = {
   temperature: number;
@@ -35,7 +30,6 @@ export type AdvancedModelConfig = {
   inputTokenCap?: number;
   inputMode?: ModelInputMode;
 };
-
 
 export type RuntimeModelEntry = {
   entryId: string;
@@ -50,7 +44,6 @@ export type RuntimeModelEntry = {
   displayModelLabel: string;
   advanced: AdvancedModelConfig;
 };
-
 
 export type ModelProviderGroup = {
   id: string;
@@ -70,26 +63,15 @@ type AdvancedModelConfigInput = {
   inputMode?: unknown;
 };
 
-
 type ZoteroPrefsAPI = {
   get?: (key: string, global?: boolean) => unknown;
   set?: (key: string, value: unknown, global?: boolean) => void;
 };
 
-
 const MODEL_PROVIDER_GROUPS_PREF_KEY = "modelProviderGroups";
-const MODEL_PROVIDER_GROUPS_MIGRATION_VERSION_PREF_KEY =
-  "modelProviderGroupsMigrationVersion";
 const LAST_USED_MODEL_ENTRY_ID_PREF_KEY = "lastUsedModelEntryId";
-const LEGACY_LAST_MODEL_PROFILE_PREF_KEY = "lastUsedModelProfile";
-const MODEL_PROVIDER_GROUPS_MIGRATION_VERSION = 3;
 
-
-function normalizeProviderAuthMode(value: unknown): ModelProviderAuthMode {
-  // if (value === "codex_auth") return "codex_auth";
-  // if (value === "codex_app_server") return "codex_app_server";
-  // if (value === "copilot_auth") return "copilot_auth";
-  // if (value === "webchat") return "webchat"; // [webchat]
+function normalizeProviderAuthMode(_value: unknown): ModelProviderAuthMode {
   return "api_key";
 }
 
@@ -107,12 +89,67 @@ function setPref(key: string, value: unknown): void {
   getZoteroPrefs()?.set?.(prefKey(key), value, true);
 }
 
+export function setModelProviderGroups(groups: ModelProviderGroup[]): void {
+  setPref(MODEL_PROVIDER_GROUPS_PREF_KEY, JSON.stringify(groups));
+}
+
+export async function refreshOllamaProviderModels(): Promise<number> {
+  const groups = getModelProviderGroups();
+  let discovered = 0;
+  let changed = false;
+
+  for (const group of groups) {
+    if (detectProviderPreset(group.apiBase) !== "ollama") continue;
+    const parsed = new URL(group.apiBase);
+    const endpoint = `${parsed.origin}/api/tags`;
+    
+    try {
+      const xhr = await Zotero.HTTP.request("GET", endpoint, {
+        timeout: 10000,
+        successCodes: false,
+      });
+      
+      if (!xhr.responseText) {
+        throw new Error(`Ollama model discovery failed: empty response`);
+      }
+      
+      const payload = JSON.parse(xhr.responseText) as {
+        models?: Array<{ name?: unknown }>;
+      };
+      const names = (payload.models || [])
+        .map((model) =>
+          typeof model?.name === "string" ? model.name.trim() : "",
+        )
+        .filter(Boolean);
+      discovered += names.length;
+      const existingByName = new Map(
+        group.models.map((model) => [model.model, model]),
+      );
+      group.models = names.map((name) => {
+        const existing = existingByName.get(name);
+        return (
+          existing || {
+            id: `ollama-${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+            model: name,
+            temperature: 0.7,
+            maxTokens: 4096,
+          }
+        );
+      });
+      changed = true;
+    } catch (error) {
+      throw new Error(`Ollama model discovery failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (changed) setModelProviderGroups(groups);
+  return discovered;
+}
 
 function getStringPref(key: string): string {
   const value = getZoteroPrefs()?.get?.(prefKey(key), true);
   return typeof value === "string" ? value : "";
 }
-
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -126,7 +163,6 @@ function createId(prefix: "provider" | "model"): string {
 function normalizeApiBase(apiBase: string): string {
   return normalizeString(apiBase).replace(/\/+$/, "");
 }
-
 
 function normalizeAdvancedModelConfig(
   value?: AdvancedModelConfigInput | null,
@@ -157,7 +193,6 @@ function normalizePresetIdOverride(
   return "customized";
 }
 
-
 function normalizeGroup(group: unknown): ModelProviderGroup | null {
   if (!group || typeof group !== "object") return null;
   const rawGroup = group as {
@@ -170,46 +205,44 @@ function normalizeGroup(group: unknown): ModelProviderGroup | null {
     presetIdOverride?: unknown;
   };
 
-
-  function normalizeGroupModel(
-  model: unknown,
-  authMode: ModelProviderAuthMode,
-): ModelProviderModel | null {
-  if (!model || typeof model !== "object") return null;
-  const rawModel = model as {
-    id?: unknown;
-    model?: unknown;
-    temperature?: unknown;
-    maxTokens?: unknown;
-    inputTokenCap?: unknown;
-    inputMode?: unknown;
-    providerProtocol?: unknown;
+  const normalizeGroupModel = (
+    model: unknown,
+    authMode: ModelProviderAuthMode,
+  ): ModelProviderModel | null => {
+    if (!model || typeof model !== "object") return null;
+    const rawModel = model as {
+      id?: unknown;
+      model?: unknown;
+      temperature?: unknown;
+      maxTokens?: unknown;
+      inputTokenCap?: unknown;
+      inputMode?: unknown;
+      providerProtocol?: unknown;
+    };
+    const modelName = normalizeString(rawModel.model);
+    const advanced = normalizeAdvancedModelConfig(
+      {
+        temperature: Number(rawModel.temperature),
+        maxTokens: Number(rawModel.maxTokens),
+        inputTokenCap: rawModel.inputTokenCap as number | string | undefined,
+        inputMode: rawModel.inputMode,
+      },
+      modelName,
+      authMode,
+    );
+    const modelProtocol = isProviderProtocol(rawModel.providerProtocol)
+      ? rawModel.providerProtocol
+      : undefined;
+    return {
+      id:
+        typeof rawModel.id === "string" && rawModel.id.trim()
+          ? rawModel.id.trim()
+          : createId("model"),
+      model: modelName,
+      ...advanced,
+      ...(modelProtocol ? { providerProtocol: modelProtocol } : {}),
+    };
   };
-  const modelName = normalizeString(rawModel.model);
-  const advanced = normalizeAdvancedModelConfig(
-    {
-      temperature: Number(rawModel.temperature),
-      maxTokens: Number(rawModel.maxTokens),
-      inputTokenCap: rawModel.inputTokenCap as number | string | undefined,
-      inputMode: rawModel.inputMode,
-    },
-    modelName,
-    authMode,
-  );
-  const modelProtocol = isProviderProtocol(rawModel.providerProtocol)
-    ? rawModel.providerProtocol
-    : undefined;
-  return {
-    id:
-      typeof rawModel.id === "string" && rawModel.id.trim()
-        ? rawModel.id.trim()
-        : createId("model"),
-    model: modelName,
-    ...advanced,
-    ...(modelProtocol ? { providerProtocol: modelProtocol } : {}),
-  };
-}
-
 
   const authMode = normalizeProviderAuthMode(rawGroup.authMode);
   const models = Array.isArray(rawGroup.models)
@@ -246,7 +279,6 @@ export function normalizeModelProviderGroups(
     .filter((group): group is ModelProviderGroup => Boolean(group));
 }
 
-
 function parseStoredModelProviderGroups(raw: string): ModelProviderGroup[] {
   if (!raw.trim()) return [];
   try {
@@ -256,29 +288,14 @@ function parseStoredModelProviderGroups(raw: string): ModelProviderGroup[] {
   }
 }
 
-
 function ensureModelProviderGroups(): ModelProviderGroup[] {
   const raw = getStringPref(MODEL_PROVIDER_GROUPS_PREF_KEY);
-  // if (raw.trim()) {
-  //   const parsed = parseStoredModelProviderGroups(raw);
-  //   if (getMigrationVersion() < MODEL_PROVIDER_GROUPS_MIGRATION_VERSION) {
-  //     storeModelProviderGroups(parsed);
-  //   }
-  //   return parsed;
-  // }
-  // if (getMigrationVersion() >= MODEL_PROVIDER_GROUPS_MIGRATION_VERSION) {
-  //   return [];
-  // }
-  // return migrateLegacyModelProviderGroups();
-  const parsed = parseStoredModelProviderGroups(raw);
-  return parsed;
+  return parseStoredModelProviderGroups(raw);
 }
-
 
 export function getModelProviderGroups(): ModelProviderGroup[] {
   return ensureModelProviderGroups();
 }
-
 
 function extractProviderHost(apiBase: string): string {
   const normalizedBase = normalizeApiBase(apiBase);
@@ -295,7 +312,6 @@ function extractProviderHost(apiBase: string): string {
     return fallback;
   }
 }
-
 
 export function deriveProviderLabel(
   apiBase: string,
@@ -319,24 +335,13 @@ export function deriveProviderLabel(
   if (lowerHost.includes("openai.com") || lowerHost === "chatgpt.com") {
     return "OpenAI";
   }
-  
 
   return host;
 }
 
 function resolveStoredPresetId(group: ModelProviderGroup): ProviderPresetId {
-  // if (
-  //   group.authMode === "codex_auth" ||
-  //   group.authMode === "codex_app_server" ||
-  //   group.authMode === "copilot_auth" ||
-  //   group.authMode === "webchat"
-  // ) {
-  //   return "customized";
-  // }
   return group.presetIdOverride ?? detectProviderPreset(group.apiBase);
 }
-
-
 
 function resolveRuntimeProviderProtocol(
   group: ModelProviderGroup,
@@ -376,8 +381,6 @@ function resolveRuntimeProviderProtocol(
   });
 }
 
-
-
 export function getRuntimeModelEntries(): RuntimeModelEntry[] {
   const groups = getModelProviderGroups();
   const entries: RuntimeModelEntry[] = [];
@@ -388,17 +391,7 @@ export function getRuntimeModelEntries(): RuntimeModelEntry[] {
       group.apiBase,
       groupIndex + 1,
     );
-    // [webchat] Use "ChatGPT Web" (or target label) as provider label
     const providerLabel = baseProviderLabel;
-      // authMode === "webchat"
-      //   ? `${baseProviderLabel} (web)`
-      //   : authMode === "codex_auth"
-      //     ? `${baseProviderLabel} (codex auth, legacy)`
-      //     : authMode === "codex_app_server"
-      //       ? `${baseProviderLabel} (app server)`
-      //       : authMode === "copilot_auth"
-      //         ? `${baseProviderLabel} (copilot auth)`
-      //         : baseProviderLabel;
     const normalizedCounts = new Map<string, number>();
     for (const modelEntry of group.models) {
       const modelName = modelEntry.model.trim();
@@ -406,17 +399,6 @@ export function getRuntimeModelEntries(): RuntimeModelEntry[] {
       const normalizedModel = modelName.toLowerCase();
       const duplicateCount = (normalizedCounts.get(normalizedModel) || 0) + 1;
       normalizedCounts.set(normalizedModel, duplicateCount);
-      // [webchat] Display as "web/chatgpt" etc.
-      const baseModelLabel = modelName;
-        // authMode === "webchat"
-        //   ? `web/${modelName}`
-        //   : authMode === "codex_auth"
-        //     ? `codex/${modelName}`
-        //     : authMode === "codex_app_server"
-        //       ? `codex-app/${modelName}`
-        //       : authMode === "copilot_auth"
-        //         ? `copilot/${modelName}`
-        //         : modelName;
       entries.push({
         entryId: modelEntry.id,
         groupId: group.id,
@@ -428,9 +410,7 @@ export function getRuntimeModelEntries(): RuntimeModelEntry[] {
         providerLabel,
         providerOrder: groupIndex,
         displayModelLabel:
-          duplicateCount > 1
-            ? `${baseModelLabel} #${duplicateCount}`
-            : baseModelLabel,
+          duplicateCount > 1 ? `${modelName} #${duplicateCount}` : modelName,
         advanced: normalizeAdvancedModelConfig(modelEntry, modelName),
       });
     }
@@ -438,9 +418,6 @@ export function getRuntimeModelEntries(): RuntimeModelEntry[] {
 
   return entries;
 }
-
-
-
 
 export function getModelEntryById(
   entryId: string | undefined | null,
@@ -474,4 +451,3 @@ export function setLastUsedModelEntryId(entryId: string): void {
 export function getModelProviderGroupsPrefKey(): string {
   return MODEL_PROVIDER_GROUPS_PREF_KEY;
 }
-
