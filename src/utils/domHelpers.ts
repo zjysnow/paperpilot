@@ -12,7 +12,7 @@ export function createElement<K extends keyof HTMLElementTagNameMap>(
   props?: Partial<HTMLElementTagNameMap[K]>,
 ): HTMLElementTagNameMap[K] {
   const el = doc.createElementNS(HTML_NS, tag) as HTMLElementTagNameMap[K];
-  if (className) el.className = className;
+  if (className) el.setAttribute("class", className);
   if (props) Object.assign(el, props);
   return el;
 }

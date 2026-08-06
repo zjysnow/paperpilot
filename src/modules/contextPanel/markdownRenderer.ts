@@ -82,6 +82,19 @@ export function renderMarkdownInto(
 }
 
 /**
+ * Render model Markdown as Zotero panel rich text.
+ * Keep this entry point separate so every conversation mode uses the same
+ * sanitized Markdown-to-DOM pipeline as shortcut summaries.
+ */
+export function renderZoteroRichTextInto(
+  element: HTMLElement,
+  markdown: string,
+  doc?: Document,
+): void {
+  renderMarkdownInto(element, markdown, doc);
+}
+
+/**
  * Create a renderer for streaming updates
  * Returns a function that can incrementally add text to an element
  */

@@ -10978,6 +10978,345 @@ label.paperpilot-search-results-item:hover {
   border-color: var(--stroke-primary);
 }
 
+/* Keep the global @ picker usable in the compact floating host. */
+.paperpilot-paper-picker .paperpilot-global-reference-selector {
+  min-height: 0;
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-folder-panel {
+  height: 150px;
+  min-height: 110px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-main {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 140px;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-tag-panel {
+  height: 130px;
+  min-height: 100px;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-list {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Reference-selector sizing follows llm-for-zotero's compact three-panel picker. */
+.paperpilot-paper-picker .paperpilot-global-reference-selector {
+  color: var(--fill-primary, #222);
+  font-size: 11px;
+  line-height: 1.25;
+  overflow: hidden;
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-header {
+  flex: 0 0 28px;
+  height: 28px;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--stroke-secondary, rgba(120, 120, 120, 0.25));
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-title {
+  margin: 0;
+  color: var(--fill-secondary, #666);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-close {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--fill-tertiary, #888);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-search {
+  flex: 0 0 26px;
+  box-sizing: border-box;
+  width: calc(100% - 14px);
+  height: 26px;
+  min-height: 26px;
+  margin: 6px 7px;
+  padding: 3px 8px;
+  border: 1px solid var(--stroke-secondary, rgba(120, 120, 120, 0.28));
+  border-radius: 7px;
+  background: var(--material-background, #fff);
+  color: var(--fill-primary, #222);
+  font: inherit;
+  font-size: 11px;
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-folder-panel {
+  height: 150px;
+  min-height: 110px;
+  max-height: 220px;
+  grid-template-rows: 28px 38px minmax(0, 1fr);
+  border-bottom: 1px solid var(--stroke-secondary, rgba(120, 120, 120, 0.25));
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-folder-filter-bar {
+  padding: 5px 7px;
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-folder-filter {
+  height: 26px;
+  box-sizing: border-box;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-folder-pane {
+  padding: 2px 4px 5px;
+  overflow-y: auto;
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-sidebar-row {
+  appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 24px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  border: 0;
+  background: transparent;
+  color: var(--fill-secondary, #666);
+  text-align: left;
+  font-size: 11px;
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-sidebar-row:hover,
+.paperpilot-paper-picker .paperpilot-paper-picker-sidebar-row-active {
+  border: 0;
+  background: var(--color-accent10, rgba(53, 132, 228, 0.14));
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-main {
+  flex: 1 1 auto;
+  height: 260px;
+  min-height: 150px;
+  max-height: 420px;
+  grid-template-rows: 28px minmax(0, 1fr);
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-item-header,
+.paperpilot-paper-picker .paperpilot-paper-picker-folder-header,
+.paperpilot-paper-picker .paperpilot-paper-picker-tag-header {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-list {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 5px;
+  overflow-y: auto;
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-item {
+  appearance: none;
+  -moz-appearance: none;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 18px;
+  gap: 2px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fill-primary, #222);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: left;
+  overflow: hidden;
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-item::before {
+  content: "\25A4";
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: start;
+  color: var(--fill-tertiary, #888);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-item::after {
+  content: "+";
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  justify-self: center;
+  color: var(--fill-tertiary, #888);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-item[aria-selected="true"] {
+  border-color: var(--color-accent, #3584e4);
+  background: var(--color-accent10, rgba(53, 132, 228, 0.14));
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-item-title {
+  grid-column: 2;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fill-primary, #222);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-item-meta {
+  grid-column: 2;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fill-tertiary, #888);
+  font-size: 10px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-tag-panel {
+  height: 130px;
+  min-height: 100px;
+  max-height: 220px;
+  grid-template-rows: 28px minmax(0, 1fr);
+  border-top: 1px solid var(--stroke-secondary, rgba(120, 120, 120, 0.25));
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-tag-cloud {
+  min-height: 0;
+  padding: 5px 8px;
+  overflow-y: auto;
+  gap: 4px 5px;
+}
+
+.paperpilot-paper-picker .paperpilot-paper-picker-tag-scope,
+.paperpilot-paper-picker .paperpilot-paper-picker-tag-chip {
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fill-secondary, #666);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.paperpilot-paper-picker .paperpilot-ref-selector-footer {
+  display: none;
+}
+
+.paperpilot-file-context-list .paperpilot-paper-context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--paperpilot-pdf-border-color);
+  border-radius: 8px;
+  background: var(--paperpilot-pdf-bg);
+}
+
+.paperpilot-file-context-list .paperpilot-paper-context-chip-label {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+}
+
+.paperpilot-file-context-list .paperpilot-paper-context-chip-text {
+  display: block;
+  max-width: 100%;
+  color: var(--fill-secondary);
+  font-size: var(--paperpilot-fs-12);
+  line-height: 1.25;
+}
+
+.paperpilot-file-context-list .paperpilot-paper-context-clear {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  min-width: 14px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: var(--paperpilot-fs-12);
+  line-height: 1;
+  margin-left: -2px;
+  transform: translateY(-1px);
+}
+
+.paperpilot-file-context-list .paperpilot-paper-context-clear:hover {
+  color: var(--fill-primary);
+}
+
+.paperpilot-paper-mode-context .paperpilot-paper-context-clear,
+.paperpilot-selected-context .paperpilot-paper-context-clear {
+  appearance: none !important;
+  -moz-appearance: none !important;
+  display: grid;
+  place-items: center;
+  width: 14px !important;
+  min-width: 14px !important;
+  height: 14px !important;
+  margin: 0 0 0 -2px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: inherit;
+  font: inherit;
+  font-size: var(--paperpilot-fs-12);
+  line-height: 1;
+  transform: translateY(-1px) !important;
+}
+
+.paperpilot-reference-picker-open .paperpilot-paper-context-clear,
+.paperpilot-reference-picker-open .paperpilot-file-context-remove {
+  display: none !important;
+}
+
+.paperpilot-paper-mode-context .paperpilot-paper-context-clear:hover,
+.paperpilot-selected-context .paperpilot-paper-context-clear:hover {
+  border: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: var(--fill-primary);
+}
+
 .paperpilot-ref-selector-confirm {
   background-color: var(--primary);
   color: white;

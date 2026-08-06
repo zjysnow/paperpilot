@@ -239,6 +239,7 @@ export function setupHandlers(
     return rawPanelItem;
   };
   let item = resolvedInitialState.item;
+  let activeAtTokenRange: { start: number; end: number } | null = null;
   let pendingShortcutAttachment: ChatAttachment | null = null;
   let basePaperItem =
     resolvedInitialState.basePaperItem ||
@@ -350,6 +351,57 @@ export function setupHandlers(
     renderPaperModeShortcuts(body, paperMode && Boolean(item));
   };
 
+  const setReferencePickerAttachmentControlsHidden = (hidden: boolean) => {
+    body
+      .querySelectorAll(
+        "#paperpilot-paper-mode-context, .paperpilot-file-context-list",
+      )
+      .forEach((element) => {
+        element.classList.toggle(
+          "paperpilot-reference-picker-open",
+          hidden,
+        );
+        element
+          .querySelectorAll(
+            ".paperpilot-paper-context-clear, .paperpilot-file-context-remove",
+          )
+          .forEach((button) => {
+            if (hidden) {
+              (button as HTMLElement).style.setProperty(
+                "display",
+                "none",
+                "important",
+              );
+            } else {
+              (button as HTMLElement).style.removeProperty("display");
+            }
+          });
+      });
+  };
+
+  const refreshAttachmentPresentation = () => {
+    syncPaperModePresentation();
+    updateFilePreview();
+    setReferencePickerAttachmentControlsHidden(
+      Boolean(
+        body.querySelector(
+          "#paperpilot-global-reference-selector",
+        ),
+      ),
+    );
+    requestAnimationFrame(() => {
+      syncPaperModePresentation();
+      updateFilePreview();
+      setReferencePickerAttachmentControlsHidden(
+        Boolean(
+          body.querySelector(
+            "#paperpilot-global-reference-selector",
+          ),
+        ),
+      );
+    });
+  };
+
   const clearSelectedPdfAttachmentsForGlobalMode = () => {
     pendingShortcutAttachment = null;
     const itemIds = new Set(
@@ -385,9 +437,7 @@ export function setupHandlers(
         ? inputBox.selectionStart
         : inputBox.value.length;
     const end =
-      typeof inputBox.selectionEnd === "number"
-        ? inputBox.selectionEnd
-        : start;
+      typeof inputBox.selectionEnd === "number" ? inputBox.selectionEnd : start;
     return { start, end };
   };
 
@@ -424,6 +474,26 @@ export function setupHandlers(
     return { query, start: triggerIndex, end: caret };
   };
 
+  const consumeActiveAtToken = (): void => {
+    const token = getTriggerTokenAtCaret("@");
+    const start = token?.start ?? activeAtTokenRange?.start;
+    const end = token?.end ?? activeAtTokenRange?.end;
+    if (
+      start === undefined ||
+      end === undefined ||
+      start < 0 ||
+      end < start ||
+      end > inputBox.value.length ||
+      inputBox.value[start] !== "@"
+    ) {
+      activeAtTokenRange = null;
+      return;
+    }
+    inputBox.value = inputBox.value.slice(0, start) + inputBox.value.slice(end);
+    inputBox.setSelectionRange(start, start);
+    activeAtTokenRange = null;
+  };
+
   const setSlashMenuVisible = (isVisible: boolean): void => {
     if (!slashMenu) return;
     if (isVisible) {
@@ -457,24 +527,16 @@ export function setupHandlers(
     );
     const preferredMaxHeight = Math.max(
       120,
-      Math.floor(
-        Math.min(
-          720,
-          (viewportHeight || 720 / 0.82) * 0.82,
-        ),
-      ),
+      Math.floor(Math.min(720, (viewportHeight || 720 / 0.82) * 0.82)),
     );
-    const spaceAbove = Math.max(
-      0,
-      anchorRect.top - viewportTop - 12 - 8,
-    );
-    const spaceBelow = Math.max(
-      0,
-      viewportBottom - anchorRect.bottom - 12 - 8,
-    );
+    const spaceAbove = Math.max(0, anchorRect.top - viewportTop - 12 - 8);
+    const spaceBelow = Math.max(0, viewportBottom - anchorRect.bottom - 12 - 8);
     const placeBelow = spaceAbove < 120 && spaceBelow > spaceAbove;
     const availableHeight = placeBelow ? spaceBelow : spaceAbove;
-    const maxHeight = Math.max(1, Math.floor(Math.min(preferredMaxHeight, availableHeight)));
+    const maxHeight = Math.max(
+      1,
+      Math.floor(Math.min(preferredMaxHeight, availableHeight)),
+    );
 
     paperPicker.classList.toggle("paperpilot-paper-picker-below", placeBelow);
     paperPicker.style.setProperty(
@@ -487,20 +549,31 @@ export function setupHandlers(
     initialQuery = "",
     insertMentionSymbol = false,
   ): Promise<void> => {
-    if (!item || !isGlobalMode()) return;
-    const libraryID = Number(item.libraryID || getCurrentLibraryID());
+    const libraryID =
+      Number(item?.libraryID) ||
+      Number(getCurrentLibraryID()) ||
+      Number(
+        (Zotero as unknown as { Libraries?: { userLibraryID?: unknown } })
+          .Libraries?.userLibraryID,
+      ) ||
+      1;
     if (!Number.isFinite(libraryID) || libraryID <= 0) return;
 
-    const pickerHost = paperPicker || body;
+    const pickerHost = paperPickerList || paperPicker || body;
 
     if (insertMentionSymbol) {
       insertTextAtInputSelection("@");
+    }
+    const activeToken = getTriggerTokenAtCaret("@");
+    if (activeToken) {
+      activeAtTokenRange = { start: activeToken.start, end: activeToken.end };
     }
 
     const existingSelector = pickerHost.querySelector(
       "#paperpilot-global-reference-selector",
     ) as HTMLElement | null;
     if (existingSelector) {
+      setReferencePickerAttachmentControlsHidden(true);
       const existingSearch = existingSelector.querySelector(
         ".paperpilot-ref-selector-search",
       ) as HTMLInputElement | null;
@@ -515,6 +588,7 @@ export function setupHandlers(
     }
 
     setSlashMenuVisible(false);
+    setReferencePickerAttachmentControlsHidden(true);
     if (paperPicker) {
       paperPicker.classList.remove("paperpilot-paper-picker-below");
       paperPicker.style.display = "block";
@@ -542,38 +616,49 @@ export function setupHandlers(
 
             const pdf = (paperItem.getAttachments?.() || [])
               .map((attachmentID) => Zotero.Items.get(attachmentID) || null)
-              .find(
-                (attachment): attachment is Zotero.Item => {
-                  if (!attachment) return false;
-                  const contentType = (
-                    attachment as unknown as { attachmentContentType?: string }
-                  ).attachmentContentType;
-                  const title = String(attachment.getField?.("title") || "");
-                  return (
-                    contentType === "application/pdf" ||
-                    title.toLowerCase().endsWith(".pdf")
-                  );
-                },
-              );
+              .find((attachment): attachment is Zotero.Item => {
+                if (!attachment) return false;
+                const contentType = (
+                  attachment as unknown as { attachmentContentType?: string }
+                ).attachmentContentType;
+                const title = String(attachment.getField?.("title") || "");
+                return (
+                  contentType === "application/pdf" ||
+                  title.toLowerCase().endsWith(".pdf")
+                );
+              });
 
             if (!pdf) continue;
 
             if (
-              next.some((attachment) => attachment.id === `global-paper-${pdf.id}`)
+              next.some(
+                (attachment) => attachment.id === `global-paper-${pdf.id}`,
+              )
             ) {
               continue;
             }
 
-            const fulltextApi = (Zotero as unknown as {
-              Fulltext?: { getItemCacheFile?: (target: Zotero.Item) => unknown };
-              FullText?: { getItemCacheFile?: (target: Zotero.Item) => unknown };
-            }).Fulltext || (Zotero as unknown as {
-              FullText?: { getItemCacheFile?: (target: Zotero.Item) => unknown };
-            }).FullText;
+            const fulltextApi =
+              (
+                Zotero as unknown as {
+                  Fulltext?: {
+                    getItemCacheFile?: (target: Zotero.Item) => unknown;
+                  };
+                  FullText?: {
+                    getItemCacheFile?: (target: Zotero.Item) => unknown;
+                  };
+                }
+              ).Fulltext ||
+              (
+                Zotero as unknown as {
+                  FullText?: {
+                    getItemCacheFile?: (target: Zotero.Item) => unknown;
+                  };
+                }
+              ).FullText;
 
             const cacheFile = fulltextApi?.getItemCacheFile?.(pdf) as
-              | { exists?: () => boolean }
-              | undefined;
+              { exists?: () => boolean } | undefined;
             if (!cacheFile || cacheFile.exists?.() === false) continue;
 
             const contents = await (
@@ -598,7 +683,7 @@ export function setupHandlers(
 
             next.push({
               id: `global-paper-${pdf.id}`,
-              name: paper.title,
+              name: `${paper.creators[0] || paper.title}${paper.year ? `, ${paper.year}` : ""} - Text`,
               mimeType: "application/pdf",
               sizeBytes: textContent.length,
               category: "pdf",
@@ -608,8 +693,9 @@ export function setupHandlers(
 
           if (next.length) {
             selectedFileAttachmentCache.set(item.id, next);
-            updateFilePreview();
-            if (status) setStatus(status, `${next.length} reference(s) added`, "ready");
+            refreshAttachmentPresentation();
+            if (status)
+              setStatus(status, `${next.length} reference(s) added`, "ready");
           } else if (status) {
             setStatus(
               status,
@@ -620,15 +706,44 @@ export function setupHandlers(
         },
         t,
         initialQuery,
+        consumeActiveAtToken,
       );
       if (paperPicker) {
         paperPicker.style.display = "block";
         paperPicker.style.minHeight = "240px";
         positionGlobalReferencePickerForAnchor();
       }
+      const selector = pickerHost.querySelector(
+        "#paperpilot-global-reference-selector",
+      );
+      selector?.addEventListener(
+        "paperpilot-global-reference-selector-closed",
+        () => {
+          const token = getTriggerTokenAtCaret("@");
+          if (!token) return;
+          inputBox.value =
+            inputBox.value.slice(0, token.start) +
+            inputBox.value.slice(token.end);
+          inputBox.setSelectionRange(token.start, token.start);
+          inputBox.dispatchEvent(
+            new Event("input", { bubbles: true, cancelable: false }),
+          );
+        },
+      );
     } catch (error) {
-      ztoolkit.log("Paper Pilot: failed to render global reference selector", error);
-      if (status) setStatus(status, t("Unable to select library references"), "error");
+      body
+        .querySelectorAll(
+          "#paperpilot-paper-mode-context, .paperpilot-file-context-list",
+        )
+        .forEach((element) =>
+          element.classList.remove("paperpilot-reference-picker-open"),
+        );
+      ztoolkit.log(
+        "Paper Pilot: failed to render global reference selector",
+        error,
+      );
+      if (status)
+        setStatus(status, t("Unable to select library references"), "error");
     }
   };
 
@@ -644,23 +759,32 @@ export function setupHandlers(
     event.preventDefault();
     inputBox.value = prompt;
     inputBox.focus();
-    void resolvePaperShortcutAttachment(item).then((attachment) => {
-      if (!attachment) {
+    void resolvePaperShortcutAttachment(item)
+      .then((attachment) => {
+        if (!attachment) {
+          pendingShortcutAttachment = null;
+          if (status) {
+            setStatus(
+              status,
+              t("No extractable text is available for this PDF"),
+              "error",
+            );
+          }
+          return;
+        }
+        pendingShortcutAttachment = attachment;
+        sendBtn.click();
+      })
+      .catch((error) => {
+        ztoolkit.log(
+          "Paper Pilot: failed to load PDF text for shortcut",
+          error,
+        );
         pendingShortcutAttachment = null;
         if (status) {
-          setStatus(status, t("No extractable text is available for this PDF"), "error");
+          setStatus(status, t("Could not read the selected PDF"), "error");
         }
-        return;
-      }
-      pendingShortcutAttachment = attachment;
-      sendBtn.click();
-    }).catch((error) => {
-      ztoolkit.log("Paper Pilot: failed to load PDF text for shortcut", error);
-      pendingShortcutAttachment = null;
-      if (status) {
-        setStatus(status, t("Could not read the selected PDF"), "error");
-      }
-    });
+      });
   });
 
   if (!panelRoot) {
@@ -926,7 +1050,8 @@ export function setupHandlers(
     event.stopPropagation();
     void openGlobalReferenceSelector("", true).catch((error) => {
       ztoolkit.log("Paper Pilot: failed to select library references", error);
-      if (status) setStatus(status, t("Unable to select library references"), "error");
+      if (status)
+        setStatus(status, t("Unable to select library references"), "error");
     });
   });
 
@@ -959,7 +1084,7 @@ export function setupHandlers(
   }
 
   if (sendBtn) {
-    sendBtn.addEventListener("click", (e: Event) => {
+    sendBtn.addEventListener("click", async (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
       if (!item || !inputBox) return;
@@ -972,6 +1097,21 @@ export function setupHandlers(
       }
       const conversationKey = getConversationKey(item);
       const history = chatHistory.get(conversationKey) || [];
+      const attachments = [
+        ...(selectedFileAttachmentCache.get(item.id) || []),
+        ...(pendingShortcutAttachment ? [pendingShortcutAttachment] : []),
+      ];
+      if (isPaperMode()) {
+        const defaultPaperAttachment = await resolvePaperShortcutAttachment(item);
+        if (
+          defaultPaperAttachment &&
+          !attachments.some(
+            (attachment) => attachment.id === defaultPaperAttachment.id,
+          )
+        ) {
+          attachments.unshift(defaultPaperAttachment);
+        }
+      }
       const userMessage: Message = {
         role: "user",
         text,
@@ -983,10 +1123,7 @@ export function setupHandlers(
           (entry) => entry.source,
         ),
         screenshotImages: selectedImageCache.get(item.id) || [],
-        attachments: [
-          ...(selectedFileAttachmentCache.get(item.id) || []),
-          ...(pendingShortcutAttachment ? [pendingShortcutAttachment] : []),
-        ],
+        attachments,
       };
       pendingShortcutAttachment = null;
       chatHistory.set(conversationKey, [...history, userMessage]);
@@ -1006,13 +1143,20 @@ export function setupHandlers(
   }
 
   inputBox.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "@" && !e.defaultPrevented) {
+      const ownerWin = body.ownerDocument?.defaultView;
+      const open = () => {
+        void openGlobalReferenceSelector("");
+      };
+      if (ownerWin) ownerWin.setTimeout(open, 0);
+      else open();
+    }
     if (e.key !== "Enter" || e.shiftKey || e.defaultPrevented) return;
     e.preventDefault();
     sendBtn.click();
   });
 
   inputBox.addEventListener("input", () => {
-    if (!item) return;
     const mentionToken = getTriggerTokenAtCaret("@");
     if (mentionToken) {
       void openGlobalReferenceSelector(mentionToken.query);
@@ -1027,6 +1171,42 @@ export function setupHandlers(
       setSlashMenuVisible(false);
     }
   });
+
+  inputBox.addEventListener("keyup", () => {
+    if (inputBox.value.lastIndexOf("@") < 0) return;
+    const mentionToken = getTriggerTokenAtCaret("@");
+    if (mentionToken) void openGlobalReferenceSelector(mentionToken.query);
+  });
+
+  body.addEventListener(
+    "keydown",
+    (event: Event) => {
+      const keyboardEvent = event as KeyboardEvent;
+      if (
+        keyboardEvent.target === inputBox &&
+        keyboardEvent.key === "@" &&
+        !keyboardEvent.defaultPrevented
+      ) {
+        const ownerWin = body.ownerDocument?.defaultView;
+        const open = () => void openGlobalReferenceSelector("");
+        if (ownerWin) ownerWin.setTimeout(open, 0);
+        else open();
+      }
+    },
+    true,
+  );
+
+  body.addEventListener(
+    "input",
+    (event: Event) => {
+      if (event.target !== inputBox || inputBox.value.lastIndexOf("@") < 0) {
+        return;
+      }
+      const mentionToken = getTriggerTokenAtCaret("@");
+      if (mentionToken) void openGlobalReferenceSelector(mentionToken.query);
+    },
+    true,
+  );
 
   const inferAttachmentCategory = (file: File): ChatAttachment["category"] => {
     const lowerName = (file.name || "").toLowerCase();
@@ -1200,18 +1380,145 @@ export function setupHandlers(
     }
   };
 
+  const resetContextClearButtonStyle = (button: HTMLElement) => {
+    for (const [property, value] of [
+      ["appearance", "none"],
+      ["-moz-appearance", "none"],
+      ["display", "grid"],
+      ["place-items", "center"],
+      ["width", "14px"],
+      ["min-width", "14px"],
+      ["height", "14px"],
+      ["margin", "0 0 0 -2px"],
+      ["padding", "0"],
+      ["border", "0"],
+      ["border-width", "0"],
+      ["border-style", "none"],
+      ["border-color", "transparent"],
+      ["border-radius", "0"],
+      ["background", "transparent"],
+      ["background-image", "none"],
+      ["box-shadow", "none"],
+      ["font", "inherit"],
+      ["line-height", "1"],
+    ] as const) {
+      button.style.setProperty(property, value, "important");
+    }
+  };
+
   const updateFilePreview = () => {
     const currentItem = item;
+    if (!currentItem) return;
+    const files = selectedFileAttachmentCache.get(currentItem.id) || [];
+    const globalFiles = files.filter((attachment) =>
+      attachment.id.startsWith("global-paper-"),
+    );
+    const paperModeContext = body.querySelector(
+      "#paperpilot-paper-mode-context",
+    ) as HTMLElement | null;
     if (
-      !currentItem ||
-      !filePreview ||
-      !filePreviewMeta ||
-      !filePreviewExpanded ||
-      !filePreviewList
+      globalFiles.length === files.length &&
+      globalFiles.length > 0
     ) {
+      if (filePreview && filePreviewExpanded && filePreviewList) {
+        filePreview.style.display = "none";
+        filePreviewExpanded.style.display = "none";
+        filePreviewList.innerHTML = "";
+      }
+      if (paperModeContext) {
+        paperModeContext.style.display = "contents";
+        if (isPaperMode()) {
+          renderPaperModeContext(body, item);
+        } else {
+          paperModeContext.replaceChildren();
+        }
+        for (const attachment of globalFiles) {
+          const chip = createElement(
+            panelDoc,
+            "div",
+            "paperpilot-selected-context paperpilot-paper-context-chip paperpilot-paper-context-chip-text",
+          );
+          const header = createElement(
+            panelDoc,
+            "div",
+            "paperpilot-image-preview-header paperpilot-selected-context-header paperpilot-paper-context-chip-header",
+          );
+          const label = createElement(
+            panelDoc,
+            "span",
+            "paperpilot-paper-context-chip-label",
+          );
+          const icon = createElement(
+            panelDoc,
+            "span",
+            "paperpilot-paper-context-chip-icon paperpilot-context-svg-icon paperpilot-context-icon-papers",
+          );
+          icon.setAttribute("aria-hidden", "true");
+          const text = createElement(
+            panelDoc,
+            "span",
+            "paperpilot-paper-context-chip-text",
+            { textContent: attachment.name },
+          );
+          const clear = createElement(
+            panelDoc,
+            "button",
+            "paperpilot-paper-context-clear",
+            {
+              type: "button",
+              textContent: "×",
+              title: `Remove ${attachment.name}`,
+            },
+          );
+          resetContextClearButtonStyle(clear);
+          let clearHandled = false;
+          const removeGlobalAttachment = (event: Event) => {
+            if (clearHandled) return;
+            clearHandled = true;
+            event.preventDefault();
+            event.stopPropagation();
+            const nextFiles = files.filter(
+              (entry) => entry.id !== attachment.id,
+            );
+            if (nextFiles.length) {
+              selectedFileAttachmentCache.set(currentItem.id, nextFiles);
+            } else {
+              selectedFileAttachmentCache.delete(currentItem.id);
+            }
+            body
+              .querySelector("#paperpilot-global-reference-selector")
+              ?.dispatchEvent(
+                new CustomEvent("paperpilot-global-reference-removed", {
+                  bubbles: false,
+                  detail: {
+                    attachmentId: Number(
+                      attachment.id.replace("global-paper-", ""),
+                    ),
+                  },
+                }),
+              );
+            refreshAttachmentPresentation();
+            setTimeout(() => {
+              clearHandled = false;
+            }, 0);
+          };
+          clear.addEventListener("click", removeGlobalAttachment);
+          clear.addEventListener("command", removeGlobalAttachment);
+          label.append(icon, text);
+          header.append(label, clear);
+          chip.append(header);
+          paperModeContext.appendChild(chip);
+        }
+      }
       return;
     }
-    const files = selectedFileAttachmentCache.get(currentItem.id) || [];
+    if (paperModeContext && !globalFiles.length) {
+      paperModeContext.replaceChildren();
+      renderPaperModeContext(body, item);
+    }
+    if (!filePreview || !filePreviewMeta || !filePreviewExpanded || !filePreviewList) {
+      return;
+    }
     if (!files.length) {
       filePreview.style.display = "none";
       filePreview.classList.remove("expanded", "collapsed");
@@ -1231,28 +1538,37 @@ export function setupHandlers(
     filePreviewMeta.textContent = formatFileCountLabel(files.length);
     filePreviewMeta.setAttribute("aria-expanded", expanded ? "true" : "false");
     for (const [index, attachment] of files.entries()) {
+      const isGlobalPaper = attachment.id.startsWith("global-paper-");
       const row = createElement(
         panelDoc,
         "div",
-        "paperpilot-file-context-item",
+        isGlobalPaper
+          ? "paperpilot-selected-context paperpilot-paper-context-chip paperpilot-paper-context-chip-text"
+          : "paperpilot-file-context-item",
       );
       const type = createElement(
         panelDoc,
         "span",
-        "paperpilot-file-context-type",
+        isGlobalPaper
+          ? "paperpilot-paper-context-chip-icon paperpilot-context-svg-icon paperpilot-context-icon-papers"
+          : "paperpilot-file-context-type",
         {
-          textContent: getAttachmentTypeLabel(attachment),
+          textContent: isGlobalPaper ? "" : getAttachmentTypeLabel(attachment),
         },
       );
       const info = createElement(
         panelDoc,
         "div",
-        "paperpilot-file-context-text",
+        isGlobalPaper
+          ? "paperpilot-paper-context-chip-label"
+          : "paperpilot-file-context-text",
       );
       const name = createElement(
         panelDoc,
         "span",
-        "paperpilot-file-context-name",
+        isGlobalPaper
+          ? "paperpilot-paper-context-chip-text"
+          : "paperpilot-file-context-name",
         {
           textContent: attachment.name,
         },
@@ -1262,20 +1578,28 @@ export function setupHandlers(
         "span",
         "paperpilot-file-context-meta-info",
         {
-          textContent: `${attachment.mimeType || "application/octet-stream"} · ${(attachment.sizeBytes / 1024 / 1024).toFixed(2)} MB`,
+          textContent: isGlobalPaper
+            ? ""
+            : `${attachment.mimeType || "application/octet-stream"} · ${(attachment.sizeBytes / 1024 / 1024).toFixed(2)} MB`,
         },
       );
       const removeBtn = createElement(
         panelDoc,
         "button",
-        "paperpilot-file-context-remove",
+        isGlobalPaper
+          ? "paperpilot-paper-context-clear"
+          : "paperpilot-file-context-remove",
         {
           type: "button",
           textContent: "×",
           title: `Remove ${attachment.name}`,
         },
       );
-      removeBtn.addEventListener("click", (e: Event) => {
+      if (isGlobalPaper) resetContextClearButtonStyle(removeBtn);
+      let removeHandled = false;
+      const removeAttachment = (e: Event) => {
+        if (removeHandled) return;
+        removeHandled = true;
         e.preventDefault();
         e.stopPropagation();
         const nextFiles = files.filter((_, i) => i !== index);
@@ -1285,8 +1609,31 @@ export function setupHandlers(
           selectedFileAttachmentCache.delete(currentItem.id);
           selectedFilePreviewExpandedCache.delete(currentItem.id);
         }
-        updateFilePreview();
-      });
+        if (isGlobalPaper) {
+          body
+            .querySelector("#paperpilot-global-reference-selector")
+            ?.dispatchEvent(
+              new CustomEvent("paperpilot-global-reference-removed", {
+                bubbles: false,
+                detail: {
+                  attachmentId: Number(
+                    attachment.id.replace("global-paper-", ""),
+                  ),
+                },
+              }),
+            );
+        }
+        if (isGlobalPaper) {
+          refreshAttachmentPresentation();
+        } else {
+          updateFilePreview();
+        }
+        setTimeout(() => {
+          removeHandled = false;
+        }, 0);
+      };
+      removeBtn.addEventListener("click", removeAttachment);
+      removeBtn.addEventListener("command", removeAttachment);
       info.append(name, meta);
       row.append(type, info, removeBtn);
       filePreviewList.appendChild(row);

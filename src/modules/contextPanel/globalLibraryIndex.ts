@@ -10,6 +10,8 @@ export type IndexedPaper = {
   year?: string;
   doi?: string;
   pdfs: IndexedPDF[];
+  collectionIDs: number[];
+  tags: string[];
 };
 
 export type IndexedPDF = {
@@ -17,9 +19,24 @@ export type IndexedPDF = {
   title: string;
 };
 
+export type IndexedCollection = {
+  collectionId: number;
+  name: string;
+  parentID: number;
+  childCollectionIDs: number[];
+  childItemIDs: number[];
+};
+
+export type IndexedTag = {
+  name: string;
+  count: number;
+};
+
 export type LibraryIndex = {
   libraryID: number;
   papers: IndexedPaper[];
+  collections: IndexedCollection[];
+  tags: IndexedTag[];
   lastUpdated: number;
 };
 
@@ -39,10 +56,7 @@ function normalizeSearchText(text: string): string {
 /**
  * Score a paper against a search query
  */
-function scoreMatch(
-  paper: IndexedPaper,
-  query: string,
-): number {
+function scoreMatch(paper: IndexedPaper, query: string): number {
   if (!query) return 0;
 
   const queryTerms = query.split(/\s+/).filter(Boolean);
@@ -65,7 +79,8 @@ function scoreMatch(
     const normalizedCreator = normalizeSearchText(creator);
     if (normalizedCreator === normalizedQuery) score += 400;
     if (normalizedCreator.startsWith(normalizedQuery)) score += 200;
-    if (queryTerms.every((term) => normalizedCreator.includes(term))) score += 100;
+    if (queryTerms.every((term) => normalizedCreator.includes(term)))
+      score += 100;
   }
 
   // Year match
@@ -79,6 +94,8 @@ function scoreMatch(
  */
 async function buildLibraryIndex(libraryID: number): Promise<LibraryIndex> {
   const papers: IndexedPaper[] = [];
+  const tags = new Map<string, number>();
+  let collections: IndexedCollection[] = [];
 
   try {
     const items = await Zotero.Items.getAll(
@@ -127,10 +144,7 @@ async function buildLibraryIndex(libraryID: number): Promise<LibraryIndex> {
       try {
         const creatorList = item.getCreators?.() || [];
         for (const creator of creatorList) {
-          const name = [
-            creator?.firstName || "",
-            creator?.lastName || "",
-          ]
+          const name = [creator?.firstName || "", creator?.lastName || ""]
             .filter(Boolean)
             .join(" ")
             .trim();
@@ -151,6 +165,23 @@ async function buildLibraryIndex(libraryID: number): Promise<LibraryIndex> {
       }
 
       const doi = String(item.getField?.("DOI") || "").trim() || undefined;
+      const collectionIDs = (item.getCollections?.() || [])
+        .map((id: unknown) => Number(id))
+        .filter((id: number) => Number.isFinite(id) && id > 0)
+        .map((id: number) => Math.floor(id));
+      const paperTags = (item.getTags?.() || [])
+        .map((tag: unknown) =>
+          typeof tag === "string"
+            ? tag
+            : String(
+                (tag as { tag?: unknown; name?: unknown } | null)?.tag ||
+                  (tag as { name?: unknown } | null)?.name ||
+                  "",
+              ),
+        )
+        .map((tag: string) => tag.trim())
+        .filter(Boolean);
+      for (const tag of paperTags) tags.set(tag, (tags.get(tag) || 0) + 1);
 
       papers.push({
         itemId: item.id,
@@ -159,8 +190,24 @@ async function buildLibraryIndex(libraryID: number): Promise<LibraryIndex> {
         year,
         doi,
         pdfs,
+        collectionIDs,
+        tags: paperTags,
       });
     }
+
+    const collectionItems =
+      Zotero.Collections?.getByLibrary?.(libraryID, true) || [];
+    collections = collectionItems.map((collection: Zotero.Collection) => ({
+      collectionId: collection.id,
+      name: String(collection.name || `Collection ${collection.id}`),
+      parentID: Number(collection.parentID) || 0,
+      childCollectionIDs: (collection.getChildCollections?.(true, false) || [])
+        .map((id: unknown) => Number(id))
+        .filter((id: number) => Number.isFinite(id) && id > 0),
+      childItemIDs: (collection.getChildItems?.(true, false) || [])
+        .map((id: unknown) => Number(id))
+        .filter((id: number) => Number.isFinite(id) && id > 0),
+    }));
   } catch (error) {
     console.error("Failed to build library index:", error);
   }
@@ -168,6 +215,10 @@ async function buildLibraryIndex(libraryID: number): Promise<LibraryIndex> {
   return {
     libraryID,
     papers,
+    collections,
+    tags: [...tags.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     lastUpdated: Date.now(),
   };
 }
@@ -175,10 +226,18 @@ async function buildLibraryIndex(libraryID: number): Promise<LibraryIndex> {
 /**
  * Get or build index for a library
  */
-export async function getLibraryIndex(libraryID: number): Promise<LibraryIndex> {
+export async function getLibraryIndex(
+  libraryID: number,
+): Promise<LibraryIndex> {
   const normalized = Math.floor(libraryID);
   if (!Number.isFinite(normalized) || normalized <= 0) {
-    return { libraryID: 0, papers: [], lastUpdated: 0 };
+    return {
+      libraryID: 0,
+      papers: [],
+      collections: [],
+      tags: [],
+      lastUpdated: 0,
+    };
   }
 
   const cached = indexCache.get(normalized);

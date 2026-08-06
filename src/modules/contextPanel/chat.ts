@@ -7,7 +7,10 @@ import {
   getPaperChatStartPageHtml,
   getNoteEditingStartPageHtml,
 } from "../../utils/i18n";
-import { renderMarkdownInto, createStreamingRenderer } from "./markdownRenderer";
+import {
+  renderZoteroRichTextInto,
+  createStreamingRenderer,
+} from "./markdownRenderer";
 
 import {
   MAX_FULL_TEXT_PAPER_CONTEXTS,
@@ -246,29 +249,24 @@ function resolveProviderEndpoint(
   return `${normalized}/v1${endpointPath}`;
 }
 
-function getAttachmentContext(message: Message): string {
-  const textAttachments = (message.attachments || [])
-    .map((attachment) => {
-      const content = attachment.textContent?.trim();
-      return content ? `### ${attachment.name}\n${content}` : "";
-    })
-    .filter(Boolean);
+function getSelectedTextContext(message: Message): string {
   const selectedText = (message.selectedTexts || [])
     .map((text) => text.trim())
     .filter(Boolean);
-  const sections: string[] = [];
-  if (selectedText.length) {
-    sections.push(`Selected text:\n${selectedText.join("\n\n")}`);
-  }
-  if (textAttachments.length) {
-    sections.push(`Attached files:\n${textAttachments.join("\n\n")}`);
-  }
-  return sections.join("\n\n");
+  return selectedText.length
+    ? `Selected text:\n${selectedText.join("\n\n")}`
+    : "";
 }
 
 function buildUserPrompt(message: Message): string {
-  const context = getAttachmentContext(message);
-  return context ? `${message.text}\n\n${context}` : message.text;
+  const withAttachments = buildModelPromptWithFileContext(
+    message.text,
+    message.attachments || [],
+  );
+  const selectedTextContext = getSelectedTextContext(message);
+  return selectedTextContext
+    ? `${withAttachments}\n\n${selectedTextContext}`
+    : withAttachments;
 }
 
 function buildChatContent(message: Message): string | ChatMessageContentPart[] {
@@ -1850,7 +1848,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         const answerText = doc.createElement("div") as HTMLDivElement;
         answerText.className = "paperpilot-message-text";
         try {
-          renderMarkdownInto(answerText, sanitizeText(msg.text), doc);
+          renderZoteroRichTextInto(answerText, sanitizeText(msg.text), doc);
         } catch (error) {
           ztoolkit.log("Markdown render error, falling back to plain text:", error);
           answerText.style.whiteSpace = "pre-wrap";
