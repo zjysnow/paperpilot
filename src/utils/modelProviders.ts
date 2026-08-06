@@ -102,17 +102,17 @@ export async function refreshOllamaProviderModels(): Promise<number> {
     if (detectProviderPreset(group.apiBase) !== "ollama") continue;
     const parsed = new URL(group.apiBase);
     const endpoint = `${parsed.origin}/api/tags`;
-    
+
     try {
       const xhr = await Zotero.HTTP.request("GET", endpoint, {
         timeout: 10000,
         successCodes: false,
       });
-      
+
       if (!xhr.responseText) {
         throw new Error(`Ollama model discovery failed: empty response`);
       }
-      
+
       const payload = JSON.parse(xhr.responseText) as {
         models?: Array<{ name?: unknown }>;
       };
@@ -138,7 +138,9 @@ export async function refreshOllamaProviderModels(): Promise<number> {
       });
       changed = true;
     } catch (error) {
-      throw new Error(`Ollama model discovery failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Ollama model discovery failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -276,7 +278,15 @@ export function normalizeModelProviderGroups(
   if (!Array.isArray(raw)) return [];
   return raw
     .map((group) => normalizeGroup(group))
-    .filter((group): group is ModelProviderGroup => Boolean(group));
+    .filter(
+      (group): group is ModelProviderGroup =>
+        group !== null && detectProviderPreset(group.apiBase) === "ollama",
+    )
+    .sort((left, right) => {
+      const leftIsLocal = detectProviderPreset(left.apiBase) === "ollama";
+      const rightIsLocal = detectProviderPreset(right.apiBase) === "ollama";
+      return Number(rightIsLocal) - Number(leftIsLocal);
+    });
 }
 
 function parseStoredModelProviderGroups(raw: string): ModelProviderGroup[] {

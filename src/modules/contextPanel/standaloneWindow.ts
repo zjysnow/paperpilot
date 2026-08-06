@@ -512,7 +512,6 @@ export function openStandaloneChat(options?: {
   } | null = null;
   let darkMQ: MediaQueryList | null = null;
   let onSchemeChange: (() => void) | null = null;
-  let cleanupStandalonePrefObserver: (() => void) | null = null;
   let enforceStandaloneMinimumSize: (() => void) | null = null;
 
   const initWindow = () => {
@@ -1218,11 +1217,9 @@ export function openStandaloneChat(options?: {
       //   mode: entry.kind === "paper" ? "paper" : "open",
       // });
 
-      const updateStandaloneSystemToggle = () => {};
       const updateStandaloneWebChatUI = (isWebChat: boolean) => {
         if (cancelled) return;
         isInWebChatMode = isWebChat;
-        updateStandaloneSystemToggle();
 
         // Tab labels
         if (isWebChat) {
@@ -3491,84 +3488,6 @@ export function openStandaloneChat(options?: {
       //     { forceFresh: true },
       //   );
       // });
-      updateStandaloneSystemToggle();
-      {
-        const claudeModePrefKey = `${config.prefsPrefix}.enableClaudeCodeMode`;
-        const codexModePrefKey = `${config.prefsPrefix}.enableCodexAppServerMode`;
-        let claudeObserverId: symbol | undefined;
-        let codexObserverId: symbol | undefined;
-        const unregister = () => {
-          for (const observerId of [claudeObserverId, codexObserverId]) {
-            if (observerId === undefined) continue;
-            try {
-              (Zotero as any).Prefs.unregisterObserver(observerId);
-            } catch {
-              void 0;
-            }
-          }
-          claudeObserverId = undefined;
-          codexObserverId = undefined;
-        };
-        cleanupStandalonePrefObserver = unregister;
-        const onClaudeModePrefChange = () => {
-          if (cancelled) {
-            unregister();
-            return;
-          }
-          // if (!getClaudeCodeModeEnabled()) {
-          //   void releaseClaudeRuntimeForBody(contentArea as Element);
-          //   void initAgentSubsystem()
-          //     .then((coreRuntime) =>
-          //       invalidateAllClaudeHotRuntimes(coreRuntime),
-          //     )
-          //     .catch((err) => {
-          //       ztoolkit.log(
-          //         "LLM: Failed to invalidate all Claude hot runtimes",
-          //         err,
-          //       );
-          //     });
-          //   if (getConversationSystemPref() === "claude_code") {
-          //     setConversationSystemPref("upstream");
-          //   }
-          //   if (isClaudeConversationSystem()) {
-          //     void switchConversationSystem("upstream");
-          //     return;
-          //   }
-          // }
-          updateStandaloneSystemToggle();
-        };
-        const onCodexModePrefChange = () => {
-          if (cancelled) {
-            unregister();
-            return;
-          }
-          // if (!isCodexAppServerModeEnabled()) {
-          //   if (getConversationSystemPref() === "codex") {
-          //     setConversationSystemPref("upstream");
-          //   }
-          //   if (isCodexConversationSystem()) {
-          //     void switchConversationSystem("upstream");
-          //     return;
-          //   }
-          // }
-          updateStandaloneSystemToggle();
-        };
-        try {
-          claudeObserverId = (Zotero as any).Prefs.registerObserver(
-            claudeModePrefKey,
-            onClaudeModePrefChange,
-            true,
-          );
-          codexObserverId = (Zotero as any).Prefs.registerObserver(
-            codexModePrefKey,
-            onCodexModePrefChange,
-            true,
-          );
-        } catch {
-          void 0;
-        }
-      }
-
       const commitStandaloneMode = (mode: "open" | "paper") => {
         standaloneMode = mode;
         // if (isClaudeConversationSystem()) {
@@ -3893,7 +3812,6 @@ export function openStandaloneChat(options?: {
 
   const cleanupWindow = () => {
     cancelled = true;
-    cleanupStandalonePrefObserver?.();
     standaloneItemChangeHandler = null;
     themeObserver?.disconnect();
     themeObserver = null;

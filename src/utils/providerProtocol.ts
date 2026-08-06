@@ -1,10 +1,4 @@
-import {
-  isOpenAIChatCompletionsBase,
-  isResponsesBase,
-} from "./apiHelpers";
-
-export type ProviderProtocol =
-  "openai_chat_compat" | "responses_api";
+export type ProviderProtocol = "openai_chat_compat";
 
 export type ProviderProtocolSpec = {
   id: ProviderProtocol;
@@ -19,20 +13,9 @@ export type ProviderProtocolSpec = {
 
 export const PROVIDER_PROTOCOL_SPECS: ProviderProtocolSpec[] = [
   {
-    id: "responses_api",
-    label: "Responses API",
-    helperText:
-      "Use OpenAI-style Responses APIs with tool calls and direct file input.",
-    streaming: true,
-    toolCalls: true,
-    multimodal: true,
-    fileInputs: true,
-    reasoning: true,
-  },
-  {
     id: "openai_chat_compat",
-    label: "OpenAI Chat Completions",
-    helperText: "Use the classic OpenAI-style /v1/chat/completions endpoint.",
+    label: "Ollama Chat",
+    helperText: "Use Ollama's local /api/chat endpoint.",
     streaming: true,
     toolCalls: false,
     multimodal: true,
@@ -56,18 +39,13 @@ export function inferLegacyProviderProtocol(params: {
   authMode?: string;
   apiBase?: string;
 }): ProviderProtocol {
-  if (isResponsesBase(params.apiBase || "")) {
-    return "responses_api";
-  }
-  if (isOpenAIChatCompletionsBase(params.apiBase || "")) {
-    return "openai_chat_compat";
-  }
+  void params;
   return "openai_chat_compat";
 }
 
 export function normalizeProviderProtocol(
   value: unknown,
-  fallback: ProviderProtocol = "responses_api",
+  fallback: ProviderProtocol = "openai_chat_compat",
 ): ProviderProtocol {
   return isProviderProtocol(value) ? value : fallback;
 }

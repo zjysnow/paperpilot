@@ -41,7 +41,6 @@ import type {
   QuoteCitation,
 } from "../../shared/types";
 import type { RuntimeModelEntry } from "../../utils/modelProviders";
-import { detectProviderPreset } from "../../utils/providerPresets";
 
 import { toFileUrl } from "../../utils/pathFileUrl";
 
@@ -153,10 +152,6 @@ function chatContentToOllamaText(content: unknown): string {
     .join("\n");
 }
 
-type ResponsesMessageContentPart =
-  | { type: "input_text"; text: string }
-  | { type: "input_image"; image_url: string };
-
 const activeSendRequests = new Map<number, { abort: () => void }>();
 const CHAT_HISTORY_PREF_KEY = "conversationHistory";
 const MAX_CHAT_HISTORY_PREF_LENGTH = 750_000;
@@ -260,19 +255,6 @@ function setSendControls(body: Element, sending: boolean): void {
   }
 }
 
-function resolveProviderEndpoint(
-  apiBase: string,
-  protocol: "responses_api" | "openai_chat_compat",
-): string {
-  const normalized = apiBase.trim().replace(/\/+$/, "");
-  if (!normalized) throw new Error("The selected model has no API URL.");
-  const endpointPath =
-    protocol === "responses_api" ? "/responses" : "/chat/completions";
-  if (normalized.endsWith(endpointPath)) return normalized;
-  if (normalized.endsWith("/v1")) return `${normalized}${endpointPath}`;
-  return `${normalized}/v1${endpointPath}`;
-}
-
 function getSelectedTextContext(message: Message): string {
   const selectedText = (message.selectedTexts || [])
     .map((text) => text.trim())
@@ -310,53 +292,6 @@ function buildChatContent(message: Message): string | ChatMessageContentPart[] {
     }
   }
   return parts.length === 1 ? prompt : parts;
-}
-
-function buildResponsesContent(
-  message: Message,
-): string | ResponsesMessageContentPart[] {
-  const prompt = buildUserPrompt(message);
-  const parts: ResponsesMessageContentPart[] = [
-    { type: "input_text", text: prompt },
-  ];
-  for (const image of message.screenshotImages || []) {
-    if (image.trim()) {
-      parts.push({ type: "input_image", image_url: image });
-    }
-  }
-  for (const attachment of message.attachments || []) {
-    if (attachment.imageDataUrl?.trim()) {
-      parts.push({ type: "input_image", image_url: attachment.imageDataUrl });
-    }
-  }
-  return parts.length === 1 ? prompt : parts;
-}
-
-function extractResponseText(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "";
-  const value = payload as {
-    output_text?: unknown;
-    message?: { content?: unknown };
-    choices?: Array<{ message?: { content?: unknown } }>;
-    output?: Array<{ content?: Array<{ text?: unknown }> }>;
-  };
-  if (typeof value.output_text === "string") return value.output_text;
-  if (typeof value.message?.content === "string") return value.message.content;
-  const choiceContent = value.choices?.[0]?.message?.content;
-  if (typeof choiceContent === "string") return choiceContent;
-  if (Array.isArray(choiceContent)) {
-    return choiceContent
-      .map((part) =>
-        part && typeof part === "object" && "text" in part
-          ? String((part as { text?: unknown }).text || "")
-          : "",
-      )
-      .join("");
-  }
-  return (value.output || [])
-    .flatMap((entry) => entry.content || [])
-    .map((part) => (typeof part.text === "string" ? part.text : ""))
-    .join("");
 }
 
 function extractStreamDelta(payload: unknown): string {
@@ -460,11 +395,7 @@ export async function sendQuestion(
   refreshChat(options.body, options.item);
   persistChatHistory();
   try {
-    const protocol = entry.providerProtocol;
-    const isOllama = detectProviderPreset(entry.apiBase) === "ollama";
-    const endpoint = isOllama
-      ? `${new URL(entry.apiBase).origin}/api/chat`
-      : resolveProviderEndpoint(entry.apiBase, protocol);
+    const endpoint = `${new URL(entry.apiBase).origin}/api/chat`;
     ztoolkit.log(
       "Paper Pilot: sending model request",
       entry.providerLabel,
@@ -475,10 +406,7 @@ export async function sendQuestion(
       .filter((message) => !message.streaming)
       .map((message) => ({
         role: message.role,
-        content:
-          protocol === "responses_api"
-            ? buildResponsesContent(message)
-            : buildChatContent(message),
+        content: buildChatContent(message),
       }));
     const systemPrompt = getStringPref("systemPrompt").trim();
     const headers: Record<string, string> = {
@@ -487,63 +415,28 @@ export async function sendQuestion(
     if (entry.apiKey.trim()) {
       headers.Authorization = `Bearer ${entry.apiKey.trim()}`;
     }
-    const requestBody = isOllama
-      ? {
-          model: entry.model,
-          stream: true,
-          think: false,
-          messages: [
-            ...(systemPrompt
-              ? [{ role: "system", content: systemPrompt }]
-              : []),
-            ...priorMessages.map((message) => ({
-              role: message.role,
-              content: chatContentToOllamaText(message.content),
-            })),
-            {
-              role: "user",
-              content: chatContentToOllamaText(
-                buildChatContent(options.message),
-              ),
-            },
-          ],
-          options: {
-            temperature: entry.advanced.temperature,
-            num_predict: entry.advanced.maxTokens,
-          },
-        }
-      : protocol === "responses_api"
-        ? {
-            model: entry.model,
-            stream: !isOllama,
-            input: [
-              ...(systemPrompt
-                ? [{ role: "system", content: systemPrompt }]
-                : []),
-              ...priorMessages,
-              {
-                role: "user",
-                content: buildResponsesContent(options.message),
-              },
-            ],
-            temperature: entry.advanced.temperature,
-            max_output_tokens: entry.advanced.maxTokens,
-          }
-        : {
-            model: entry.model,
-            stream: !isOllama,
-            messages: [
-              ...(systemPrompt
-                ? [{ role: "system", content: systemPrompt }]
-                : []),
-              ...priorMessages,
-              { role: "user", content: buildChatContent(options.message) },
-            ],
-            temperature: entry.advanced.temperature,
-            max_tokens: entry.advanced.maxTokens,
-          };
+    const requestBody = {
+      model: entry.model,
+      stream: true,
+      think: false,
+      messages: [
+        ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+        ...priorMessages.map((message) => ({
+          role: message.role,
+          content: chatContentToOllamaText(message.content),
+        })),
+        {
+          role: "user",
+          content: chatContentToOllamaText(buildChatContent(options.message)),
+        },
+      ],
+      options: {
+        temperature: entry.advanced.temperature,
+        num_predict: entry.advanced.maxTokens,
+      },
+    };
     ztoolkit.log("Paper Pilot: Making HTTP request to", endpoint);
-    if (isOllama) {
+    {
       const streamState: ProviderStreamState = {
         buffer: "",
         result: "",
@@ -584,23 +477,6 @@ export async function sendQuestion(
       if (!streamState.result && !assistant.text) {
         throw new Error("Empty response from model");
       }
-    } else {
-      const xhr = await Zotero.HTTP.request("POST", endpoint, {
-        body: JSON.stringify(requestBody),
-        headers,
-        timeout: 120000,
-        successCodes: false,
-        cancellerReceiver: (cancelFunc: () => void) => {
-          canceller = cancelFunc;
-        },
-      });
-      if (!xhr.responseText) {
-        throw new Error("Empty response from model");
-      }
-      const payload = JSON.parse(xhr.responseText);
-      const text = extractResponseText(payload);
-      if (text) assistant.text = text;
-      refreshChat(options.body, options.item);
     }
     assistant.streaming = false;
     if (!assistant.text.trim()) {
@@ -1844,11 +1720,11 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       const showTopReasoningPanel = hasReasoningSummary || hasReasoningDetails; // && msg.runMode !== "agent";
       if (showTopReasoningPanel) {
         const details = doc.createElement("details") as HTMLDetailsElement;
-        details.className = "paperpilot-agent-reasoning";
+        details.className = "paperpilot-reasoning";
         details.open = Boolean(msg.reasoningOpen);
 
         const summary = doc.createElement("summary") as HTMLElement;
-        summary.className = "paperpilot-agent-reasoning-summary";
+        summary.className = "paperpilot-reasoning-summary";
         summary.textContent = "Thinking";
         const toggleReasoning = (e: Event) => {
           e.preventDefault();
@@ -1873,16 +1749,16 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         details.appendChild(summary);
 
         const bodyWrap = doc.createElement("div") as HTMLDivElement;
-        bodyWrap.className = "paperpilot-agent-reasoning-body";
+        bodyWrap.className = "paperpilot-reasoning-body";
 
         if (hasReasoningSummary) {
           const summaryBlock = doc.createElement("div") as HTMLDivElement;
-          summaryBlock.className = "paperpilot-agent-reasoning-block";
+          summaryBlock.className = "paperpilot-reasoning-block";
           const label = doc.createElement("div") as HTMLDivElement;
-          label.className = "paperpilot-agent-reasoning-label";
+          label.className = "paperpilot-reasoning-label";
           label.textContent = "Summary";
           const text = doc.createElement("div") as HTMLDivElement;
-          text.className = "paperpilot-agent-reasoning-text";
+          text.className = "paperpilot-reasoning-text";
           // const reasoningSummaryText = buildAssistantDisplayMarkdownForRender({
           //   text: msg.reasoningSummary || "",
           //   quoteCitations: msg.quoteCitations,
@@ -1899,12 +1775,12 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         if (hasReasoningDetails) {
           const detailsBlock = doc.createElement("div") as HTMLDivElement;
-          detailsBlock.className = "paperpilot-agent-reasoning-block";
+          detailsBlock.className = "paperpilot-reasoning-block";
           const label = doc.createElement("div") as HTMLDivElement;
-          label.className = "paperpilot-agent-reasoning-label";
+          label.className = "paperpilot-reasoning-label";
           label.textContent = "Details";
           const text = doc.createElement("div") as HTMLDivElement;
-          text.className = "paperpilot-agent-reasoning-text";
+          text.className = "paperpilot-reasoning-text";
           // const reasoningDetailsText = buildAssistantDisplayMarkdownForRender({
           //   text: msg.reasoningDetails || "",
           //   quoteCitations: msg.quoteCitations,

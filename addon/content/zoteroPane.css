@@ -4160,7 +4160,7 @@
   background: transparent;
 }
 
-.paperpilot-agent-reasoning {
+.paperpilot-reasoning {
   --paperpilot-thinking-rail: color-mix(
     in srgb,
     var(--fill-tertiary) 50%,
@@ -4170,7 +4170,7 @@
   margin-bottom: 2px;
 }
 
-.paperpilot-agent-reasoning-summary {
+.paperpilot-reasoning-summary {
   cursor: pointer;
   user-select: none;
   display: inline-flex;
@@ -4184,11 +4184,11 @@
   transition: color 120ms ease;
 }
 
-.paperpilot-agent-reasoning-summary::-webkit-details-marker {
+.paperpilot-reasoning-summary::-webkit-details-marker {
   display: none;
 }
 
-.paperpilot-agent-reasoning-summary::before {
+.paperpilot-reasoning-summary::before {
   content: "";
   display: inline-block;
   flex: 0 0 16px;
@@ -4205,7 +4205,7 @@
   -webkit-mask-size: contain;
 }
 
-.paperpilot-agent-reasoning-summary::after {
+.paperpilot-reasoning-summary::after {
   content: "▸";
   display: inline-block;
   margin-left: 1px;
@@ -4218,16 +4218,16 @@
     color 120ms ease;
 }
 
-.paperpilot-agent-reasoning-summary:hover,
-.paperpilot-agent-reasoning-summary:focus-visible {
+.paperpilot-reasoning-summary:hover,
+.paperpilot-reasoning-summary:focus-visible {
   color: var(--fill-primary);
 }
 
-.paperpilot-agent-reasoning[open] > .paperpilot-agent-reasoning-summary::after {
+.paperpilot-reasoning[open] > .paperpilot-reasoning-summary::after {
   transform: rotate(90deg);
 }
 
-.paperpilot-agent-reasoning-body {
+.paperpilot-reasoning-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -4237,12 +4237,12 @@
   margin-top: 2px;
 }
 
-.paperpilot-agent-reasoning-block {
+.paperpilot-reasoning-block {
   padding: 0;
   border-left: none;
 }
 
-.paperpilot-agent-reasoning-label {
+.paperpilot-reasoning-label {
   font-size: var(--paperpilot-fs-10);
   font-weight: 700;
   text-transform: uppercase;
@@ -4251,7 +4251,7 @@
   margin-bottom: 4px;
 }
 
-.paperpilot-agent-reasoning-text {
+.paperpilot-reasoning-text {
   font-size: var(--paperpilot-fs-11);
   line-height: 1.5;
   color: var(--fill-secondary);

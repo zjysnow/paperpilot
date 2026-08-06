@@ -1,6 +1,6 @@
 import type { ProviderProtocol } from "./providerProtocol";
 
-export type SupportedProviderPresetId = "openai" | "ollama";
+export type SupportedProviderPresetId = "ollama";
 
 export type ProviderPresetId = SupportedProviderPresetId | "customized";
 
@@ -60,29 +60,9 @@ function makeHostAndPathMatcher(hosts: string[], paths: string[]) {
   };
 }
 
-const OPENAI_PATHS = [
-  "/",
-  "/v1",
-  "/v1/chat/completions",
-  "/v1/responses",
-  "/v1/files",
-  "/v1/embeddings",
-];
 const OLLAMA_PATHS = ["/", "/v1", "/v1/chat/completions"];
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
-  {
-    id: "openai",
-    label: "OpenAI",
-    defaultApiBase: "https://api.openai.com/v1/responses",
-    defaultProtocol: "responses_api",
-    supportedProtocols: ["responses_api", "openai_chat_compat"],
-    helperText: "Preset uses OpenAI's official Responses endpoint.",
-    matches: makeHostAndPathMatcher(["api.openai.com"], OPENAI_PATHS),
-    supportsResponsesEndpoint: true,
-    supportsEmbeddings: true,
-    defaultEmbeddingModel: "text-embedding-3-small",
-  },
   {
     id: "ollama",
     label: "Ollama",

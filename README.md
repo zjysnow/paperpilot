@@ -1,6 +1,6 @@
 # Paper Pilot
 
-**AI Research Agent Rooted in Your Zotero Library**
+**Local Ollama Research Assistant Rooted in Your Zotero Library**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Zotero Plugin](https://img.shields.io/badge/Zotero-Plugin-orange)](https://www.zotero.org/)
@@ -10,25 +10,29 @@ Paper Pilot is a powerful AI-powered research assistant plugin for [Zotero](http
 ## ✨ Features
 
 ### 🤖 AI-Powered Chat
+
 - **Conversational Research Assistance**: Interact with LLMs to explore your library and get contextual answers
 - **Paper-Specific Mode**: Get focused assistance on individual papers or collections
 - **Quote Citation Extraction**: Automatically extract and cite relevant passages from PDFs
 - **Screenshot Attachments**: Capture and attach screenshots to your conversations
 
 ### 📚 Library Integration
+
 - **Semantic Paper Search**: Find relevant papers using AI-powered semantic retrieval
 - **Smart Context Retrieval**: Automatic context building from your library with configurable limits
 - **Collection Retrieval**: Search across entire collections with ranked results
 - **Zotero Item Menu Integration**: Access Paper Pilot features directly from Zotero's right-click menu
 
 ### 📖 Document Understanding
+
 - **PDF Text Extraction**: Extract text and annotations from PDF attachments
 - **Citation Context Analysis**: Understand how papers cite and discuss related work
 - **Markdown Rendering**: Rich rendering with KaTeX (math), Mermaid (diagrams), and syntax highlighting
 - **Paper Attribution Tracking**: Identify and display paper metadata
 
 ### 🎨 Customization
-- **Multiple LLM Providers**: Support for various AI model providers
+
+- **Ollama-first local inference**: Connects to a locally running Ollama server
 - **Configurable Settings**: Fine-tune retrieval parameters, font scaling, message spacing, and more
 - **Scroll-Safe Chat**: Intelligent scroll behavior that follows or pauses based on your interaction
 - **Customizable UI Panels**: Flexible panel sizing and positioning
@@ -63,17 +67,20 @@ paperpilot/
 ### From Source
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/albert/paperpilot.git
    cd paperpilot
    ```
 
 2. Install dependencies:
+
    ```bash
    npm install
    ```
 
 3. Build the plugin:
+
    ```bash
    npm run build
    ```
@@ -111,15 +118,15 @@ This starts a development server that hot-reloads the plugin as you code.
 
 Available preferences (accessible via Zotero Preferences):
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `CHUNK_TARGET_LENGTH` | Target length for text chunks | 2000 |
-| `CHUNK_OVERLAP` | Overlap between consecutive chunks | 200 |
-| `EMBEDDING_BATCH_SIZE` | Batch size for embedding requests | 16 |
-| `RETRIEVAL_TOP_K_PER_PAPER` | Papers to retrieve per document | 24 |
-| `RETRIEVAL_MMR_LAMBDA` | MMR diversity parameter | 0.7 |
-| `PERSISTED_HISTORY_LIMIT` | Max chat history messages | 200 |
-| `FONT_SCALE_DEFAULT_PERCENT` | Default font scaling | 120% |
+| Setting                      | Description                        | Default |
+| ---------------------------- | ---------------------------------- | ------- |
+| `CHUNK_TARGET_LENGTH`        | Target length for text chunks      | 2000    |
+| `CHUNK_OVERLAP`              | Overlap between consecutive chunks | 200     |
+| `EMBEDDING_BATCH_SIZE`       | Batch size for embedding requests  | 16      |
+| `RETRIEVAL_TOP_K_PER_PAPER`  | Papers to retrieve per document    | 24      |
+| `RETRIEVAL_MMR_LAMBDA`       | MMR diversity parameter            | 0.7     |
+| `PERSISTED_HISTORY_LIMIT`    | Max chat history messages          | 200     |
+| `FONT_SCALE_DEFAULT_PERCENT` | Default font scaling               | 120%    |
 
 ## 🧪 Testing
 
@@ -134,15 +141,15 @@ npm run typecheck     # TypeScript type checking
 
 ## 📋 Scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm start` | Start development server with hot reload |
-| `npm run build` | Build production bundle & typecheck |
-| `npm run release` | Package for distribution |
-| `npm test` | Run full test suite |
-| `npm run lint:check` | Check code formatting & linting |
-| `npm run lint:fix` | Auto-fix formatting & linting issues |
-| `npm run typecheck` | TypeScript type checking |
+| Script               | Description                              |
+| -------------------- | ---------------------------------------- |
+| `npm start`          | Start development server with hot reload |
+| `npm run build`      | Build production bundle & typecheck      |
+| `npm run release`    | Package for distribution                 |
+| `npm test`           | Run full test suite                      |
+| `npm run lint:check` | Check code formatting & linting          |
+| `npm run lint:fix`   | Auto-fix formatting & linting issues     |
+| `npm run typecheck`  | TypeScript type checking                 |
 
 ## 🛠️ Tech Stack
 
@@ -156,6 +163,7 @@ npm run typecheck     # TypeScript type checking
 ## 📦 Dependencies
 
 ### Runtime
+
 - `fflate` - Compression utilities
 - `highlight.js` - Syntax highlighting
 - `katex` - LaTeX math rendering
@@ -164,6 +172,7 @@ npm run typecheck     # TypeScript type checking
 - `zotero-plugin-toolkit` - Zotero plugin utilities
 
 ### Dev Dependencies
+
 - `@types/mocha`, `@types/chai` - Test type definitions
 - `@zotero-plugin/eslint-config` - Shared ESLint config
 - `chai`, `mocha` - Testing framework
@@ -173,6 +182,19 @@ npm run typecheck     # TypeScript type checking
 ## 📄 License
 
 This project is licensed under the **GNU Affero General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
+
+## Ollama support
+
+Paper Pilot currently supports Ollama only. Start Ollama, pull at least one
+chat model, and use **Preferences > AI Providers > Add local Ollama provider**.
+The default endpoint is `http://localhost:11434/v1`; requests use Ollama's
+native `/api/chat` streaming API. Other providers, Responses API features, and
+agent-mode execution are intentionally not active in this fork.
+
+The page and interaction design is based on
+[llm-for-zotero](https://github.com/yilewang/llm-for-zotero). The repository's
+existing Git remotes are intentionally unchanged; that project is the
+documented reference upstream for future comparisons.
 
 ## 🤝 Contributing
 
@@ -197,4 +219,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-*Paper Pilot - Your AI research companion, rooted in your library.*
+_Paper Pilot - Your AI research companion, rooted in your library._
