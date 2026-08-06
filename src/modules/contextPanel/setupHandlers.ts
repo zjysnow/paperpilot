@@ -1688,6 +1688,16 @@ export function setupHandlers(
     basePaperItem = nextBasePaperItem;
     activeContextPanelRawItems.set(body, nextBasePaperItem || nextItem);
     syncConversationIdentity();
+    pendingShortcutAttachment = null;
+    if (isGlobalMode()) {
+      clearSelectedPdfAttachmentsForGlobalMode();
+    }
+    syncPaperModePresentation();
+    updateImagePreview();
+    updateFilePreview();
+    // Switch the visible conversation immediately; loading only initializes
+    // the history store and should not leave the previous mode on screen.
+    refreshChat(body, nextItem);
     await ensureConversationLoaded(nextItem);
     refreshChat(body, nextItem);
     resetComposePreviewUI();

@@ -3622,8 +3622,25 @@ export function openStandaloneChat(options?: {
         currentRawContextItem = params.rawItem || params.paperItem;
         currentBasePaperItem = params.paperItem;
         currentPaperItem = params.paperItem;
+        const paperStateKey = buildPaperStateKey(
+          paperLibraryID,
+          Math.floor(paperId),
+        );
+        const conversationKey =
+          params.forceFresh === true
+            ? Math.floor(Date.now())
+            : Number(
+                activePaperConversationByPaper.get(paperStateKey) || paperId,
+              );
+        const nextItem = buildStandalonePortalItem({
+          mode: "paper",
+          conversationKey,
+          paperItem: params.paperItem,
+          sessionVersion: Date.now(),
+        });
+        if (!nextItem) return false;
         commitStandaloneMode("paper");
-        // mountChatPanel(nextItem, currentRawContextItem);
+        mountChatPanel(nextItem, currentRawContextItem);
         scheduleStandaloneSidebarRender();
         return true;
       };
@@ -3640,35 +3657,31 @@ export function openStandaloneChat(options?: {
           if (isInWebChatMode && mode === "paper") return;
           if (mode === standaloneMode) return;
 
-          // if (mode === "open") {
-          //   const currentLibraryID = getCurrentLibraryScopeID();
-          //   const key = await resolveStandaloneGlobalConversation(false);
-          //   if (!key) return;
-          //   const item = buildStandalonePortalItem({
-          //     mode: "open",
-          //     conversationKey: key,
-          //   });
-          //   if (!item) return;
-          //   activeConversationKey = key;
-          //   if (isClaudeConversationSystem()) {
-          //     activeClaudeGlobalConversationByLibrary.set(
-          //       buildClaudeLibraryStateKey(currentLibraryID),
-          //       key,
-          //     );
-          //   } else if (isCodexConversationSystem()) {
-          //     activeCodexGlobalConversationByLibrary.set(
-          //       buildCodexLibraryStateKey(currentLibraryID),
-          //       key,
-          //     );
-          //     setLastUsedCodexGlobalConversationKey(currentLibraryID, key);
-          //   } else {
-          //     activeGlobalConversationByLibrary.set(currentLibraryID, key);
-          //   }
-          //   commitStandaloneMode("open");
-          //   mountChatPanel(item);
-          //   scheduleStandaloneSidebarRender();
-          //   return;
-          // }
+          if (mode === "open") {
+            const currentLibraryID = getCurrentLibraryScopeID();
+            const lockedKey = getLockedGlobalConversationKey(currentLibraryID);
+            const activeKey = Number(
+              activeGlobalConversationByLibrary.get(currentLibraryID) || 0,
+            );
+            const conversationKey =
+              lockedKey !== null
+                ? lockedKey
+                : isUpstreamGlobalConversationKey(activeKey)
+                  ? activeKey
+                  : buildDefaultUpstreamGlobalConversationKey(currentLibraryID);
+            const nextItem = buildStandalonePortalItem({
+              mode: "open",
+              conversationKey,
+            });
+            if (!nextItem) return;
+            activeGlobalConversationByLibrary.set(currentLibraryID, conversationKey);
+            currentRawContextItem =
+              currentRawContextItem || currentBasePaperItem || currentPaperItem;
+            commitStandaloneMode("open");
+            mountChatPanel(nextItem, currentRawContextItem);
+            scheduleStandaloneSidebarRender();
+            return;
+          }
 
           const rawItem =
             getSelectedZoteroItem() ||
