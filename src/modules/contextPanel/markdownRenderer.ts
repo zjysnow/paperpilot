@@ -5,6 +5,7 @@
 
 import { marked } from "marked";
 import hljs from "highlight.js";
+import katex from "katex";
 
 function escapeHtml(text: string): string {
   const map: Record<string, string> = {
@@ -17,37 +18,96 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => map[char]);
 }
 
-// Set up code highlighting
+const markdownRenderer = new marked.Renderer();
+markdownRenderer.code = ({ text, lang }) => {
+  const language = lang?.trim().split(/\s+/)[0] || "";
+  const highlighted =
+    language && hljs.getLanguage(language)
+      ? hljs.highlight(text, { language }).value
+      : escapeHtml(text);
+  const languageClass = language ? ` language-${escapeHtml(language)}` : "";
+  return `<pre class="paperpilot-code-block"><code class="paperpilot-code${languageClass}">${highlighted}</code></pre>`;
+};
+
 marked.setOptions({
   breaks: true,
   gfm: true,
   async: false,
+  renderer: markdownRenderer,
 });
+
+function renderMathInMarkdown(markdown: string): string {
+  return markdown.replace(
+    /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|(?<!\$)\$([^$\n]+)\$(?!\$)/g,
+    (_match, displayDollar, displayBracket, inlineParen, inlineDollar) => {
+      const display = displayDollar ?? displayBracket;
+      const expression = display ?? inlineParen ?? inlineDollar;
+      const displayMode = display !== undefined;
+      const rendered = katex.renderToString(expression.trim(), {
+        displayMode,
+        throwOnError: false,
+        output: "htmlAndMathml",
+      });
+      return displayMode
+        ? `<div class="math-display">${rendered}</div>`
+        : `<span class="math-inline">${rendered}</span>`;
+    },
+  );
+}
 
 /**
  * Convert markdown text to HTML
  */
-export function markdownToHtml(markdown: string): string {
+export function markdownToHtml(markdown: string, doc?: Document): string {
   try {
-    let html = marked.parse(markdown) as string;
-    
-    // Add CSS classes for styling
-    html = html.replace(/<h([1-6])>/g, '<h$1 class="paperpilot-heading paperpilot-h$1">');
-    html = html.replace(/<p>/g, '<p class="paperpilot-paragraph">');
-    html = html.replace(/<strong>/g, '<strong class="paperpilot-strong">');
-    html = html.replace(/<em>/g, '<em class="paperpilot-em">');
-    html = html.replace(/<code>/g, '<code class="paperpilot-inline-code">');
-    html = html.replace(/<pre><code/g, '<pre class="paperpilot-code-block"><code');
-    html = html.replace(/<ul>/g, '<ul class="paperpilot-list paperpilot-ul">');
-    html = html.replace(/<ol>/g, '<ol class="paperpilot-list paperpilot-ol">');
-    html = html.replace(/<li>/g, '<li class="paperpilot-list-item">');
-    html = html.replace(/<blockquote>/g, '<blockquote class="paperpilot-blockquote">');
-    html = html.replace(/<table>/g, '<table class="paperpilot-table">');
-    html = html.replace(/<hr>/g, '<hr class="paperpilot-hr">');
-    html = html.replace(/<a href=/g, '<a class="paperpilot-link" target="_blank" rel="noopener noreferrer" href=');
-    html = html.replace(/<img /g, '<img class="paperpilot-image" ');
-    
-    return html;
+    const html = marked.parse(renderMathInMarkdown(markdown)) as string;
+    const temp = (doc || document).implementation.createHTMLDocument("");
+    temp.body.innerHTML = html;
+    temp.body.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((heading) => {
+      heading.classList.add(
+        "paperpilot-heading",
+        `paperpilot-${heading.tagName.toLowerCase()}`,
+      );
+    });
+    temp.body
+      .querySelectorAll("p")
+      .forEach((paragraph) => paragraph.classList.add("paperpilot-paragraph"));
+    temp.body
+      .querySelectorAll("strong")
+      .forEach((strong) => strong.classList.add("paperpilot-strong"));
+    temp.body
+      .querySelectorAll("em")
+      .forEach((em) => em.classList.add("paperpilot-em"));
+    temp.body
+      .querySelectorAll("code:not(.paperpilot-code)")
+      .forEach((code) => code.classList.add("paperpilot-inline-code"));
+    temp.body.querySelectorAll("ul, ol").forEach((list) => {
+      list.classList.add(
+        "paperpilot-list",
+        list.tagName.toLowerCase() === "ul" ? "paperpilot-ul" : "paperpilot-ol",
+      );
+    });
+    temp.body
+      .querySelectorAll("li")
+      .forEach((item) => item.classList.add("paperpilot-list-item"));
+    temp.body
+      .querySelectorAll("blockquote")
+      .forEach((quote) => quote.classList.add("paperpilot-blockquote"));
+    temp.body
+      .querySelectorAll("table")
+      .forEach((table) => table.classList.add("paperpilot-table"));
+    temp.body
+      .querySelectorAll("hr")
+      .forEach((rule) => rule.classList.add("paperpilot-hr"));
+    temp.body.querySelectorAll("a").forEach((link) => {
+      link.classList.add("paperpilot-link");
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+    });
+    temp.body
+      .querySelectorAll("img")
+      .forEach((image) => image.classList.add("paperpilot-image"));
+    return temp.body.innerHTML;
   } catch (error) {
     console.error("Markdown parse error:", error);
     return `<p class="paperpilot-paragraph">${escapeHtml(markdown)}</p>`;
@@ -63,7 +123,8 @@ export function renderMarkdownInto(
   _doc?: Document,
 ): void {
   try {
-    const html = markdownToHtml(markdown);
+    element.classList.add("paperpilot-rendered-markdown");
+    const html = markdownToHtml(markdown, _doc || element.ownerDocument);
     // Create a temporary container to parse the HTML
     const temp = element.ownerDocument.createElement("div");
     temp.innerHTML = html;

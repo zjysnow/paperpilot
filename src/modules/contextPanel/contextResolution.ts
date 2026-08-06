@@ -26,7 +26,7 @@ import type {
   PaperContextRef,
   ResolvedContextSource,
   ContextSourceLifecycleState,
-} from "./types"
+} from "./types";
 import {
   isGlobalPortalItem,
   // resolveActiveNoteSession,
@@ -62,7 +62,6 @@ type AddSelectedTextContextOptions = {
   location?: SelectedTextPageLocation | null;
   // noteContext?: NoteContextRef | null;
 };
-
 
 /**
  * Last known selected tab ID.  Updated every time we successfully read
@@ -161,9 +160,7 @@ function getZoteroTabsStateWithSource(): {
   let activePaneWindow: any = null;
   try {
     const activePane = Zotero.getActiveZoteroPane?.() as
-      | { document?: Document }
-      | null
-      | undefined;
+      { document?: Document } | null | undefined;
     activePaneWindow = activePane?.document?.defaultView || null;
   } catch (_error) {
     void _error;
@@ -214,11 +211,9 @@ function getZoteroTabsStateWithSource(): {
   return { tabs: null, source: "none" };
 }
 
-
 function getZoteroTabsState(): ZoteroTabsState | null {
   return getZoteroTabsStateWithSource().tabs;
 }
-
 
 export function refreshLastKnownSelectedTabId(): string | number | null {
   const tabs = getZoteroTabsState();
@@ -228,10 +223,6 @@ export function refreshLastKnownSelectedTabId(): string | number | null {
   return selectedTabId;
 }
 
-
-
-
-
 function parseItemID(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -240,7 +231,6 @@ function parseItemID(value: unknown): number | null {
   }
   return null;
 }
-
 
 function collectCandidateItemIDsFromObject(source: any): number[] {
   if (!source || typeof source !== "object") return [];
@@ -284,7 +274,6 @@ function collectCandidateItemIDsFromObject(source: any): number[] {
   return out;
 }
 
-
 export function getActiveContextAttachmentFromTabs(): Zotero.Item | null {
   const tabs = getZoteroTabsState();
   if (!tabs) return null;
@@ -323,9 +312,6 @@ export function getActiveContextAttachmentFromTabs(): Zotero.Item | null {
 
   return null;
 }
-
-
-
 
 function normalizeSelectedTextContexts(value: unknown): SelectedTextContext[] {
   if (Array.isArray(value)) {
@@ -389,8 +375,6 @@ function normalizeSelectedTextContexts(value: unknown): SelectedTextContext[] {
   return [];
 }
 
-
-
 function syncNoteBackedSelectedTextContexts(contexts: SelectedTextContext[]): {
   contexts: SelectedTextContext[];
   changed: boolean;
@@ -438,8 +422,6 @@ function syncNoteBackedSelectedTextContexts(contexts: SelectedTextContext[]): {
   return { contexts: nextContexts, changed };
 }
 
-
-
 function dedupeNoteBackedSelectedTextContexts(
   contexts: SelectedTextContext[],
 ): {
@@ -463,7 +445,6 @@ function dedupeNoteBackedSelectedTextContexts(
   return { contexts: nextContexts, changed };
 }
 
-
 export function getSelectedTextContextEntries(
   itemId: number,
 ): SelectedTextContext[] {
@@ -476,8 +457,6 @@ export function getSelectedTextContextEntries(
   }
   return deduped.contexts;
 }
-
-
 
 function normalizeSelectedTextPageLocation(
   location?: SelectedTextPageLocation | null,
@@ -510,8 +489,6 @@ function normalizeSelectedTextPageLocation(
   };
 }
 
-
-
 function buildSelectedTextContext(
   text: string,
   source: SelectedTextSource,
@@ -535,7 +512,6 @@ function buildSelectedTextContext(
   };
 }
 
-
 export function setSelectedTextContextEntries(
   itemId: number,
   contexts: SelectedTextContext[],
@@ -550,7 +526,6 @@ export function setSelectedTextContextEntries(
   }
   selectedTextCache.set(itemId, normalized);
 }
-
 
 export function appendSelectedTextContextForItem(
   itemId: number,
@@ -604,8 +579,6 @@ export function appendSelectedTextContextForItem(
   return true;
 }
 
-
-
 export function getSelectedTextExpandedIndex(
   itemId: number,
   count: number,
@@ -625,8 +598,6 @@ export function getSelectedTextExpandedIndex(
   return normalized;
 }
 
-
-
 export function formatSelectedTextContextPageLabel(
   context: SelectedTextContext,
 ): string | null {
@@ -643,8 +614,6 @@ export function formatSelectedTextContextPageLabel(
   return `page ${label}`;
 }
 
-
-
 export function applySelectedTextPreview(body: Element, itemId: number) {
   const previewList = body.querySelector(
     "#paperpilot-selected-context-list",
@@ -655,7 +624,9 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
   if (!previewList) return;
 
   const selectedContexts = getSelectedTextContextEntries(itemId);
-  const panelRoot = body.querySelector("#paperpilot-main") as HTMLDivElement | null;
+  const panelRoot = body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLDivElement | null;
   // Show the active-note chip whenever the panel is in note-editing mode,
   // regardless of whether the user has selected any text in the editor.
   const showActiveNoteChip = Boolean(panelRoot?.dataset.noteId);
@@ -806,7 +777,8 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
 
     const previewMeta = ownerDoc.createElement("button");
     previewMeta.type = "button";
-    previewMeta.className = "paperpilot-image-preview-meta paperpilot-selected-context-meta";
+    previewMeta.className =
+      "paperpilot-image-preview-meta paperpilot-selected-context-meta";
     previewMeta.dataset.contextIndex = `${index}`;
     previewMeta.dataset.contextSource = selectedSource;
     previewMeta.classList.toggle(
@@ -865,11 +837,33 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     if (selectedSource !== "note-edit") {
       const previewClear = ownerDoc.createElement("button");
       previewClear.type = "button";
-      previewClear.className = "paperpilot-remove-img-btn paperpilot-selected-context-clear";
+      previewClear.className =
+        "paperpilot-remove-img-btn paperpilot-selected-context-clear";
       previewClear.dataset.contextIndex = `${index}`;
       previewClear.textContent = "×";
       previewClear.title = "Clear selected context";
       previewClear.setAttribute("aria-label", "Clear selected context");
+      const removeSelectedContext = (event: Event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const contextIndex = Number(previewClear.dataset.contextIndex);
+        if (
+          !Number.isInteger(contextIndex) ||
+          contextIndex < 0 ||
+          contextIndex >= selectedContexts.length
+        ) {
+          return;
+        }
+        setSelectedTextContextEntries(
+          itemId,
+          selectedContexts.filter(
+            (_, entryIndex) => entryIndex !== contextIndex,
+          ),
+        );
+        applySelectedTextPreview(body, itemId);
+      };
+      previewClear.addEventListener("click", removeSelectedContext);
+      previewClear.addEventListener("command", removeSelectedContext);
       previewHeader.appendChild(previewClear);
     }
 
@@ -901,8 +895,6 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     );
   }
 }
-
-
 
 export function addSelectedTextContext(
   body: Element,
@@ -944,13 +936,9 @@ export function addSelectedTextContext(
   return true;
 }
 
-
-
-
 export function getSelectedTextContexts(itemId: number): string[] {
   return getSelectedTextContextEntries(itemId).map((entry) => entry.text);
 }
-
 
 function resolveRegularOwnerItem(
   item: Zotero.Item | null | undefined,
@@ -963,7 +951,6 @@ function resolveRegularOwnerItem(
   return item.isRegularItem?.() ? item : null;
 }
 
-
 function resolveContextOwnerItem(
   rawItem: Zotero.Item | null | undefined,
   contextItem: Zotero.Item | null | undefined,
@@ -972,9 +959,6 @@ function resolveContextOwnerItem(
     resolveRegularOwnerItem(contextItem) || resolveRegularOwnerItem(rawItem)
   );
 }
-
-
-
 
 function sourceNeedsAsyncBestAttachmentResolution(
   rawItem: Zotero.Item | null | undefined,
@@ -1000,14 +984,10 @@ function sourceNeedsAsyncBestAttachmentResolution(
   return Boolean(resolveRegularOwnerItem(rawItem));
 }
 
-
-
 function normalizeItemId(item: Zotero.Item | null | undefined): number {
   const parsed = Math.floor(Number(item?.id || 0));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
-
-
 
 function enrichResolvedContextSource(
   rawItem: Zotero.Item | null | undefined,
@@ -1054,10 +1034,6 @@ function enrichResolvedContextSource(
   };
 }
 
-
-
-
-
 function getSelectedSupportedAttachmentFromLibraryPane(): Zotero.Item | null {
   const panes: unknown[] = [];
   try {
@@ -1087,15 +1063,11 @@ function getSelectedSupportedAttachmentFromLibraryPane(): Zotero.Item | null {
   return null;
 }
 
-
-
 function getContextItemLabel(item: Zotero.Item): string {
   const title = sanitizeText(item.getField("title") || "").trim();
   if (title) return title;
   return `Attachment ${item.id}`;
 }
-
-
 
 function getFirstPdfChildAttachment(
   item: Zotero.Item | null | undefined,
@@ -1110,8 +1082,6 @@ function getFirstPdfChildAttachment(
   }
   return null;
 }
-
-
 
 function resolveContextSourceItemBase(
   panelItem: Zotero.Item,
@@ -1235,7 +1205,6 @@ function resolveContextSourceItemBase(
   };
 }
 
-
 export function resolveContextSourceItem(
   panelItem: Zotero.Item,
 ): ResolvedContextSource {
@@ -1244,8 +1213,6 @@ export function resolveContextSourceItem(
     resolveContextSourceItemBase(panelItem),
   );
 }
-
-
 
 async function getBestSupportedContextAttachment(
   item: Zotero.Item | null | undefined,
@@ -1261,9 +1228,6 @@ async function getBestSupportedContextAttachment(
     return null;
   }
 }
-
-
-
 
 async function resolveContextSourceItemAsyncBase(
   panelItem: Zotero.Item,
@@ -1377,7 +1341,6 @@ async function resolveContextSourceItemAsyncBase(
   };
 }
 
-
 export async function resolveContextSourceItemAsync(
   panelItem: Zotero.Item,
 ): Promise<ResolvedContextSource> {
@@ -1386,8 +1349,6 @@ export async function resolveContextSourceItemAsync(
     await resolveContextSourceItemAsyncBase(panelItem),
   );
 }
-
-
 
 export function setSelectedTextExpandedIndex(
   itemId: number,
@@ -1399,8 +1360,6 @@ export function setSelectedTextExpandedIndex(
   }
   selectedTextPreviewExpandedCache.set(itemId, Math.floor(index));
 }
-
-
 
 export function resolvePanelContextLifecycleState(
   rawItem: Zotero.Item | null | undefined,

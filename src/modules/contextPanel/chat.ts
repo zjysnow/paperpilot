@@ -7,10 +7,7 @@ import {
   getPaperChatStartPageHtml,
   getNoteEditingStartPageHtml,
 } from "../../utils/i18n";
-import {
-  renderZoteroRichTextInto,
-  createStreamingRenderer,
-} from "./markdownRenderer";
+import { renderZoteroRichTextInto } from "./markdownRenderer";
 
 import {
   MAX_FULL_TEXT_PAPER_CONTEXTS,
@@ -158,7 +155,7 @@ type ResponsesMessageContentPart =
   | { type: "input_text"; text: string }
   | { type: "input_image"; image_url: string };
 
-const activeSendRequests = new Map<number, AbortController>();
+const activeSendRequests = new Map<number, { abort: () => void }>();
 const CHAT_HISTORY_PREF_KEY = "conversationHistory";
 let chatHistoryHydrated = false;
 
@@ -340,6 +337,7 @@ function extractStreamDelta(payload: unknown): string {
   const value = payload as {
     type?: unknown;
     delta?: unknown;
+    message?: { content?: unknown };
     choices?: Array<{ delta?: { content?: unknown } }>;
   };
   if (
@@ -348,39 +346,43 @@ function extractStreamDelta(payload: unknown): string {
   ) {
     return value.delta;
   }
+  if (typeof value.message?.content === "string") {
+    return value.message.content;
+  }
   const content = value.choices?.[0]?.delta?.content;
   return typeof content === "string" ? content : "";
 }
 
-async function consumeProviderResponse(
-  response: Response,
+type ProviderStreamState = {
+  buffer: string;
+  result: string;
+  finished: boolean;
+};
+
+function consumeProviderStreamChunk(
+  state: ProviderStreamState,
+  chunk: string,
   onDelta: (text: string) => void,
-): Promise<string> {
-  if (!response.body) {
-    const payload = await response.json();
-    const text = extractResponseText(payload);
-    if (text) onDelta(text);
-    return text;
-  }
-  const reader =
-    response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let result = "";
-  let streamFinished = false;
-  const consumeLine = (line: string) => {
+  flush = false,
+): void {
+  state.buffer += chunk;
+  const lines = state.buffer.split(/\r?\n/);
+  state.buffer = flush ? "" : lines.pop() || "";
+  if (flush && state.buffer) lines.push(state.buffer);
+  for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed.startsWith("data:")) return;
-    const data = trimmed.slice(5).trim();
-    if (!data) return;
+    const data = trimmed.startsWith("data:")
+      ? trimmed.slice(5).trim()
+      : trimmed;
+    if (!data) continue;
     if (data === "[DONE]") {
-      streamFinished = true;
-      return;
+      state.finished = true;
+      continue;
     }
     try {
       const delta = extractStreamDelta(JSON.parse(data));
       if (delta) {
-        result += delta;
+        state.result += delta;
         onDelta(delta);
       }
     } catch (error) {
@@ -389,23 +391,7 @@ async function consumeProviderResponse(
         error,
       );
     }
-  };
-  while (true) {
-    const chunk = await reader.read();
-    buffer += decoder.decode(chunk.value || new Uint8Array(), {
-      stream: !chunk.done,
-    });
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() || "";
-    lines.forEach(consumeLine);
-    if (chunk.done || streamFinished) break;
   }
-  if (!streamFinished) consumeLine(buffer);
-  if (streamFinished) {
-    void reader.cancel();
-  }
-  reader.releaseLock();
-  return result;
 }
 
 export async function sendQuestion(
@@ -429,7 +415,7 @@ export async function sendQuestion(
     return;
   }
   let canceller: (() => void) | null = null;
-  activeSendRequests.set(conversationKey, { abort: () => canceller?.() } as any);
+  activeSendRequests.set(conversationKey, { abort: () => canceller?.() });
   setSendControls(options.body, true);
   const assistant: Message = {
     role: "assistant",
@@ -529,9 +515,49 @@ export async function sendQuestion(
             temperature: entry.advanced.temperature,
             max_tokens: entry.advanced.maxTokens,
           };
-    // Use Zotero.HTTP.request instead of fetch for better Zotero integration
     ztoolkit.log("Paper Pilot: Making HTTP request to", endpoint);
-    try {
+    if (isOllama) {
+      const streamState: ProviderStreamState = {
+        buffer: "",
+        result: "",
+        finished: false,
+      };
+      let processedResponseLength = 0;
+      const xhr = await Zotero.HTTP.request("POST", endpoint, {
+        body: JSON.stringify(requestBody),
+        headers,
+        timeout: 0,
+        successCodes: false,
+        requestObserver: (request: XMLHttpRequest) => {
+          request.onprogress = () => {
+            const nextText = request.responseText.slice(
+              processedResponseLength,
+            );
+            processedResponseLength = request.responseText.length;
+            consumeProviderStreamChunk(streamState, nextText, (delta) => {
+              assistant.text += delta;
+              refreshChat(options.body, options.item);
+            });
+          };
+        },
+        cancellerReceiver: (cancelFunc: () => void) => {
+          canceller = cancelFunc;
+        },
+      });
+      const remainingText = xhr.responseText.slice(processedResponseLength);
+      consumeProviderStreamChunk(
+        streamState,
+        remainingText,
+        (delta) => {
+          assistant.text += delta;
+          refreshChat(options.body, options.item);
+        },
+        true,
+      );
+      if (!streamState.result && !assistant.text) {
+        throw new Error("Empty response from model");
+      }
+    } else {
       const xhr = await Zotero.HTTP.request("POST", endpoint, {
         body: JSON.stringify(requestBody),
         headers,
@@ -541,43 +567,13 @@ export async function sendQuestion(
           canceller = cancelFunc;
         },
       });
-
       if (!xhr.responseText) {
         throw new Error("Empty response from model");
       }
-
-      ztoolkit.log("Paper Pilot: Received response:", xhr.responseText.substring(0, 200));
-      
-      // Handle streaming response format (line-delimited JSON for Ollama)
-      if (isOllama && xhr.responseText.includes("\n")) {
-        const lines = xhr.responseText.trim().split("\n");
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const payload = JSON.parse(line);
-            const text = extractResponseText(payload);
-            if (text) {
-              assistant.text += text;
-            }
-          } catch (parseErr) {
-            ztoolkit.log("Failed to parse streaming line:", line, parseErr);
-          }
-        }
-      } else {
-        // Non-streaming response
-        const payload = JSON.parse(xhr.responseText);
-        const text = extractResponseText(payload);
-        if (text) {
-          assistant.text += text;
-        }
-      }
-      
+      const payload = JSON.parse(xhr.responseText);
+      const text = extractResponseText(payload);
+      if (text) assistant.text = text;
       refreshChat(options.body, options.item);
-    } catch (httpError) {
-      if (httpError instanceof Error && httpError.message.includes("Empty response")) {
-        throw httpError;
-      }
-      throw new Error(`HTTP request failed: ${httpError instanceof Error ? httpError.message : String(httpError)}`);
     }
     assistant.streaming = false;
     if (!assistant.text.trim()) {
@@ -1850,7 +1846,10 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         try {
           renderZoteroRichTextInto(answerText, sanitizeText(msg.text), doc);
         } catch (error) {
-          ztoolkit.log("Markdown render error, falling back to plain text:", error);
+          ztoolkit.log(
+            "Markdown render error, falling back to plain text:",
+            error,
+          );
           answerText.style.whiteSpace = "pre-wrap";
           answerText.style.overflowWrap = "anywhere";
           answerText.textContent = sanitizeText(msg.text);

@@ -1640,6 +1640,19 @@ export function setupHandlers(
     }
   };
 
+  const clearFilePreview = (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const currentItem = item;
+    if (!currentItem) return;
+    selectedFileAttachmentCache.delete(currentItem.id);
+    selectedFilePreviewExpandedCache.delete(currentItem.id);
+    updateFilePreview();
+    refreshAttachmentPresentation();
+  };
+  filePreviewClear?.addEventListener("click", clearFilePreview);
+  filePreviewClear?.addEventListener("command", clearFilePreview);
+
   const processIncomingFiles = async (incomingFiles: File[]) => {
     const currentItem = item;
     if (!currentItem || !incomingFiles.length) return;
