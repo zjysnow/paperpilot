@@ -3128,22 +3128,21 @@
 
 .paperpilot-user-selected-text {
   align-self: flex-end;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  width: clamp(140px, 46%, 320px);
-  max-width: 100%;
+  width: auto;
+  max-width: max-content;
   padding: 3px 8px;
   margin: 0;
   border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fill-quinary) 72%, transparent);
   color: var(--fill-secondary);
   text-align: left;
   cursor: pointer;
-  font-size: var(--paperpilot-fs-12);
-  line-height: 1.25;
+  font-size: var(--paperpilot-fs-10);
+  line-height: 1.15;
   overflow: hidden;
 }
 
@@ -3169,7 +3168,7 @@
 }
 
 .paperpilot-user-selected-text-content {
-  display: block;
+  display: none;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -3182,7 +3181,8 @@
 
 .paperpilot-user-selected-text-expanded {
   align-self: flex-end;
-  width: min(95%, 620px);
+  width: 20em;
+  max-width: calc(100vw - 24px);
   max-height: 220px;
   overflow: auto;
   padding: 8px 10px;
@@ -3600,8 +3600,6 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
-.paperpilot-message-wrapper.user.paperpilot-user-context-aligned
-  .paperpilot-user-selected-text,
 .paperpilot-message-wrapper.user.paperpilot-user-context-aligned
   .paperpilot-user-selected-text-expanded,
 .paperpilot-message-wrapper.user.paperpilot-user-context-aligned

@@ -874,6 +874,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       let tagsExpanded: HTMLDivElement | null = null;
       let filesExpanded: HTMLDivElement | null = null;
       let paperAttachmentsExpanded: HTMLDivElement | null = null;
+      let collapseSelectedTextExpansions = () => {};
       const collapseOtherContextExpansions = (
         active:
           | "screenshots"
@@ -881,7 +882,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           | "tags"
           | "papers"
           | "paperAttachments"
-          | "files",
+          | "files"
+          | "selectedText",
       ) => {
         const collapse = (element: HTMLDivElement | null) => {
           if (!element) return;
@@ -911,6 +913,9 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         if (active !== "files") {
           msg.attachmentsExpanded = false;
           collapse(filesExpanded);
+        }
+        if (active !== "selectedText") {
+          collapseSelectedTextExpansions();
         }
       };
       const selectedTexts = getMessageSelectedTexts(msg);
@@ -1666,11 +1671,10 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           selectedBar.className = "paperpilot-user-selected-text";
           selectedBar.dataset.contextSource = selectedSource;
 
-          // const selectedIcon = createSelectedTextSourceIcon(
-          //   doc,
-          //   selectedSource,
-          //   "paperpilot-user-selected-text-icon",
-          // );
+          const selectedIcon = doc.createElement("span") as HTMLSpanElement;
+          selectedIcon.className =
+            "paperpilot-context-svg-icon paperpilot-context-icon-text paperpilot-user-selected-text-icon";
+          selectedIcon.setAttribute("aria-hidden", "true");
 
           const selectedContent = doc.createElement("span") as HTMLSpanElement;
           selectedContent.className = "paperpilot-user-selected-text-content";
@@ -1684,8 +1688,8 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             ? `${selectedTextPaperLabel}\n\n${selectedText}`
             : selectedText;
 
-          // selectedBar.append(selectedIcon, selectedContent);
-          selectedBar.append(selectedContent);
+          selectedContent.setAttribute("aria-hidden", "true");
+          selectedBar.append(selectedIcon, selectedContent);
           const applySelectedTextState = () => {
             const expanded = selectedTextExpandedIndex === contextIndex;
             selectedBar.classList.toggle("expanded", expanded);
@@ -1701,11 +1705,17 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           };
           const toggleSelectedTextExpanded = () => {
             mutateChatWithScrollGuard(() => {
+              collapseOtherContextExpansions("selectedText");
               selectedTextExpandedIndex =
                 selectedTextExpandedIndex === contextIndex ? -1 : contextIndex;
               syncSelectedTextExpandedState();
               renderSelectedTextStates();
             });
+          };
+          collapseSelectedTextExpansions = () => {
+            selectedTextExpandedIndex = -1;
+            syncSelectedTextExpandedState();
+            renderSelectedTextStates();
           };
           applySelectedTextStates.push(applySelectedTextState);
           selectedBar.addEventListener("mousedown", (e: Event) => {
@@ -1725,7 +1735,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             e.stopPropagation();
             toggleSelectedTextExpanded();
           });
-          wrapper.appendChild(selectedBar);
+          contextBadgesRow.appendChild(selectedBar);
           wrapper.appendChild(selectedExpanded);
         });
         renderSelectedTextStates();
