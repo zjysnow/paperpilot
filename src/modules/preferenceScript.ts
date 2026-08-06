@@ -12,6 +12,7 @@ import {
 } from "./contextPanel/prefHelpers";
 import {
   getModelProviderGroups,
+  normalizeModelProviderGroups,
   refreshOllamaProviderModels,
 } from "../utils/modelProviders";
 
@@ -194,11 +195,16 @@ export async function registerPrefsScripts(window: Window | undefined | null) {
           ],
         });
       }
-      modelProviderGroupsInput.value = JSON.stringify(groups, null, 2);
+      const normalizedGroups = normalizeModelProviderGroups(groups);
+      modelProviderGroupsInput.value = JSON.stringify(
+        normalizedGroups,
+        null,
+        2,
+      );
       setStringPref(modelProviderGroupsPrefKey, modelProviderGroupsInput.value);
       if (providerStatus) {
         providerStatus.textContent = hasOllama
-          ? "An Ollama provider is already configured."
+          ? "Ollama provider configuration saved."
           : "Ollama provider added. Save or reopen the chat panel to load it.";
       }
     });

@@ -63,6 +63,22 @@ describe("Ollama provider configuration", () => {
     );
   });
 
+  it("drops legacy remote groups when preferences are normalized", () => {
+    const groups = normalizeModelProviderGroups([
+      {
+        id: "openai-legacy",
+        apiBase: "https://api.openai.com/v1",
+        apiKey: "must-not-survive",
+        models: [{ id: "remote-model", model: "gpt-4" }],
+      },
+      ollamaGroup("local", "http://127.0.0.1:11434/v1"),
+    ]);
+
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0]?.id, "local");
+    assert.equal(groups[0]?.apiKey, "");
+  });
+
   it("normalizes unsupported protocols to Ollama chat", () => {
     assert.equal(
       normalizeProviderProtocol("responses_api"),
