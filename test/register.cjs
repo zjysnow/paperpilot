@@ -7,3 +7,6 @@ globalThis.Zotero = {
   },
   HTTP: {},
 };
+globalThis.ztoolkit = {
+  log() {},
+};

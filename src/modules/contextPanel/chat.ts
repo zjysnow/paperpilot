@@ -346,6 +346,7 @@ function extractStreamDelta(payload: unknown): string {
   const value = payload as {
     type?: unknown;
     delta?: unknown;
+    done?: unknown;
     message?: { content?: unknown };
     choices?: Array<{ delta?: { content?: unknown } }>;
   };
@@ -362,14 +363,14 @@ function extractStreamDelta(payload: unknown): string {
   return typeof content === "string" ? content : "";
 }
 
-type ProviderStreamState = {
+export type OllamaStreamState = {
   buffer: string;
   result: string;
   finished: boolean;
 };
 
-function consumeProviderStreamChunk(
-  state: ProviderStreamState,
+export function consumeOllamaStreamChunk(
+  state: OllamaStreamState,
   chunk: string,
   onDelta: (text: string) => void,
   flush = false,
@@ -389,7 +390,12 @@ function consumeProviderStreamChunk(
       continue;
     }
     try {
-      const delta = extractStreamDelta(JSON.parse(data));
+      const payload = JSON.parse(data) as {
+        done?: unknown;
+        [key: string]: unknown;
+      };
+      if (payload.done === true) state.finished = true;
+      const delta = extractStreamDelta(payload);
       if (delta) {
         state.result += delta;
         onDelta(delta);
@@ -466,7 +472,7 @@ export async function sendQuestion(
     });
     ztoolkit.log("Paper Pilot: Making HTTP request to", endpoint);
     {
-      const streamState: ProviderStreamState = {
+      const streamState: OllamaStreamState = {
         buffer: "",
         result: "",
         finished: false,
@@ -483,7 +489,7 @@ export async function sendQuestion(
               processedResponseLength,
             );
             processedResponseLength = request.responseText.length;
-            consumeProviderStreamChunk(streamState, nextText, (delta) => {
+            consumeOllamaStreamChunk(streamState, nextText, (delta) => {
               assistant.text += delta;
               refreshChat(options.body, options.item);
             });
@@ -494,7 +500,7 @@ export async function sendQuestion(
         },
       });
       const remainingText = xhr.responseText.slice(processedResponseLength);
-      consumeProviderStreamChunk(
+      consumeOllamaStreamChunk(
         streamState,
         remainingText,
         (delta) => {

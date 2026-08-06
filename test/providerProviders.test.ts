@@ -15,6 +15,7 @@ import {
 } from "../src/utils/providerProtocol";
 import {
   buildOllamaRequestBody,
+  consumeOllamaStreamChunk,
   resolveOllamaEndpoint,
 } from "../src/modules/contextPanel/chat";
 
@@ -140,5 +141,40 @@ describe("Ollama provider configuration", () => {
       resolveOllamaEndpoint("http://localhost:11434/v1"),
       "http://localhost:11434/api/chat",
     );
+  });
+
+  it("parses Ollama JSON lines across split network chunks", () => {
+    const state = { buffer: "", result: "", finished: false };
+    const deltas: string[] = [];
+
+    consumeOllamaStreamChunk(state, '{"message":{"content":"Hel', (delta) =>
+      deltas.push(delta),
+    );
+    consumeOllamaStreamChunk(
+      state,
+      'lo"},"done":false}\n{"message":{"content":"!"},"done":true}\n',
+      (delta) => deltas.push(delta),
+    );
+
+    assert.deepEqual(deltas, ["Hello", "!"]);
+    assert.equal(state.result, "Hello!");
+    assert.equal(state.finished, true);
+    assert.equal(state.buffer, "");
+  });
+
+  it("accepts SSE data prefixes and ignores malformed events", () => {
+    const state = { buffer: "", result: "", finished: false };
+    const deltas: string[] = [];
+
+    consumeOllamaStreamChunk(
+      state,
+      'data: {"message":{"content":"ok"}}\ndata: not-json\ndata: [DONE]\n',
+      (delta) => deltas.push(delta),
+      true,
+    );
+
+    assert.deepEqual(deltas, ["ok"]);
+    assert.equal(state.result, "ok");
+    assert.equal(state.finished, true);
   });
 });
