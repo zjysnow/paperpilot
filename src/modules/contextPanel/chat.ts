@@ -912,9 +912,11 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         screenshotLabel.textContent = `(${screenshotImages.length})`;
         screenshotLabel.setAttribute("aria-label", formatFigureCountLabel(screenshotImages.length));
 
-        const screenshotIcon = doc.createElement("span") as HTMLSpanElement;
+        const screenshotIcon = doc.createElement("img") as HTMLImageElement;
         screenshotIcon.className =
           "paperpilot-user-attachment-icon paperpilot-user-screenshots-icon";
+        screenshotIcon.src = "icons/action-screenshot.svg";
+        screenshotIcon.alt = "";
         screenshotIcon.setAttribute("aria-hidden", "true");
         screenshotBar.append(screenshotIcon, screenshotLabel);
 
@@ -1252,9 +1254,11 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         papersLabel.title = displayPaperContexts
           .map((entry) => entry.title)
           .join("\n");
-        const papersIcon = doc.createElement("span") as HTMLSpanElement;
+        const papersIcon = doc.createElement("img") as HTMLImageElement;
         papersIcon.className =
           "paperpilot-user-attachment-icon paperpilot-user-papers-icon";
+        papersIcon.src = "icons/action-papers.svg";
+        papersIcon.alt = "";
         papersIcon.setAttribute("aria-hidden", "true");
         papersBar.append(papersIcon, papersLabel);
 
@@ -1347,11 +1351,16 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           formatAttachmentKindCountLabel(kind, attachments.length),
         );
         badge.title = attachments.map((entry) => entry.name).join("\n");
-        const icon = doc.createElement("span");
+        const icon = doc.createElement("img") as HTMLImageElement;
         icon.className =
           kind === "Paper"
             ? "paperpilot-user-attachment-icon paperpilot-user-papers-icon"
             : "paperpilot-user-attachment-icon paperpilot-user-screenshots-icon";
+        icon.src =
+          kind === "Paper"
+            ? "icons/action-papers.svg"
+            : "icons/action-screenshot.svg";
+        icon.alt = "";
         icon.setAttribute("aria-hidden", "true");
         const label = doc.createElement("span");
         label.className =

@@ -3430,20 +3430,8 @@
   flex: 0 0 auto;
   width: 13px;
   height: 13px;
-  background-color: currentColor;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
-}
-
-.paperpilot-user-papers-icon {
-  mask: url("icons/action-papers.svg") center / contain no-repeat;
-  -webkit-mask: url("icons/action-papers.svg") center / contain no-repeat;
-}
-
-.paperpilot-user-screenshots-icon {
-  mask: url("icons/action-screenshot.svg") center / contain no-repeat;
-  -webkit-mask: url("icons/action-screenshot.svg") center / contain no-repeat;
+  object-fit: contain;
+  opacity: 0.9;
 }
 
 .paperpilot-user-papers-label {
@@ -3666,6 +3654,7 @@
   min-height: var(--paperpilot-screenshot-thumb-size);
   max-height: var(--paperpilot-screenshot-thumb-size);
   aspect-ratio: 1 / 1;
+  box-sizing: border-box;
   overflow: hidden;
   cursor: pointer;
   line-height: 0;
