@@ -1268,28 +1268,17 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
           const paperTitle = doc.createElement("span") as HTMLSpanElement;
           paperTitle.className = "paperpilot-user-papers-item-title";
-          paperTitle.textContent = paperContext.title;
-          paperTitle.title = paperContext.title;
+          const attachmentTitle =
+            paperContext.attachmentTitle || paperContext.title || "PDF";
+          paperTitle.textContent = attachmentTitle;
+          paperTitle.title = attachmentTitle;
 
           const paperMeta = doc.createElement("span") as HTMLSpanElement;
           paperMeta.className = "paperpilot-user-papers-item-meta";
-          const metaParts = [
-            paperContext.firstCreator || "",
-            paperContext.year || "",
-          ].filter(Boolean);
-          paperMeta.textContent = metaParts.join(", ") || "Supplemental paper";
+          paperMeta.textContent = "application/pdf";
           paperMeta.title = paperMeta.textContent;
 
-          const attachmentTitle = paperContext.attachmentTitle || "";
-          const paperAttachment = doc.createElement("span") as HTMLSpanElement;
-          paperAttachment.className = "paperpilot-user-papers-item-attachment";
-          paperAttachment.textContent = attachmentTitle;
-          paperAttachment.title = attachmentTitle;
-
           paperItem.append(paperTitle, paperMeta);
-          if (attachmentTitle) {
-            paperItem.appendChild(paperAttachment);
-          }
           papersList.appendChild(paperItem);
         }
         papersExpandedEl.appendChild(papersList);
