@@ -16,4 +16,4 @@ const preferenceSource = fs.readFileSync(
 assert.match(providerSource, /id: "ollama"/);
 assert.doesNotMatch(providerSource, /id: "openai"/);
 assert.match(preferenceSource, /add-ollama-provider/);
-console.log("Workflow smoke tests passed.");
+globalThis.console.log("Workflow smoke tests passed.");

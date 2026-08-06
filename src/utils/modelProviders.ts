@@ -140,6 +140,7 @@ export async function refreshOllamaProviderModels(): Promise<number> {
     } catch (error) {
       throw new Error(
         `Ollama model discovery failed: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
       );
     }
   }
@@ -293,7 +294,7 @@ function parseStoredModelProviderGroups(raw: string): ModelProviderGroup[] {
   if (!raw.trim()) return [];
   try {
     return normalizeModelProviderGroups(JSON.parse(raw));
-  } catch (_err) {
+  } catch {
     return [];
   }
 }
@@ -313,7 +314,7 @@ function extractProviderHost(apiBase: string): string {
   try {
     const parsed = new URL(normalizedBase);
     return parsed.hostname.trim().toLowerCase();
-  } catch (_err) {
+  } catch {
     const fallback = normalizedBase
       .replace(/^[a-z]+:\/\//i, "")
       .split("/")[0]

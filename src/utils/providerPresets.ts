@@ -38,7 +38,7 @@ function parseApiBase(apiBase: string): ParsedApiBase | null {
       hostname: parsed.hostname.trim().toLowerCase(),
       pathname: parsed.pathname.replace(/\/+$/, "") || "/",
     };
-  } catch (_err) {
+  } catch {
     return null;
   }
 }
