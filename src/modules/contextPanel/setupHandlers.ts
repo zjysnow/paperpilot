@@ -1433,11 +1433,20 @@ export function setupHandlers(
           paperModeContext.replaceChildren();
         }
         for (const attachment of globalFiles) {
+          const paperTitle = attachment.name
+            .replace(/\s+-\s+Text$/i, "")
+            .trim();
           const chip = createElement(
             panelDoc,
             "div",
-            "paperpilot-selected-context paperpilot-paper-context-chip paperpilot-paper-context-chip-text",
+            "paperpilot-selected-context paperpilot-paper-context-chip paperpilot-paper-context-chip-pdf",
           );
+          chip.dataset.contentSource = "pdf";
+          chip.dataset.paperContextItemId = attachment.id.replace(
+            "global-paper-",
+            "",
+          );
+          chip.title = paperTitle;
           const header = createElement(
             panelDoc,
             "div",
@@ -1506,6 +1515,26 @@ export function setupHandlers(
           clear.addEventListener("command", removeGlobalAttachment);
           label.append(icon, text);
           header.append(label, clear);
+          const expanded = createElement(
+            panelDoc,
+            "div",
+            "paperpilot-selected-context-expanded paperpilot-paper-context-chip-expanded",
+          );
+          expanded.append(
+            createElement(
+              panelDoc,
+              "div",
+              "paperpilot-paper-chip-preview-title",
+              { textContent: paperTitle },
+            ),
+            createElement(
+              panelDoc,
+              "div",
+              "paperpilot-paper-chip-preview-meta",
+              { textContent: "PDF - Text" },
+            ),
+          );
+          chip.append(expanded);
           chip.append(header);
           paperModeContext.appendChild(chip);
         }
