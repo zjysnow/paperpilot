@@ -34,6 +34,7 @@ assert.match(panelSource, /Reasoning controls are not supported by Ollama yet/);
 assert.match(chatSource, /paperAttachmentsExpanded/);
 assert.match(chatSource, /paperpilot-user-papers-icon/);
 assert.match(chatSource, /paperpilot-user-screenshots-icon/);
+assert.match(chatSource, /paperpilot-context-icon-text/);
 assert.match(chatSource, /creatorLabel/);
 assert.match(chatSource, /year/);
 assert.match(chatSource, /collapseOtherContextExpansions/);

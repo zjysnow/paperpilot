@@ -1493,17 +1493,24 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           "button",
         ) as HTMLButtonElement;
         filesBar.type = "button";
-        filesBar.className = "paperpilot-user-files-bar";
+        filesBar.className =
+          "paperpilot-user-files-bar paperpilot-user-screenshots-bar paperpilot-user-attachment-kind-bar";
 
-        // const filesIcon = createContextIcon(doc, "file", "paperpilot-user-files-icon");
+        const filesIcon = doc.createElement("span") as HTMLSpanElement;
+        filesIcon.className =
+          "paperpilot-context-svg-icon paperpilot-context-icon-text paperpilot-user-screenshots-icon";
+        filesIcon.setAttribute("aria-hidden", "true");
 
         const filesLabel = doc.createElement("span") as HTMLSpanElement;
         filesLabel.className = "paperpilot-user-files-label";
-        filesLabel.textContent = `Files (${fileAttachments.length})`;
+        filesLabel.textContent = "";
+        filesLabel.setAttribute(
+          "aria-label",
+          `Text content (${fileAttachments.length})`,
+        );
         filesLabel.title = fileAttachments.map((f) => f.name).join("\n");
 
-        // filesBar.append(filesIcon, filesLabel);
-        filesBar.append(filesLabel);
+        filesBar.append(filesIcon, filesLabel);
 
         const filesExpandedEl = doc.createElement("div") as HTMLDivElement;
         filesExpandedEl.className = "paperpilot-user-files-expanded";
