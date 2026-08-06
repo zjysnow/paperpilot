@@ -3197,14 +3197,14 @@
 }
 
 .paperpilot-user-context-badges {
-  align-self: flex-end;
+  align-self: flex-start;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 6px;
   width: auto;
-  max-width: min(95%, 620px);
+  max-width: 100%;
 }
 
 .paperpilot-user-attachment-kind-group {

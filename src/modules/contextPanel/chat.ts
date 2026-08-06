@@ -873,6 +873,46 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
       let collectionsExpanded: HTMLDivElement | null = null;
       let tagsExpanded: HTMLDivElement | null = null;
       let filesExpanded: HTMLDivElement | null = null;
+      let paperAttachmentsExpanded: HTMLDivElement | null = null;
+      const collapseOtherContextExpansions = (
+        active:
+          | "screenshots"
+          | "collections"
+          | "tags"
+          | "papers"
+          | "paperAttachments"
+          | "files",
+      ) => {
+        const collapse = (element: HTMLDivElement | null) => {
+          if (!element) return;
+          element.hidden = true;
+          element.style.display = "none";
+        };
+        if (active !== "screenshots") {
+          msg.screenshotExpanded = false;
+          collapse(screenshotExpanded);
+        }
+        if (active !== "collections") {
+          msg.collectionContextsExpanded = false;
+          collapse(collectionsExpanded);
+        }
+        if (active !== "tags") {
+          msg.tagContextsExpanded = false;
+          collapse(tagsExpanded);
+        }
+        if (active !== "papers") {
+          msg.paperContextsExpanded = false;
+          collapse(papersExpanded);
+        }
+        if (active !== "paperAttachments") {
+          msg.paperAttachmentsExpanded = false;
+          collapse(paperAttachmentsExpanded);
+        }
+        if (active !== "files") {
+          msg.attachmentsExpanded = false;
+          collapse(filesExpanded);
+        }
+      };
       const selectedTexts = getMessageSelectedTexts(msg);
       const selectedTextSources = normalizeSelectedTextSources(
         msg.selectedTextSources,
@@ -954,6 +994,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             e.preventDefault();
             e.stopPropagation();
             mutateChatWithScrollGuard(() => {
+              collapseOtherContextExpansions("screenshots");
               msg.screenshotActiveIndex = index;
               if (!msg.screenshotExpanded) {
                 msg.screenshotExpanded = true;
@@ -1004,6 +1045,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
 
         const toggleScreenshotsExpanded = () => {
           mutateChatWithScrollGuard(() => {
+            collapseOtherContextExpansions("screenshots");
             msg.screenshotExpanded = !msg.screenshotExpanded;
             applyScreenshotState();
           });
@@ -1101,6 +1143,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             : "Expand collections";
         };
         const toggleCollectionsExpanded = () => {
+          collapseOtherContextExpansions("collections");
           msg.collectionContextsExpanded = !msg.collectionContextsExpanded;
           applyCollectionsState();
         };
@@ -1185,6 +1228,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           tagsBar.title = expanded ? "Collapse tags" : "Expand tags";
         };
         const toggleTagsExpanded = () => {
+          collapseOtherContextExpansions("tags");
           msg.tagContextsExpanded = !msg.tagContextsExpanded;
           applyTagsState();
         };
@@ -1292,6 +1336,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           papersBar.title = expanded ? "Collapse papers" : "Expand papers";
         };
         const togglePapersExpanded = () => {
+          collapseOtherContextExpansions("papers");
           msg.paperContextsExpanded = !msg.paperContextsExpanded;
           applyPapersState();
         };
@@ -1351,6 +1396,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
         if (kind === "Paper") {
           const expandedEl = doc.createElement("div") as HTMLDivElement;
           expandedEl.className = "paperpilot-user-papers-expanded";
+          paperAttachmentsExpanded = expandedEl;
           const list = doc.createElement("div") as HTMLDivElement;
           list.className = "paperpilot-user-papers-list";
           for (const attachment of attachments) {
@@ -1381,6 +1427,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
             badge.title = expanded ? "Collapse papers" : "Show papers";
           };
           const toggle = () => {
+            collapseOtherContextExpansions("paperAttachments");
             msg.paperAttachmentsExpanded = !msg.paperAttachmentsExpanded;
             applyState();
           };
@@ -1518,6 +1565,7 @@ export function refreshChat(body: Element, item?: Zotero.Item | null) {
           filesBar.title = expanded ? "Collapse files" : "Expand files";
         };
         const toggleFilesExpanded = () => {
+          collapseOtherContextExpansions("files");
           msg.attachmentsExpanded = !msg.attachmentsExpanded;
           applyFilesState();
         };
