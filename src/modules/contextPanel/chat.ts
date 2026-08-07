@@ -134,29 +134,19 @@ type SendQuestionOptions = {
   modelEntry?: RuntimeModelEntry;
 };
 
+type OpenAIMessage = {
+  role: "system" | Message["role"];
+  content: string | ChatMessageContentPart[];
+};
+
 type ChatMessageContentPart =
   | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string } };
-
-function chatContentToOllamaText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((part) =>
-      part &&
-      typeof part === "object" &&
-      "text" in part &&
-      typeof part.text === "string"
-        ? part.text
-        : "[image attachment]",
-    )
-    .join("\n");
-}
+  | { type: "image_url"; image_url: { url: string; detail: "high" } };
 
 export function resolveOllamaEndpoint(apiBase: string): string {
   const normalized = apiBase.trim();
   if (!normalized) throw new Error("The selected model has no API URL.");
-  return `${new URL(normalized).origin}/api/chat`;
+  return `${new URL(normalized).origin}/v1/chat/completions`;
 }
 
 export function buildOllamaRequestBody(params: {
@@ -169,34 +159,25 @@ export function buildOllamaRequestBody(params: {
 }): {
   model: string;
   stream: true;
-  think: false;
-  messages: Array<{ role: "system" | Message["role"]; content: string }>;
-  options: { temperature: number; num_predict: number };
+  messages: OpenAIMessage[];
+  temperature: number;
+  max_tokens: number;
 } {
   const priorMessages = params.history
     .filter((message) => !message.streaming)
-    .map((message) => ({
-      role: message.role,
-      content: chatContentToOllamaText(buildChatContent(message)),
-    }));
+    .map(buildOpenAIMessage);
   return {
     model: params.model,
     stream: true,
-    think: false,
     messages: [
       ...(params.systemPrompt?.trim()
         ? [{ role: "system" as const, content: params.systemPrompt.trim() }]
         : []),
       ...priorMessages,
-      {
-        role: "user",
-        content: chatContentToOllamaText(buildChatContent(params.message)),
-      },
+      buildOpenAIMessage(params.message),
     ],
-    options: {
-      temperature: params.temperature,
-      num_predict: params.maxTokens,
-    },
+    temperature: params.temperature,
+    max_tokens: params.maxTokens,
   };
 }
 
@@ -323,23 +304,29 @@ function buildUserPrompt(message: Message): string {
     : withAttachments;
 }
 
-function buildChatContent(message: Message): string | ChatMessageContentPart[] {
+function buildOpenAIMessage(message: Message): OpenAIMessage {
   const prompt = buildUserPrompt(message);
   const parts: ChatMessageContentPart[] = [{ type: "text", text: prompt }];
   for (const image of message.screenshotImages || []) {
     if (image.trim()) {
-      parts.push({ type: "image_url", image_url: { url: image } });
+      parts.push({
+        type: "image_url",
+        image_url: { url: image.trim(), detail: "high" },
+      });
     }
   }
   for (const attachment of message.attachments || []) {
     if (attachment.imageDataUrl?.trim()) {
       parts.push({
         type: "image_url",
-        image_url: { url: attachment.imageDataUrl },
+        image_url: { url: attachment.imageDataUrl.trim(), detail: "high" },
       });
     }
   }
-  return parts.length === 1 ? prompt : parts;
+  return {
+    role: message.role,
+    content: parts.length === 1 ? prompt : parts,
+  };
 }
 
 function extractStreamDelta(payload: unknown): string {

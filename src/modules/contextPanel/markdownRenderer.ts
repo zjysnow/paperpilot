@@ -60,12 +60,27 @@ function renderMathInMarkdown(markdown: string): string {
  * Convert markdown text to HTML
  */
 export function markdownToHtml(markdown: string, doc?: Document): string {
+  let html: string;
   try {
     // Use a fresh parser for each completed render. Marked attaches parser
     // state to its renderer, and chat refreshes can happen during streaming.
-    const html = createMarkdownParser().parse(
+    html = createMarkdownParser().parse(
       renderMathInMarkdown(markdown),
     ) as string;
+  } catch (error) {
+    console.warn(
+      "Markdown math preprocessing failed; retrying raw Markdown",
+      error,
+    );
+    try {
+      html = createMarkdownParser().parse(markdown) as string;
+    } catch (parseError) {
+      console.error("Markdown parse error:", parseError);
+      return `<p class="paperpilot-paragraph">${escapeHtml(markdown)}</p>`;
+    }
+  }
+
+  try {
     const temp = (doc || document).implementation.createHTMLDocument("");
     temp.body.innerHTML = html;
     temp.body.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((heading) => {
@@ -114,8 +129,10 @@ export function markdownToHtml(markdown: string, doc?: Document): string {
       .forEach((image) => image.classList.add("paperpilot-image"));
     return temp.body.innerHTML;
   } catch (error) {
-    console.error("Markdown parse error:", error);
-    return `<p class="paperpilot-paragraph">${escapeHtml(markdown)}</p>`;
+    // Keep the parsed Markdown if Zotero's document implementation does not
+    // support one of the optional decoration APIs.
+    console.warn("Markdown decoration error:", error);
+    return html;
   }
 }
 
@@ -130,17 +147,9 @@ export function renderMarkdownInto(
   try {
     element.classList.add("paperpilot-rendered-markdown");
     const html = markdownToHtml(markdown, _doc || element.ownerDocument);
-    // Create a temporary container to parse the HTML
-    const temp = element.ownerDocument.createElement("div");
-    temp.innerHTML = html;
-
-    // Clear the target element
-    element.innerHTML = "";
-
-    // Move all children from temp to element
-    while (temp.firstChild) {
-      element.appendChild(temp.firstChild);
-    }
+    // Assign the serialized HTML directly to avoid moving nodes across the
+    // temporary document used by markdownToHtml.
+    element.innerHTML = html;
   } catch (error) {
     console.error("Markdown render error:", error);
     element.textContent = markdown;

@@ -100,7 +100,7 @@ describe("Ollama provider configuration", () => {
     assert.equal(`${base.origin}/api/tags`, "http://localhost:11434/api/tags");
   });
 
-  it("builds a native streaming chat request", () => {
+  it("builds an OpenAI-compatible streaming vision request", () => {
     const body = buildOllamaRequestBody({
       model: "llama3.2",
       systemPrompt: "Be concise.",
@@ -109,6 +109,7 @@ describe("Ollama provider configuration", () => {
           role: "user",
           text: "Previous question",
           timestamp: 1,
+          screenshotImages: ["data:image/png;base64, cHJldmlvdXM="],
         },
         {
           role: "assistant",
@@ -120,26 +121,51 @@ describe("Ollama provider configuration", () => {
         role: "user",
         text: "Current question",
         timestamp: 3,
+        screenshotImages: ["data:image/png;base64,Y3VycmVudA=="],
       },
       temperature: 0.4,
       maxTokens: 1024,
     });
 
     assert.equal(body.stream, true);
-    assert.equal(body.think, false);
     assert.deepEqual(body.messages, [
       { role: "system", content: "Be concise." },
-      { role: "user", content: "Previous question" },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Previous question" },
+          {
+            type: "image_url",
+            image_url: {
+              url: "data:image/png;base64, cHJldmlvdXM=",
+              detail: "high",
+            },
+          },
+        ],
+      },
       { role: "assistant", content: "Previous answer" },
-      { role: "user", content: "Current question" },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Current question" },
+          {
+            type: "image_url",
+            image_url: {
+              url: "data:image/png;base64,Y3VycmVudA==",
+              detail: "high",
+            },
+          },
+        ],
+      },
     ]);
-    assert.deepEqual(body.options, { temperature: 0.4, num_predict: 1024 });
+    assert.equal(body.temperature, 0.4);
+    assert.equal(body.max_tokens, 1024);
   });
 
-  it("resolves any Ollama base URL to the native chat endpoint", () => {
+  it("resolves any Ollama base URL to the OpenAI-compatible chat endpoint", () => {
     assert.equal(
       resolveOllamaEndpoint("http://localhost:11434/v1"),
-      "http://localhost:11434/api/chat",
+      "http://localhost:11434/v1/chat/completions",
     );
   });
 
