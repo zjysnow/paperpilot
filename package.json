@@ -1,24 +1,24 @@
 {
-  "name": "llm-for-zotero",
+  "name": "Paper Pilot",
   "type": "module",
   "version": "3.8.31",
   "description": "AI research agent rooted in your Zotero library",
   "config": {
-    "addonName": "llm-for-zotero",
-    "addonID": "zotero-llm@github.com.yilewang",
-    "addonRef": "llmforzotero",
-    "addonInstance": "LLMForZotero",
-    "prefsPrefix": "extensions.zotero.llmforzotero"
+    "addonName": "paperpilot",
+    "addonID": "paperpilot.zjysnow",
+    "addonRef": "paperpilot",
+    "addonInstance": "PaperPilot",
+    "prefsPrefix": "extensions.zotero.paperpilot"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yilewang/llm-for-zotero.git"
+    "url": "git+https://github.com/zjysnow/paperpilot.git"
   },
   "author": "Yile Wang",
   "bugs": {
-    "url": "https://github.com/yilewang/llm-for-zotero/issues"
+    "url": "https://github.com/zjysnow/paperpilot/issues"
   },
-  "homepage": "https://github.com/yilewang/llm-for-zotero#readme",
+  "homepage": "https://github.com/zjysnow/paperpilot#readme",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "start": "zotero-plugin serve",
