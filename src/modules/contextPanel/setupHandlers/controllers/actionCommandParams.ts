@@ -1,10 +1,4 @@
-import {
-  type ActionRequestContext,
-  resolvePaperScopedCommandInput,
-  type PaperScopedActionCollectionCandidate,
-  type PaperScopedActionProfile,
-  type PaperScopedActionTagCandidate,
-} from "../../../../agent/actions";
+
 
 export type ActionChatMode = "paper" | "library";
 export type InlineActionCommand = {
@@ -18,13 +12,6 @@ const PAGED_LIBRARY_ACTION_NAMES = new Set([
   "auto_tag",
 ]);
 const DEFAULT_PAGED_ACTION_PAGE_SIZE = 20;
-const PAGED_COLLECTION_SCOPE_PROFILE: PaperScopedActionProfile = {
-  targetMode: "multi",
-  allowedScopes: ["collection"],
-  defaultEmptyInput: "prompt",
-  paperRequirement: "bibliographic",
-  supportsLimit: false,
-};
 
 type PagedActionCollectionClause = {
   query: string;
@@ -33,7 +20,7 @@ type PagedActionCollectionClause = {
 type ScopedActionIntentCandidate = {
   name: string;
   inputSchema: object;
-  paperScopeProfile?: PaperScopedActionProfile;
+  //paperScopeProfile?: PaperScopedActionProfile;
 };
 
 export type ActionIntentResolution =

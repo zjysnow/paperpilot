@@ -1,8 +1,4 @@
-import { getAgentApi } from "../../../../agent";
-import type {
-  ActionProgressEvent,
-  ActionRequestContext,
-} from "../../../../agent/actions";
+
 import type { ModelProviderAuthMode } from "../../../../utils/modelProviders";
 import type { ProviderProtocol } from "../../../../utils/providerProtocol";
 import {

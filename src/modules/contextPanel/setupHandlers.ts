@@ -306,13 +306,7 @@ import {
   type PaperScopedActionCollectionCandidate,
   type PaperScopedActionProfile,
 } from "./paperScopeCommand";
-import { getAgentApi, initAgentSubsystem } from "../../agent/index";
-import type { ActionRequestContext } from "../../agent/actions";
-import { renderPendingActionCard } from "./agentTrace/render";
-import type {
-  AgentPendingAction,
-  AgentConfirmationResolution,
-} from "../../agent/types";
+
 import {
   createGlobalPortalItem,
   createPaperPortalItem,
@@ -5794,9 +5788,9 @@ export function setupHandlers(
     resolvePdfPaperAttachments: pdfPaperResolver.resolvePdfPaperAttachments,
     resolveLocalPdfResources: localPdfResourceResolver.resolve,
     preflightLocalPdfCapability: async () => {
-      const { preflightClaudeBridgeLocalPdfCapability } =
-        await import("../../agent/externalBackendBridge");
-      await preflightClaudeBridgeLocalPdfCapability();
+      // const { preflightClaudeBridgeLocalPdfCapability } =
+      //   await import("../../agent/externalBackendBridge");
+      // await preflightClaudeBridgeLocalPdfCapability();
     },
     renderPdfPagesAsImages: pdfPaperResolver.renderPdfPagesAsImages,
     getModelPdfSupport: (modelName, protocol, authMode, apiBase, inputMode) =>

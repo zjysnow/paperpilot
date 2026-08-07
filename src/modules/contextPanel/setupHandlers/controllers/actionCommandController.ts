@@ -1,20 +1,13 @@
-import type { AgentSkill } from "../../../../agent/skills/skillLoader";
-import { getAgentApi, initAgentSubsystem } from "../../../../agent";
-import type { ActionRequestContext } from "../../../../agent/actions";
+
 import { createElement } from "../../../../utils/domHelpers";
 import { callLLM } from "../../../../utils/llmClient";
 import type { ModelProviderAuthMode } from "../../../../utils/modelProviders";
 import type { ProviderProtocol } from "../../../../utils/providerProtocol";
 import { getAgentModeEnabled } from "../../prefHelpers";
 import { formatActionLabel } from "../../actionStatusText";
-import { renderPendingActionCard } from "../../agentTrace/render";
+
 import { buildPaperKey } from "../../pdfContext";
-import {
-  resolvePaperScopedCommandInput,
-  type PaperScopedActionCollectionCandidate,
-  type PaperScopedActionProfile,
-  type PaperScopedActionTagCandidate,
-} from "../../paperScopeCommand";
+
 import { resolveDisplayConversationKind } from "../../portalScope";
 import {
   selectedCollectionContextCache,

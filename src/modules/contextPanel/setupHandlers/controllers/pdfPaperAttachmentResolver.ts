@@ -107,8 +107,6 @@ export function createPdfPaperAttachmentResolver(
       return results;
     },
     renderPdfPagesAsImages: async (paperContexts, maxImages) => {
-      const { renderAllPdfPages } =
-        await import("../../../../agent/services/pdfPageService");
       const dataUrls: string[] = [];
       const limit = Math.max(0, Math.floor(maxImages ?? MAX_SELECTED_IMAGES));
       for (const paperContext of paperContexts) {

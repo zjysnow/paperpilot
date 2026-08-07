@@ -1,14 +1,6 @@
 declare const Zotero: any;
 
 import {
-  buildDefaultClaudeGlobalConversationKey,
-  buildDefaultClaudePaperConversationKey,
-} from "../../claudeCode/constants";
-import {
-  buildDefaultCodexGlobalConversationKey,
-  buildDefaultCodexPaperConversationKey,
-} from "../../codexAppServer/constants";
-import {
   conversationRepository,
   type ConversationCatalogEntry,
 } from "../../core/conversations/repository";

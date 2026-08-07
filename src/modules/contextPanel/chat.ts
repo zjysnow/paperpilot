@@ -6167,23 +6167,23 @@ async function renderRetryPdfPaperImages(params: {
     Math.floor(params.maxImages) - params.existingImages.length,
   );
   if (remaining <= 0) return [];
-  const [{ renderAllPdfPages }, { readAttachmentBytes }] = await Promise.all([
-    import("../../agent/services/pdfPageService"),
+  const [{ readAttachmentBytes }] = await Promise.all([
+    // import("../../agent/services/pdfPageService"),
     import("./attachmentStorage"),
   ]);
   const images: string[] = [];
   for (const contextItemId of contextItemIds) {
     if (images.length >= remaining) break;
-    const pages = await renderAllPdfPages(contextItemId, {
-      maxPages: remaining - images.length,
-    });
-    for (const page of pages) {
-      if (images.length >= remaining) break;
-      const bytes = await readAttachmentBytes(page.storedPath);
-      if (bytes.byteLength > 0) {
-        images.push(bytesToDataUrl(bytes, "image/png"));
-      }
-    }
+    // const pages = await renderAllPdfPages(contextItemId, {
+    //   maxPages: remaining - images.length,
+    // });
+    // for (const page of pages) {
+    //   if (images.length >= remaining) break;
+    //   const bytes = await readAttachmentBytes(page.storedPath);
+    //   if (bytes.byteLength > 0) {
+    //     images.push(bytesToDataUrl(bytes, "image/png"));
+    //   }
+    // }
   }
   return images;
 }

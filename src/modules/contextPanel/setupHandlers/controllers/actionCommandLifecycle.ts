@@ -1,15 +1,11 @@
-import { getAgentApi } from "../../../../agent";
-import type {
-  AgentConfirmationResolution,
-  AgentPendingAction,
-} from "../../../../agent/types";
+
 import {
   ACTION_COMPLETION_DISMISS_MS,
   formatActionCompletionCountdown,
   formatActionLabel,
   type ActionCompletionFeedback,
 } from "../../actionStatusText";
-import { renderPendingActionCard } from "../../agentTrace/render";
+
 
 const PAGED_REVIEW_TRANSITION_ACTION_IDS = new Set([
   "next",

@@ -13,7 +13,7 @@ import {
   createStandaloneNoteFromChatHistory,
 } from "../../notes";
 import { isGlobalPortalItem } from "../../portalScope";
-import { isClaudeGlobalPortalItem } from "../../../../claudeCode/portal";
+
 import { positionMenuBelowButton } from "../../menuPositioning";
 import { renderMermaidSourceToSvg } from "../../renderedMarkdown";
 import { getMessageQuoteDisplay } from "../../quoteRenderPlan";
@@ -314,7 +314,6 @@ async function saveResponseTargetAsNoteOnce(
     if (
       deps.isGlobalMode() ||
       isGlobalPortalItem(targetItem) ||
-      isClaudeGlobalPortalItem(targetItem) ||
       targetNoteSession?.noteKind === "standalone"
     ) {
       const libraryID =

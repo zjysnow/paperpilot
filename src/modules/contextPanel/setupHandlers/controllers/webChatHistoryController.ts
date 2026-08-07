@@ -288,21 +288,21 @@ export function createWebChatHistoryController(
     header.appendChild(loadingEl);
     deps.historyMenu.appendChild(header);
 
-    const { getRelayBaseUrl: getHost, relaySetCommand } =
-      await import("../../../../webchat/relayServer");
-    const host = getHost();
-    const {
-      filterWebChatHistorySessionsForHostname,
-      getWebChatHistorySiteSyncEntry,
-      isWebChatHistorySiteFailure,
-      waitForFreshChatHistorySnapshot,
-    } = await import("../../../../webchat/client");
+    // const { getRelayBaseUrl: getHost, relaySetCommand } =
+    //   await import("../../../../webchat/relayServer");
+    // const host = getHost();
+    // const {
+    //   filterWebChatHistorySessionsForHostname,
+    //   getWebChatHistorySiteSyncEntry,
+    //   isWebChatHistorySiteFailure,
+    //   waitForFreshChatHistorySnapshot,
+    // } = await import("../../../../webchat/client");
 
     const requestedAt = Date.now();
     relaySetCommand({ type: "SCRAPE_HISTORY" });
 
-    const { getWebChatTargetByModelName } =
-      await import("../../../../webchat/types");
+    // const { getWebChatTargetByModelName } =
+    //   await import("../../../../webchat/types");
     const { currentModel: historyModel } = deps.getSelectedModelInfo();
     const historyTargetEntry = getWebChatTargetByModelName(historyModel || "");
     const targetHostname = historyTargetEntry?.modelName || null;
@@ -310,18 +310,18 @@ export function createWebChatHistoryController(
     let sessions: WebChatHistorySession[] = [];
     let historyFetchFailed = false;
     try {
-      const snapshot = await waitForFreshChatHistorySnapshot(
-        host,
-        targetHostname,
-        requestedAt,
-      );
-      sessions = filterWebChatHistorySessionsForHostname(
-        snapshot.sessions,
-        targetHostname,
-      );
-      historyFetchFailed = isWebChatHistorySiteFailure(
-        getWebChatHistorySiteSyncEntry(snapshot, targetHostname),
-      );
+      // const snapshot = await waitForFreshChatHistorySnapshot(
+      //   host,
+      //   targetHostname,
+      //   requestedAt,
+      // );
+      // sessions = filterWebChatHistorySessionsForHostname(
+      //   snapshot.sessions,
+      //   targetHostname,
+      // );
+      // historyFetchFailed = isWebChatHistorySiteFailure(
+      //   getWebChatHistorySiteSyncEntry(snapshot, targetHostname),
+      // );
     } catch {
       // Relay not reachable.
     }

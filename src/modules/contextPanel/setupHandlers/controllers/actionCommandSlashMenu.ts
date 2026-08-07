@@ -1,7 +1,4 @@
-import { getAgentApi, initAgentSubsystem } from "../../../../agent";
-import { getAllSkills } from "../../../../agent/skills";
-import type { AgentSkill } from "../../../../agent/skills/skillLoader";
-import { refreshClaudeSlashCommands } from "../../../../claudeCode/runtime";
+
 import { t } from "../../../../utils/i18n";
 import { resolveDisplayConversationKind } from "../../portalScope";
 import { resolveSlashActionChatMode } from "../../slashMenuBehavior";

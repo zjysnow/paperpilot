@@ -62,8 +62,7 @@ import {
 } from "./workflowTestHooks";
 import { dispatchZoteroItemsAsContext } from "./zoteroItemContextMenu";
 import { appendMessage } from "../../utils/chatStore";
-import { appendCodexMessage } from "../../codexAppServer/store";
-import { appendClaudeMessage } from "../../claudeCode/store";
+
 import {
   ensureMarkedReaderSelectionTrackingListener,
   READER_TEXT_SELECTION_POPUP_EVENT,
@@ -74,16 +73,8 @@ import type { RuntimeConversationSystem } from "./runtimeSystemControls";
 import { collectReaderSelectionDocuments } from "./readerSelection";
 import { getReaderContextPanelForTab } from "./readerPopupPanelRouting";
 import type { ConversationSystem } from "../../shared/types";
-import {
-  activeClaudeConversationModeByLibrary,
-  activeClaudeGlobalConversationByLibrary,
-  activeClaudePaperConversationByPaper,
-} from "../../claudeCode/state";
-import {
-  activeCodexConversationModeByLibrary,
-  activeCodexGlobalConversationByLibrary,
-  activeCodexPaperConversationByPaper,
-} from "../../codexAppServer/state";
+
+
 import {
   removeLastUsedUpstreamConversationMode,
   removeLastUsedUpstreamGlobalConversationKey,
