@@ -151,8 +151,8 @@ export function positionPaperPickerForAnchor(params: {
   const ownerDoc = body.ownerDocument;
   const ownerWin = ownerDoc?.defaultView;
   if (!ownerDoc || !ownerWin || !anchor) {
-    paperPicker.classList.remove("llm-paper-picker-below");
-    paperPicker.style.removeProperty("--llm-paper-picker-max-height");
+    paperPicker.classList.remove("paperpilotpaper-picker-below");
+    paperPicker.style.removeProperty("--paperpilotpaper-picker-max-height");
     return;
   }
 
@@ -200,9 +200,9 @@ export function positionPaperPickerForAnchor(params: {
     Math.floor(Math.min(preferredMaxHeight, availableHeight)),
   );
 
-  paperPicker.classList.toggle("llm-paper-picker-below", placeBelow);
+  paperPicker.classList.toggle("paperpilotpaper-picker-below", placeBelow);
   paperPicker.style.setProperty(
-    "--llm-paper-picker-max-height",
+    "--paperpilotpaper-picker-max-height",
     `${maxHeight}px`,
   );
 }
@@ -291,7 +291,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     resetPaperPickerState();
     if (paperPicker) {
       paperPicker.style.display = "none";
-      paperPicker.classList.remove("llm-paper-picker-below");
+      paperPicker.classList.remove("paperpilotpaper-picker-below");
     }
     if (paperPickerList) {
       paperPickerList.innerHTML = "";
@@ -373,7 +373,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     createElement(
       ownerDoc,
       "span",
-      `llm-paper-picker-item-icon llm-paper-picker-icon-${icon}`,
+      `paperpilotpaper-picker-item-icon paperpilotpaper-picker-icon-${icon}`,
     );
 
   const getPaperPickerAttachmentDisplayTitle = (
@@ -507,7 +507,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
 
   const getRenderedPaperPickerReferenceRowHost = (): HTMLElement | null => {
     const root = paperPickerList?.children[0] as HTMLElement | undefined;
-    return findPaperPickerDescendantByClass(root, "llm-paper-picker-row-host");
+    return findPaperPickerDescendantByClass(root, "paperpilotpaper-picker-row-host");
   };
 
   const findPaperPickerParentRowIndex = (index: number): number => {
@@ -959,7 +959,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const action = createElement(
       ownerDoc,
       "button",
-      "llm-paper-picker-scope-action",
+      "paperpilotpaper-picker-scope-action",
       {
         textContent: selected ? "✓" : "+",
         title: selected
@@ -992,7 +992,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     createElement(
       ownerDoc,
       "span",
-      `llm-context-svg-icon llm-context-icon-collection ${extraClassName}`,
+      `paperpilotcontext-svg-icon paperpilotcontext-icon-collection ${extraClassName}`,
     );
 
   const createPaperPickerPanelSeparator = (
@@ -1048,21 +1048,21 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const row = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-sidebar-row llm-paper-picker-sidebar-folder-row",
+      "paperpilotpaper-picker-sidebar-row paperpilotpaper-picker-sidebar-folder-row",
     );
     row.style.setProperty(
-      "--llm-paper-picker-sidebar-depth",
+      "--paperpilotpaper-picker-sidebar-depth",
       `${params.depth}`,
     );
     row.classList.toggle(
-      "llm-paper-picker-sidebar-row-active",
+      "paperpilotpaper-picker-sidebar-row-active",
       referenceSelectorState.activeFolderScope === params.scope,
     );
 
     const chevron = createElement(
       ownerDoc,
       "button",
-      "llm-paper-picker-sidebar-chevron",
+      "paperpilotpaper-picker-sidebar-chevron",
       {
         textContent: params.hasChildren
           ? isPaperPickerCollectionExpanded(Number(params.scope))
@@ -1086,17 +1086,17 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     row.appendChild(
       createPaperPickerScopeIcon(
         ownerDoc,
-        "llm-paper-picker-sidebar-folder-icon",
+        "paperpilotpaper-picker-sidebar-folder-icon",
       ),
     );
     row.appendChild(
-      createElement(ownerDoc, "span", "llm-paper-picker-sidebar-label", {
+      createElement(ownerDoc, "span", "paperpilotpaper-picker-sidebar-label", {
         textContent: params.label,
         title: params.label,
       }),
     );
     row.appendChild(
-      createElement(ownerDoc, "span", "llm-paper-picker-sidebar-count", {
+      createElement(ownerDoc, "span", "paperpilotpaper-picker-sidebar-count", {
         textContent: String(params.count),
       }),
     );
@@ -1176,22 +1176,22 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const folderPanel = createElement(
       ownerDoc,
       "div",
-      `llm-paper-picker-folder-panel ${
-        collapsed ? "llm-paper-picker-panel-collapsed" : ""
+      `paperpilotpaper-picker-folder-panel ${
+        collapsed ? "paperpilotpaper-picker-panel-collapsed" : ""
       }`,
     );
     applyPaperPickerPanelHeight(folderPanel, "folders");
     const header = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-folder-header",
+      "paperpilotpaper-picker-folder-header",
     );
     header.append(
       createPaperPickerPanelToggle(ownerDoc, "folders"),
-      createElement(ownerDoc, "span", "llm-paper-picker-folder-title", {
+      createElement(ownerDoc, "span", "paperpilotpaper-picker-folder-title", {
         textContent: t("Folders"),
       }),
-      createElement(ownerDoc, "span", "llm-paper-picker-folder-count", {
+      createElement(ownerDoc, "span", "paperpilotpaper-picker-folder-count", {
         textContent: String(allBrowseGroups.length),
       }),
     );
@@ -1207,7 +1207,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const folderPane = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-folder-pane",
+      "paperpilotpaper-picker-folder-pane",
     );
     folderPane.appendChild(
       renderPaperPickerFolderRow(ownerDoc, {
@@ -1233,12 +1233,12 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const filterBar = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-folder-filter-bar",
+      "paperpilotpaper-picker-folder-filter-bar",
     );
     const input = createElement(
       ownerDoc,
       "input",
-      "llm-paper-picker-folder-filter",
+      "paperpilotpaper-picker-folder-filter",
       {
         value: referenceSelectorState.folderFilterQuery,
         placeholder: t("Filter Folders"),
@@ -1252,7 +1252,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       renderPaperPicker();
       if (typeof ownerDoc.querySelector === "function") {
         const nextInput = ownerDoc.querySelector(
-          ".llm-paper-picker-folder-filter",
+          ".paperpilotpaper-picker-folder-filter",
         ) as HTMLInputElement | null;
         nextInput?.focus();
         nextInput?.setSelectionRange(selectionStart, selectionStart);
@@ -1299,7 +1299,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const action = createElement(
       ownerDoc,
       "button",
-      "llm-paper-picker-scope-action",
+      "paperpilotpaper-picker-scope-action",
       {
         textContent: selected ? "✓" : "+",
         title: selected
@@ -1330,17 +1330,17 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const wrap = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-tag-scope-wrap",
+      "paperpilotpaper-picker-tag-scope-wrap",
     );
     const button = createElement(
       ownerDoc,
       "button",
-      "llm-paper-picker-tag-scope",
+      "paperpilotpaper-picker-tag-scope",
       { textContent: label },
     );
     button.type = "button";
     button.classList.toggle(
-      "llm-paper-picker-tag-scope-active",
+      "paperpilotpaper-picker-tag-scope-active",
       referenceSelectorState.tagScope === scope &&
         referenceSelectorState.selectedTags.size === 0,
     );
@@ -1383,12 +1383,12 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const wrap = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-tag-chip-wrap",
+      "paperpilotpaper-picker-tag-chip-wrap",
     );
     const chip = createElement(
       ownerDoc,
       "button",
-      "llm-paper-picker-tag-chip llm-paper-picker-tag-chip-label",
+      "paperpilotpaper-picker-tag-chip paperpilotpaper-picker-tag-chip-label",
       {
         textContent: selected || available ? info.name : `(${info.name})`,
         title: `${info.name} (${info.count})`,
@@ -1396,11 +1396,11 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     );
     chip.type = "button";
     if (info.color) {
-      chip.style.setProperty("--llm-paper-picker-tag-color", info.color);
-      chip.classList.add("llm-paper-picker-tag-chip-colored");
+      chip.style.setProperty("--paperpilotpaper-picker-tag-color", info.color);
+      chip.classList.add("paperpilotpaper-picker-tag-chip-colored");
     }
-    chip.classList.toggle("llm-paper-picker-tag-chip-selected", selected);
-    chip.classList.toggle("llm-paper-picker-tag-chip-unavailable", !available);
+    chip.classList.toggle("paperpilotpaper-picker-tag-chip-selected", selected);
+    chip.classList.toggle("paperpilotpaper-picker-tag-chip-unavailable", !available);
     chip.disabled = !available;
     chip.addEventListener("mousedown", (event: Event) => {
       event.preventDefault();
@@ -1476,22 +1476,22 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const tagPanel = createElement(
       ownerDoc,
       "div",
-      `llm-paper-picker-tag-panel ${
-        collapsed ? "llm-paper-picker-panel-collapsed" : ""
+      `paperpilotpaper-picker-tag-panel ${
+        collapsed ? "paperpilotpaper-picker-panel-collapsed" : ""
       }`,
     );
     applyPaperPickerPanelHeight(tagPanel, "tags");
     const header = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-tag-header",
+      "paperpilotpaper-picker-tag-header",
     );
     header.append(
       createPaperPickerPanelToggle(ownerDoc, "tags"),
-      createElement(ownerDoc, "span", "llm-paper-picker-tag-title", {
+      createElement(ownerDoc, "span", "paperpilotpaper-picker-tag-title", {
         textContent: t("Tags"),
       }),
-      createElement(ownerDoc, "span", "llm-paper-picker-tag-count", {
+      createElement(ownerDoc, "span", "paperpilotpaper-picker-tag-count", {
         textContent: String(baseGroups.length),
       }),
     );
@@ -1507,7 +1507,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const scopes = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-tag-scopes",
+      "paperpilotpaper-picker-tag-scopes",
     );
     scopes.append(
       createPaperPickerTagScopeButton(
@@ -1528,7 +1528,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const chipCloud = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-tag-cloud",
+      "paperpilotpaper-picker-tag-cloud",
     );
     for (const info of filteredTagInfos) {
       const selected = referenceSelectorState.selectedTags.has(info.name);
@@ -1545,7 +1545,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     }
     if (!filteredTagInfos.length) {
       chipCloud.appendChild(
-        createElement(ownerDoc, "div", "llm-paper-picker-tag-empty", {
+        createElement(ownerDoc, "div", "paperpilotpaper-picker-tag-empty", {
           textContent: referenceSelectorState.tagFilterQuery.trim()
             ? t("No matching tags.")
             : t("No tags found."),
@@ -1562,7 +1562,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       const summary = createElement(
         ownerDoc,
         "div",
-        "llm-paper-picker-tag-summary",
+        "paperpilotpaper-picker-tag-summary",
         {
           textContent: `${visibleGroups.length} ${t("papers match")}`,
         },
@@ -1573,12 +1573,12 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const filterBar = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-tag-filter-bar",
+      "paperpilotpaper-picker-tag-filter-bar",
     );
     const input = createElement(
       ownerDoc,
       "input",
-      "llm-paper-picker-tag-filter",
+      "paperpilotpaper-picker-tag-filter",
       {
         value: referenceSelectorState.tagFilterQuery,
         placeholder: t("Filter Tags"),
@@ -1592,7 +1592,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       renderPaperPicker();
       if (typeof ownerDoc.querySelector === "function") {
         const nextInput = ownerDoc.querySelector(
-          ".llm-paper-picker-tag-filter",
+          ".paperpilotpaper-picker-tag-filter",
         ) as HTMLInputElement | null;
         nextInput?.focus();
         nextInput?.setSelectionRange(selectionStart, selectionStart);
@@ -1603,12 +1603,12 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     const menuWrap = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-tag-menu-wrap",
+      "paperpilotpaper-picker-tag-menu-wrap",
     );
     const menuButton = createElement(
       ownerDoc,
       "button",
-      "llm-paper-picker-tag-menu-button",
+      "paperpilotpaper-picker-tag-menu-button",
     );
     menuButton.type = "button";
     menuButton.title = t("Tag filter options");
@@ -1622,7 +1622,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     });
     menuWrap.appendChild(menuButton);
     if (referenceSelectorState.tagFilterMenuOpen) {
-      const menu = createElement(ownerDoc, "div", "llm-paper-picker-tag-menu");
+      const menu = createElement(ownerDoc, "div", "paperpilotpaper-picker-tag-menu");
       const addCheckboxRow = (
         label: string,
         checked: boolean,
@@ -1631,7 +1631,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
         const row = createElement(
           ownerDoc,
           "label",
-          "llm-paper-picker-tag-menu-row",
+          "paperpilotpaper-picker-tag-menu-row",
         );
         const checkbox = createElement(ownerDoc, "input") as HTMLInputElement;
         checkbox.type = "checkbox";
@@ -1680,7 +1680,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       paperPickerList.innerHTML = "";
       paperPicker.scrollTop = 0;
       paperPickerList.appendChild(
-        createElement(ownerDoc, "div", "llm-paper-picker-empty", {
+        createElement(ownerDoc, "div", "paperpilotpaper-picker-empty", {
           textContent: referenceSelectorState.emptyMessage,
         }),
       );
@@ -1713,14 +1713,14 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       const header = createElement(
         ownerDoc,
         "div",
-        "llm-paper-picker-item-header",
+        "paperpilotpaper-picker-item-header",
       );
       header.append(
         createPaperPickerPanelToggle(ownerDoc, "references"),
-        createElement(ownerDoc, "span", "llm-paper-picker-item-title", {
+        createElement(ownerDoc, "span", "paperpilotpaper-picker-item-title", {
           textContent: t("Items"),
         }),
-        createElement(ownerDoc, "span", "llm-paper-picker-item-count", {
+        createElement(ownerDoc, "span", "paperpilotpaper-picker-item-count", {
           textContent: String(viewModel.visibleGroups.length),
         }),
       );
@@ -1728,19 +1728,19 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       return header;
     };
 
-    const rowHost = createElement(ownerDoc, "div", "llm-paper-picker-row-host");
+    const rowHost = createElement(ownerDoc, "div", "paperpilotpaper-picker-row-host");
     const renderedOptions: HTMLElement[] = [];
     const referencesCollapsed =
       referenceSelectorState.mode === "browse" &&
       isPaperPickerPanelCollapsed("references");
     const shouldRenderReferenceRows = !referencesCollapsed;
     if (referenceSelectorState.mode === "browse") {
-      const shell = createElement(ownerDoc, "div", "llm-paper-picker-shell");
+      const shell = createElement(ownerDoc, "div", "paperpilotpaper-picker-shell");
       const main = createElement(
         ownerDoc,
         "div",
-        `llm-paper-picker-main ${
-          referencesCollapsed ? "llm-paper-picker-panel-collapsed" : ""
+        `paperpilotpaper-picker-main ${
+          referencesCollapsed ? "paperpilotpaper-picker-panel-collapsed" : ""
         }`,
       );
       applyPaperPickerPanelHeight(main, "references");
@@ -1768,7 +1768,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       const main = createElement(
         ownerDoc,
         "div",
-        "llm-paper-picker-main llm-paper-picker-main-full",
+        "paperpilotpaper-picker-main paperpilotpaper-picker-main-full",
       );
       main.append(rowHost);
       paperPickerList.appendChild(main);
@@ -1784,7 +1784,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       const action = createElement(
         ownerDoc,
         "button",
-        "llm-paper-picker-scope-action llm-paper-picker-row-action llm-paper-picker-cell-action",
+        "paperpilotpaper-picker-scope-action paperpilotpaper-picker-row-action paperpilotpaper-picker-cell-action",
         {
           textContent: selected ? "✓" : "+",
           title: label,
@@ -1812,7 +1812,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       const parts = [firstCreator, year]
         .map((part) => (part || "").trim())
         .filter(Boolean);
-      return createElement(ownerDoc, "div", "llm-paper-picker-row-meta-line", {
+      return createElement(ownerDoc, "div", "paperpilotpaper-picker-row-meta-line", {
         textContent: parts.join(", "),
         title: parts.join(", "),
       });
@@ -1820,7 +1820,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
 
     if (shouldRenderReferenceRows && !referenceSelectorState.rows.length) {
       rowHost.appendChild(
-        createElement(ownerDoc, "div", "llm-paper-picker-empty", {
+        createElement(ownerDoc, "div", "paperpilotpaper-picker-empty", {
           textContent:
             referenceSelectorState.folderFilterQuery.trim() ||
             referenceSelectorState.tagScope !== "all" ||
@@ -1836,14 +1836,14 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
         const option = createElement(
           ownerDoc,
           "div",
-          `llm-paper-picker-item llm-paper-picker-table-row ${
+          `paperpilotpaper-picker-item paperpilotpaper-picker-table-row ${
             row.kind === "attachment"
-              ? "llm-paper-picker-attachment-row"
+              ? "paperpilotpaper-picker-attachment-row"
               : row.kind === "paper"
-                ? "llm-paper-picker-group-row"
+                ? "paperpilotpaper-picker-group-row"
                 : row.kind === "collection"
-                  ? "llm-paper-picker-group-row llm-paper-picker-collection-row"
-                  : "llm-paper-picker-group-row llm-paper-picker-tag-row"
+                  ? "paperpilotpaper-picker-group-row paperpilotpaper-picker-collection-row"
+                  : "paperpilotpaper-picker-group-row paperpilotpaper-picker-tag-row"
           }`,
         );
         option.setAttribute("role", "option");
@@ -1853,11 +1853,11 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
         );
         option.tabIndex = -1;
         option.style.setProperty(
-          "--llm-paper-picker-depth-indent",
+          "--paperpilotpaper-picker-depth-indent",
           `${9 + row.depth * 14}px`,
         );
         option.style.paddingLeft =
-          "calc(var(--llm-paper-picker-depth-indent) + var(--llm-paper-picker-selection-gutter, 0px))";
+          "calc(var(--paperpilotpaper-picker-depth-indent) + var(--paperpilotpaper-picker-selection-gutter, 0px))";
 
         let rowSelectionState: ReferenceSelectionState = "none";
         let rowSelected = false;
@@ -1875,7 +1875,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
               selectedNoteContextItemIds,
             );
             rowSelected = isReferenceSelectorSelected(rowSelectionState);
-            option.classList.toggle("llm-paper-picker-selected", rowSelected);
+            option.classList.toggle("paperpilotpaper-picker-selected", rowSelected);
           }
         }
 
@@ -1891,24 +1891,24 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
                 collectionRef.collectionId === row.collectionId,
             );
             option.classList.toggle(
-              "llm-paper-picker-selected",
+              "paperpilotpaper-picker-selected",
               isCollectionSelected,
             );
           }
           const rowMain = createElement(
             ownerDoc,
             "div",
-            "llm-paper-picker-group-row-main llm-paper-picker-cell-title",
+            "paperpilotpaper-picker-group-row-main paperpilotpaper-picker-cell-title",
           );
           const titleLine = createElement(
             ownerDoc,
             "div",
-            "llm-paper-picker-group-title-line",
+            "paperpilotpaper-picker-group-title-line",
           );
           const title = createElement(
             ownerDoc,
             "span",
-            "llm-paper-picker-title",
+            "paperpilotpaper-picker-title",
             { textContent: collection.name, title: collection.name },
           );
           titleLine.append(createPickerIcon(ownerDoc, "collection"), title);
@@ -1934,21 +1934,21 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
           const isTagSelected = item
             ? isPaperPickerTagContextSelected(tagRef)
             : false;
-          option.classList.toggle("llm-paper-picker-selected", isTagSelected);
+          option.classList.toggle("paperpilotpaper-picker-selected", isTagSelected);
           const rowMain = createElement(
             ownerDoc,
             "div",
-            "llm-paper-picker-group-row-main llm-paper-picker-cell-title",
+            "paperpilotpaper-picker-group-row-main paperpilotpaper-picker-cell-title",
           );
           const titleLine = createElement(
             ownerDoc,
             "div",
-            "llm-paper-picker-group-title-line",
+            "paperpilotpaper-picker-group-title-line",
           );
           const title = createElement(
             ownerDoc,
             "span",
-            "llm-paper-picker-title",
+            "paperpilotpaper-picker-title",
             { textContent: tag.name, title: tag.name },
           );
           titleLine.append(createPickerIcon(ownerDoc, "tag"), title);
@@ -1976,23 +1976,23 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
           const rowMain = createElement(
             ownerDoc,
             "div",
-            "llm-paper-picker-group-row-main llm-paper-picker-cell-title",
+            "paperpilotpaper-picker-group-row-main paperpilotpaper-picker-cell-title",
           );
           const titleLine = createElement(
             ownerDoc,
             "div",
-            "llm-paper-picker-group-title-line",
+            "paperpilotpaper-picker-group-title-line",
           );
           titleLine.append(
             createPickerIcon(ownerDoc, resolveGroupIcon(group)),
-            createElement(ownerDoc, "span", "llm-paper-picker-title", {
+            createElement(ownerDoc, "span", "paperpilotpaper-picker-title", {
               textContent: group.title,
               title: group.title,
             }),
           );
           if (isMultiAttachment) {
             titleLine.appendChild(
-              createElement(ownerDoc, "span", "llm-paper-picker-badge", {
+              createElement(ownerDoc, "span", "paperpilotpaper-picker-badge", {
                 textContent: `${group.attachments.length} files`,
               }),
             );
@@ -2042,10 +2042,10 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
           const attachmentText = createElement(
             ownerDoc,
             "div",
-            "llm-paper-picker-attachment-text",
+            "paperpilotpaper-picker-attachment-text",
           );
           attachmentText.append(
-            createElement(ownerDoc, "span", "llm-paper-picker-title", {
+            createElement(ownerDoc, "span", "paperpilotpaper-picker-title", {
               textContent: getPaperPickerAttachmentDisplayTitle(
                 group,
                 attachment,
@@ -2057,7 +2057,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
                 row.attachmentIndex,
               ),
             }),
-            createElement(ownerDoc, "span", "llm-paper-picker-meta", {
+            createElement(ownerDoc, "span", "paperpilotpaper-picker-meta", {
               textContent: [
                 `${resolvePickerAttachmentLabel(attachment, attachmentKind)} attachment`,
                 group.firstCreator,
@@ -2071,7 +2071,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
           const attachmentMain = createElement(
             ownerDoc,
             "div",
-            "llm-paper-picker-attachment-main llm-paper-picker-cell-title",
+            "paperpilotpaper-picker-attachment-main paperpilotpaper-picker-cell-title",
           );
           attachmentMain.append(
             createPickerIcon(ownerDoc, resolvePickerKindIcon(attachmentKind)),

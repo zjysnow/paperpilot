@@ -101,20 +101,20 @@ export function createWebChatHistoryController(
     const viewport = createElement(
       doc,
       "div",
-      "llm-history-menu-section-viewport",
+      "paperpilothistory-menu-section-viewport",
       {},
     );
     viewport.style.maxHeight = "300px";
     viewport.style.overflowY = "auto";
 
-    const rows = createElement(doc, "div", "llm-history-menu-section-rows", {});
+    const rows = createElement(doc, "div", "paperpilothistory-menu-section-rows", {});
 
     for (const session of sessions) {
-      const row = createElement(doc, "div", "llm-history-menu-row", {});
-      const btn = createElement(doc, "button", "llm-history-menu-row-main", {
+      const row = createElement(doc, "div", "paperpilothistory-menu-row", {});
+      const btn = createElement(doc, "button", "paperpilothistory-menu-row-main", {
         type: "button",
       });
-      const titleDiv = createElement(doc, "div", "llm-history-menu-row-title", {
+      const titleDiv = createElement(doc, "div", "paperpilothistory-menu-row-title", {
         textContent: session.title || "Untitled",
       });
       titleDiv.title = session.title || "";
@@ -130,7 +130,7 @@ export function createWebChatHistoryController(
       const subtitle = createElement(
         doc,
         "div",
-        "llm-history-menu-row-subtitle",
+        "paperpilothistory-menu-row-subtitle",
         {
           textContent: siteLabel,
         },
@@ -265,10 +265,10 @@ export function createWebChatHistoryController(
     const header = createElement(
       doc,
       "div",
-      "llm-history-menu-section-block",
+      "paperpilothistory-menu-section-block",
       {},
     );
-    const title = createElement(doc, "div", "llm-history-menu-section", {
+    const title = createElement(doc, "div", "paperpilothistory-menu-section", {
       textContent: "WebChat Conversations",
     });
     title.style.padding = "6px 10px";

@@ -23,7 +23,7 @@ function getPanelConversationSystem(
     (body as HTMLElement | null)?.dataset?.conversationSystem,
   );
   if (directSystem) return directSystem;
-  const panelRoot = body.querySelector?.("#llm-main") as HTMLElement | null;
+  const panelRoot = body.querySelector?.("#paperpilotmain") as HTMLElement | null;
   return normalizeConversationSystem(panelRoot?.dataset?.conversationSystem);
 }
 

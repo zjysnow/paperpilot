@@ -36,20 +36,20 @@ export function showStandaloneConfirmationDialog(
 
   return new Promise((resolve) => {
     const previousActiveElement = doc.activeElement;
-    const titleId = nextDialogElementId("llm-standalone-confirm-title");
-    const messageId = nextDialogElementId("llm-standalone-confirm-message");
+    const titleId = nextDialogElementId("paperpilotstandalone-confirm-title");
+    const messageId = nextDialogElementId("paperpilotstandalone-confirm-message");
 
     const overlay = createElement(
       doc,
       "div",
-      "llm-modal-overlay llm-standalone-confirm-overlay",
+      "paperpilotmodal-overlay paperpilotstandalone-confirm-overlay",
     );
     overlay.setAttribute("role", "presentation");
 
     const dialog = createElement(
       doc,
       "div",
-      "llm-modal-dialog llm-standalone-confirm-dialog",
+      "paperpilotmodal-dialog paperpilotstandalone-confirm-dialog",
     );
     dialog.setAttribute("role", "alertdialog");
     dialog.setAttribute("aria-modal", "true");
@@ -59,7 +59,7 @@ export function showStandaloneConfirmationDialog(
     const title = createElement(
       doc,
       "div",
-      "llm-modal-title llm-standalone-confirm-title",
+      "paperpilotmodal-title paperpilotstandalone-confirm-title",
       {
         id: titleId,
         textContent: options.title,
@@ -68,7 +68,7 @@ export function showStandaloneConfirmationDialog(
     const message = createElement(
       doc,
       "div",
-      "llm-standalone-confirm-message",
+      "paperpilotstandalone-confirm-message",
       {
         id: messageId,
         textContent: options.message,
@@ -77,12 +77,12 @@ export function showStandaloneConfirmationDialog(
     const actions = createElement(
       doc,
       "div",
-      "llm-modal-actions llm-standalone-confirm-actions",
+      "paperpilotmodal-actions paperpilotstandalone-confirm-actions",
     );
     const cancelButton = createElement(
       doc,
       "button",
-      "llm-modal-btn llm-modal-cancel llm-standalone-confirm-btn llm-standalone-confirm-cancel",
+      "paperpilotmodal-btn paperpilotmodal-cancel paperpilotstandalone-confirm-btn paperpilotstandalone-confirm-cancel",
       {
         type: "button",
         textContent: options.cancelLabel,
@@ -92,11 +92,11 @@ export function showStandaloneConfirmationDialog(
       doc,
       "button",
       [
-        "llm-modal-btn",
-        "llm-modal-primary",
-        "llm-standalone-confirm-btn",
-        "llm-standalone-confirm-primary",
-        options.destructive ? "llm-standalone-confirm-destructive" : "",
+        "paperpilotmodal-btn",
+        "paperpilotmodal-primary",
+        "paperpilotstandalone-confirm-btn",
+        "paperpilotstandalone-confirm-primary",
+        options.destructive ? "paperpilotstandalone-confirm-destructive" : "",
       ]
         .filter(Boolean)
         .join(" "),

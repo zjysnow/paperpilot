@@ -44,7 +44,7 @@ export function attachAssistantSelectionPopup(
     __llmSelectionPopupCleanup?: () => void;
   };
   panelRoot
-    .querySelectorAll(".llm-assistant-selection-action")
+    .querySelectorAll(".paperpilotassistant-selection-action")
     .forEach((node: Element) => node.remove());
   if (popupHost.__llmSelectionPopupCleanup) {
     popupHost.__llmSelectionPopupCleanup();
@@ -53,7 +53,7 @@ export function attachAssistantSelectionPopup(
   const selectionPopup = createElement(
     panelDoc,
     "button",
-    "llm-shortcut-btn llm-assistant-selection-action",
+    "paperpilotshortcut-btn paperpilotassistant-selection-action",
     {
       type: "button",
       textContent: "❞ Quote",
@@ -88,8 +88,8 @@ export function attachAssistantSelectionPopup(
       ? selection.focusNode
       : selection.focusNode?.parentElement || null;
     if (!anchorEl || !focusEl) return null;
-    const bubbleA = anchorEl.closest(".llm-bubble.assistant");
-    const bubbleB = focusEl.closest(".llm-bubble.assistant");
+    const bubbleA = anchorEl.closest(".paperpilotbubble.assistant");
+    const bubbleB = focusEl.closest(".paperpilotbubble.assistant");
     if (!bubbleA || !bubbleB || bubbleA !== bubbleB) return null;
     if (!chatBox.contains(bubbleA)) return null;
     return bubbleA as HTMLElement;
@@ -106,7 +106,7 @@ export function attachAssistantSelectionPopup(
       return;
     }
     const targetBubble = bubble || findAssistantBubbleFromSelection();
-    if (targetBubble?.closest(".llm-agent-reasoning")) {
+    if (targetBubble?.closest(".paperpilotagent-reasoning")) {
       hideSelectionPopup();
       return;
     }
@@ -254,12 +254,12 @@ export function attachAssistantSelectionPopup(
       hideSelectionPopup();
       return;
     }
-    if (target && target.closest("summary.llm-agent-reasoning-summary")) {
+    if (target && target.closest("summary.paperpilotagent-reasoning-summary")) {
       hideSelectionPopup();
       return;
     }
     const bubble = target?.closest(
-      ".llm-bubble.assistant",
+      ".paperpilotbubble.assistant",
     ) as HTMLElement | null;
     const fallbackBubble = bubble || selectionDragStartBubble;
     selectionDragStartBubble = null;
@@ -277,7 +277,7 @@ export function attachAssistantSelectionPopup(
     if (target && selectionPopup.contains(target)) return;
     const targetEl = target as Element | null;
     selectionDragStartBubble =
-      (targetEl?.closest(".llm-bubble.assistant") as HTMLElement | null) ||
+      (targetEl?.closest(".paperpilotbubble.assistant") as HTMLElement | null) ||
       null;
     hideSelectionPopup();
   };

@@ -588,14 +588,14 @@ export function createHistoryLifecycleController(
     topToast.style.display = "flex";
     topToast.setAttribute("aria-hidden", "false");
     const win = body.ownerDocument?.defaultView;
-    const reveal = () => topToast.classList.add("llm-top-toast-visible");
+    const reveal = () => topToast.classList.add("paperpilottop-toast-visible");
     if (win?.requestAnimationFrame) {
       win.requestAnimationFrame(reveal);
     } else {
       reveal();
     }
     topToastTimer = getWindowTimeout(() => {
-      topToast.classList.remove("llm-top-toast-visible");
+      topToast.classList.remove("paperpilottop-toast-visible");
       topToast.setAttribute("aria-hidden", "true");
       topToast.style.display = "none";
       topToastTimer = null;
@@ -1194,13 +1194,13 @@ export function createHistoryLifecycleController(
     const searchWrap = createElement(
       body.ownerDocument as Document,
       "div",
-      "llm-history-menu-search",
+      "paperpilothistory-menu-search",
     ) as HTMLDivElement;
     if (historySearchExpanded) {
       const searchInput = createElement(
         body.ownerDocument as Document,
         "input",
-        "llm-history-menu-search-input",
+        "paperpilothistory-menu-search-input",
         {
           type: "text",
           value: searchQuery,
@@ -1215,7 +1215,7 @@ export function createHistoryLifecycleController(
       const searchTrigger = createElement(
         body.ownerDocument as Document,
         "button",
-        "llm-history-menu-search-trigger",
+        "paperpilothistory-menu-search-trigger",
         {
           type: "button",
           textContent: "Search history",
@@ -1231,7 +1231,7 @@ export function createHistoryLifecycleController(
       const loadingRow = createElement(
         body.ownerDocument as Document,
         "div",
-        "llm-history-menu-empty",
+        "paperpilothistory-menu-empty",
         {
           textContent: "Searching history...",
         },
@@ -1244,7 +1244,7 @@ export function createHistoryLifecycleController(
       const emptyRow = createElement(
         body.ownerDocument as Document,
         "div",
-        "llm-history-menu-empty",
+        "paperpilothistory-menu-empty",
         {
           textContent: searchActive ? "No matching history" : "No history yet",
         },
@@ -1263,7 +1263,7 @@ export function createHistoryLifecycleController(
       const loadingRow = createElement(
         body.ownerDocument as Document,
         "div",
-        "llm-history-menu-empty",
+        "paperpilothistory-menu-empty",
         {
           textContent: "Searching history...",
         },
@@ -1295,7 +1295,7 @@ export function createHistoryLifecycleController(
       const emptyRow = createElement(
         body.ownerDocument as Document,
         "div",
-        "llm-history-menu-empty",
+        "paperpilothistory-menu-empty",
         {
           textContent: "No matching history",
         },
@@ -1325,14 +1325,14 @@ export function createHistoryLifecycleController(
     const itemsList = createElement(
       body.ownerDocument as Document,
       "div",
-      "llm-history-items-list",
+      "paperpilothistory-items-list",
     ) as HTMLDivElement;
 
     for (const group of dayGroups) {
       const dayLabel = createElement(
         body.ownerDocument as Document,
         "div",
-        "llm-history-day-label",
+        "paperpilothistory-day-label",
         { textContent: group.label },
       );
       itemsList.appendChild(dayLabel);
@@ -1342,7 +1342,7 @@ export function createHistoryLifecycleController(
         const item = createElement(
           body.ownerDocument as Document,
           "div",
-          "llm-history-item",
+          "paperpilothistory-item",
         ) as HTMLDivElement;
         item.setAttribute("role", "button");
         item.setAttribute("tabindex", "0");
@@ -1365,14 +1365,14 @@ export function createHistoryLifecycleController(
         const titleRow = createElement(
           body.ownerDocument as Document,
           "div",
-          "llm-history-item-title-row",
+          "paperpilothistory-item-title-row",
         ) as HTMLDivElement;
 
         if (searchActive) {
           const scopeChip = createElement(
             body.ownerDocument as Document,
             "span",
-            "llm-history-item-scope-chip",
+            "paperpilothistory-item-scope-chip",
             { textContent: resolveHistoryScopeChipLabel(entry) },
           ) as HTMLSpanElement;
           scopeChip.dataset.labelType = getHistoryEntryLabelType(entry);
@@ -1382,7 +1382,7 @@ export function createHistoryLifecycleController(
         const titleSpan = createElement(
           body.ownerDocument as Document,
           "span",
-          "llm-history-item-title",
+          "paperpilothistory-item-title",
         );
         const displayTitle = formatHistoryRowDisplayTitle(entry.title);
         titleSpan.title = entry.title;
@@ -1402,7 +1402,7 @@ export function createHistoryLifecycleController(
           const renameBtn = createElement(
             body.ownerDocument as Document,
             "span",
-            "llm-history-item-rename",
+            "paperpilothistory-item-rename",
           ) as HTMLSpanElement;
           renameBtn.setAttribute("role", "button");
           renameBtn.setAttribute("aria-label", t("Rename chat"));
@@ -1415,7 +1415,7 @@ export function createHistoryLifecycleController(
           const deleteBtn = createElement(
             body.ownerDocument as Document,
             "span",
-            "llm-history-item-delete",
+            "paperpilothistory-item-delete",
           ) as HTMLSpanElement;
           deleteBtn.setAttribute("role", "button");
           deleteBtn.setAttribute("aria-label", `Delete ${entry.title}`);
@@ -1435,7 +1435,7 @@ export function createHistoryLifecycleController(
             const meta = createElement(
               body.ownerDocument as Document,
               "div",
-              "llm-history-item-meta",
+              "paperpilothistory-item-meta",
               { textContent: metaParts.join(" · ") },
             );
             item.appendChild(meta);
@@ -1448,7 +1448,7 @@ export function createHistoryLifecycleController(
           const preview = createElement(
             body.ownerDocument as Document,
             "div",
-            "llm-history-item-preview",
+            "paperpilothistory-item-preview",
           );
           appendHistorySearchHighlightedText(
             preview,
@@ -1469,7 +1469,7 @@ export function createHistoryLifecycleController(
     if (!historySearchExpanded) return;
     if (!historyMenu || historyMenu.style.display === "none") return;
     const searchInput = historyMenu.querySelector(
-      ".llm-history-menu-search-input",
+      ".paperpilothistory-menu-search-input",
     ) as HTMLInputElement | null;
     if (!searchInput) return;
     const caret = searchInput.value.length;
@@ -3825,7 +3825,7 @@ export function createHistoryLifecycleController(
       const target = e.target as HTMLInputElement | null;
       if (
         !target ||
-        !target.classList.contains("llm-history-menu-search-input")
+        !target.classList.contains("paperpilothistory-menu-search-input")
       )
         return;
       historySearchQuery = target.value || "";
@@ -3841,7 +3841,7 @@ export function createHistoryLifecycleController(
       const target = e.target as HTMLInputElement | null;
       if (
         !target ||
-        !target.classList.contains("llm-history-menu-search-input") ||
+        !target.classList.contains("paperpilothistory-menu-search-input") ||
         keyboardEvent.key !== "Escape"
       ) {
         return;
@@ -3858,7 +3858,7 @@ export function createHistoryLifecycleController(
       closeHistoryRowMenu();
 
       const searchTrigger = target.closest(
-        ".llm-history-menu-search-trigger",
+        ".paperpilothistory-menu-search-trigger",
       ) as HTMLButtonElement | null;
       if (searchTrigger) {
         e.preventDefault();
@@ -3870,11 +3870,11 @@ export function createHistoryLifecycleController(
 
       // Rename button inside a history item
       const renameBtn = target.closest(
-        ".llm-history-item-rename",
+        ".paperpilothistory-item-rename",
       ) as HTMLElement | null;
       if (renameBtn) {
         const row = renameBtn.closest(
-          ".llm-history-item",
+          ".paperpilothistory-item",
         ) as HTMLButtonElement | null;
         if (!row) return;
         e.preventDefault();
@@ -3899,11 +3899,11 @@ export function createHistoryLifecycleController(
 
       // Delete button inside a history item
       const deleteBtn = target.closest(
-        ".llm-history-item-delete",
+        ".paperpilothistory-item-delete",
       ) as HTMLElement | null;
       if (deleteBtn) {
         const row = deleteBtn.closest(
-          ".llm-history-item",
+          ".paperpilothistory-item",
         ) as HTMLButtonElement | null;
         if (!row) return;
         e.preventDefault();
@@ -3928,7 +3928,7 @@ export function createHistoryLifecycleController(
 
       // Click on a history item to switch conversation
       const row = target.closest(
-        ".llm-history-item",
+        ".paperpilothistory-item",
       ) as HTMLButtonElement | null;
       if (!row) return;
       e.preventDefault();
@@ -3966,7 +3966,7 @@ export function createHistoryLifecycleController(
       if (!target || !item) return;
       // Allow context menu even during generation.
       const row = target.closest(
-        ".llm-history-item",
+        ".paperpilothistory-item",
       ) as HTMLButtonElement | null;
       if (!row) {
         closeHistoryRowMenu();

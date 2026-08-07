@@ -1,6 +1,6 @@
 /**
  * Minimal MCP (Model Context Protocol) JSON-RPC 2.0 type definitions.
- * Covers the subset of MCP used by the llm-for-zotero action server.
+ * Covers the subset of MCP used by the paperpilotfor-zotero action server.
  *
  * Spec reference: https://modelcontextprotocol.io/specification
  */

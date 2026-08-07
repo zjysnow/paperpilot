@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-RUNTIME_KIND = "llm-for-zotero/pdf-figure-runtime"
+RUNTIME_KIND = "paperpilotfor-zotero/pdf-figure-runtime"
 VALID_PLATFORMS = {
     "macos-arm64",
     "macos-x64",
@@ -196,7 +196,7 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     zip_path = (
         args.out_dir
-        / f"llm-for-zotero-pdf-figure-runtime-v{args.version}-{args.platform}.zip"
+        / f"paperpilotfor-zotero-pdf-figure-runtime-v{args.version}-{args.platform}.zip"
     )
     with zipfile.ZipFile(zip_path, "w", allowZip64=True) as zip_file:
         zip_file.writestr(

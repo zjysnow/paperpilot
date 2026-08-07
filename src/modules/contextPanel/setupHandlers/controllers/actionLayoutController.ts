@@ -74,7 +74,7 @@ export function createActionLayoutController(
     if (button.textContent !== nextLabel) {
       button.textContent = nextLabel;
     }
-    button.classList.toggle("llm-action-icon-only", mode === "icon");
+    button.classList.toggle("paperpilotaction-icon-only", mode === "icon");
   };
 
   const setSendButtonLabel = (mode: ActionLabelMode) => {
@@ -365,16 +365,16 @@ export function createActionLayoutController(
       );
       setSendButtonLabel("full");
 
-      modelBtn.classList.toggle("llm-model-btn-collapsed", false);
-      modelSlot?.classList.toggle("llm-model-dropdown-collapsed", false);
-      modelBtn.classList.toggle("llm-model-btn-wrap-2line", false);
+      modelBtn.classList.toggle("paperpilotmodel-btn-collapsed", false);
+      modelSlot?.classList.toggle("paperpilotmodel-dropdown-collapsed", false);
+      modelBtn.classList.toggle("paperpilotmodel-btn-wrap-2line", false);
       modelBtn.textContent = modelLabel;
       modelBtn.title = modelHint;
 
       if (reasoningBtn) {
-        reasoningBtn.classList.toggle("llm-reasoning-btn-collapsed", false);
+        reasoningBtn.classList.toggle("paperpilotreasoning-btn-collapsed", false);
         reasoningSlot?.classList.toggle(
-          "llm-reasoning-dropdown-collapsed",
+          "paperpilotreasoning-dropdown-collapsed",
           false,
         );
         reasoningBtn.textContent = reasoningLabel;
@@ -404,13 +404,13 @@ export function createActionLayoutController(
       setSendButtonLabel(state.send);
 
       const modelCollapsed = state.model === "icon";
-      modelBtn.classList.toggle("llm-model-btn-collapsed", modelCollapsed);
+      modelBtn.classList.toggle("paperpilotmodel-btn-collapsed", modelCollapsed);
       modelSlot?.classList.toggle(
-        "llm-model-dropdown-collapsed",
+        "paperpilotmodel-dropdown-collapsed",
         modelCollapsed,
       );
       modelBtn.classList.toggle(
-        "llm-model-btn-wrap-2line",
+        "paperpilotmodel-btn-wrap-2line",
         state.model === "full-wrap2",
       );
       if (modelCollapsed) {
@@ -424,11 +424,11 @@ export function createActionLayoutController(
       if (reasoningBtn) {
         const reasoningCollapsed = state.reasoning === "icon";
         reasoningBtn.classList.toggle(
-          "llm-reasoning-btn-collapsed",
+          "paperpilotreasoning-btn-collapsed",
           reasoningCollapsed,
         );
         reasoningSlot?.classList.toggle(
-          "llm-reasoning-dropdown-collapsed",
+          "paperpilotreasoning-dropdown-collapsed",
           reasoningCollapsed,
         );
         if (!reasoningCollapsed) {

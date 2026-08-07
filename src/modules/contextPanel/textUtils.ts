@@ -397,7 +397,7 @@ export function setStatus(
   variant: "ready" | "sending" | "error" | "warning",
 ) {
   statusEl.textContent = text;
-  statusEl.className = `llm-status llm-status-${variant}`;
+  statusEl.className = `paperpilotstatus paperpilotstatus-${variant}`;
 }
 
 export function formatTokenCount(tokens: number): string {

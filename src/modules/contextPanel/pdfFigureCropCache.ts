@@ -10,7 +10,7 @@ export const PDF_FIGURE_CROP_ALGORITHM_VERSION = 10;
 export const PDF_FIGURE_CROP_DIR = "figure_crops";
 export const PDF_FIGURE_CROP_METADATA_FILE = "figure_geometry.json";
 export const PDF_FIGURE_CROP_STANDALONE_ROOT_DIR =
-  "llm-for-zotero-pdf-figure-crops";
+  "paperpilotfor-zotero-pdf-figure-crops";
 
 export type ExtractedPdfFigure = {
   id: string;

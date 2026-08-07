@@ -1239,7 +1239,7 @@ async function materializePackagedFigureExtractorScript(): Promise<{
     throw new Error(`Could not read packaged extractor from ${resourceUri}`);
   }
   const scriptText = await response.text();
-  const cleanupDir = await makeTempDirectory("llm-for-zotero-figure-extractor");
+  const cleanupDir = await makeTempDirectory("paperpilotfor-zotero-figure-extractor");
   const scriptPath = joinLocalPath(cleanupDir, "pdf_figure_extract.py");
   await writeUtf8File(scriptPath, scriptText);
   return { scriptPath, cleanupDir };
@@ -1391,7 +1391,7 @@ async function cropPdfRegionWithPdftoppm(params: {
   if (!command) return null;
   const Subprocess = await loadSubprocessModule();
   if (!Subprocess?.call) return null;
-  const tempDir = await makeTempDirectory("llm-for-zotero-figure-crop");
+  const tempDir = await makeTempDirectory("paperpilotfor-zotero-figure-crop");
   try {
     const dpi = Number.isFinite(params.dpi)
       ? Math.max(72, Math.min(600, Math.floor(params.dpi as number)))
@@ -1551,7 +1551,7 @@ async function extractPdfFigureGeometryWithPdftohtml(params: {
     .map((page) => Math.floor(page))
     .sort((left, right) => left - right);
   if (!requestedPages.length) return [];
-  const tempDir = await makeTempDirectory("llm-for-zotero-figure-xml");
+  const tempDir = await makeTempDirectory("paperpilotfor-zotero-figure-xml");
   try {
     const outputPrefix = joinLocalPath(tempDir, "out");
     const proc = await Subprocess.call({
@@ -1722,7 +1722,7 @@ export class PdfPageService {
     const runExtractor = async (
       runtime: PdfFigureExtractionRuntime,
     ): Promise<SourcePdfFigureExtractionResult> => {
-      const workDir = await makeTempDirectory("llm-for-zotero-raw-figures");
+      const workDir = await makeTempDirectory("paperpilotfor-zotero-raw-figures");
       const jsonOut = joinLocalPath(workDir, "figures.json");
       try {
         const args = [

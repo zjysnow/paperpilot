@@ -202,8 +202,8 @@ export function getAgentApi() {
      *
      * @example
      * ```ts
-     * import type { AgentToolDefinition } from "llm-for-zotero/src/agent/extensionApi";
-     * import { ok, fail } from "llm-for-zotero/src/agent/extensionApi";
+     * import type { AgentToolDefinition } from "paperpilotfor-zotero/src/agent/extensionApi";
+     * import { ok, fail } from "paperpilotfor-zotero/src/agent/extensionApi";
      *
      * addon.api.agent.registerTool({
      *   spec: {

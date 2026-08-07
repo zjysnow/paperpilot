@@ -1,20 +1,20 @@
-# llm-for-zotero: A Research Agent System for your Zotero Library
+# paperpilotfor-zotero: A Research Agent System for your Zotero Library
 
 [![zotero target version](https://img.shields.io/badge/Zotero-7-green?style=flat-square&logo=zotero&logoColor=CC2936)](https://www.zotero.org)
 [![zotero target version](https://img.shields.io/badge/Zotero-8-green?style=flat-square&logo=zotero&logoColor=CC2936)](https://www.zotero.org)
 [![zotero target version](https://img.shields.io/badge/Zotero-9-green?style=flat-square&logo=zotero&logoColor=CC2936)](https://www.zotero.org)
 [![Using Zotero Plugin Template](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=flat-square)](https://www.gnu.org/licenses/agpl-3.0)
-[![Latest release](https://img.shields.io/github/v/release/yilewang/llm-for-zotero?style=flat-square)](https://github.com/yilewang/llm-for-zotero/releases)
-[![GitHub Stars](https://img.shields.io/github/stars/yilewang/llm-for-zotero?style=flat-square)](https://github.com/yilewang/llm-for-zotero/stargazers)
-[![GitHub Downloads](https://img.shields.io/github/downloads/yilewang/llm-for-zotero/total?style=flat-square)](https://github.com/yilewang/llm-for-zotero/releases)
+[![Latest release](https://img.shields.io/github/v/release/yilewang/paperpilotfor-zotero?style=flat-square)](https://github.com/yilewang/paperpilotfor-zotero/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/yilewang/paperpilotfor-zotero?style=flat-square)](https://github.com/yilewang/paperpilotfor-zotero/stargazers)
+[![GitHub Downloads](https://img.shields.io/github/downloads/yilewang/paperpilotfor-zotero/total?style=flat-square)](https://github.com/yilewang/paperpilotfor-zotero/releases)
 [![buymeacoffee](https://img.shields.io/badge/Support-Buy%20Me%20A%20Coffee-FF813F?style=flat-square&logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/yat.lok)
 
 <p align="center">
   <img src="./assets/label.png" alt="LLM for Zotero logo: a brain icon merged with the Zotero shield" width="512" />
 </p>
 
-**llm-for-zotero** brings Large Language Models into the Zotero reader, so
+**paperpilotfor-zotero** brings Large Language Models into the Zotero reader, so
 you can ask questions, summarize papers, inspect figures, compare sources,
 and save notes without leaving your library. It works with standard API
 providers, local OpenAI-compatible models, WebChat, Codex App-Server,
@@ -22,15 +22,15 @@ and Claude Code.
 
 Documentation:
 
-- [English](https://yilewang.github.io/llm-for-zotero)
-- [Chinese](https://yilewang.github.io/llm-for-zotero/zh/)
+- [English](https://yilewang.github.io/paperpilotfor-zotero)
+- [Chinese](https://yilewang.github.io/paperpilotfor-zotero/zh/)
 
 <p align="center">
-  <img src="./assets/demo.png" alt="Screenshot of the llm-for-zotero sidebar inside the Zotero PDF reader" width="1024" />
+  <img src="./assets/demo.png" alt="Screenshot of the paperpilotfor-zotero sidebar inside the Zotero PDF reader" width="1024" />
 </p>
 
 <p align="center">
-  <img src="./assets/demo2.png" alt="Screenshot of the llm-for-zotero sidebar inside the Zotero PDF reader" width="1024" />
+  <img src="./assets/demo2.png" alt="Screenshot of the paperpilotfor-zotero sidebar inside the Zotero PDF reader" width="1024" />
 </p>
 
 ## Table of Contents
@@ -101,11 +101,11 @@ Server, Claude Code, and file upload workflows.
 ## Quick Start
 
 1. Download the latest `.xpi` file from the
-   [Releases page](https://github.com/yilewang/llm-for-zotero/releases).
+   [Releases page](https://github.com/yilewang/paperpilotfor-zotero/releases).
 2. In Zotero, open `Tools` -> `Add-ons` -> gear icon ->
    **Install Add-on From File**, then select the `.xpi`.
 3. Restart Zotero.
-4. Open `Preferences` -> `llm-for-zotero`, choose a provider, enter the base
+4. Open `Preferences` -> `paperpilotfor-zotero`, choose a provider, enter the base
    URL, key, and model, then click **Test Connection**.
 5. Open a PDF in Zotero and click the LLM Assistant icon in the right-hand
    toolbar.
@@ -116,7 +116,7 @@ If you do not want to use a provider API key, start with
 
 ## Configuration
 
-Open `Preferences` -> `llm-for-zotero`.
+Open `Preferences` -> `paperpilotfor-zotero`.
 
 1. Select your **Provider**.
 2. Paste your **API Base URL**, **secret key**, and **model name**.
@@ -212,7 +212,7 @@ any local directory you choose. Point it at an
 [Obsidian](https://obsidian.md/) vault, a [Logseq](https://logseq.com/) graph,
 or a plain folder of `.md` files.
 
-Open `Preferences` -> `llm-for-zotero` and scroll to the **Notes Directory**
+Open `Preferences` -> `paperpilotfor-zotero` and scroll to the **Notes Directory**
 section.
 
 <p align="center">
@@ -340,7 +340,7 @@ Built-in skills:
 
 To create a custom skill, open the **Standalone Window**, click the **Skills**
 icon, choose **"+ New skill"**, edit the skill file, and save. Skills are stored
-as Markdown files in `{ZoteroDataDir}/llm-for-zotero/skills/`.
+as Markdown files in `{ZoteroDataDir}/paperpilotfor-zotero/skills/`.
 
 </details>
 
@@ -380,7 +380,7 @@ planned for future deprecation after app-server validation.
 
    Credentials are saved to `~/.codex/auth.json`.
 
-3. In Zotero, open `Preferences` -> `llm-for-zotero` -> **Agent** tab.
+3. In Zotero, open `Preferences` -> `paperpilotfor-zotero` -> **Agent** tab.
 4. Turn on **Enable Codex App Server integration**.
 5. Choose the default model and reasoning level.
 6. Click **Test connection**.
@@ -486,7 +486,7 @@ or correctly configured.
 
 ### 3. Enable Claude Code inside Zotero
 
-Open `Preferences` -> `llm-for-zotero` -> **Agent** tab.
+Open `Preferences` -> `paperpilotfor-zotero` -> **Agent** tab.
 
 | Setting                            | Recommended value                  |
 | ---------------------------------- | ---------------------------------- |
@@ -553,7 +553,7 @@ MinerU-parsed content.
 
 ### How to enable MinerU
 
-1. Open `Preferences` -> `llm-for-zotero`.
+1. Open `Preferences` -> `paperpilotfor-zotero`.
 2. Find the **MinerU** section and check **Enable MinerU**.
 3. Keep cloud mode enabled, or check **Use local MinerU server** for local mode.
 4. For cloud mode, optionally enter your own MinerU API key — see below.
@@ -581,7 +581,7 @@ When a personal key is provided, the plugin calls
 
 Local MinerU server support was contributed by
 [@renyong18](https://github.com/renyong18) in
-[PR #152](https://github.com/yilewang/llm-for-zotero/pull/152).
+[PR #152](https://github.com/yilewang/paperpilotfor-zotero/pull/152).
 
 Local mode sends PDFs to a self-hosted `mineru-api` server through
 `POST /file_parse` and stores the returned ZIP output in the same local cache
@@ -669,7 +669,7 @@ Setup:
 2. Unzip it.
 3. Open `chrome://extensions`, enable **Developer Mode**, choose
    **Load unpacked**, and select the unzipped extension folder.
-4. In Zotero, open `Preferences` -> `llm-for-zotero` and set
+4. In Zotero, open `Preferences` -> `paperpilotfor-zotero` and set
    **Auth Mode** -> `WebChat`.
 5. ⚠️: Keep a ChatGPT tab open in your browser. A green dot in Zotero means the extension and ChatGPT tab are connected. Make sure the tab and Zotero stay in the same monitor. No minimization or backgrounding, or the connection may drop.
 
@@ -748,16 +748,16 @@ and cloud MinerU involve their respective services or companion runtimes.
 
 > **Q: How do I report a bug or ask a question?**
 >
-> Please [open an issue](https://github.com/yilewang/llm-for-zotero/issues) on
+> Please [open an issue](https://github.com/yilewang/paperpilotfor-zotero/issues) on
 > GitHub.
 
 ## Contributing
 
 Contributions are welcome. Bug reports, feature requests, documentation
 improvements, and pull requests are all useful. Please
-[open an issue](https://github.com/yilewang/llm-for-zotero/issues) or submit a
+[open an issue](https://github.com/yilewang/paperpilotfor-zotero/issues) or submit a
 PR.
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/image?repos=yilewang/llm-for-zotero&type=date&legend=top-left)](https://www.star-history.com/?repos=yilewang%2Fllm-for-zotero&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/image?repos=yilewang/paperpilotfor-zotero&type=date&legend=top-left)](https://www.star-history.com/?repos=yilewang%2Fpaperpilotfor-zotero&type=date&legend=top-left)

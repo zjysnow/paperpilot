@@ -8,8 +8,8 @@
  * unit-tested without pulling in the build-time skill bundle.
  */
 
-export const MANAGED_BEGIN_MARKER = "<!-- LLM-FOR-ZOTERO:MANAGED-BEGIN -->";
-export const MANAGED_END_MARKER = "<!-- LLM-FOR-ZOTERO:MANAGED-END -->";
+export const MANAGED_BEGIN_MARKER = "<!-- Paper Pilot:MANAGED-BEGIN -->";
+export const MANAGED_END_MARKER = "<!-- Paper Pilot:MANAGED-END -->";
 
 /**
  * Extract the managed block from a skill file's raw content.

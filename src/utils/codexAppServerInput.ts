@@ -95,7 +95,7 @@ function getWritableRoot(): string {
 function getAppServerImageDir(): string {
   return joinLocalPath(
     getWritableRoot(),
-    "llm-for-zotero-codex-app-server-images",
+    "paperpilotfor-zotero-codex-app-server-images",
   );
 }
 

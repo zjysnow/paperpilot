@@ -260,7 +260,7 @@ export function attachComposePreviewInteractionController(
       const target = event.target as Element | null;
       if (!target) return;
       const row = target.closest(
-        ".llm-file-context-item",
+        ".paperpilotfile-context-item",
       ) as HTMLDivElement | null;
       if (!row || !filePreviewList.contains(row)) return;
       const index = Number.parseInt(row.dataset.fileContextIndex || "", 10);
@@ -292,7 +292,7 @@ export function attachComposePreviewInteractionController(
       const target = event.target as Element | null;
       if (!target) return;
       const thumbItem = target.closest(
-        ".llm-preview-item",
+        ".paperpilotpreview-item",
       ) as HTMLDivElement | null;
       if (!thumbItem || !previewStrip.contains(thumbItem)) return;
       const index = Number.parseInt(
@@ -334,7 +334,7 @@ export function attachComposePreviewInteractionController(
       if (!target) return;
 
       const summaryClearBtn = target.closest(
-        ".llm-paper-context-summary-clear",
+        ".paperpilotpaper-context-summary-clear",
       ) as HTMLButtonElement | null;
       if (summaryClearBtn && paperPreview.contains(summaryClearBtn)) {
         event.preventDefault();
@@ -344,7 +344,7 @@ export function attachComposePreviewInteractionController(
       }
 
       const summaryChip = target.closest(
-        ".llm-paper-context-summary-chip",
+        ".paperpilotpaper-context-summary-chip",
       ) as HTMLElement | null;
       if (summaryChip && paperPreview.contains(summaryChip)) {
         event.preventDefault();
@@ -365,7 +365,7 @@ export function attachComposePreviewInteractionController(
       }
 
       const otherClearBtn = target.closest(
-        ".llm-other-ref-clear",
+        ".paperpilotother-ref-clear",
       ) as HTMLButtonElement | null;
       if (otherClearBtn) {
         event.preventDefault();
@@ -389,7 +389,7 @@ export function attachComposePreviewInteractionController(
       }
 
       const collectionClearBtn = target.closest(
-        ".llm-collection-clear",
+        ".paperpilotcollection-clear",
       ) as HTMLButtonElement | null;
       if (collectionClearBtn) {
         event.preventDefault();
@@ -419,7 +419,7 @@ export function attachComposePreviewInteractionController(
       }
 
       const tagClearBtn = target.closest(
-        ".llm-tag-clear",
+        ".paperpilottag-clear",
       ) as HTMLButtonElement | null;
       if (tagClearBtn) {
         event.preventDefault();
@@ -440,7 +440,7 @@ export function attachComposePreviewInteractionController(
       }
 
       const clearBtn = target.closest(
-        ".llm-paper-context-clear",
+        ".paperpilotpaper-context-clear",
       ) as HTMLButtonElement | null;
       if (!clearBtn) return;
       event.preventDefault();
@@ -485,10 +485,10 @@ export function attachComposePreviewInteractionController(
       const target = event.target as Element | null;
       if (!target) return;
       const paperChip = target.closest(
-        ".llm-paper-context-chip",
+        ".paperpilotpaper-context-chip",
       ) as HTMLDivElement | null;
       if (!paperChip || !paperPreview.contains(paperChip)) return;
-      if (target.closest(".llm-paper-context-clear")) return;
+      if (target.closest(".paperpilotpaper-context-clear")) return;
       const paperContext = deps.resolvePaperContextFromChipElement(paperChip);
       if (!paperContext) return;
       event.preventDefault();
@@ -523,12 +523,12 @@ export function attachComposePreviewInteractionController(
       setPaperModeOverride(item.id, paperContext, nextMode as any);
       const nextIsFullText = isPaperContextFullTextMode(nextMode as any);
       paperChip.dataset.fullText = nextIsFullText ? "true" : "false";
-      paperChip.classList.toggle("llm-paper-context-chip-full", nextIsFullText);
+      paperChip.classList.toggle("paperpilotpaper-context-chip-full", nextIsFullText);
       if (contentSource === "pdf") {
-        paperChip.classList.add("llm-paper-context-chip-pdf");
+        paperChip.classList.add("paperpilotpaper-context-chip-pdf");
       }
       paperChip.classList.toggle(
-        "llm-paper-context-chip-webchat-inactive",
+        "paperpilotpaper-context-chip-webchat-inactive",
         deps.isWebChatMode() && contentSource === "pdf" && !nextIsFullText,
       );
       deps.closePaperChipMenu();
@@ -553,16 +553,16 @@ export function attachComposePreviewInteractionController(
     paperPreview.addEventListener("click", (event: Event) => {
       const target = event.target as Element | null;
       if (!target) return;
-      if (target.closest(".llm-paper-context-clear")) return;
+      if (target.closest(".paperpilotpaper-context-clear")) return;
 
       const cardRow = target.closest(
-        ".llm-paper-chip-menu-row",
+        ".paperpilotpaper-chip-menu-row",
       ) as HTMLButtonElement | null;
       if (cardRow) {
         const item = getItem();
         if (!item) return;
         const paperChipForCard = cardRow.closest(
-          ".llm-paper-context-chip",
+          ".paperpilotpaper-context-chip",
         ) as HTMLDivElement | null;
         if (!paperChipForCard || !paperPreview.contains(paperChipForCard))
           return;
@@ -593,7 +593,7 @@ export function attachComposePreviewInteractionController(
 
       const item = getItem();
       const paperChip = target.closest(
-        ".llm-paper-context-chip",
+        ".paperpilotpaper-context-chip",
       ) as HTMLDivElement | null;
       if (!paperChip || !paperPreview.contains(paperChip)) return;
       event.preventDefault();
@@ -740,7 +740,7 @@ export function attachComposePreviewInteractionController(
       ) as HTMLDivElement | null;
       const noteChipKind = noteChip?.dataset.noteChipKind || "";
       const noteMetaBtn = target.closest(
-        ".llm-note-context-meta",
+        ".paperpilotnote-context-meta",
       ) as HTMLButtonElement | null;
       if (noteMetaBtn && noteChipKind === "active") {
         event.preventDefault();
@@ -765,7 +765,7 @@ export function attachComposePreviewInteractionController(
       if (noteChip && noteChipKind === "active") return;
 
       const clearBtn = target.closest(
-        ".llm-selected-context-clear",
+        ".paperpilotselected-context-clear",
       ) as HTMLButtonElement | null;
       if (clearBtn) {
         event.preventDefault();
@@ -797,7 +797,7 @@ export function attachComposePreviewInteractionController(
       }
 
       const metaBtn = target.closest(
-        ".llm-selected-context-meta",
+        ".paperpilotselected-context-meta",
       ) as HTMLButtonElement | null;
       if (!metaBtn) return;
       event.preventDefault();
@@ -872,7 +872,7 @@ export function attachComposePreviewInteractionController(
         return;
       }
       const selectedContext = target.closest(
-        ".llm-selected-context",
+        ".paperpilotselected-context",
       ) as HTMLDivElement | null;
       if (!selectedContext || !selectedContextList.contains(selectedContext)) {
         return;

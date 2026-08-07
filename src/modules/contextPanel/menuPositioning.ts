@@ -49,7 +49,7 @@ function applyPanelBoundMenuWidth(
     1,
     Math.floor(panelRect.width) - viewportMargin * 2 - 4,
   );
-  if (menu.id === "llm-history-menu") {
+  if (menu.id === "paperpilothistory-menu") {
     menu.style.boxSizing = "border-box";
     menu.style.minWidth = `${Math.min(240, availableWidth)}px`;
     menu.style.width = `${Math.min(360, availableWidth)}px`;

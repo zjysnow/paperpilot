@@ -19,8 +19,8 @@ type IOUtilsLike = {
   ) => Promise<void>;
 };
 
-const MANAGED_BEGIN_MARKER = "<!-- LLM-FOR-ZOTERO:CLAUDE-MANAGED-BEGIN -->";
-const MANAGED_END_MARKER = "<!-- LLM-FOR-ZOTERO:CLAUDE-MANAGED-END -->";
+const MANAGED_BEGIN_MARKER = "<!-- Paper Pilot:CLAUDE-MANAGED-BEGIN -->";
+const MANAGED_END_MARKER = "<!-- Paper Pilot:CLAUDE-MANAGED-END -->";
 
 function getIOUtils(): IOUtilsLike | undefined {
   return (globalThis as unknown as { IOUtils?: IOUtilsLike }).IOUtils;

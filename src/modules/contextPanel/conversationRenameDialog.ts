@@ -37,19 +37,19 @@ export function showConversationRenameDialog(
 
   return new Promise((resolve) => {
     const previousActiveElement = doc.activeElement;
-    const titleId = nextDialogElementId("llm-conversation-rename-title");
+    const titleId = nextDialogElementId("paperpilotconversation-rename-title");
 
     const overlay = createElement(
       doc,
       "div",
-      "llm-modal-overlay llm-conversation-rename-overlay",
+      "paperpilotmodal-overlay paperpilotconversation-rename-overlay",
     );
     overlay.setAttribute("role", "presentation");
 
     const dialog = createElement(
       doc,
       "div",
-      "llm-modal-dialog llm-conversation-rename-dialog",
+      "paperpilotmodal-dialog paperpilotconversation-rename-dialog",
     );
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
@@ -58,7 +58,7 @@ export function showConversationRenameDialog(
     const title = createElement(
       doc,
       "div",
-      "llm-modal-title llm-conversation-rename-title",
+      "paperpilotmodal-title paperpilotconversation-rename-title",
       {
         id: titleId,
         textContent: options.title,
@@ -67,9 +67,9 @@ export function showConversationRenameDialog(
     const form = createElement(
       doc,
       "form",
-      "llm-conversation-rename-form",
+      "paperpilotconversation-rename-form",
     ) as HTMLFormElement;
-    const input = createElement(doc, "input", "llm-conversation-rename-input", {
+    const input = createElement(doc, "input", "paperpilotconversation-rename-input", {
       type: "text",
     }) as HTMLInputElement;
     input.value = options.initialTitle;
@@ -80,11 +80,11 @@ export function showConversationRenameDialog(
     input.setAttribute("aria-label", options.title);
     input.setAttribute("autocomplete", "off");
 
-    const actions = createElement(doc, "div", "llm-modal-actions");
+    const actions = createElement(doc, "div", "paperpilotmodal-actions");
     const cancelButton = createElement(
       doc,
       "button",
-      "llm-modal-btn llm-modal-cancel",
+      "paperpilotmodal-btn paperpilotmodal-cancel",
       {
         type: "button",
         textContent: options.cancelLabel,
@@ -93,7 +93,7 @@ export function showConversationRenameDialog(
     const confirmButton = createElement(
       doc,
       "button",
-      "llm-modal-btn llm-modal-primary",
+      "paperpilotmodal-btn paperpilotmodal-primary",
       {
         type: "submit",
         textContent: options.confirmLabel,

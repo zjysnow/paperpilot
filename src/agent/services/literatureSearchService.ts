@@ -107,10 +107,10 @@ interface XmlDomParser {
 
 const OA_SELECT =
   "id,doi,display_name,authorships,publication_year,abstract_inverted_index,cited_by_count,open_access";
-const OA_MAILTO = "mailto=llm-for-zotero@github.com";
+const OA_MAILTO = "mailto=paperpilotfor-zotero@github.com";
 const OA_BASE = "https://api.openalex.org";
 const USER_AGENT =
-  "llm-for-zotero/1.0 (https://github.com/yilewang/llm-for-zotero)";
+  "paperpilotfor-zotero/1.0 (https://github.com/yilewang/paperpilotfor-zotero)";
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -148,7 +148,7 @@ async function fetchJson(
  * do not send Access-Control-Allow-Origin headers.
  */
 async function zoteroFetchText(url: string): Promise<string> {
-  Zotero.debug(`[llm-for-zotero] zoteroFetchText: ${url.slice(0, 120)}...`);
+  Zotero.debug(`[paperpilotfor-zotero] zoteroFetchText: ${url.slice(0, 120)}...`);
   try {
     const xhr = await Zotero.HTTP.request("GET", url, {
       headers: { "User-Agent": USER_AGENT },
@@ -157,12 +157,12 @@ async function zoteroFetchText(url: string): Promise<string> {
     });
     const text = xhr.responseText ?? "";
     Zotero.debug(
-      `[llm-for-zotero] zoteroFetchText: status=${xhr.status}, responseLength=${text.length}`,
+      `[paperpilotfor-zotero] zoteroFetchText: status=${xhr.status}, responseLength=${text.length}`,
     );
     return text;
   } catch (error) {
     Zotero.debug(
-      `[llm-for-zotero] zoteroFetchText FAILED: ${error instanceof Error ? error.message : String(error)}`,
+      `[paperpilotfor-zotero] zoteroFetchText FAILED: ${error instanceof Error ? error.message : String(error)}`,
     );
     throw error;
   }
@@ -174,7 +174,7 @@ async function zoteroFetchJson(url: string): Promise<unknown> {
     return JSON.parse(text);
   } catch (error) {
     Zotero.debug(
-      `[llm-for-zotero] zoteroFetchJson: JSON parse failed, text preview: ${text.slice(0, 200)}`,
+      `[paperpilotfor-zotero] zoteroFetchJson: JSON parse failed, text preview: ${text.slice(0, 200)}`,
     );
     throw new Error(
       `JSON parse failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -1051,11 +1051,11 @@ export class LiteratureSearchService {
       }
       try {
         Zotero.debug(
-          `[llm-for-zotero] arXiv search: query="${query}", limit=${limit}`,
+          `[paperpilotfor-zotero] arXiv search: query="${query}", limit=${limit}`,
         );
         const results = dedupe(await fetchArxivSearch(query, limit));
         Zotero.debug(
-          `[llm-for-zotero] arXiv search returned ${results.length} results`,
+          `[paperpilotfor-zotero] arXiv search returned ${results.length} results`,
         );
         return {
           results,
@@ -1065,7 +1065,7 @@ export class LiteratureSearchService {
         };
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        Zotero.debug(`[llm-for-zotero] arXiv search failed: ${msg}`);
+        Zotero.debug(`[paperpilotfor-zotero] arXiv search failed: ${msg}`);
         return {
           results: [],
           source: "arXiv",
@@ -1085,11 +1085,11 @@ export class LiteratureSearchService {
       }
       try {
         Zotero.debug(
-          `[llm-for-zotero] Europe PMC search: query="${query}", limit=${limit}`,
+          `[paperpilotfor-zotero] Europe PMC search: query="${query}", limit=${limit}`,
         );
         const results = dedupe(await fetchEuropePmcSearch(query, limit));
         Zotero.debug(
-          `[llm-for-zotero] Europe PMC search returned ${results.length} results`,
+          `[paperpilotfor-zotero] Europe PMC search returned ${results.length} results`,
         );
         return {
           results,
@@ -1099,7 +1099,7 @@ export class LiteratureSearchService {
         };
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        Zotero.debug(`[llm-for-zotero] Europe PMC search failed: ${msg}`);
+        Zotero.debug(`[paperpilotfor-zotero] Europe PMC search failed: ${msg}`);
         return {
           results: [],
           source: "Europe PMC",

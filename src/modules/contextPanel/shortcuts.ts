@@ -78,32 +78,32 @@ export async function renderShortcuts(
   // we stay correct even if a caller forgets to pass mode="library".
   if (mode === "library" || resolveActiveNoteSession(item)) {
     const container = body.querySelector(
-      "#llm-shortcuts",
+      "#paperpilotshortcuts",
     ) as HTMLDivElement | null;
     if (container) container.innerHTML = "";
     return;
   }
 
   const container = body.querySelector(
-    "#llm-shortcuts",
+    "#paperpilotshortcuts",
   ) as HTMLDivElement | null;
   const menu = body.querySelector(
-    "#llm-shortcut-menu",
+    "#paperpilotshortcut-menu",
   ) as HTMLDivElement | null;
   const menuEdit = body.querySelector(
-    "#llm-shortcut-menu-edit",
+    "#paperpilotshortcut-menu-edit",
   ) as HTMLButtonElement | null;
   const menuDelete = body.querySelector(
-    "#llm-shortcut-menu-delete",
+    "#paperpilotshortcut-menu-delete",
   ) as HTMLButtonElement | null;
   const menuAdd = body.querySelector(
-    "#llm-shortcut-menu-add",
+    "#paperpilotshortcut-menu-add",
   ) as HTMLButtonElement | null;
   const menuMove = body.querySelector(
-    "#llm-shortcut-menu-move",
+    "#paperpilotshortcut-menu-move",
   ) as HTMLButtonElement | null;
   const menuReset = body.querySelector(
-    "#llm-shortcut-menu-reset",
+    "#paperpilotshortcut-menu-reset",
   ) as HTMLButtonElement | null;
   if (!container) return;
 
@@ -234,7 +234,7 @@ export async function renderShortcuts(
 
     const prompt = updated.prompt.trim();
     if (!prompt) {
-      const status = body.querySelector("#llm-status") as HTMLElement | null;
+      const status = body.querySelector("#paperpilotstatus") as HTMLElement | null;
       if (status) setStatus(status, "Shortcut prompt cannot be empty", "error");
       return;
     }
@@ -248,7 +248,7 @@ export async function renderShortcuts(
       visibleBuiltinCount + currentCustomShortcuts.length >=
       MAX_EDITABLE_SHORTCUTS
     ) {
-      const status = body.querySelector("#llm-status") as HTMLElement | null;
+      const status = body.querySelector("#paperpilotstatus") as HTMLElement | null;
       if (status) {
         setStatus(
           status,
@@ -359,7 +359,7 @@ export async function renderShortcuts(
       "http://www.w3.org/1999/xhtml",
       "button",
     ) as HTMLButtonElement;
-    btn.className = "llm-shortcut-btn";
+    btn.className = "paperpilotshortcut-btn";
     btn.type = "button";
     btn.textContent = "";
     btn.dataset.shortcutId = shortcut.id;
@@ -369,14 +369,14 @@ export async function renderShortcuts(
     btn.dataset.defaultLabel = shortcut.defaultLabel;
     btn.disabled = !moveMode && (!item || !shortcut.prompt);
     btn.draggable = moveMode;
-    if (moveMode) btn.classList.add("llm-shortcut-move-mode");
+    if (moveMode) btn.classList.add("paperpilotshortcut-move-mode");
 
     if (moveMode) {
       const handle = body.ownerDocument!.createElementNS(
         "http://www.w3.org/1999/xhtml",
         "span",
       ) as HTMLSpanElement;
-      handle.className = "llm-shortcut-drag-handle";
+      handle.className = "paperpilotshortcut-drag-handle";
       handle.textContent = "≡";
       handle.title = "Drag to reorder";
       handle.draggable = false;
@@ -391,7 +391,7 @@ export async function renderShortcuts(
       "http://www.w3.org/1999/xhtml",
       "span",
     ) as HTMLSpanElement;
-    label.className = "llm-shortcut-label";
+    label.className = "paperpilotshortcut-label";
     label.textContent = shortcut.label;
     btn.appendChild(label);
 
@@ -411,7 +411,7 @@ export async function renderShortcuts(
     }
     if (!element || typeof (element as any).closest !== "function") return null;
     const btn = element.closest(
-      ".llm-shortcut-btn",
+      ".paperpilotshortcut-btn",
     ) as HTMLButtonElement | null;
     if (!btn || !container.contains(btn)) return null;
     return btn;
@@ -428,9 +428,9 @@ export async function renderShortcuts(
     const nextPrompt = (btn.dataset.prompt || "").trim();
     if (!nextPrompt) return;
     const inputBox = body.querySelector(
-      "#llm-input",
+      "#paperpilotinput",
     ) as HTMLTextAreaElement | null;
-    const sendBtn = body.querySelector("#llm-send") as HTMLButtonElement | null;
+    const sendBtn = body.querySelector("#paperpilotsend") as HTMLButtonElement | null;
     if (!inputBox || !sendBtn) return;
     inputBox.value = nextPrompt;
     sendBtn.click();
@@ -467,7 +467,7 @@ export async function renderShortcuts(
     }
     draggingShortcutId = shortcutId;
     draggingButton = btn;
-    btn.classList.add("llm-shortcut-dragging");
+    btn.classList.add("paperpilotshortcut-dragging");
     if (dragEvent.dataTransfer) {
       dragEvent.dataTransfer.effectAllowed = "move";
       dragEvent.dataTransfer.setData("text/plain", shortcutId);
@@ -490,7 +490,7 @@ export async function renderShortcuts(
     if (!draggingShortcutId || !targetId || draggingShortcutId === targetId) {
       return;
     }
-    btn.classList.add("llm-shortcut-drop-target");
+    btn.classList.add("paperpilotshortcut-drop-target");
   };
 
   container.ondragover = (e: Event) => {
@@ -504,14 +504,14 @@ export async function renderShortcuts(
     if (!draggingShortcutId || !targetId || draggingShortcutId === targetId) {
       return;
     }
-    btn.classList.add("llm-shortcut-drop-target");
+    btn.classList.add("paperpilotshortcut-drop-target");
   };
 
   container.ondragleave = (e: Event) => {
     const dragEvent = e as DragEvent;
     if (!moveMode) return;
     const btn = getShortcutButtonFromEventTarget(dragEvent.target);
-    btn?.classList.remove("llm-shortcut-drop-target");
+    btn?.classList.remove("paperpilotshortcut-drop-target");
   };
 
   container.ondrop = async (e: Event) => {
@@ -520,7 +520,7 @@ export async function renderShortcuts(
     dragEvent.preventDefault();
     const btn = getShortcutButtonFromEventTarget(dragEvent.target);
     if (!btn) return;
-    btn.classList.remove("llm-shortcut-drop-target");
+    btn.classList.remove("paperpilotshortcut-drop-target");
     const targetId = btn.dataset.shortcutId || "";
     if (!targetId || !draggingShortcutId || draggingShortcutId === targetId) {
       return;
@@ -544,12 +544,12 @@ export async function renderShortcuts(
   container.ondragend = () => {
     draggingShortcutId = "";
     if (draggingButton) {
-      draggingButton.classList.remove("llm-shortcut-dragging");
+      draggingButton.classList.remove("paperpilotshortcut-dragging");
       draggingButton = null;
     }
-    const highlighted = container.querySelectorAll(".llm-shortcut-drop-target");
+    const highlighted = container.querySelectorAll(".paperpilotshortcut-drop-target");
     highlighted.forEach((el: Element) =>
-      (el as HTMLElement).classList.remove("llm-shortcut-drop-target"),
+      (el as HTMLElement).classList.remove("paperpilotshortcut-drop-target"),
     );
   };
 
@@ -562,7 +562,7 @@ export async function renderShortcuts(
       const shortcutKind = menu.dataset.shortcutKind || "";
       if (!shortcutId || !shortcutKind) return;
       const target = container.querySelector(
-        `.llm-shortcut-btn[data-shortcut-id="${shortcutId}"]`,
+        `.paperpilotshortcut-btn[data-shortcut-id="${shortcutId}"]`,
       ) as HTMLButtonElement | null;
       const currentPrompt = target?.dataset.prompt || "";
       const currentLabel = target?.dataset.label || "";
@@ -577,7 +577,7 @@ export async function renderShortcuts(
       }
       const nextPrompt = updated.prompt.trim();
       if (!nextPrompt) {
-        const status = body.querySelector("#llm-status") as HTMLElement | null;
+        const status = body.querySelector("#paperpilotstatus") as HTMLElement | null;
         if (status)
           setStatus(status, "Shortcut prompt cannot be empty", "error");
         menu.style.display = "none";
@@ -690,7 +690,7 @@ export async function renderShortcuts(
         const target = e.target as Node | null;
         const targetEl = target as Element | null;
         const clickedShortcutButton = Boolean(
-          targetEl?.closest(".llm-shortcut-btn"),
+          targetEl?.closest(".paperpilotshortcut-btn"),
         );
         closeShortcutMenu(menu);
         if (

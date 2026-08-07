@@ -95,7 +95,7 @@ export async function importNoteImageAsset(
     return attachment?.key ? { key: String(attachment.key) } : null;
   } catch (error) {
     Zotero.debug?.(
-      `[llm-for-zotero] importNoteImageAsset failed: ${error instanceof Error ? error.message : String(error)}`,
+      `[paperpilotfor-zotero] importNoteImageAsset failed: ${error instanceof Error ? error.message : String(error)}`,
     );
     return null;
   }
@@ -212,7 +212,7 @@ export async function buildGeneratedImagesHtmlForNote(
       );
     } catch (error) {
       Zotero.debug?.(
-        `[llm-for-zotero] Generated image note import failed: ${error instanceof Error ? error.message : String(error)}`,
+        `[paperpilotfor-zotero] Generated image note import failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

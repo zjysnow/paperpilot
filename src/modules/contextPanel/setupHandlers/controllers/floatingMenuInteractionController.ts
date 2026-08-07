@@ -163,7 +163,7 @@ export function attachFloatingMenuInteractionController(
     if (!paperPicker || paperPicker.style.display === "none") return;
     const target = event.target as Node | null;
     if (target && paperPicker.contains(target)) return;
-    const inputBox = body.querySelector("#llm-input") as HTMLElement | null;
+    const inputBox = body.querySelector("#paperpilotinput") as HTMLElement | null;
     if (target && inputBox?.contains(target)) return;
     deps.closePaperPicker();
   };
@@ -226,7 +226,7 @@ export function attachFloatingMenuInteractionController(
     if (event.key !== "Escape") return;
     let closed = false;
     const shortcutMenus = Array.from(
-      panelDoc.querySelectorAll("#llm-shortcut-menu"),
+      panelDoc.querySelectorAll("#paperpilotshortcut-menu"),
     ) as HTMLDivElement[];
     for (const shortcutMenuEl of shortcutMenus) {
       if (!isShortcutMenuVisible(shortcutMenuEl)) continue;
@@ -245,7 +245,7 @@ export function attachFloatingMenuInteractionController(
     chatBox.addEventListener("click", (event: Event) => {
       if (deps.getInlineEditTarget()) {
         const isInsideEdit = (event.target as Element | null)?.closest(
-          ".llm-inline-edit-wrapper",
+          ".paperpilotinline-edit-wrapper",
         );
         if (!isInsideEdit) {
           deps.getInlineEditCleanup()?.();
@@ -257,12 +257,12 @@ export function attachFloatingMenuInteractionController(
 
       const target = event.target as Element | null;
       const copyBtn = target?.closest(
-        ".llm-render-copy-btn",
+        ".paperpilotrender-copy-btn",
       ) as HTMLButtonElement | null;
       if (copyBtn) {
         event.preventDefault();
         event.stopPropagation();
-        const copyable = copyBtn.closest(".llm-copyable") as HTMLElement | null;
+        const copyable = copyBtn.closest(".paperpilotcopyable") as HTMLElement | null;
         const source = copyable?.dataset.llmCopySource || "";
         if (source) {
           copyable?.setAttribute("data-copy-feedback", "copied");
@@ -298,7 +298,7 @@ export function attachFloatingMenuInteractionController(
       }
 
       const retryTarget = target?.closest(
-        ".llm-retry-latest",
+        ".paperpilotretry-latest",
       ) as HTMLButtonElement | null;
       if (!retryTarget) return;
       event.preventDefault();
@@ -346,48 +346,48 @@ export function attachFloatingMenuInteractionController(
     panelDoc.addEventListener("mousedown", (event: Event) => {
       const mouseEvent = event as MouseEvent;
       const modelMenus = Array.from(
-        panelDoc.querySelectorAll("#llm-model-menu"),
+        panelDoc.querySelectorAll("#paperpilotmodel-menu"),
       ) as HTMLDivElement[];
       const reasoningMenus = Array.from(
-        panelDoc.querySelectorAll("#llm-reasoning-menu"),
+        panelDoc.querySelectorAll("#paperpilotreasoning-menu"),
       ) as HTMLDivElement[];
       const target = event.target as Node | null;
       const retryButtonTarget = deps.isElementNode(target)
-        ? (target.closest(".llm-retry-latest") as HTMLButtonElement | null)
+        ? (target.closest(".paperpilotretry-latest") as HTMLButtonElement | null)
         : null;
       const retryModelMenus = Array.from(
-        panelDoc.querySelectorAll("#llm-retry-model-menu"),
+        panelDoc.querySelectorAll("#paperpilotretry-model-menu"),
       ) as HTMLDivElement[];
       const responseMenus = Array.from(
-        panelDoc.querySelectorAll("#llm-response-menu"),
+        panelDoc.querySelectorAll("#paperpilotresponse-menu"),
       ) as HTMLDivElement[];
       const promptMenus = Array.from(
-        panelDoc.querySelectorAll("#llm-prompt-menu"),
+        panelDoc.querySelectorAll("#paperpilotprompt-menu"),
       ) as HTMLDivElement[];
       const exportMenus = Array.from(
-        panelDoc.querySelectorAll("#llm-export-menu"),
+        panelDoc.querySelectorAll("#paperpilotexport-menu"),
       ) as HTMLDivElement[];
       const slashMenus = Array.from(
-        panelDoc.querySelectorAll("#llm-slash-menu"),
+        panelDoc.querySelectorAll("#paperpilotslash-menu"),
       ) as HTMLDivElement[];
       const historyMenus = Array.from(
-        panelDoc.querySelectorAll("#llm-history-menu"),
+        panelDoc.querySelectorAll("#paperpilothistory-menu"),
       ) as HTMLDivElement[];
       const historyNewMenus = Array.from(
-        panelDoc.querySelectorAll("#llm-history-new-menu"),
+        panelDoc.querySelectorAll("#paperpilothistory-new-menu"),
       ) as HTMLDivElement[];
       const historyRowMenus = Array.from(
-        panelDoc.querySelectorAll("#llm-history-row-menu"),
+        panelDoc.querySelectorAll("#paperpilothistory-row-menu"),
       ) as HTMLDivElement[];
       const shortcutMenus = Array.from(
-        panelDoc.querySelectorAll("#llm-shortcut-menu"),
+        panelDoc.querySelectorAll("#paperpilotshortcut-menu"),
       ) as HTMLDivElement[];
 
       for (const modelMenuEl of modelMenus) {
         if (!isFloatingMenuOpen(modelMenuEl)) continue;
-        const panelRoot = modelMenuEl.closest("#llm-main");
+        const panelRoot = modelMenuEl.closest("#paperpilotmain");
         const modelButtonEl = panelRoot?.querySelector(
-          "#llm-model-toggle",
+          "#paperpilotmodel-toggle",
         ) as HTMLButtonElement | null;
         if (
           !target ||
@@ -398,9 +398,9 @@ export function attachFloatingMenuInteractionController(
       }
       for (const reasoningMenuEl of reasoningMenus) {
         if (!isFloatingMenuOpen(reasoningMenuEl)) continue;
-        const panelRoot = reasoningMenuEl.closest("#llm-main");
+        const panelRoot = reasoningMenuEl.closest("#paperpilotmain");
         const reasoningButtonEl = panelRoot?.querySelector(
-          "#llm-reasoning-toggle",
+          "#paperpilotreasoning-toggle",
         ) as HTMLButtonElement | null;
         if (
           !target ||
@@ -416,7 +416,7 @@ export function attachFloatingMenuInteractionController(
       }
       for (const retryModelMenuEl of retryModelMenus) {
         if (!isFloatingMenuOpen(retryModelMenuEl)) continue;
-        const panelRoot = retryModelMenuEl.closest("#llm-main");
+        const panelRoot = retryModelMenuEl.closest("#paperpilotmain");
         const clickedRetryButtonInSamePanel = Boolean(
           retryButtonTarget &&
           panelRoot &&
@@ -464,9 +464,9 @@ export function attachFloatingMenuInteractionController(
       for (const exportMenuEl of exportMenus) {
         if (exportMenuEl.style.display === "none") continue;
         if (target && exportMenuEl.contains(target)) continue;
-        const panelRoot = exportMenuEl.closest("#llm-main");
+        const panelRoot = exportMenuEl.closest("#paperpilotmain");
         const exportButtonEl = panelRoot?.querySelector(
-          "#llm-export",
+          "#paperpilotexport",
         ) as HTMLButtonElement | null;
         if (target && exportButtonEl?.contains(target)) continue;
         exportMenuEl.style.display = "none";
@@ -475,9 +475,9 @@ export function attachFloatingMenuInteractionController(
       for (const slashMenuEl of slashMenus) {
         if (slashMenuEl.style.display === "none") continue;
         if (target && slashMenuEl.contains(target)) continue;
-        const panelRoot = slashMenuEl.closest("#llm-main");
+        const panelRoot = slashMenuEl.closest("#paperpilotmain");
         const slashButtonEl = panelRoot?.querySelector(
-          "#llm-upload-file",
+          "#paperpilotupload-file",
         ) as HTMLButtonElement | null;
         if (target && slashButtonEl?.contains(target)) continue;
         slashMenuEl.style.display = "none";
@@ -487,12 +487,12 @@ export function attachFloatingMenuInteractionController(
       for (const historyMenuEl of historyMenus) {
         if (historyMenuEl.style.display === "none") continue;
         if (target && historyMenuEl.contains(target)) continue;
-        const panelRoot = historyMenuEl.closest("#llm-main");
+        const panelRoot = historyMenuEl.closest("#paperpilotmain");
         const historyToggleEl = panelRoot?.querySelector(
-          "#llm-history-toggle",
+          "#paperpilothistory-toggle",
         ) as HTMLButtonElement | null;
         const historyNewEl = panelRoot?.querySelector(
-          "#llm-history-new",
+          "#paperpilothistory-new",
         ) as HTMLButtonElement | null;
         if (target && historyToggleEl?.contains(target)) continue;
         if (target && historyNewEl?.contains(target)) continue;
@@ -503,9 +503,9 @@ export function attachFloatingMenuInteractionController(
       for (const historyNewMenuEl of historyNewMenus) {
         if (historyNewMenuEl.style.display === "none") continue;
         if (target && historyNewMenuEl.contains(target)) continue;
-        const panelRoot = historyNewMenuEl.closest("#llm-main");
+        const panelRoot = historyNewMenuEl.closest("#paperpilotmain");
         const historyNewEl = panelRoot?.querySelector(
-          "#llm-history-new",
+          "#paperpilothistory-new",
         ) as HTMLButtonElement | null;
         if (target && historyNewEl?.contains(target)) continue;
         historyNewMenuEl.style.display = "none";

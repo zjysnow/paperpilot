@@ -106,7 +106,7 @@ export function createReferenceSelectorPanelLayout(
   const getPanelStackBudget = (): number => {
     const rawMaxHeight =
       deps.paperPicker?.style.getPropertyValue(
-        "--llm-paper-picker-max-height",
+        "--paperpilotpaper-picker-max-height",
       ) || "";
     const maxHeight = Number.parseFloat(rawMaxHeight);
     const safeMaxHeight =
@@ -235,7 +235,7 @@ export function createReferenceSelectorPanelLayout(
   const capturePanelHeights = (): void => {
     for (const [key, panel] of getRenderedPanels()) {
       if (!panel) continue;
-      if (panel.classList.contains("llm-paper-picker-panel-collapsed"))
+      if (panel.classList.contains("paperpilotpaper-picker-panel-collapsed"))
         continue;
       const rect =
         typeof panel.getBoundingClientRect === "function"
@@ -258,7 +258,7 @@ export function createReferenceSelectorPanelLayout(
     key: ReferenceSelectorPanelKey,
   ): number => {
     if (!panel) return 0;
-    if (panel.classList.contains("llm-paper-picker-panel-collapsed")) {
+    if (panel.classList.contains("paperpilotpaper-picker-panel-collapsed")) {
       return REFERENCE_SELECTOR_PANEL_COLLAPSED_HEIGHT;
     }
     const rect =
@@ -315,8 +315,8 @@ export function createReferenceSelectorPanelLayout(
       neighborKey && neighborPanel
         ? getPanelRenderedHeight(neighborPanel, neighborKey)
         : 0;
-    panel.classList.add("llm-paper-picker-panel-resizing");
-    neighborPanel?.classList.add("llm-paper-picker-panel-resizing");
+    panel.classList.add("paperpilotpaper-picker-panel-resizing");
+    neighborPanel?.classList.add("paperpilotpaper-picker-panel-resizing");
     const onMove = (moveEvent: MouseEvent) => {
       moveEvent.preventDefault();
       const requestedDelta = startY - moveEvent.clientY;
@@ -362,8 +362,8 @@ export function createReferenceSelectorPanelLayout(
     const onUp = () => {
       ownerWin.removeEventListener("mousemove", onMove);
       ownerWin.removeEventListener("mouseup", onUp);
-      panel.classList.remove("llm-paper-picker-panel-resizing");
-      neighborPanel?.classList.remove("llm-paper-picker-panel-resizing");
+      panel.classList.remove("paperpilotpaper-picker-panel-resizing");
+      neighborPanel?.classList.remove("paperpilotpaper-picker-panel-resizing");
       capturePanelHeights();
     };
     ownerWin.addEventListener("mousemove", onMove);
@@ -378,7 +378,7 @@ export function createReferenceSelectorPanelLayout(
     const separator = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-panel-separator",
+      "paperpilotpaper-picker-panel-separator",
       { title: t("Resize panel") },
     );
     separator.setAttribute("role", "separator");
@@ -467,7 +467,7 @@ export function createReferenceSelectorPanelLayout(
     const button = createElement(
       ownerDoc,
       "button",
-      "llm-paper-picker-panel-toggle",
+      "paperpilotpaper-picker-panel-toggle",
       {
         textContent: collapsed ? "›" : "▾",
         title: collapsed ? t("Expand panel") : t("Collapse panel"),

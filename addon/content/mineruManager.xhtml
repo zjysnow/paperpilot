@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
 <window
-  id="llmforzotero-mineru-manager"
+  id="paperpilot-mineru-manager"
   title="Manage MinerU Files"
   width="860"
   height="660"
@@ -10,7 +10,7 @@
   xmlns:html="http://www.w3.org/1999/xhtml"
 >
   <html:div
-    id="llmforzotero-mineru-mgr-root"
+    id="paperpilot-mineru-mgr-root"
     style="
       display: flex;
       flex-direction: column;
@@ -42,19 +42,19 @@
           >Manage MinerU Files</html:span
         >
         <html:progress
-          id="llmforzotero-mineru-mgr-progress"
+          id="paperpilot-mineru-mgr-progress"
           value="0"
           max="100"
           style="flex: 1; height: 6px; min-width: 80px"
         ></html:progress>
         <html:span
-          id="llmforzotero-mineru-mgr-progress-label"
+          id="paperpilot-mineru-mgr-progress-label"
           style="font-size: 11.5px; white-space: nowrap; color: #888"
           >0 / 0</html:span
         >
       </html:div>
       <html:div
-        id="llmforzotero-mineru-mgr-status"
+        id="paperpilot-mineru-mgr-status"
         style="
           font-size: 11.5px;
           color: #888;
@@ -69,7 +69,7 @@
         style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap"
       >
         <html:button
-          id="llmforzotero-mineru-mgr-start-btn"
+          id="paperpilot-mineru-mgr-start-btn"
           type="button"
           style="
             padding: 4px 12px;
@@ -84,7 +84,7 @@
           >Start All</html:button
         >
         <html:button
-          id="llmforzotero-mineru-mgr-repair-btn"
+          id="paperpilot-mineru-mgr-repair-btn"
           type="button"
           style="
             padding: 4px 12px;
@@ -99,7 +99,7 @@
           >Repair Cache</html:button
         >
         <html:button
-          id="llmforzotero-mineru-mgr-delete-btn"
+          id="paperpilot-mineru-mgr-delete-btn"
           type="button"
           style="
             padding: 4px 12px;
@@ -114,7 +114,7 @@
           >Delete All Cache</html:button
         >
         <html:span
-          id="llmforzotero-mineru-mgr-error"
+          id="paperpilot-mineru-mgr-error"
           style="
             font-size: 11px;
             color: #dc2626;
@@ -129,7 +129,7 @@
     <html:div style="flex: 1; display: flex; min-height: 0">
       <!-- Left sidebar -->
       <html:div
-        id="llmforzotero-mineru-mgr-sidebar"
+        id="paperpilot-mineru-mgr-sidebar"
         style="
           width: 180px;
           min-width: 180px;
@@ -147,7 +147,7 @@
       >
         <!-- Column headers (clickable for sorting) -->
         <html:div
-          id="llmforzotero-mineru-mgr-col-headers"
+          id="paperpilot-mineru-mgr-col-headers"
           style="
             display: flex;
             align-items: center;
@@ -194,7 +194,7 @@
         </html:div>
         <!-- Scrollable items -->
         <html:div
-          id="llmforzotero-mineru-mgr-items-list"
+          id="paperpilot-mineru-mgr-items-list"
           style="flex: 1; overflow-y: auto; min-height: 0"
         ></html:div>
       </html:div>
@@ -202,7 +202,7 @@
 
     <!-- Context menu -->
     <html:div
-      id="llmforzotero-mineru-mgr-context-menu"
+      id="paperpilot-mineru-mgr-context-menu"
       style="
         display: none;
         position: fixed;
@@ -216,13 +216,13 @@
       "
     >
       <html:div
-        id="llmforzotero-mineru-mgr-ctx-process"
+        id="paperpilot-mineru-mgr-ctx-process"
         style="padding: 5px 14px; font-size: 12px; cursor: pointer"
       >
         Process This Item
       </html:div>
       <html:div
-        id="llmforzotero-mineru-mgr-ctx-show-folder"
+        id="paperpilot-mineru-mgr-ctx-show-folder"
         style="padding: 5px 14px; font-size: 12px; cursor: pointer"
       >
         Show in File Manager
@@ -231,7 +231,7 @@
         style="border-top: 1px solid rgba(128, 128, 128, 0.2); margin: 2px 0"
       ></html:div>
       <html:div
-        id="llmforzotero-mineru-mgr-ctx-delete"
+        id="paperpilot-mineru-mgr-ctx-delete"
         style="
           padding: 5px 14px;
           font-size: 12px;

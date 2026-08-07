@@ -254,7 +254,7 @@ export class CodexAppServerProcess {
               redactAllRememberedLocalDocumentPathsFromTerminalText(trimmed);
             this.appendDiagnostic(`${redactedLine}\n`, "stdout");
             Zotero.debug?.(
-              `[llm-for-zotero] codex app-server: failed to parse line: ${redactedLine}`,
+              `[paperpilotfor-zotero] codex app-server: failed to parse line: ${redactedLine}`,
             );
           }
         }
@@ -539,7 +539,7 @@ export class CodexAppServerProcess {
   private async initialize(): Promise<void> {
     await this.sendRequest("initialize", {
       clientInfo: {
-        name: "llm-for-zotero",
+        name: "paperpilotfor-zotero",
         title: "LLM for Zotero",
         version: "1.0",
       },

@@ -219,7 +219,7 @@ export function installStandaloneSidebarResizeBehavior(
     renderedWidth = layout.renderedWidth;
     effectiveMaxWidth = layout.effectiveMaxWidth;
     sidebarPanel.style.setProperty(
-      "--llm-standalone-sidebar-panel-width",
+      "--paperpilotstandalone-sidebar-panel-width",
       `${renderedWidth}px`,
     );
     separator.setAttribute("aria-valuemin", `${Math.round(minWidth)}`);
@@ -287,7 +287,7 @@ export function installStandaloneSidebarResizeBehavior(
     const drag = activeDrag;
     activeDrag = null;
     pendingDragScreenX = null;
-    container.classList.remove("llm-standalone-sidebar-resizing");
+    container.classList.remove("paperpilotstandalone-sidebar-resizing");
     try {
       (separator as any).releaseCapture?.();
     } catch {
@@ -306,7 +306,7 @@ export function installStandaloneSidebarResizeBehavior(
       startWidth: rect.width || renderedWidth,
       moved: false,
     };
-    container.classList.add("llm-standalone-sidebar-resizing");
+    container.classList.add("paperpilotstandalone-sidebar-resizing");
     try {
       (separator as any).setCapture?.(true);
     } catch {
@@ -440,7 +440,7 @@ export function installStandaloneVerticalResizeBehavior(
   const endDrag = () => {
     const drag = activeDrag;
     activeDrag = null;
-    root.classList.remove("llm-standalone-resizing");
+    root.classList.remove("paperpilotstandalone-resizing");
     try {
       (drag?.handle as any)?.releaseCapture?.();
     } catch {
@@ -452,7 +452,7 @@ export function installStandaloneVerticalResizeBehavior(
     if (event.button !== 0) return;
     const eventElement = event.target as HTMLElement | null;
     const handle = eventElement?.closest?.(
-      ".llm-standalone-resize-handle",
+      ".paperpilotstandalone-resize-handle",
     ) as HTMLElement | null;
     if (!handle || !root.contains(handle)) return;
     const kind = handle.dataset.resizeTarget;
@@ -462,7 +462,7 @@ export function installStandaloneVerticalResizeBehavior(
       kind === "chat"
         ? handle.parentElement
         : (handle.parentElement?.querySelector(
-            ".llm-input",
+            ".paperpilotinput",
           ) as HTMLElement | null);
     if (!element) return;
     const rect = element.getBoundingClientRect();
@@ -495,7 +495,7 @@ export function installStandaloneVerticalResizeBehavior(
       lastWindowHeight: startWindowHeight,
       lastElementHeight: rect.height,
     };
-    root.classList.add("llm-standalone-resizing");
+    root.classList.add("paperpilotstandalone-resizing");
     try {
       (handle as any).setCapture?.(true);
     } catch {

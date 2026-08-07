@@ -18,7 +18,7 @@ export {
 // Constants
 // =============================================================================
 
-export const PANE_ID = "llm-context-panel";
+export const PANE_ID = "paperpilotcontext-panel";
 export const PREFERENCES_PANE_ID = `${config.addonRef}-preferences`;
 export const CHUNK_TARGET_LENGTH = 2000;
 export const CHUNK_OVERLAP = 200;

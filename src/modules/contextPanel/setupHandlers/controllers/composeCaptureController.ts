@@ -134,7 +134,7 @@ export function attachComposeCaptureController(
     } | null = null;
 
     const cacheSelectionBeforeFocusShift = (event: Event) => {
-      if (!(event.target as Element)?.closest?.("#llm-select-text")) return;
+      if (!(event.target as Element)?.closest?.("#paperpilotselect-text")) return;
       const currentItem = activeContextPanels.get(body)?.() ?? deps.getItem();
       if (!currentItem) return;
       const selectedText = getActiveReaderSelectionText(
@@ -153,12 +153,12 @@ export function attachComposeCaptureController(
     };
 
     const addTextClickHandler = (event: Event) => {
-      if (!(event.target as Element)?.closest?.("#llm-select-text")) return;
+      if (!(event.target as Element)?.closest?.("#paperpilotselect-text")) return;
       event.preventDefault();
       event.stopPropagation();
 
       const currentItem = activeContextPanels.get(body)?.() ?? deps.getItem();
-      const root = body.querySelector("#llm-main") as HTMLDivElement | null;
+      const root = body.querySelector("#paperpilotmain") as HTMLDivElement | null;
       const conversationKind = root?.dataset?.conversationKind || "";
       const isGlobal = conversationKind === "global";
       const conversationKey = currentItem
@@ -506,7 +506,7 @@ export function attachComposeCaptureController(
             {
               tag: "input",
               namespace: "html",
-              id: "llm-pdf-page-range-input",
+              id: "paperpilotpdf-page-range-input",
               attributes: {
                 "data-bind": "pageRangeValue",
                 "data-prop": "value",

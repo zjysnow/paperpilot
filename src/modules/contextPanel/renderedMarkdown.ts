@@ -257,8 +257,8 @@ function getMermaidThemeElements(
       elements.push(element as HTMLElement);
     }
   };
-  add(anchor?.closest(".llm-panel"));
-  add(anchor?.closest(".llm-rendered-markdown"));
+  add(anchor?.closest(".paperpilotpanel"));
+  add(anchor?.closest(".paperpilotrendered-markdown"));
   add(doc.body);
   add(doc.documentElement);
   return elements;
@@ -325,8 +325,8 @@ const MERMAID_CYTOSCAPE_CONTAINER_CLASS = "__________cytoscape_container";
 const MERMAID_THEME_DATASET_KEY = "llmMermaidTheme";
 
 const MERMAID_THEME_CLASS_BY_KEY: Record<MermaidThemeKey, string> = {
-  light: "llm-mermaid-theme-light",
-  dark: "llm-mermaid-theme-dark",
+  light: "paperpilotmermaid-theme-light",
+  dark: "paperpilotmermaid-theme-dark",
 };
 
 function setMermaidThemeDataset(
@@ -423,8 +423,8 @@ function ensureMermaidThemeWatcher(doc: Document, root?: ParentNode): void {
   observeElement(doc.body);
   if (root && root.nodeType === 1) {
     const element = root as Element;
-    observeElement(element.closest(".llm-panel"));
-    observeElement(element.closest(".llm-rendered-markdown"));
+    observeElement(element.closest(".paperpilotpanel"));
+    observeElement(element.closest(".paperpilotrendered-markdown"));
   }
 
   if (!watcher.mediaQuery) {
@@ -506,10 +506,10 @@ const SAFE_GLOBAL_MARKDOWN_ATTRS = new Set([
   "class",
   "data-code-lang",
   "data-copy-feedback",
-  "data-llm-copy-source",
-  "data-llm-mermaid-render-version",
-  "data-llm-mermaid-source",
-  "data-llm-mermaid-theme",
+  "data-paperpilotcopy-source",
+  "data-paperpilotmermaid-render-version",
+  "data-paperpilotmermaid-source",
+  "data-paperpilotmermaid-theme",
   "data-mermaid-state",
   "role",
   "style",
@@ -657,7 +657,7 @@ function isSafeRenderedMarkdownAttribute(
     return isSafeKatexSvgAttribute(tagName, attrName, attrValue);
   }
   if (SAFE_GLOBAL_MARKDOWN_ATTRS.has(attrName)) return true;
-  if (attrName.startsWith("data-llm-")) return true;
+  if (attrName.startsWith("data-paperpilot")) return true;
 
   if (tagName === "a") {
     if (attrName === "href")
@@ -1305,7 +1305,7 @@ function createMermaidZoomButton(
 ): HTMLButtonElement {
   const button = doc.createElement("button") as HTMLButtonElement;
   button.type = "button";
-  button.className = "llm-mermaid-zoom-btn";
+  button.className = "paperpilotmermaid-zoom-btn";
   button.textContent = label;
   button.title = title;
   button.setAttribute("aria-label", title);
@@ -1331,15 +1331,15 @@ function openSvgViewer(
   options: SvgViewerOptions,
 ): void {
   const viewer = doc.createElement("div");
-  viewer.className = "llm-mermaid-viewer";
+  viewer.className = "paperpilotmermaid-viewer";
   viewer.tabIndex = -1;
   setMermaidThemeDataset(viewer, themeKey);
 
   const panel = doc.createElement("div");
-  panel.className = "llm-mermaid-viewer-panel";
+  panel.className = "paperpilotmermaid-viewer-panel";
 
   const toolbar = doc.createElement("div");
-  toolbar.className = "llm-mermaid-viewer-toolbar";
+  toolbar.className = "paperpilotmermaid-viewer-toolbar";
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute("aria-label", options.toolbarLabel);
 
@@ -1363,16 +1363,16 @@ function openSvgViewer(
     MERMAID_VIEWER_CLOSE_ICON,
     options.closeTitle,
   );
-  close.classList.add("llm-mermaid-viewer-close");
+  close.classList.add("paperpilotmermaid-viewer-close");
   toolbar.append(zoomOut, zoomIn, resetZoom, close);
 
   const viewport = doc.createElement("div");
-  viewport.className = "llm-mermaid-viewer-viewport";
+  viewport.className = "paperpilotmermaid-viewer-viewport";
 
   const svg = createInlineSvgElement(
     doc,
     svgMarkup,
-    "llm-mermaid-viewer-svg",
+    "paperpilotmermaid-viewer-svg",
     options.ariaLabel,
   );
   if (!svg) return;
@@ -1446,12 +1446,12 @@ function renderMermaidImagePreview(
   source: string,
 ): void {
   const viewport = doc.createElement("div");
-  viewport.className = "llm-mermaid-static-viewport";
+  viewport.className = "paperpilotmermaid-static-viewport";
 
   const svg = createInlineMermaidSvgElement(
     doc,
     svgMarkup,
-    "llm-mermaid-static-svg",
+    "paperpilotmermaid-static-svg",
   );
   if (!svg) {
     setMermaidPreviewError(preview);
@@ -1464,13 +1464,13 @@ function renderMermaidImagePreview(
     MERMAID_PREVIEW_OPEN_ICON,
     "Open Mermaid diagram viewer",
   );
-  openButton.classList.add("llm-mermaid-open-btn");
+  openButton.classList.add("paperpilotmermaid-open-btn");
   openButton.addEventListener("click", () => {
     const currentThemeKey = getMermaidThemeKey(doc, preview);
     if (currentThemeKey !== themeKey) {
       preview.dataset.mermaidState = "pending";
       void renderMermaidBlocks(
-        preview.closest(".llm-rendered-markdown") || doc,
+        preview.closest(".paperpilotrendered-markdown") || doc,
         doc,
       );
       return;
@@ -1487,7 +1487,7 @@ function renderMermaidImagePreview(
   preview.dataset.llmRenderedSvg = svgMarkup;
   preview.replaceChildren(viewport, openButton);
   syncFigureCopyButtonStateForShell(
-    preview.closest(".llm-codeblock-shell") as HTMLElement | null,
+    preview.closest(".paperpilotcodeblock-shell") as HTMLElement | null,
   );
 }
 
@@ -1496,10 +1496,10 @@ function attachRenderedSvgPreviewButtons(
   doc: Document,
 ): void {
   const previews = Array.from(
-    root.querySelectorAll(".llm-svg-preview[data-llm-svg-source]"),
+    root.querySelectorAll(".paperpilotsvg-preview[data-paperpilotsvg-source]"),
   ) as HTMLElement[];
   for (const preview of previews) {
-    if (preview.querySelector(":scope > .llm-svg-open-btn")) continue;
+    if (preview.querySelector(":scope > .paperpilotsvg-open-btn")) continue;
     const svgMarkup = buildSafeSvgMarkup(preview.dataset.llmSvgSource || "");
     if (!svgMarkup) continue;
 
@@ -1508,7 +1508,7 @@ function attachRenderedSvgPreviewButtons(
       MERMAID_PREVIEW_OPEN_ICON,
       "Open SVG preview viewer",
     );
-    openButton.classList.add("llm-mermaid-open-btn", "llm-svg-open-btn");
+    openButton.classList.add("paperpilotmermaid-open-btn", "paperpilotsvg-open-btn");
     openButton.addEventListener("click", () => {
       const themeKey = getMermaidThemeKey(doc, preview);
       const opened = openStandaloneSvgWindow(doc, {
@@ -1750,7 +1750,7 @@ export function normalizeMermaidSourceForTheme(
 function getMermaidSvgPolishCss(themeKey: MermaidThemeKey): string {
   if (themeKey === "dark") {
     return [
-      "svg[data-llm-mermaid-polished]{background:#151515;color:#f8fafc;color-scheme:dark;}",
+      "svg[data-paperpilotmermaid-polished]{background:#151515;color:#f8fafc;color-scheme:dark;}",
       ".cluster rect{fill:#171717!important;stroke:#3f3f46!important;}",
       ".cluster text,.cluster span,.cluster .nodeLabel{fill:#f8fafc!important;color:#f8fafc!important;}",
       ".edgeLabel,.edgeLabel p{background-color:#151515!important;color:#f8fafc!important;}",
@@ -1759,7 +1759,7 @@ function getMermaidSvgPolishCss(themeKey: MermaidThemeKey): string {
     ].join("\n");
   }
   return [
-    "svg[data-llm-mermaid-polished]{background:#ffffff;color:#111827;color-scheme:light;}",
+    "svg[data-paperpilotmermaid-polished]{background:#ffffff;color:#111827;color-scheme:light;}",
     ".cluster rect{fill:#ffffff!important;stroke:#e5e7eb!important;}",
     ".cluster text,.cluster span,.cluster .nodeLabel{fill:#111827!important;color:#111827!important;}",
     ".edgeLabel,.edgeLabel p{background-color:#ffffff!important;color:#374151!important;}",
@@ -1774,7 +1774,7 @@ export function polishRenderedMermaidSvg(
 ): string {
   const css = getMermaidSvgPolishCss(themeKey);
   return svg.replace(/<svg\b([^>]*)>/i, (opening) => {
-    if (opening.includes("data-llm-mermaid-polished")) {
+    if (opening.includes("data-paperpilotmermaid-polished")) {
       return opening;
     }
     const background = themeKey === "dark" ? "#151515" : "#ffffff";
@@ -1786,7 +1786,7 @@ export function polishRenderedMermaidSvg(
       : opening.replace(/^<svg\b/i, `<svg style="background: ${background};"`);
     return `${nextOpening.replace(
       /<svg\b/i,
-      '<svg data-llm-mermaid-polished="true"',
+      '<svg data-paperpilotmermaid-polished="true"',
     )}<style>${css}</style>`;
   });
 }
@@ -1877,7 +1877,7 @@ async function renderMermaidBlocksNow(
   options?: MermaidRenderOptions,
 ): Promise<void> {
   const previews = Array.from(
-    root.querySelectorAll(".llm-mermaid-preview[data-llm-mermaid-source]"),
+    root.querySelectorAll(".paperpilotmermaid-preview[data-paperpilotmermaid-source]"),
   ) as HTMLElement[];
   if (!previews.length) return;
   ensureMermaidThemeWatcher(doc, root);
@@ -2101,17 +2101,17 @@ function shouldDefaultCodeBlockWordWrap(shell: HTMLElement): boolean {
 
 function getVisualCodeBlockPreview(shell: HTMLElement): HTMLElement | null {
   return (
-    getDirectChildWithClass(shell, "llm-svg-preview") ||
-    getDirectChildWithClass(shell, "llm-mermaid-preview")
+    getDirectChildWithClass(shell, "paperpilotsvg-preview") ||
+    getDirectChildWithClass(shell, "paperpilotmermaid-preview")
   );
 }
 
 function getVisualCodeBlockSvgMarkup(shell: HTMLElement): string | null {
-  const svgPreview = getDirectChildWithClass(shell, "llm-svg-preview");
+  const svgPreview = getDirectChildWithClass(shell, "paperpilotsvg-preview");
   if (svgPreview) {
     return buildSafeSvgMarkup(svgPreview.dataset.llmSvgSource || "");
   }
-  const mermaidPreview = getDirectChildWithClass(shell, "llm-mermaid-preview");
+  const mermaidPreview = getDirectChildWithClass(shell, "paperpilotmermaid-preview");
   const renderedSvg = mermaidPreview?.dataset.llmRenderedSvg || "";
   return renderedSvg.trim() || null;
 }
@@ -2119,8 +2119,8 @@ function getVisualCodeBlockSvgMarkup(shell: HTMLElement): string | null {
 function syncFigureCopyButtonStateForShell(shell: HTMLElement | null): void {
   if (!shell) return;
   const button = getDirectChildWithClass(
-    getDirectChildWithClass(shell, "llm-codeblock-header") || shell,
-    "llm-codeblock-figure-copy",
+    getDirectChildWithClass(shell, "paperpilotcodeblock-header") || shell,
+    "paperpilotcodeblock-figure-copy",
   ) as HTMLButtonElement | null;
   if (!button) return;
   const available = Boolean(getVisualCodeBlockSvgMarkup(shell));
@@ -2142,12 +2142,12 @@ function attachCodeBlockFigureCopyButton(
   if (!getVisualCodeBlockPreview(shell)) return;
   let button = getDirectChildWithClass(
     header,
-    "llm-codeblock-figure-copy",
+    "paperpilotcodeblock-figure-copy",
   ) as HTMLButtonElement | null;
   if (!button) {
     button = doc.createElement("button") as HTMLButtonElement;
     button.type = "button";
-    button.className = "llm-codeblock-figure-copy";
+    button.className = "paperpilotcodeblock-figure-copy";
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -2188,11 +2188,11 @@ export function attachRenderedCodeBlockControls(
   doc: Document,
 ): void {
   const shells = Array.from(
-    root.querySelectorAll(".llm-codeblock-shell"),
+    root.querySelectorAll(".paperpilotcodeblock-shell"),
   ) as HTMLElement[];
   for (const shell of shells) {
-    const header = getDirectChildWithClass(shell, "llm-codeblock-header");
-    const body = getDirectChildWithClass(shell, "llm-codeblock-body");
+    const header = getDirectChildWithClass(shell, "paperpilotcodeblock-header");
+    const body = getDirectChildWithClass(shell, "paperpilotcodeblock-body");
     if (!header || !body) continue;
 
     const hasVisualPreview = Boolean(getVisualCodeBlockPreview(shell));
@@ -2202,17 +2202,17 @@ export function attachRenderedCodeBlockControls(
         : shell.dataset.sourceCollapsed === "true";
 
     if (!body.id) {
-      body.id = `llm-codeblock-source-${++renderedCodeBlockSourceIdCounter}`;
+      body.id = `paperpilotcodeblock-source-${++renderedCodeBlockSourceIdCounter}`;
     }
 
     let button = getDirectChildWithClass(
       header,
-      "llm-codeblock-source-toggle",
+      "paperpilotcodeblock-source-toggle",
     ) as HTMLButtonElement | null;
     if (!button) {
       const createdButton = doc.createElement("button") as HTMLButtonElement;
       createdButton.type = "button";
-      createdButton.className = "llm-codeblock-source-toggle";
+      createdButton.className = "paperpilotcodeblock-source-toggle";
       createdButton.setAttribute("aria-controls", body.id);
       createdButton.addEventListener("click", (event) => {
         event.preventDefault();
@@ -2233,7 +2233,7 @@ export function attachRenderedCodeBlockControls(
 
     let wrapButton = getDirectChildWithClass(
       header,
-      "llm-codeblock-wrap-toggle",
+      "paperpilotcodeblock-wrap-toggle",
     ) as HTMLButtonElement | null;
     const initialWordWrap =
       shell.dataset.wordWrap === undefined
@@ -2244,7 +2244,7 @@ export function attachRenderedCodeBlockControls(
         "button",
       ) as HTMLButtonElement;
       createdWrapButton.type = "button";
-      createdWrapButton.className = "llm-codeblock-wrap-toggle";
+      createdWrapButton.className = "paperpilotcodeblock-wrap-toggle";
       createdWrapButton.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -2267,10 +2267,10 @@ export function attachRenderedCopyButtons(
   doc: Document,
 ): void {
   const copyables = Array.from(
-    root.querySelectorAll(".llm-copyable[data-llm-copy-source]"),
+    root.querySelectorAll(".paperpilotcopyable[data-paperpilotcopy-source]"),
   ) as HTMLElement[];
   for (const copyable of copyables) {
-    if (copyable.classList.contains("llm-copyable-inline")) continue;
+    if (copyable.classList.contains("paperpilotcopyable-inline")) continue;
     if (!copyable.dataset.copyFeedbackBound) {
       copyable.dataset.copyFeedbackBound = "true";
       const clearCopyFeedback = () => {
@@ -2285,26 +2285,26 @@ export function attachRenderedCopyButtons(
       });
     }
     const existing = copyable.querySelector(
-      ":scope > .llm-render-copy-btn",
+      ":scope > .paperpilotrender-copy-btn",
     ) as HTMLButtonElement | null;
     if (existing) continue;
     const codeShell = copyable.querySelector(
-      ":scope .llm-codeblock-shell",
+      ":scope .paperpilotcodeblock-shell",
     ) as HTMLElement | null;
     const codeHeader = codeShell
-      ? getDirectChildWithClass(codeShell, "llm-codeblock-header")
+      ? getDirectChildWithClass(codeShell, "paperpilotcodeblock-header")
       : null;
     if (
       codeHeader &&
-      getDirectChildWithClass(codeHeader, "llm-render-copy-btn")
+      getDirectChildWithClass(codeHeader, "paperpilotrender-copy-btn")
     ) {
       continue;
     }
     const button = doc.createElement("button") as HTMLButtonElement;
     button.type = "button";
-    button.className = "llm-render-copy-btn";
+    button.className = "paperpilotrender-copy-btn";
     if (codeShell) {
-      button.classList.add("llm-render-code-copy-btn");
+      button.classList.add("paperpilotrender-code-copy-btn");
       button.textContent = "⧉";
       const codeLangLabel = formatCodeCopyButtonLabel(
         codeShell.dataset.codeLang || "",
@@ -2330,7 +2330,7 @@ export function renderRenderedMarkdownInto(
   doc: Document,
   options?: RenderedMarkdownOptions,
 ): void {
-  target.classList.add("llm-rendered-markdown");
+  target.classList.add("paperpilotrendered-markdown");
   const html = renderAssistantMarkdownHtmlForChat(text, options);
   if (!setRenderedMarkdownHtml(target, html, doc)) {
     const legacyHtml = renderMarkdownWithLegacyParser(

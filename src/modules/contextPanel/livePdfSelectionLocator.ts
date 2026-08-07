@@ -2834,7 +2834,7 @@ async function searchFindControllerForQuery(
       return null;
     }
     const findState = {
-      source: findBar ?? { source: "llm-live-quote-locator" },
+      source: findBar ?? { source: "paperpilotlive-quote-locator" },
       type: "",
       query,
       phraseSearch: true,
@@ -3243,7 +3243,7 @@ async function restoreFindControllerUserState(
     } else if (eventBus && previous.state) {
       eventBus.dispatch("find", {
         ...previous.state,
-        source: findBar ?? { source: "llm-live-quote-locator" },
+        source: findBar ?? { source: "paperpilotlive-quote-locator" },
         type: "",
         query,
       });
@@ -3294,7 +3294,7 @@ async function restoreFindControllerUserState(
     }
     if (!query) {
       eventBus?.dispatch?.("findbarclose", {
-        source: findBar ?? { source: "llm-live-quote-locator" },
+        source: findBar ?? { source: "paperpilotlive-quote-locator" },
       });
     }
     if (
@@ -3468,7 +3468,7 @@ async function selectNativeFindControllerMatch(params: {
     const state = findController?.state ?? findController?._state ?? {};
     eventBus.dispatch("find", {
       ...state,
-      source: params.app?.findBar ?? { source: "llm-live-quote-locator" },
+      source: params.app?.findBar ?? { source: "paperpilotlive-quote-locator" },
       type: "again",
       findPrevious: false,
     });

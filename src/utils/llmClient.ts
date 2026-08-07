@@ -1150,7 +1150,7 @@ function buildUploadRequest(params: {
       },
     ],
     {
-      boundaryPrefix: "llmforzotero",
+      boundaryPrefix: "paperpilot",
       fallbackName: "attachment",
       preferFormData: true,
     },

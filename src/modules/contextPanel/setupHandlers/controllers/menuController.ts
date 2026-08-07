@@ -1,7 +1,7 @@
-export const MODEL_MENU_OPEN_CLASS = "llm-model-menu-open";
-export const REASONING_MENU_OPEN_CLASS = "llm-reasoning-menu-open";
-export const RETRY_MODEL_MENU_OPEN_CLASS = "llm-model-menu-open";
-export const SLASH_MENU_OPEN_CLASS = "llm-slash-menu-open";
+export const MODEL_MENU_OPEN_CLASS = "paperpilotmodel-menu-open";
+export const REASONING_MENU_OPEN_CLASS = "paperpilotreasoning-menu-open";
+export const RETRY_MODEL_MENU_OPEN_CLASS = "paperpilotmodel-menu-open";
+export const SLASH_MENU_OPEN_CLASS = "paperpilotslash-menu-open";
 
 export function setFloatingMenuOpen(
   menu: HTMLDivElement | null,

@@ -31,7 +31,7 @@ const ZOTERO_MCP_TRACE_TOOL_NAMES = new Set([
 ]);
 const ZOTERO_MCP_TRACE_SERVER_NAMES = new Set([
   "llm_for_zotero",
-  "llm-for-zotero",
+  "paperpilotfor-zotero",
   "llm for zotero",
   "claude_zotero",
   "claude-zotero",

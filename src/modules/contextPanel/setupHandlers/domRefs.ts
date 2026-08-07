@@ -91,231 +91,231 @@ export type PanelDomRefs = {
 
 export function getPanelDomRefs(body: Element): PanelDomRefs {
   return {
-    inputBox: body.querySelector("#llm-input") as HTMLTextAreaElement | null,
+    inputBox: body.querySelector("#paperpilotinput") as HTMLTextAreaElement | null,
     inputSection: body.querySelector(
-      ".llm-input-section",
+      ".paperpilotinput-section",
     ) as HTMLDivElement | null,
-    sendBtn: body.querySelector("#llm-send") as HTMLButtonElement | null,
-    cancelBtn: body.querySelector("#llm-cancel") as HTMLButtonElement | null,
+    sendBtn: body.querySelector("#paperpilotsend") as HTMLButtonElement | null,
+    cancelBtn: body.querySelector("#paperpilotcancel") as HTMLButtonElement | null,
     modelBtn: body.querySelector(
-      "#llm-model-toggle",
+      "#paperpilotmodel-toggle",
     ) as HTMLButtonElement | null,
     modelSlot: body.querySelector(
-      "#llm-model-dropdown",
+      "#paperpilotmodel-dropdown",
     ) as HTMLDivElement | null,
-    modelMenu: body.querySelector("#llm-model-menu") as HTMLDivElement | null,
+    modelMenu: body.querySelector("#paperpilotmodel-menu") as HTMLDivElement | null,
     reasoningBtn: body.querySelector(
-      "#llm-reasoning-toggle",
+      "#paperpilotreasoning-toggle",
     ) as HTMLButtonElement | null,
     runtimeModeBtn: body.querySelector(
-      "#llm-runtime-mode-toggle",
+      "#paperpilotruntime-mode-toggle",
     ) as HTMLButtonElement | null,
     reasoningSlot: body.querySelector(
-      "#llm-reasoning-dropdown",
+      "#paperpilotreasoning-dropdown",
     ) as HTMLDivElement | null,
     reasoningMenu: body.querySelector(
-      "#llm-reasoning-menu",
+      "#paperpilotreasoning-menu",
     ) as HTMLDivElement | null,
-    actionsRow: body.querySelector(".llm-actions") as HTMLDivElement | null,
+    actionsRow: body.querySelector(".paperpilotactions") as HTMLDivElement | null,
     actionsLeft: body.querySelector(
-      ".llm-actions-left",
+      ".paperpilotactions-left",
     ) as HTMLDivElement | null,
     actionsRight: body.querySelector(
-      ".llm-actions-right",
+      ".paperpilotactions-right",
     ) as HTMLDivElement | null,
-    popoutBtn: body.querySelector("#llm-popout") as HTMLButtonElement | null,
+    popoutBtn: body.querySelector("#paperpilotpopout") as HTMLButtonElement | null,
     settingsBtn: body.querySelector(
-      "#llm-settings",
+      "#paperpilotsettings",
     ) as HTMLButtonElement | null,
-    exportBtn: body.querySelector("#llm-export") as HTMLButtonElement | null,
-    clearBtn: body.querySelector("#llm-clear") as HTMLButtonElement | null,
+    exportBtn: body.querySelector("#paperpilotexport") as HTMLButtonElement | null,
+    clearBtn: body.querySelector("#paperpilotclear") as HTMLButtonElement | null,
     titleStatic: body.querySelector(
-      "#llm-title-static",
+      "#paperpilottitle-static",
     ) as HTMLDivElement | null,
-    historyBar: body.querySelector("#llm-history-bar") as HTMLDivElement | null,
+    historyBar: body.querySelector("#paperpilothistory-bar") as HTMLDivElement | null,
     historyNewBtn: body.querySelector(
-      "#llm-history-new",
+      "#paperpilothistory-new",
     ) as HTMLButtonElement | null,
     historyNewMenu: body.querySelector(
-      "#llm-history-new-menu",
+      "#paperpilothistory-new-menu",
     ) as HTMLDivElement | null,
     historyNewOpenBtn: body.querySelector(
-      "#llm-history-new-open",
+      "#paperpilothistory-new-open",
     ) as HTMLButtonElement | null,
     historyNewPaperBtn: body.querySelector(
-      "#llm-history-new-paper",
+      "#paperpilothistory-new-paper",
     ) as HTMLButtonElement | null,
     historyToggleBtn: body.querySelector(
-      "#llm-history-toggle",
+      "#paperpilothistory-toggle",
     ) as HTMLButtonElement | null,
     historyModeIndicator: body.querySelector(
-      "#llm-history-toggle",
+      "#paperpilothistory-toggle",
     ) as HTMLButtonElement | null,
-    modeCapsule: body.querySelector("#llm-mode-capsule") as HTMLElement | null,
+    modeCapsule: body.querySelector("#paperpilotmode-capsule") as HTMLElement | null,
     modeChipBtn: body.querySelector(
-      "#llm-mode-chip",
+      "#paperpilotmode-chip",
     ) as HTMLButtonElement | null,
     historyMenu: body.querySelector(
-      "#llm-history-menu",
+      "#paperpilothistory-menu",
     ) as HTMLDivElement | null,
     historyRowMenu: body.querySelector(
-      "#llm-history-row-menu",
+      "#paperpilothistory-row-menu",
     ) as HTMLDivElement | null,
     historyRowRenameBtn: body.querySelector(
-      "#llm-history-row-rename",
+      "#paperpilothistory-row-rename",
     ) as HTMLButtonElement | null,
     historyUndo: body.querySelector(
-      "#llm-history-undo",
+      "#paperpilothistory-undo",
     ) as HTMLDivElement | null,
     historyUndoText: body.querySelector(
-      "#llm-history-undo-text",
+      "#paperpilothistory-undo-text",
     ) as HTMLSpanElement | null,
     historyUndoBtn: body.querySelector(
-      "#llm-history-undo-btn",
+      "#paperpilothistory-undo-btn",
     ) as HTMLButtonElement | null,
-    topToast: body.querySelector("#llm-top-toast") as HTMLDivElement | null,
+    topToast: body.querySelector("#paperpilottop-toast") as HTMLDivElement | null,
     runtimeSystemControls: body.querySelector(
-      "#llm-runtime-system-controls",
+      "#paperpilotruntime-system-controls",
     ) as HTMLDivElement | null,
     codexSystemToggleBtn: body.querySelector(
-      "#llm-codex-system-toggle",
+      "#paperpilotcodex-system-toggle",
     ) as HTMLButtonElement | null,
     claudeSystemToggleBtn: body.querySelector(
-      "#llm-claude-system-toggle",
+      "#paperpilotclaude-system-toggle",
     ) as HTMLButtonElement | null,
     selectTextBtn: body.querySelector(
-      "#llm-select-text",
+      "#paperpilotselect-text",
     ) as HTMLButtonElement | null,
     screenshotBtn: body.querySelector(
-      "#llm-screenshot",
+      "#paperpilotscreenshot",
     ) as HTMLButtonElement | null,
     uploadBtn: body.querySelector(
-      "#llm-upload-file",
+      "#paperpilotupload-file",
     ) as HTMLButtonElement | null,
     uploadInput: body.querySelector(
-      "#llm-upload-input",
+      "#paperpilotupload-input",
     ) as HTMLInputElement | null,
-    slashMenu: body.querySelector("#llm-slash-menu") as HTMLDivElement | null,
+    slashMenu: body.querySelector("#paperpilotslash-menu") as HTMLDivElement | null,
     slashUploadOption: body.querySelector(
-      "#llm-slash-upload-option",
+      "#paperpilotslash-upload-option",
     ) as HTMLButtonElement | null,
     slashReferenceOption: body.querySelector(
-      "#llm-slash-reference-option",
+      "#paperpilotslash-reference-option",
     ) as HTMLButtonElement | null,
     slashPdfPageOption: body.querySelector(
-      "#llm-slash-pdf-page-option",
+      "#paperpilotslash-pdf-page-option",
     ) as HTMLButtonElement | null,
     slashPdfMultiplePagesOption: body.querySelector(
-      "#llm-slash-pdf-multiple-pages-option",
+      "#paperpilotslash-pdf-multiple-pages-option",
     ) as HTMLButtonElement | null,
     imagePreview: body.querySelector(
-      "#llm-image-preview",
+      "#paperpilotimage-preview",
     ) as HTMLDivElement | null,
     contextPreviews: body.querySelector(
-      "#llm-context-previews",
+      "#paperpilotcontext-previews",
     ) as HTMLDivElement | null,
     selectedContextList: body.querySelector(
-      "#llm-selected-context-list",
+      "#paperpilotselected-context-list",
     ) as HTMLDivElement | null,
     previewStrip: body.querySelector(
-      "#llm-image-preview-strip",
+      "#paperpilotimage-preview-strip",
     ) as HTMLDivElement | null,
     previewExpanded: body.querySelector(
-      "#llm-image-preview-expanded",
+      "#paperpilotimage-preview-expanded",
     ) as HTMLDivElement | null,
     previewSelected: body.querySelector(
-      "#llm-image-preview-selected",
+      "#paperpilotimage-preview-selected",
     ) as HTMLDivElement | null,
     previewSelectedImg: body.querySelector(
-      "#llm-image-preview-selected-img",
+      "#paperpilotimage-preview-selected-img",
     ) as HTMLImageElement | null,
     previewMeta: body.querySelector(
-      "#llm-image-preview-meta",
+      "#paperpilotimage-preview-meta",
     ) as HTMLButtonElement | null,
     removeImgBtn: body.querySelector(
-      "#llm-remove-img",
+      "#paperpilotremove-img",
     ) as HTMLButtonElement | null,
     filePreview: body.querySelector(
-      "#llm-file-context-preview",
+      "#paperpilotfile-context-preview",
     ) as HTMLDivElement | null,
     filePreviewMeta: body.querySelector(
-      "#llm-file-context-meta",
+      "#paperpilotfile-context-meta",
     ) as HTMLButtonElement | null,
     filePreviewExpanded: body.querySelector(
-      "#llm-file-context-expanded",
+      "#paperpilotfile-context-expanded",
     ) as HTMLDivElement | null,
     filePreviewList: body.querySelector(
-      "#llm-file-context-list",
+      "#paperpilotfile-context-list",
     ) as HTMLDivElement | null,
     filePreviewClear: body.querySelector(
-      "#llm-file-context-clear",
+      "#paperpilotfile-context-clear",
     ) as HTMLButtonElement | null,
     paperPreview: body.querySelector(
-      "#llm-paper-context-preview",
+      "#paperpilotpaper-context-preview",
     ) as HTMLDivElement | null,
     paperPreviewList: body.querySelector(
-      "#llm-paper-context-list",
+      "#paperpilotpaper-context-list",
     ) as HTMLDivElement | null,
     paperPicker: body.querySelector(
-      "#llm-paper-picker",
+      "#paperpilotpaper-picker",
     ) as HTMLDivElement | null,
     paperPickerList: body.querySelector(
-      "#llm-paper-picker-list",
+      "#paperpilotpaper-picker-list",
     ) as HTMLDivElement | null,
     actionPicker: body.querySelector(
-      "#llm-action-picker",
+      "#paperpilotaction-picker",
     ) as HTMLDivElement | null,
     actionPickerList: body.querySelector(
-      "#llm-action-picker-list",
+      "#paperpilotaction-picker-list",
     ) as HTMLDivElement | null,
     actionHitlPanel: body.querySelector(
-      "#llm-action-hitl-panel",
+      "#paperpilotaction-hitl-panel",
     ) as HTMLDivElement | null,
     shortcutMenu: body.querySelector(
-      "#llm-shortcut-menu",
+      "#paperpilotshortcut-menu",
     ) as HTMLDivElement | null,
-    commandRow: body.querySelector("#llm-command-row") as HTMLDivElement | null,
+    commandRow: body.querySelector("#paperpilotcommand-row") as HTMLDivElement | null,
     commandRowBadge: body.querySelector(
-      "#llm-command-row-badge",
+      "#paperpilotcommand-row-badge",
     ) as HTMLSpanElement | null,
     queueBar: body.querySelector(
-      "#llm-queued-input-bar",
+      "#paperpilotqueued-input-bar",
     ) as HTMLDivElement | null,
     responseMenu: body.querySelector(
-      "#llm-response-menu",
+      "#paperpilotresponse-menu",
     ) as HTMLDivElement | null,
     responseMenuCopyBtn: body.querySelector(
-      "#llm-response-menu-copy",
+      "#paperpilotresponse-menu-copy",
     ) as HTMLButtonElement | null,
     responseMenuNoteBtn: body.querySelector(
-      "#llm-response-menu-note",
+      "#paperpilotresponse-menu-note",
     ) as HTMLButtonElement | null,
     responseMenuForkBtn: body.querySelector(
-      "#llm-response-menu-fork",
+      "#paperpilotresponse-menu-fork",
     ) as HTMLButtonElement | null,
     responseMenuDeleteBtn: body.querySelector(
-      "#llm-response-menu-delete",
+      "#paperpilotresponse-menu-delete",
     ) as HTMLButtonElement | null,
-    promptMenu: body.querySelector("#llm-prompt-menu") as HTMLDivElement | null,
+    promptMenu: body.querySelector("#paperpilotprompt-menu") as HTMLDivElement | null,
     promptMenuForkBtn: body.querySelector(
-      "#llm-prompt-menu-fork",
+      "#paperpilotprompt-menu-fork",
     ) as HTMLButtonElement | null,
     promptMenuDeleteBtn: body.querySelector(
-      "#llm-prompt-menu-delete",
+      "#paperpilotprompt-menu-delete",
     ) as HTMLButtonElement | null,
-    exportMenu: body.querySelector("#llm-export-menu") as HTMLDivElement | null,
+    exportMenu: body.querySelector("#paperpilotexport-menu") as HTMLDivElement | null,
     exportMenuCopyBtn: body.querySelector(
-      "#llm-export-copy",
+      "#paperpilotexport-copy",
     ) as HTMLButtonElement | null,
     exportMenuNoteBtn: body.querySelector(
-      "#llm-export-note",
+      "#paperpilotexport-note",
     ) as HTMLButtonElement | null,
     retryModelMenu: body.querySelector(
-      "#llm-retry-model-menu",
+      "#paperpilotretry-model-menu",
     ) as HTMLDivElement | null,
-    status: body.querySelector("#llm-status") as HTMLElement | null,
-    tokenUsageEl: body.querySelector("#llm-token-usage") as HTMLElement | null,
-    chatBox: body.querySelector("#llm-chat-box") as HTMLDivElement | null,
-    panelRoot: body.querySelector("#llm-main") as HTMLDivElement | null,
+    status: body.querySelector("#paperpilotstatus") as HTMLElement | null,
+    tokenUsageEl: body.querySelector("#paperpilottoken-usage") as HTMLElement | null,
+    chatBox: body.querySelector("#paperpilotchat-box") as HTMLDivElement | null,
+    panelRoot: body.querySelector("#paperpilotmain") as HTMLDivElement | null,
   };
 }

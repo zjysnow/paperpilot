@@ -1,8 +1,8 @@
 /**
- * MCP (Model Context Protocol) server for the llm-for-zotero plugin.
+ * MCP (Model Context Protocol) server for the paperpilotfor-zotero plugin.
  *
  * Registers a JSON-RPC 2.0 endpoint on Zotero's built-in HTTP server at
- * "/llm-for-zotero/mcp". The endpoint is intended for local Codex app-server
+ * "/paperpilotfor-zotero/mcp". The endpoint is intended for local Codex app-server
  * use and requires a bearer token.
  */
 
@@ -43,7 +43,7 @@ import {
 } from "./protocol";
 
 export const ZOTERO_MCP_SERVER_NAME = "llm_for_zotero";
-export const ZOTERO_MCP_ENDPOINT_PATH = "/llm-for-zotero/mcp";
+export const ZOTERO_MCP_ENDPOINT_PATH = "/paperpilotfor-zotero/mcp";
 export const ZOTERO_MCP_AUTH_HEADER = "Authorization";
 export const ZOTERO_MCP_SCOPE_HEADER = "X-LLM-For-Zotero-Scope";
 export const ZOTERO_MCP_TOKEN_PREF_KEY = `${config.prefsPrefix}.codexZoteroMcpBearerToken`;
@@ -1029,7 +1029,7 @@ async function handleInitialize(): Promise<McpServerInfo> {
   return {
     protocolVersion: MCP_PROTOCOL_VERSION,
     serverInfo: {
-      name: "llm-for-zotero",
+      name: "paperpilotfor-zotero",
       version: SERVER_VERSION,
     },
     capabilities: {

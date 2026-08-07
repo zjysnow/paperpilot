@@ -37,9 +37,9 @@ type DispatchDeps = {
   openStandaloneChat: OpenStandaloneChat;
 };
 
-const MENU_ID = "llmforzotero-add-items-as-context";
-const MENU_SEPARATOR_BEFORE_ID = "llmforzotero-add-items-as-context-before";
-const MENU_SEPARATOR_AFTER_ID = "llmforzotero-add-items-as-context-after";
+const MENU_ID = "paperpilot-add-items-as-context";
+const MENU_SEPARATOR_BEFORE_ID = "paperpilot-add-items-as-context-before";
+const MENU_SEPARATOR_AFTER_ID = "paperpilot-add-items-as-context-after";
 const activeContextSurfaceTargets = new Map<
   Element,
   ContextSurfaceActionTarget

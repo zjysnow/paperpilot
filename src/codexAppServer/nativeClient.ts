@@ -860,7 +860,7 @@ function extractTrustedZoteroMcpApprovalPayload(
     scopeToken: findStructuredApprovalString(params, [
       "scopeToken",
       "scope_token",
-      "x-llm-for-zotero-scope",
+      "x-paperpilotfor-zotero-scope",
     ]),
     approvalId: findStructuredApprovalString(params, [
       "approvalId",

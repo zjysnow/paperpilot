@@ -171,7 +171,7 @@ function buildRevertFunction(
         await item.saveTx();
       } catch (error) {
         Zotero.debug?.(
-          `[llm-for-zotero] Undo snapshot restore failed for item ${snapshot.itemId}: ${
+          `[paperpilotfor-zotero] Undo snapshot restore failed for item ${snapshot.itemId}: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );

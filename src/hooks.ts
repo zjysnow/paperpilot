@@ -326,7 +326,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   const keyset = doc.getElementById("mainKeyset");
   if (keyset) {
     const key = doc.createXULElement("key");
-    key.id = "llmforzotero-key-standalone";
+    key.id = "paperpilot-key-standalone";
     key.setAttribute("modifiers", "accel,shift");
     key.setAttribute("key", "L");
     key.setAttribute("oncommand", "void(0)");
@@ -355,7 +355,7 @@ function registerPrefsPane() {
     pluginID: addon.data.config.addonID,
     id: PREFERENCES_PANE_ID,
     src: `chrome://${addon.data.config.addonRef}/content/preferences.xhtml`,
-    label: "llm-for-zotero",
+    label: "paperpilotfor-zotero",
     image: `chrome://${addon.data.config.addonRef}/content/icons/icon.svg`,
   });
 }
@@ -365,8 +365,8 @@ async function onMainWindowUnload(win: Window): Promise<void> {
   ztoolkit.unregisterAll();
   closeAllAddonDialogs();
   addon.data.standaloneWindow?.close();
-  win.document.getElementById("llmforzotero-open-standalone")?.remove();
-  win.document.getElementById("llmforzotero-key-standalone")?.remove();
+  win.document.getElementById("paperpilot-open-standalone")?.remove();
+  win.document.getElementById("paperpilot-key-standalone")?.remove();
 }
 
 function onShutdown(): void {

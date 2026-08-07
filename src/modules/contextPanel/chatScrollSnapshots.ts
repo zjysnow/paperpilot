@@ -106,7 +106,7 @@ function getMessageAnchorForElement(element: Element): {
   messageRole?: string;
   messageTimestamp?: string;
 } {
-  const wrapper = closestElement(element, ".llm-message-wrapper");
+  const wrapper = closestElement(element, ".paperpilotmessage-wrapper");
   const role = datasetValue(wrapper, "messageRole");
   const timestamp = datasetValue(wrapper, "messageTimestamp");
   return {
@@ -119,7 +119,7 @@ function buildQuoteAnchor(
   element: Element,
   viewport: DOMRect,
 ): ChatScrollAnchor | null {
-  const quoteCard = closestElement(element, ".llm-quote-card") || element;
+  const quoteCard = closestElement(element, ".paperpilotquote-card") || element;
   const quoteCitationId = datasetValue(quoteCard, "quoteCitationId");
   const citationSyncKey =
     datasetValue(element, "citationSyncKey") ||
@@ -172,7 +172,7 @@ function findBestVisibleChatAnchor(
   if (!viewport) return undefined;
 
   const quoteCandidates = [
-    ...queryElements(chatBox, ".llm-quote-card"),
+    ...queryElements(chatBox, ".paperpilotquote-card"),
     ...queryElements(chatBox, "[data-citation-sync-key]"),
   ];
   let bestQuote: {
@@ -182,7 +182,7 @@ function findBestVisibleChatAnchor(
   } | null = null;
   const seenQuoteCandidates = new Set<Element>();
   for (const candidate of quoteCandidates) {
-    const quoteCard = closestElement(candidate, ".llm-quote-card") || candidate;
+    const quoteCard = closestElement(candidate, ".paperpilotquote-card") || candidate;
     if (seenQuoteCandidates.has(quoteCard)) continue;
     seenQuoteCandidates.add(quoteCard);
     const anchor = buildQuoteAnchor(candidate, viewport);
@@ -195,7 +195,7 @@ function findBestVisibleChatAnchor(
   if (bestQuote) return bestQuote.anchor;
 
   let bestMessage: { anchor: ChatScrollAnchor; score: number } | null = null;
-  for (const candidate of queryElements(chatBox, ".llm-message-wrapper")) {
+  for (const candidate of queryElements(chatBox, ".paperpilotmessage-wrapper")) {
     const anchor = buildMessageAnchor(candidate, viewport);
     if (!anchor) continue;
     const score = scoreVisibleAnchor(candidate, viewport);
@@ -215,7 +215,7 @@ function findChatAnchorForElement(
   if (!viewport) return undefined;
   const quoteAnchor = buildQuoteAnchor(element, viewport);
   if (quoteAnchor) return quoteAnchor;
-  const messageElement = closestElement(element, ".llm-message-wrapper");
+  const messageElement = closestElement(element, ".paperpilotmessage-wrapper");
   if (messageElement) {
     const messageAnchor = buildMessageAnchor(messageElement, viewport);
     if (messageAnchor) return messageAnchor;
@@ -229,7 +229,7 @@ function findMessageWrapperForAnchor(
 ): Element | null {
   if (!anchor.messageRole || !anchor.messageTimestamp) return null;
   return (
-    queryElements(chatBox, ".llm-message-wrapper").find(
+    queryElements(chatBox, ".paperpilotmessage-wrapper").find(
       (element) =>
         datasetValue(element, "messageRole") === anchor.messageRole &&
         datasetValue(element, "messageTimestamp") === anchor.messageTimestamp,
@@ -245,7 +245,7 @@ function findQuoteElementForAnchor(
   const roots = messageScope ? [messageScope] : [chatBox];
   if (anchor.quoteCitationId) {
     for (const root of roots) {
-      const match = queryElements(root, ".llm-quote-card").find(
+      const match = queryElements(root, ".paperpilotquote-card").find(
         (element) =>
           datasetValue(element, "quoteCitationId") === anchor.quoteCitationId,
       );
@@ -258,7 +258,7 @@ function findQuoteElementForAnchor(
         (element) =>
           datasetValue(element, "citationSyncKey") === anchor.citationSyncKey,
       );
-      if (match) return closestElement(match, ".llm-quote-card") || match;
+      if (match) return closestElement(match, ".paperpilotquote-card") || match;
     }
   }
   return null;
@@ -394,23 +394,23 @@ export function persistPendingChatScrollRestoreForConversationKey(
 }
 
 export function persistChatScrollSnapshotFromBody(body: Element): void {
-  const root = body.querySelector("#llm-main") as HTMLElement | null;
+  const root = body.querySelector("#paperpilotmain") as HTMLElement | null;
   const conversationKey = normalizeConversationKey(
     Number(root?.dataset?.itemId || 0),
   );
   if (!conversationKey) return;
-  const chatBox = body.querySelector("#llm-chat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector("#paperpilotchat-box") as HTMLDivElement | null;
   if (!chatBox || !chatBox.childElementCount) return;
   persistChatScrollSnapshotForConversationKey(conversationKey, chatBox);
 }
 
 export function persistPendingChatScrollRestoreFromBody(body: Element): void {
-  const root = body.querySelector("#llm-main") as HTMLElement | null;
+  const root = body.querySelector("#paperpilotmain") as HTMLElement | null;
   const conversationKey = normalizeConversationKey(
     Number(root?.dataset?.itemId || 0),
   );
   if (!conversationKey) return;
-  const chatBox = body.querySelector("#llm-chat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector("#paperpilotchat-box") as HTMLDivElement | null;
   if (!chatBox || !chatBox.childElementCount) return;
   persistPendingChatScrollRestoreForConversationKey(conversationKey, chatBox);
 }
@@ -419,12 +419,12 @@ export function persistPendingChatScrollRestoreForElement(
   body: Element,
   targetElement: Element | null | undefined,
 ): void {
-  const root = body.querySelector("#llm-main") as HTMLElement | null;
+  const root = body.querySelector("#paperpilotmain") as HTMLElement | null;
   const conversationKey = normalizeConversationKey(
     Number(root?.dataset?.itemId || 0),
   );
   if (!conversationKey) return;
-  const chatBox = body.querySelector("#llm-chat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector("#paperpilotchat-box") as HTMLDivElement | null;
   if (!chatBox || !chatBox.childElementCount) return;
   persistPendingChatScrollRestoreForConversationKey(
     conversationKey,

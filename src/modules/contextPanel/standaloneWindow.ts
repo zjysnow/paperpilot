@@ -275,7 +275,7 @@ function renderStandalonePlaceholdersInEmbeddedPanels(
   const seenBodies = new Set<Element>();
   const mainWindows = Zotero.getMainWindows?.() || [];
   for (const win of mainWindows) {
-    const panelRoots = win?.document?.querySelectorAll?.("#llm-main") || [];
+    const panelRoots = win?.document?.querySelectorAll?.("#paperpilotmain") || [];
     for (const panelRoot of panelRoots) {
       const body = (panelRoot as Element).parentElement;
       if (
@@ -352,7 +352,7 @@ export function renderStandalonePlaceholder(body: Element): void {
     body.textContent = "";
   }
   const doc = body.ownerDocument!;
-  const wrap = createElement(doc, "div", "llm-standalone-placeholder");
+  const wrap = createElement(doc, "div", "paperpilotstandalone-placeholder");
   wrap.style.cssText =
     "display:flex;flex-direction:column;align-items:center;justify-content:center;" +
     "height:100%;gap:12px;padding:24px;text-align:center;color:var(--fill-secondary);";
@@ -362,7 +362,7 @@ export function renderStandalonePlaceholder(body: Element): void {
   });
   msg.style.cssText = "font-size:13px;";
 
-  const focusBtn = createElement(doc, "button", "llm-btn llm-btn-primary", {
+  const focusBtn = createElement(doc, "button", "paperpilotbtn paperpilotbtn-primary", {
     textContent: t("Focus Window"),
     type: "button",
   });
@@ -374,7 +374,7 @@ export function renderStandalonePlaceholder(body: Element): void {
     getStandaloneSessionWindow()?.focus();
   });
 
-  const closeBtn = createElement(doc, "button", "llm-btn", {
+  const closeBtn = createElement(doc, "button", "paperpilotbtn", {
     textContent: t("Close Window & Return Here"),
     type: "button",
   });
@@ -616,7 +616,7 @@ export function openStandaloneChat(options?: {
 
   const newWin = mainWin.openDialog(
     `chrome://${config.addonRef}/content/standaloneChat.xhtml`,
-    "llmforzotero-standalone-chat",
+    "paperpilot-standalone-chat",
     STANDALONE_WINDOW_FEATURES,
   ) as Window | null;
   if (!newWin) {
@@ -797,7 +797,7 @@ export function openStandaloneChat(options?: {
           ? mainWin.getComputedStyle(mainDocEl)
           : null;
         const rootEl = doc.getElementById(
-          "llmforzotero-standalone-chat-root",
+          "paperpilot-standalone-chat-root",
         ) as HTMLElement | null;
         if (rootEl) {
           rootEl.dataset.standaloneTheme = isLightStandaloneTheme(freshStyle)
@@ -862,7 +862,7 @@ export function openStandaloneChat(options?: {
         const mountedItem = activeItem;
         if (!mountedItem) return;
         const llmMain = contentArea.querySelector(
-          "#llm-main",
+          "#paperpilotmain",
         ) as HTMLElement | null;
         applyPanelFontScale(llmMain);
         applyPanelFontScale(root);
@@ -880,7 +880,7 @@ export function openStandaloneChat(options?: {
 
       // Mount into the root div
       const root = doc.getElementById(
-        "llmforzotero-standalone-chat-root",
+        "paperpilot-standalone-chat-root",
       ) as HTMLElement | null;
       if (!root) return;
 
@@ -901,7 +901,7 @@ export function openStandaloneChat(options?: {
         "button",
       ) as HTMLButtonElement;
       iconSidebarToggle.className =
-        "llm-standalone-icon-btn llm-standalone-topbar-toggle";
+        "paperpilotstandalone-icon-btn paperpilotstandalone-topbar-toggle";
       iconSidebarToggle.type = "button";
       iconSidebarToggle.title = t("Toggle sidebar");
 
@@ -910,7 +910,7 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      paperTab.className = "llm-standalone-tab";
+      paperTab.className = "paperpilotstandalone-tab";
       paperTab.type = "button";
       paperTab.textContent = resolveStandalonePaperTabLabel();
       paperTab.dataset.tab = "paper";
@@ -919,7 +919,7 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      openTab.className = "llm-standalone-tab";
+      openTab.className = "paperpilotstandalone-tab";
       openTab.type = "button";
       openTab.textContent = t("Library chat");
       openTab.dataset.tab = "open";
@@ -928,12 +928,12 @@ export function openStandaloneChat(options?: {
       openTab.classList.toggle("active", standaloneMode === "open");
 
       const tabGroup = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      tabGroup.className = "llm-standalone-tab-group";
+      tabGroup.className = "paperpilotstandalone-tab-group";
       tabGroup.append(paperTab, openTab);
 
       const standaloneRuntimeSystemControls = createRuntimeSystemControls(doc, {
-        groupClassName: "llm-standalone-runtime-system-controls",
-        buttonClassName: "llm-standalone-runtime-system-toggle",
+        groupClassName: "paperpilotstandalone-runtime-system-controls",
+        buttonClassName: "paperpilotstandalone-runtime-system-toggle",
       });
       const updateStandaloneSystemToggles = () => {
         syncRuntimeSystemControls(standaloneRuntimeSystemControls, {
@@ -945,28 +945,28 @@ export function openStandaloneChat(options?: {
       };
 
       const tabRow = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      tabRow.className = "llm-standalone-tab-row";
+      tabRow.className = "paperpilotstandalone-tab-row";
       tabRow.append(standaloneRuntimeSystemControls.group, tabGroup);
 
       // -- Lower area: sidebar + content side by side --
       const lowerArea = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      lowerArea.className = "llm-standalone-lower";
+      lowerArea.className = "paperpilotstandalone-lower";
 
       // -- Sidebar: icon strip (always visible) + panel (collapsible) --
       const sidebar = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      sidebar.className = "llm-standalone-sidebar";
+      sidebar.className = "paperpilotstandalone-sidebar";
       sidebar.dataset.sidebarState = "expanded";
 
       // Icon strip — always visible vertical column with text-based icons
       const iconStrip = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      iconStrip.className = "llm-standalone-icon-strip";
+      iconStrip.className = "paperpilotstandalone-icon-strip";
 
       const iconNewChat = doc.createElementNS(
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
       iconNewChat.className =
-        "llm-standalone-icon-btn llm-standalone-icon-plus";
+        "paperpilotstandalone-icon-btn paperpilotstandalone-icon-plus";
       iconNewChat.type = "button";
       iconNewChat.title = t("New chat");
       iconNewChat.textContent = "+";
@@ -976,7 +976,7 @@ export function openStandaloneChat(options?: {
         "button",
       ) as HTMLButtonElement;
       iconSearch.className =
-        "llm-standalone-icon-btn llm-standalone-icon-search";
+        "paperpilotstandalone-icon-btn paperpilotstandalone-icon-search";
       iconSearch.type = "button";
       iconSearch.title = t("Search history");
 
@@ -984,7 +984,7 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      iconSkill.className = "llm-standalone-icon-btn llm-standalone-icon-skill";
+      iconSkill.className = "paperpilotstandalone-icon-btn paperpilotstandalone-icon-skill";
       iconSkill.type = "button";
       iconSkill.title = t("Skills");
 
@@ -999,7 +999,7 @@ export function openStandaloneChat(options?: {
         "button",
       ) as HTMLButtonElement;
       iconSettings.className =
-        "llm-standalone-icon-btn llm-standalone-icon-settings";
+        "paperpilotstandalone-icon-btn paperpilotstandalone-icon-settings";
       iconSettings.type = "button";
       iconSettings.title = t("Settings");
 
@@ -1008,7 +1008,7 @@ export function openStandaloneChat(options?: {
         "button",
       ) as HTMLButtonElement;
       iconExport.className =
-        "llm-standalone-icon-btn llm-standalone-icon-export";
+        "paperpilotstandalone-icon-btn paperpilotstandalone-icon-export";
       iconExport.type = "button";
       iconExport.title = t("Export");
 
@@ -1016,7 +1016,7 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      iconClear.className = "llm-standalone-icon-btn llm-standalone-icon-clear";
+      iconClear.className = "paperpilotstandalone-icon-btn paperpilotstandalone-icon-clear";
       iconClear.type = "button";
       iconClear.title = t("Clear");
 
@@ -1033,14 +1033,14 @@ export function openStandaloneChat(options?: {
 
       // Export popup — floating menu from sidebar export icon
       const exportPopup = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      exportPopup.className = "llm-standalone-export-popup";
+      exportPopup.className = "paperpilotstandalone-export-popup";
       exportPopup.style.display = "none";
 
       const exportPopupCopyBtn = doc.createElementNS(
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      exportPopupCopyBtn.className = "llm-standalone-popup-item";
+      exportPopupCopyBtn.className = "paperpilotstandalone-popup-item";
       exportPopupCopyBtn.type = "button";
       exportPopupCopyBtn.textContent = t("Copy chat as md");
 
@@ -1048,7 +1048,7 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      exportPopupNoteBtn.className = "llm-standalone-popup-item";
+      exportPopupNoteBtn.className = "paperpilotstandalone-popup-item";
       exportPopupNoteBtn.type = "button";
       exportPopupNoteBtn.textContent = t("Save chat as note");
 
@@ -1059,32 +1059,32 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "div",
       ) as HTMLDivElement;
-      sidebarPanel.className = "llm-standalone-sidebar-panel";
+      sidebarPanel.className = "paperpilotstandalone-sidebar-panel";
 
       const sidebarHeader = doc.createElementNS(
         HTML_NS,
         "div",
       ) as HTMLDivElement;
-      sidebarHeader.className = "llm-standalone-sidebar-header";
+      sidebarHeader.className = "paperpilotstandalone-sidebar-header";
 
       const sidebarTitle = doc.createElementNS(
         HTML_NS,
         "span",
       ) as HTMLSpanElement;
-      sidebarTitle.className = "llm-standalone-sidebar-title";
+      sidebarTitle.className = "paperpilotstandalone-sidebar-title";
       sidebarTitle.textContent = t("History");
 
       const sidebarHeaderActions = doc.createElementNS(
         HTML_NS,
         "div",
       ) as HTMLDivElement;
-      sidebarHeaderActions.className = "llm-standalone-sidebar-actions";
+      sidebarHeaderActions.className = "paperpilotstandalone-sidebar-actions";
 
       const webHistoryRefreshBtn = doc.createElementNS(
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      webHistoryRefreshBtn.className = "llm-standalone-sidebar-refresh";
+      webHistoryRefreshBtn.className = "paperpilotstandalone-sidebar-refresh";
       webHistoryRefreshBtn.type = "button";
       webHistoryRefreshBtn.textContent = "\u21BB";
       webHistoryRefreshBtn.title = t("Refresh web history");
@@ -1099,20 +1099,20 @@ export function openStandaloneChat(options?: {
         "div",
       ) as HTMLDivElement;
       standaloneHistoryUndo.className =
-        "llm-history-undo llm-standalone-history-undo";
+        "paperpilothistory-undo paperpilotstandalone-history-undo";
       standaloneHistoryUndo.style.display = "none";
 
       const standaloneHistoryUndoText = doc.createElementNS(
         HTML_NS,
         "span",
       ) as HTMLSpanElement;
-      standaloneHistoryUndoText.className = "llm-history-undo-text";
+      standaloneHistoryUndoText.className = "paperpilothistory-undo-text";
 
       const standaloneHistoryUndoBtn = doc.createElementNS(
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      standaloneHistoryUndoBtn.className = "llm-history-undo-btn";
+      standaloneHistoryUndoBtn.className = "paperpilothistory-undo-btn";
       standaloneHistoryUndoBtn.type = "button";
       standaloneHistoryUndoBtn.textContent = t("Undo");
       standaloneHistoryUndoBtn.title = t("Restore deleted conversation");
@@ -1122,13 +1122,13 @@ export function openStandaloneChat(options?: {
       );
 
       const sidebarList = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      sidebarList.className = "llm-standalone-sidebar-list";
+      sidebarList.className = "paperpilotstandalone-sidebar-list";
 
       const sidebarResizeHandle = doc.createElementNS(
         HTML_NS,
         "div",
       ) as HTMLDivElement;
-      sidebarResizeHandle.className = "llm-standalone-sidebar-resizer";
+      sidebarResizeHandle.className = "paperpilotstandalone-sidebar-resizer";
       sidebarResizeHandle.tabIndex = 0;
       sidebarResizeHandle.title = t("Drag to resize history pane");
       sidebarResizeHandle.setAttribute("role", "separator");
@@ -1147,29 +1147,29 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "div",
       ) as HTMLDivElement;
-      contentWrapper.className = "llm-standalone-content-wrapper";
+      contentWrapper.className = "paperpilotstandalone-content-wrapper";
 
       const contentTitleBar = doc.createElementNS(
         HTML_NS,
         "div",
       ) as HTMLDivElement;
-      contentTitleBar.className = "llm-standalone-content-title";
+      contentTitleBar.className = "paperpilotstandalone-content-title";
 
       const contentTitleText = doc.createElementNS(
         HTML_NS,
         "span",
       ) as HTMLSpanElement;
-      contentTitleText.className = "llm-standalone-content-title-text";
+      contentTitleText.className = "paperpilotstandalone-content-title-text";
 
       const contentTitleBarSpacer = doc.createElementNS(
         HTML_NS,
         "div",
       ) as HTMLDivElement;
-      contentTitleBarSpacer.className = "llm-standalone-content-title-actions";
+      contentTitleBarSpacer.className = "paperpilotstandalone-content-title-actions";
       contentTitleBar.append(contentTitleText, contentTitleBarSpacer);
 
       const contentArea = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      contentArea.className = "llm-standalone-content";
+      contentArea.className = "paperpilotstandalone-content";
       contentArea.dataset.standalone = "true";
 
       contentWrapper.append(tabRow, contentTitleBar, contentArea);
@@ -1180,27 +1180,27 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "div",
       ) as HTMLDivElement;
-      skillOverlay.className = "llm-standalone-skill-overlay";
+      skillOverlay.className = "paperpilotstandalone-skill-overlay";
       skillOverlay.style.display = "none";
 
       const skillPopup = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      skillPopup.className = "llm-standalone-skill-popup";
+      skillPopup.className = "paperpilotstandalone-skill-popup";
 
       const skillHeader = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      skillHeader.className = "llm-standalone-skill-header";
+      skillHeader.className = "paperpilotstandalone-skill-header";
 
       const skillTitle = doc.createElementNS(
         HTML_NS,
         "span",
       ) as HTMLSpanElement;
-      skillTitle.className = "llm-standalone-skill-title";
+      skillTitle.className = "paperpilotstandalone-skill-title";
       skillTitle.textContent = t("Skills");
 
       const skillRefreshBtn = doc.createElementNS(
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      skillRefreshBtn.className = "llm-outline-btn";
+      skillRefreshBtn.className = "paperpilotoutline-btn";
       skillRefreshBtn.type = "button";
       skillRefreshBtn.textContent = t("Check for updates");
       skillRefreshBtn.title = t(
@@ -1211,14 +1211,14 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      skillCloseBtn.className = "llm-standalone-search-close";
+      skillCloseBtn.className = "paperpilotstandalone-search-close";
       skillCloseBtn.type = "button";
       skillCloseBtn.textContent = "\u00D7";
 
       skillHeader.append(skillTitle, skillRefreshBtn, skillCloseBtn);
 
       const skillGrid = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      skillGrid.className = "llm-standalone-skill-grid";
+      skillGrid.className = "paperpilotstandalone-skill-grid";
 
       skillPopup.append(skillHeader, skillGrid);
       skillOverlay.appendChild(skillPopup);
@@ -1228,14 +1228,14 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "div",
       ) as HTMLDivElement;
-      skillCtxMenu.className = "llm-standalone-skill-ctx-menu";
+      skillCtxMenu.className = "paperpilotstandalone-skill-ctx-menu";
       skillCtxMenu.style.display = "none";
 
       const skillCtxShowInFs = doc.createElementNS(
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      skillCtxShowInFs.className = "llm-standalone-skill-ctx-item";
+      skillCtxShowInFs.className = "paperpilotstandalone-skill-ctx-item";
       skillCtxShowInFs.type = "button";
       skillCtxShowInFs.textContent = t("Show in file system");
 
@@ -1243,7 +1243,7 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      skillCtxRestore.className = "llm-standalone-skill-ctx-item";
+      skillCtxRestore.className = "paperpilotstandalone-skill-ctx-item";
       skillCtxRestore.type = "button";
       skillCtxRestore.textContent = t("Restore to default");
       skillCtxRestore.style.display = "none"; // only shown for customized built-ins
@@ -1253,7 +1253,7 @@ export function openStandaloneChat(options?: {
         "button",
       ) as HTMLButtonElement;
       skillCtxDelete.className =
-        "llm-standalone-skill-ctx-item llm-standalone-skill-ctx-delete";
+        "paperpilotstandalone-skill-ctx-item paperpilotstandalone-skill-ctx-delete";
       skillCtxDelete.type = "button";
       skillCtxDelete.textContent = t("Delete");
 
@@ -1431,7 +1431,7 @@ export function openStandaloneChat(options?: {
           ? t("Exit webchat and return to previous model")
           : t("Clear");
         iconClear.textContent = isWebChat ? t("Exit") : "";
-        iconClear.classList.toggle("llm-standalone-icon-exit", isWebChat);
+        iconClear.classList.toggle("paperpilotstandalone-icon-exit", isWebChat);
 
         // Keep original paper title — webchat mode is already indicated by tabs/mode chip
         updateContentTitle();
@@ -1480,7 +1480,7 @@ export function openStandaloneChat(options?: {
 
         // Loading indicator
         const loadingEl = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-        loadingEl.className = "llm-standalone-sidebar-empty";
+        loadingEl.className = "paperpilotstandalone-sidebar-empty";
         loadingEl.textContent = t("Fetching…");
         sidebarList.appendChild(loadingEl);
 
@@ -1538,7 +1538,7 @@ export function openStandaloneChat(options?: {
               HTML_NS,
               "div",
             ) as HTMLDivElement;
-            emptyEl.className = "llm-standalone-sidebar-empty";
+            emptyEl.className = "paperpilotstandalone-sidebar-empty";
             emptyEl.textContent = historyFetchFailed
               ? t("Failed to fetch history")
               : t("No conversations yet");
@@ -1551,7 +1551,7 @@ export function openStandaloneChat(options?: {
               HTML_NS,
               "button",
             ) as HTMLButtonElement;
-            row.className = "llm-standalone-conv-item";
+            row.className = "paperpilotstandalone-conv-item";
             row.type = "button";
             row.title = session.title || "Untitled";
 
@@ -1559,7 +1559,7 @@ export function openStandaloneChat(options?: {
               HTML_NS,
               "span",
             ) as HTMLSpanElement;
-            titleEl.className = "llm-standalone-conv-title";
+            titleEl.className = "paperpilotstandalone-conv-title";
             titleEl.textContent = session.title || "Untitled";
 
             row.appendChild(titleEl);
@@ -1826,7 +1826,7 @@ export function openStandaloneChat(options?: {
           syncPaperTabLabel();
 
           const llmMain = contentArea.querySelector(
-            "#llm-main",
+            "#paperpilotmain",
           ) as HTMLElement | null;
           if (llmMain) llmMain.dataset.standalone = "true";
 
@@ -1841,7 +1841,7 @@ export function openStandaloneChat(options?: {
             if (cancelled || newWin.closed) return;
             const fitRequestId = (standaloneInputFitRequestId += 1);
             const inputSection = contentArea.querySelector(
-              ".llm-input-section",
+              ".paperpilotinput-section",
             ) as HTMLElement | null;
             scheduleStandaloneWindowFitForElement(newWin, inputSection, {
               shouldRun: () => fitRequestId === standaloneInputFitRequestId,
@@ -1921,7 +1921,7 @@ export function openStandaloneChat(options?: {
             HTML_NS,
             "div",
           ) as HTMLDivElement;
-          emptyMsg.className = "llm-standalone-sidebar-empty";
+          emptyMsg.className = "paperpilotstandalone-sidebar-empty";
           emptyMsg.textContent = t("No conversations yet");
           sidebarList.appendChild(emptyMsg);
           return;
@@ -1935,7 +1935,7 @@ export function openStandaloneChat(options?: {
             HTML_NS,
             "div",
           ) as HTMLDivElement;
-          dayLabel.className = "llm-standalone-day-label";
+          dayLabel.className = "paperpilotstandalone-day-label";
           dayLabel.textContent = group.label;
           sidebarList.appendChild(dayLabel);
 
@@ -1944,7 +1944,7 @@ export function openStandaloneChat(options?: {
               HTML_NS,
               "button",
             ) as HTMLButtonElement;
-            btn.className = "llm-standalone-conv-item";
+            btn.className = "paperpilotstandalone-conv-item";
             if (conv.conversationKey === activeConversationKey) {
               btn.classList.add("active");
             }
@@ -1957,13 +1957,13 @@ export function openStandaloneChat(options?: {
               HTML_NS,
               "span",
             ) as HTMLSpanElement;
-            titleSpan.className = "llm-standalone-conv-title";
+            titleSpan.className = "paperpilotstandalone-conv-title";
             titleSpan.textContent = conv.title || t("Untitled chat");
             const renameBtn = doc.createElementNS(
               HTML_NS,
               "span",
             ) as HTMLSpanElement;
-            renameBtn.className = "llm-standalone-conv-rename";
+            renameBtn.className = "paperpilotstandalone-conv-rename";
             renameBtn.setAttribute("role", "button");
             renameBtn.setAttribute("aria-label", t("Rename chat"));
             renameBtn.title = t("Rename chat");
@@ -1972,7 +1972,7 @@ export function openStandaloneChat(options?: {
               HTML_NS,
               "span",
             ) as HTMLSpanElement;
-            deleteBtn.className = "llm-standalone-conv-delete";
+            deleteBtn.className = "paperpilotstandalone-conv-delete";
             deleteBtn.setAttribute("role", "button");
             deleteBtn.setAttribute("aria-label", t("Delete conversation"));
             deleteBtn.title = t("Delete conversation");
@@ -2262,7 +2262,7 @@ export function openStandaloneChat(options?: {
           if (entry.kind === "paper") {
             if (isOrphanHistoryEntry(entry)) {
               const statusEl = contentArea.querySelector(
-                "#llm-status",
+                "#paperpilotstatus",
               ) as HTMLElement | null;
               if (statusEl) {
                 setStatus(
@@ -2279,7 +2279,7 @@ export function openStandaloneChat(options?: {
             );
             if (!paperItem) {
               const statusEl = contentArea.querySelector(
-                "#llm-status",
+                "#paperpilotstatus",
               ) as HTMLElement | null;
               if (statusEl) {
                 setStatus(
@@ -2296,7 +2296,7 @@ export function openStandaloneChat(options?: {
             });
             if (navigationDecision === "missing-target-paper") {
               const statusEl = contentArea.querySelector(
-                "#llm-status",
+                "#paperpilotstatus",
               ) as HTMLElement | null;
               if (statusEl) {
                 setStatus(statusEl, t("Could not find this paper"), "error");
@@ -2331,7 +2331,7 @@ export function openStandaloneChat(options?: {
                 );
                 if (!selected) {
                   const statusEl = contentArea.querySelector(
-                    "#llm-status",
+                    "#paperpilotstatus",
                   ) as HTMLElement | null;
                   if (statusEl) {
                     setStatus(
@@ -2484,19 +2484,19 @@ export function openStandaloneChat(options?: {
             "button",
           ) as HTMLButtonElement;
           addBtn.className =
-            "llm-standalone-skill-item llm-standalone-skill-add";
+            "paperpilotstandalone-skill-item paperpilotstandalone-skill-add";
           addBtn.type = "button";
           const addIcon = doc.createElementNS(
             HTML_NS,
             "span",
           ) as HTMLSpanElement;
-          addIcon.className = "llm-standalone-skill-add-icon";
+          addIcon.className = "paperpilotstandalone-skill-add-icon";
           addIcon.textContent = "+";
           const addLabel = doc.createElementNS(
             HTML_NS,
             "span",
           ) as HTMLSpanElement;
-          addLabel.className = "llm-standalone-skill-label";
+          addLabel.className = "paperpilotstandalone-skill-label";
           addLabel.textContent = t("New skill");
           addBtn.append(addIcon, addLabel);
           addBtn.addEventListener("click", async () => {
@@ -2529,7 +2529,7 @@ export function openStandaloneChat(options?: {
               HTML_NS,
               "button",
             ) as HTMLButtonElement;
-            item.className = "llm-standalone-skill-item";
+            item.className = "paperpilotstandalone-skill-item";
             item.type = "button";
             item.dataset.filePath = entry.filePath;
             item.dataset.source = entry.source;
@@ -2546,13 +2546,13 @@ export function openStandaloneChat(options?: {
               HTML_NS,
               "span",
             ) as HTMLSpanElement;
-            icon.className = "llm-standalone-skill-doc-icon";
+            icon.className = "paperpilotstandalone-skill-doc-icon";
 
             const label = doc.createElementNS(
               HTML_NS,
               "span",
             ) as HTMLSpanElement;
-            label.className = "llm-standalone-skill-label";
+            label.className = "paperpilotstandalone-skill-label";
             label.textContent = entry.filename;
 
             item.append(icon, label);
@@ -2624,11 +2624,11 @@ export function openStandaloneChat(options?: {
           if (renderSeq !== skillRenderSeq) return;
           skillGrid.textContent = "";
           const errorEl = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-          errorEl.className = "llm-standalone-sidebar-empty";
+          errorEl.className = "paperpilotstandalone-sidebar-empty";
           errorEl.textContent = t("Failed to load skills");
           skillGrid.appendChild(errorEl);
           Zotero.debug?.(
-            `[llm-for-zotero] Standalone skill grid render failed: ${
+            `[paperpilotfor-zotero] Standalone skill grid render failed: ${
               err instanceof Error ? err.message : String(err)
             }`,
           );
@@ -2639,7 +2639,7 @@ export function openStandaloneChat(options?: {
         skillOverlay.style.display = "flex";
         skillGrid.textContent = "";
         const loading = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-        loading.className = "llm-standalone-sidebar-empty";
+        loading.className = "paperpilotstandalone-sidebar-empty";
         loading.textContent = t("Loading…");
         skillGrid.appendChild(loading);
         if (resolveSkillPopupSystem() === "claude_code") {
@@ -2768,7 +2768,7 @@ export function openStandaloneChat(options?: {
           }, 1500);
         } catch (err) {
           Zotero.debug?.(
-            `[llm-for-zotero] Skill refresh failed: ${
+            `[paperpilotfor-zotero] Skill refresh failed: ${
               err instanceof Error ? err.message : String(err)
             }`,
           );
@@ -2838,7 +2838,7 @@ export function openStandaloneChat(options?: {
         level: "ready" | "warning" | "error",
       ) => {
         const statusEl = contentArea.querySelector(
-          "#llm-status",
+          "#paperpilotstatus",
         ) as HTMLElement | null;
         if (statusEl) setStatus(statusEl, message, level);
       };
@@ -3230,13 +3230,13 @@ export function openStandaloneChat(options?: {
       // Sidebar click handler — rename or delete conversation
       sidebarList.addEventListener("click", async (e: Event) => {
         const renameTarget = (e.target as HTMLElement).closest(
-          ".llm-standalone-conv-rename",
+          ".paperpilotstandalone-conv-rename",
         ) as HTMLElement | null;
         if (renameTarget) {
           e.preventDefault();
           e.stopPropagation();
           const row = renameTarget.closest(
-            ".llm-standalone-conv-item",
+            ".paperpilotstandalone-conv-item",
           ) as HTMLElement | null;
           if (!row) return;
           const key = Number(row.dataset.conversationKey);
@@ -3248,13 +3248,13 @@ export function openStandaloneChat(options?: {
         }
 
         const deleteTarget = (e.target as HTMLElement).closest(
-          ".llm-standalone-conv-delete",
+          ".paperpilotstandalone-conv-delete",
         ) as HTMLElement | null;
         if (deleteTarget) {
           e.preventDefault();
           e.stopPropagation();
           const row = deleteTarget.closest(
-            ".llm-standalone-conv-item",
+            ".paperpilotstandalone-conv-item",
           ) as HTMLElement | null;
           if (!row) return;
           const key = Number(row.dataset.conversationKey);
@@ -3273,13 +3273,13 @@ export function openStandaloneChat(options?: {
       // Sidebar click handler — switch conversation
       sidebarList.addEventListener("click", (e: Event) => {
         const target = (e.target as HTMLElement).closest(
-          ".llm-standalone-conv-item",
+          ".paperpilotstandalone-conv-item",
         ) as HTMLElement | null;
         if (!target) return;
         // Ignore row actions handled above.
         if (
           (e.target as HTMLElement).closest(
-            ".llm-standalone-conv-rename, .llm-standalone-conv-delete",
+            ".paperpilotstandalone-conv-rename, .paperpilotstandalone-conv-delete",
           )
         )
           return;
@@ -3290,7 +3290,7 @@ export function openStandaloneChat(options?: {
 
         // Update active class
         const conversationItems = Array.from(
-          sidebarList.querySelectorAll(".llm-standalone-conv-item"),
+          sidebarList.querySelectorAll(".paperpilotstandalone-conv-item"),
         ) as HTMLElement[];
         for (const el of conversationItems) {
           el.classList.remove("active");
@@ -3493,7 +3493,7 @@ export function openStandaloneChat(options?: {
           // Don't clear sidebar — webchat history stays (conversations live on the web).
           if (isInWebChatMode) {
             const embeddedNewBtn = contentArea.querySelector(
-              "#llm-history-new",
+              "#paperpilothistory-new",
             ) as HTMLElement | null;
             if (embeddedNewBtn) embeddedNewBtn.click();
             return;
@@ -3561,7 +3561,7 @@ export function openStandaloneChat(options?: {
       // Icon strip action buttons
       iconSettings.addEventListener("click", () => {
         const btn = contentArea.querySelector(
-          "#llm-settings",
+          "#paperpilotsettings",
         ) as HTMLElement | null;
         if (btn) btn.click();
       });
@@ -3582,20 +3582,20 @@ export function openStandaloneChat(options?: {
       exportPopupCopyBtn.addEventListener("click", () => {
         exportPopup.style.display = "none";
         const innerBtn = contentArea.querySelector(
-          "#llm-export-copy",
+          "#paperpilotexport-copy",
         ) as HTMLElement | null;
         if (innerBtn) innerBtn.click();
       });
       exportPopupNoteBtn.addEventListener("click", () => {
         exportPopup.style.display = "none";
         const innerBtn = contentArea.querySelector(
-          "#llm-export-note",
+          "#paperpilotexport-note",
         ) as HTMLElement | null;
         if (innerBtn) innerBtn.click();
       });
       iconClear.addEventListener("click", () => {
         const btn = contentArea.querySelector(
-          "#llm-clear",
+          "#paperpilotclear",
         ) as HTMLElement | null;
         if (btn) btn.click();
       });
@@ -3973,7 +3973,7 @@ export function openStandaloneChat(options?: {
           // [webchat] If in webchat mode and user clicks "Library chat", exit webchat first
           if (isInWebChatMode && mode === "open") {
             const clearBtnEl = contentArea.querySelector(
-              "#llm-clear",
+              "#paperpilotclear",
             ) as HTMLElement | null;
             if (clearBtnEl) clearBtnEl.click();
           }
@@ -4160,7 +4160,7 @@ export function openStandaloneChat(options?: {
       // Show a visible error so the window isn't silently blank
       try {
         const root = newWin.document?.getElementById(
-          "llmforzotero-standalone-chat-root",
+          "paperpilot-standalone-chat-root",
         );
         const target = root || newWin.document?.body;
         if (target) {
@@ -4207,9 +4207,9 @@ export function openStandaloneChat(options?: {
     setStandalonePending(false);
     // Remove the standalone window's content area from panel tracking
     const root = newWin.document?.getElementById(
-      "llmforzotero-standalone-chat-root",
+      "paperpilot-standalone-chat-root",
     );
-    const contentArea = root?.querySelector(".llm-standalone-content");
+    const contentArea = root?.querySelector(".paperpilotstandalone-content");
     if (contentArea) {
       disposeSetupHandlers(contentArea);
       void releaseClaudeRuntimeForBody(contentArea as Element);

@@ -24,14 +24,14 @@ export const WEBCHAT_TARGETS = [
   {
     id: "chatgpt",
     label: "ChatGPT",
-    defaultHost: "http://127.0.0.1:23119/llm-for-zotero/webchat",
+    defaultHost: "http://127.0.0.1:23119/paperpilotfor-zotero/webchat",
     modelName: "chatgpt.com",
     displayName: "chatgpt",
   },
   {
     id: "deepseek",
     label: "DeepSeek",
-    defaultHost: "http://127.0.0.1:23119/llm-for-zotero/webchat",
+    defaultHost: "http://127.0.0.1:23119/paperpilotfor-zotero/webchat",
     modelName: "chat.deepseek.com",
     displayName: "deepseek",
   },

@@ -11,7 +11,7 @@ export function cancelVisiblePendingConfirmationCards(
 ): string[] {
   if (!root) return [];
   const cards = Array.from(
-    root.querySelectorAll(".llm-agent-hitl-card[data-request-id]"),
+    root.querySelectorAll(".paperpilotagent-hitl-card[data-request-id]"),
   ) as HTMLElement[];
   const requestIds = Array.from(
     new Set(
@@ -27,7 +27,7 @@ export function cancelVisiblePendingConfirmationCards(
   }
 
   for (const card of cards) {
-    const wrapper = card.closest(".llm-action-inline-card");
+    const wrapper = card.closest(".paperpilotaction-inline-card");
     if (wrapper) {
       wrapper.remove();
     } else {

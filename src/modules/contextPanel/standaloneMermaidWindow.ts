@@ -27,7 +27,7 @@ const MERMAID_WINDOW_ZOOM_MAX = 4;
 const MERMAID_WINDOW_ZOOM_STEP = 0.25;
 const MERMAID_WINDOW_WHEEL_ZOOM_DELTA_MAX = 24;
 const MERMAID_WINDOW_WHEEL_ZOOM_SENSITIVITY = 0.002;
-const MERMAID_WINDOW_ROOT_ID = "llmforzotero-standalone-mermaid-root";
+const MERMAID_WINDOW_ROOT_ID = "paperpilot-standalone-mermaid-root";
 const MERMAID_WINDOW_FEATURES =
   "chrome,extrachrome,menubar,resizable,scrollbars,status,centerscreen,dialog=no,dependent=no";
 
@@ -77,7 +77,7 @@ function createButton(
 ): HTMLButtonElement {
   const button = doc.createElementNS(HTML_NS, "button") as HTMLButtonElement;
   button.type = "button";
-  button.className = "llm-mermaid-window-btn";
+  button.className = "paperpilotmermaid-window-btn";
   button.textContent = label;
   button.title = title;
   button.setAttribute("aria-label", title);
@@ -139,15 +139,15 @@ function initializeStandaloneSvgWindow(
   doc.documentElement?.appendChild(css);
 
   root.className = [
-    "llm-mermaid-window-root",
+    "paperpilotmermaid-window-root",
     payload.themeKey === "dark"
-      ? "llm-mermaid-theme-dark"
-      : "llm-mermaid-theme-light",
+      ? "paperpilotmermaid-theme-dark"
+      : "paperpilotmermaid-theme-light",
   ].join(" ");
   root.dataset.llmMermaidTheme = payload.themeKey;
 
   const toolbar = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-  toolbar.className = "llm-mermaid-window-toolbar";
+  toolbar.className = "paperpilotmermaid-window-toolbar";
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
     "aria-label",
@@ -162,15 +162,15 @@ function initializeStandaloneSvgWindow(
   toolbar.append(zoomOut, zoomIn, fit, close);
 
   const viewport = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-  viewport.className = "llm-mermaid-window-viewport";
+  viewport.className = "paperpilotmermaid-window-viewport";
 
   const stage = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-  stage.className = "llm-mermaid-window-stage";
+  stage.className = "paperpilotmermaid-window-stage";
 
   const svg = createInlineSvgElement(
     doc,
     payload.svgMarkup,
-    "llm-mermaid-window-svg",
+    "paperpilotmermaid-window-svg",
     payload.ariaLabel || "SVG preview",
   );
   if (!svg) return false;
@@ -254,7 +254,7 @@ export function openStandaloneSvgWindow(
   const newWin = openDialog.call(
     opener,
     `chrome://${config.addonRef}/content/standaloneMermaid.xhtml`,
-    `llmforzotero-standalone-svg-${Date.now()}`,
+    `paperpilot-standalone-svg-${Date.now()}`,
     MERMAID_WINDOW_FEATURES,
   ) as Window | null;
   if (!newWin) return false;

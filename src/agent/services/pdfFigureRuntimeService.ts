@@ -4,8 +4,8 @@ import { getRuntimePlatformInfo } from "../../utils/runtimePlatform";
 
 export const PDF_FIGURE_RUNTIME_VERSION = "1";
 
-const PDF_FIGURE_RUNTIME_KIND = "llm-for-zotero/pdf-figure-runtime";
-const PDF_FIGURE_RUNTIME_DIR_NAME = "llm-for-zotero-runtimes";
+const PDF_FIGURE_RUNTIME_KIND = "paperpilotfor-zotero/pdf-figure-runtime";
+const PDF_FIGURE_RUNTIME_DIR_NAME = "paperpilotfor-zotero-runtimes";
 const PDFTOPPM_CANDIDATE_PATHS = [
   "/opt/homebrew/bin/pdftoppm",
   "/usr/local/bin/pdftoppm",
@@ -339,9 +339,9 @@ async function resolveInstalledManagedRuntime(
 
 function readPopplerPreference(): string {
   const preferenceKeys = [
-    "extensions.zotero.llmforzotero.pdftoppmPath",
-    "extensions.zotero.llmforzotero.popplerPdftoppmPath",
-    "llmforzotero.pdftoppmPath",
+    "extensions.zotero.paperpilot.pdftoppmPath",
+    "extensions.zotero.paperpilot.popplerPdftoppmPath",
+    "paperpilot.pdftoppmPath",
   ];
   for (const key of preferenceKeys) {
     const value = sanitizeText(readPreference(key));
@@ -388,7 +388,7 @@ export async function resolveSystemPdfFigurePdftohtmlPath(): Promise<
 export function buildDefaultPdfFigureRuntimePackageUrl(
   platformKey: PdfFigureRuntimePlatformKey,
 ): string {
-  return `https://github.com/yilewang/llm-for-zotero/releases/download/pdf-figure-runtime-v${PDF_FIGURE_RUNTIME_VERSION}/llm-for-zotero-pdf-figure-runtime-v${PDF_FIGURE_RUNTIME_VERSION}-${platformKey}.zip`;
+  return `https://github.com/yilewang/paperpilotfor-zotero/releases/download/pdf-figure-runtime-v${PDF_FIGURE_RUNTIME_VERSION}/paperpilotfor-zotero-pdf-figure-runtime-v${PDF_FIGURE_RUNTIME_VERSION}-${platformKey}.zip`;
 }
 
 function getRuntimePackageUrl(

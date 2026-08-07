@@ -3,7 +3,7 @@
  *
  * Shows an animated overlay on the chat area that verifies connectivity
  * to the relay server, Chrome extension, and ChatGPT tab before enabling
- * webchat mode.  Self-contained module for easy transfer to llm-for-zotero.
+ * webchat mode.  Self-contained module for easy transfer to paperpilotfor-zotero.
  */
 
 import { createElement } from "../utils/domHelpers";
@@ -172,28 +172,28 @@ export async function showWebChatPreloadScreen(
   relayClearExtensionStatus();
 
   // Remove any leftover preload overlay
-  chatShell.querySelector(".llm-webchat-preload")?.remove();
+  chatShell.querySelector(".paperpilotwebchat-preload")?.remove();
 
   // Build overlay DOM
-  const overlay = el(doc, "div", "llm-webchat-preload");
-  const content = el(doc, "div", "llm-webchat-preload-content");
-  const title = el(doc, "div", "llm-webchat-preload-title", {
+  const overlay = el(doc, "div", "paperpilotwebchat-preload");
+  const content = el(doc, "div", "paperpilotwebchat-preload-content");
+  const title = el(doc, "div", "paperpilotwebchat-preload-title", {
     textContent: `Connecting to ${siteName}\u2026`,
   });
 
-  const stepsContainer = el(doc, "div", "llm-webchat-preload-steps");
+  const stepsContainer = el(doc, "div", "paperpilotwebchat-preload-steps");
   const stepEls: { row: HTMLElement; icon: HTMLElement; label: HTMLElement }[] =
     [];
 
   const allSteps = [...STEPS, makeChatSiteStep(targetHost)];
   for (const step of allSteps) {
-    const row = el(doc, "div", "llm-webchat-preload-step");
+    const row = el(doc, "div", "paperpilotwebchat-preload-step");
     row.dataset.step = step.key;
     row.style.opacity = "0";
-    const icon = el(doc, "span", "llm-webchat-preload-icon", {
+    const icon = el(doc, "span", "paperpilotwebchat-preload-icon", {
       textContent: "\u25CF",
     }); // ●
-    const label = el(doc, "span", "llm-webchat-preload-label", {
+    const label = el(doc, "span", "paperpilotwebchat-preload-label", {
       textContent: step.label,
     });
     row.append(icon, label);
@@ -201,15 +201,15 @@ export async function showWebChatPreloadScreen(
     stepEls.push({ row, icon, label });
   }
 
-  const readyEl = el(doc, "div", "llm-webchat-preload-ready", {
+  const readyEl = el(doc, "div", "paperpilotwebchat-preload-ready", {
     textContent: "Ready! Starting webchat\u2026",
   });
   readyEl.style.display = "none";
 
-  const errorEl = el(doc, "div", "llm-webchat-preload-error");
+  const errorEl = el(doc, "div", "paperpilotwebchat-preload-error");
   errorEl.style.display = "none";
-  const errorMsg = el(doc, "span", "llm-webchat-preload-error-msg");
-  const retryBtn = el(doc, "button", "llm-webchat-preload-retry", {
+  const errorMsg = el(doc, "span", "paperpilotwebchat-preload-error-msg");
+  const retryBtn = el(doc, "button", "paperpilotwebchat-preload-retry", {
     textContent: "Retry",
     type: "button",
   });
@@ -230,7 +230,7 @@ export async function showWebChatPreloadScreen(
     readyEl.style.display = "none";
     for (const s of stepEls) {
       s.row.style.opacity = "0";
-      s.icon.className = "llm-webchat-preload-icon";
+      s.icon.className = "paperpilotwebchat-preload-icon";
       s.icon.textContent = "\u25CF";
     }
 
@@ -242,7 +242,7 @@ export async function showWebChatPreloadScreen(
 
       // Show step with fade-in
       ui.row.style.opacity = "1";
-      ui.icon.className = "llm-webchat-preload-icon is-checking";
+      ui.icon.className = "paperpilotwebchat-preload-icon is-checking";
 
       // Poll for check to pass
       let passed = false;
@@ -259,12 +259,12 @@ export async function showWebChatPreloadScreen(
 
       if (passed) {
         // Mark step as passed
-        ui.icon.className = "llm-webchat-preload-icon is-pass";
+        ui.icon.className = "paperpilotwebchat-preload-icon is-pass";
         ui.icon.textContent = "\u2713"; // ✓
         await sleep(STEP_PAUSE_MS);
       } else {
         // Mark step as failed
-        ui.icon.className = "llm-webchat-preload-icon is-fail";
+        ui.icon.className = "paperpilotwebchat-preload-icon is-fail";
         ui.icon.textContent = "\u2717"; // ✗
         errorMsg.textContent = resolveFailHint(step);
         errorEl.style.display = "";
@@ -308,7 +308,7 @@ export async function showWebChatPreloadScreen(
     // All checks passed — show "Ready!" then fade out
     readyEl.style.display = "";
     await sleep(800);
-    overlay.classList.add("llm-webchat-preload-fade-out");
+    overlay.classList.add("paperpilotwebchat-preload-fade-out");
     await sleep(400);
   } finally {
     overlay.remove();

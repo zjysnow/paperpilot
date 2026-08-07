@@ -390,7 +390,7 @@ export function setInlineEditCleanup(fn: (() => void) | null): void {
   inlineEditCleanup = fn;
 }
 
-/** The .llm-input-section element borrowed into the chat widget during inline edit. */
+/** The .paperpilotinput-section element borrowed into the chat widget during inline edit. */
 export let inlineEditInputSectionEl: HTMLElement | null = null;
 /** Original parent of the borrowed input section (for restoring). */
 export let inlineEditInputSectionParent: Element | null = null;

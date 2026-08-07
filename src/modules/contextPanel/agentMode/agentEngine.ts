@@ -354,7 +354,7 @@ function createAgentTurnEventHandler(
               effectiveTokens,
               nextWindow,
               body.querySelector(
-                "#llm-claude-context-gauge",
+                "#paperpilotclaude-context-gauge",
               ) as HTMLElement | null,
               {
                 estimated: usageRecord.contextWindowIsAuthoritative !== true,
@@ -787,7 +787,7 @@ function syncInlineActionCardState(
   body: Element,
   ui: PanelRequestUIShape,
 ): void {
-  const hasCard = Boolean(ui.chatBox?.querySelector(".llm-action-inline-card"));
+  const hasCard = Boolean(ui.chatBox?.querySelector(".paperpilotaction-inline-card"));
   const panelRoot = body as HTMLElement;
   if (hasCard) {
     panelRoot.dataset.hasActionCard = "true";
@@ -819,7 +819,7 @@ function findRenderedPendingActionCard(
   requestId: string,
 ): HTMLElement | null {
   const cards = Array.from(
-    chatBox.querySelectorAll(".llm-agent-hitl-card[data-request-id]"),
+    chatBox.querySelectorAll(".paperpilotagent-hitl-card[data-request-id]"),
   ) as HTMLElement[];
   return cards.find((card) => card.dataset.requestId === requestId) || null;
 }
@@ -833,7 +833,7 @@ function showInlineConfirmationCard(
   const chatBox = ui.chatBox;
   const ownerDoc = body.ownerDocument;
   if (!chatBox || !ownerDoc) return;
-  chatBox.querySelector(".llm-action-inline-card")?.remove();
+  chatBox.querySelector(".paperpilotaction-inline-card")?.remove();
   const renderedCard = findRenderedPendingActionCard(chatBox, requestId);
   if (renderedCard) {
     scrollActionCardIntoView(chatBox, renderedCard);
@@ -841,7 +841,7 @@ function showInlineConfirmationCard(
     return;
   }
   const wrapper = ownerDoc.createElement("div");
-  wrapper.className = "llm-action-inline-card llm-action-inline-card-review";
+  wrapper.className = "paperpilotaction-inline-card paperpilotaction-inline-card-review";
   wrapper.dataset.requestId = requestId;
   wrapper.appendChild(renderPendingActionCard(ownerDoc, { requestId, action }));
   chatBox.appendChild(wrapper);
@@ -861,12 +861,12 @@ function closeInlineConfirmationCard(
     card =
       (
         Array.from(
-          chatBox.querySelectorAll(".llm-action-inline-card"),
+          chatBox.querySelectorAll(".paperpilotaction-inline-card"),
         ) as HTMLElement[]
       ).find((entry) => entry.dataset.requestId === requestId) ||
-      chatBox.querySelector(".llm-action-inline-card");
+      chatBox.querySelector(".paperpilotaction-inline-card");
   } else {
-    card = chatBox.querySelector(".llm-action-inline-card");
+    card = chatBox.querySelector(".paperpilotaction-inline-card");
   }
   card?.remove();
   syncInlineActionCardState(body, ui);

@@ -109,7 +109,7 @@ async function captureScreenshotSelection(win: Window): Promise<string | null> {
 
     // Create overlay with inline styles using HTML namespace
     const overlay = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-    overlay.id = "llm-screenshot-overlay";
+    overlay.id = "paperpilotscreenshot-overlay";
     Object.assign(overlay.style, {
       position: "fixed",
       top: "0",

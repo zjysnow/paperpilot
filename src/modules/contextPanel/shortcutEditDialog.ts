@@ -34,46 +34,46 @@ export function showShortcutEditDialog(
   return new Promise((resolve) => {
     shortcutEditDialogCounter += 1;
     const instanceId = shortcutEditDialogCounter;
-    const titleId = `llm-shortcut-edit-title-${instanceId}`;
-    const labelInputId = `llm-shortcut-label-input-${instanceId}`;
-    const promptInputId = `llm-shortcut-prompt-input-${instanceId}`;
+    const titleId = `paperpilotshortcut-edit-title-${instanceId}`;
+    const labelInputId = `paperpilotshortcut-label-input-${instanceId}`;
+    const promptInputId = `paperpilotshortcut-prompt-input-${instanceId}`;
     const previousActiveElement = doc.activeElement;
 
     const overlay = createElement(
       doc,
       "div",
-      "llm-modal-overlay llm-shortcut-edit-overlay",
+      "paperpilotmodal-overlay paperpilotshortcut-edit-overlay",
     );
     overlay.setAttribute("role", "presentation");
 
     const dialog = createElement(
       doc,
       "div",
-      "llm-modal-dialog llm-shortcut-edit-dialog",
+      "paperpilotmodal-dialog paperpilotshortcut-edit-dialog",
     );
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
     dialog.setAttribute("aria-labelledby", titleId);
 
-    const title = createElement(doc, "div", "llm-modal-title", {
+    const title = createElement(doc, "div", "paperpilotmodal-title", {
       id: titleId,
       textContent: options.title,
     });
     const form = createElement(
       doc,
       "form",
-      "llm-shortcut-edit-form",
+      "paperpilotshortcut-edit-form",
     ) as HTMLFormElement;
 
-    const labelField = createElement(doc, "div", "llm-shortcut-edit-field");
-    const label = createElement(doc, "label", "llm-shortcut-edit-label", {
+    const labelField = createElement(doc, "div", "paperpilotshortcut-edit-field");
+    const label = createElement(doc, "label", "paperpilotshortcut-edit-label", {
       htmlFor: labelInputId,
       textContent: options.labelText,
     });
     const labelInput = createElement(
       doc,
       "input",
-      "llm-shortcut-edit-control",
+      "paperpilotshortcut-edit-control",
       {
         id: labelInputId,
         type: "text",
@@ -83,15 +83,15 @@ export function showShortcutEditDialog(
     labelInput.setAttribute("autocomplete", "off");
     labelField.append(label, labelInput);
 
-    const promptField = createElement(doc, "div", "llm-shortcut-edit-field");
-    const promptLabel = createElement(doc, "label", "llm-shortcut-edit-label", {
+    const promptField = createElement(doc, "div", "paperpilotshortcut-edit-field");
+    const promptLabel = createElement(doc, "label", "paperpilotshortcut-edit-label", {
       htmlFor: promptInputId,
       textContent: options.promptText,
     });
     const promptInput = createElement(
       doc,
       "textarea",
-      "llm-shortcut-edit-control llm-shortcut-edit-prompt",
+      "paperpilotshortcut-edit-control paperpilotshortcut-edit-prompt",
       {
         id: promptInputId,
         rows: 6,
@@ -100,11 +100,11 @@ export function showShortcutEditDialog(
     );
     promptField.append(promptLabel, promptInput);
 
-    const actions = createElement(doc, "div", "llm-modal-actions");
+    const actions = createElement(doc, "div", "paperpilotmodal-actions");
     const cancelButton = createElement(
       doc,
       "button",
-      "llm-modal-btn llm-modal-cancel",
+      "paperpilotmodal-btn paperpilotmodal-cancel",
       {
         type: "button",
         textContent: options.cancelLabel,
@@ -113,7 +113,7 @@ export function showShortcutEditDialog(
     const confirmButton = createElement(
       doc,
       "button",
-      "llm-modal-btn llm-modal-primary",
+      "paperpilotmodal-btn paperpilotmodal-primary",
       {
         type: "submit",
         textContent: options.confirmLabel,

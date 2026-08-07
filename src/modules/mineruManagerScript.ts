@@ -136,7 +136,7 @@ const MINERU_STATUS_DOT_COLORS: Record<MineruStatus, string> = {
 };
 
 export const MINERU_PARSE_FILTERS_CHANGED_EVENT =
-  "llmforzotero:mineru-parse-filters-changed";
+  "paperpilot:mineru-parse-filters-changed";
 
 export type MineruManagerVisibilityInput = Pick<
   MineruItemEntry,
@@ -259,7 +259,7 @@ export function getMineruParentDisplayStatus(
 
 export async function registerMineruManagerScript(
   win: Window,
-  idPrefix = "llmforzotero",
+  idPrefix = "paperpilot",
 ): Promise<void> {
   const doc = win.document;
   const $ = (suffix: string) =>

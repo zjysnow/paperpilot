@@ -42,27 +42,27 @@ export function renderActionCompletionCard(
   secondsRemaining = ACTION_COMPLETION_DISMISS_MS / 1000,
 ): HTMLDivElement {
   const card = doc.createElement("div");
-  card.className = "llm-agent-hitl-card llm-agent-hitl-card-complete";
+  card.className = "paperpilotagent-hitl-card paperpilotagent-hitl-card-complete";
 
   const header = doc.createElement("div");
-  header.className = "llm-agent-hitl-header";
+  header.className = "paperpilotagent-hitl-header";
   header.textContent = feedback.status === "failure" ? "Failed" : "Complete";
   card.appendChild(header);
 
   const title = doc.createElement("div");
-  title.className = "llm-agent-hitl-title";
+  title.className = "paperpilotagent-hitl-title";
   title.textContent = feedback.title;
   card.appendChild(title);
 
   if (feedback.description) {
     const description = doc.createElement("div");
-    description.className = "llm-agent-hitl-description";
+    description.className = "paperpilotagent-hitl-description";
     description.textContent = feedback.description;
     card.appendChild(description);
   }
 
   const countdown = doc.createElement("div");
-  countdown.className = "llm-agent-hitl-description";
+  countdown.className = "paperpilotagent-hitl-description";
   countdown.setAttribute("data-action-completion-countdown", "true");
   countdown.textContent = formatActionCompletionCountdown(secondsRemaining);
   card.appendChild(countdown);
@@ -139,32 +139,32 @@ export function renderActionTransitionCard(
   actionId?: string,
 ): HTMLDivElement {
   const card = doc.createElement("div");
-  card.className = "llm-agent-hitl-card llm-agent-hitl-card-transition";
+  card.className = "paperpilotagent-hitl-card paperpilotagent-hitl-card-transition";
   card.setAttribute("role", "status");
   card.setAttribute("aria-live", "polite");
 
   const header = doc.createElement("div");
-  header.className = "llm-agent-hitl-header";
+  header.className = "paperpilotagent-hitl-header";
   header.textContent = "Working";
   card.appendChild(header);
 
   const { title: titleText, description: descriptionText } =
     getActionTransitionText(actionId);
   const title = doc.createElement("div");
-  title.className = "llm-agent-hitl-title";
+  title.className = "paperpilotagent-hitl-title";
   title.textContent = titleText;
   card.appendChild(title);
 
   const description = doc.createElement("div");
-  description.className = "llm-agent-hitl-description";
+  description.className = "paperpilotagent-hitl-description";
   description.textContent = descriptionText;
   card.appendChild(description);
 
   const typing = doc.createElement("div");
-  typing.className = "llm-typing llm-agent-hitl-transition-typing";
+  typing.className = "paperpilottyping paperpilotagent-hitl-transition-typing";
   typing.setAttribute("aria-hidden", "true");
   typing.innerHTML =
-    '<span class="llm-typing-dot"></span><span class="llm-typing-dot"></span><span class="llm-typing-dot"></span>';
+    '<span class="paperpilottyping-dot"></span><span class="paperpilottyping-dot"></span><span class="paperpilottyping-dot"></span>';
   card.appendChild(typing);
 
   return card;
@@ -211,7 +211,7 @@ export function createActionCommandLifecycle(params: {
       actionHitlPanel.style.display = "none";
       actionHitlPanel.innerHTML = "";
     }
-    chatBox?.querySelector(".llm-action-inline-card")?.remove();
+    chatBox?.querySelector(".paperpilotaction-inline-card")?.remove();
     syncHasActionCardAttr();
   };
 
@@ -220,13 +220,13 @@ export function createActionCommandLifecycle(params: {
     if (!ownerDoc || !chatBox) return;
     clearActionCompletionTimers();
     let wrapper = chatBox.querySelector(
-      ".llm-action-inline-card-review",
+      ".paperpilotaction-inline-card-review",
     ) as HTMLDivElement | null;
     if (!wrapper) {
-      chatBox.querySelector(".llm-action-inline-card")?.remove();
+      chatBox.querySelector(".paperpilotaction-inline-card")?.remove();
       wrapper = ownerDoc.createElement("div");
       wrapper.className =
-        "llm-action-inline-card llm-action-inline-card-review";
+        "paperpilotaction-inline-card paperpilotaction-inline-card-review";
       chatBox.appendChild(wrapper);
     }
     wrapper.innerHTML = "";
@@ -253,10 +253,10 @@ export function createActionCommandLifecycle(params: {
       const ownerDoc = body.ownerDocument;
       if (!ownerDoc || !chatBox) return;
       clearActionCompletionTimers();
-      chatBox.querySelector(".llm-action-inline-card")?.remove();
+      chatBox.querySelector(".paperpilotaction-inline-card")?.remove();
       const wrapper = ownerDoc.createElement("div");
       wrapper.className =
-        "llm-action-inline-card llm-action-inline-card-review";
+        "paperpilotaction-inline-card paperpilotaction-inline-card-review";
       wrapper.appendChild(
         renderPendingActionCard(ownerDoc, { requestId, action }),
       );
@@ -271,10 +271,10 @@ export function createActionCommandLifecycle(params: {
     const ownerDoc = body.ownerDocument;
     if (!ownerDoc || !chatBox) return;
     clearActionCompletionTimers();
-    chatBox.querySelector(".llm-action-progress-card")?.remove();
-    chatBox.querySelector(".llm-action-inline-card")?.remove();
+    chatBox.querySelector(".paperpilotaction-progress-card")?.remove();
+    chatBox.querySelector(".paperpilotaction-inline-card")?.remove();
     const wrapper = ownerDoc.createElement("div");
-    wrapper.className = "llm-action-inline-card llm-action-inline-card-status";
+    wrapper.className = "paperpilotaction-inline-card paperpilotaction-inline-card-status";
     const totalMs = feedback.autoDismissMs || ACTION_COMPLETION_DISMISS_MS;
     const startedAt = Date.now();
     const card = renderActionCompletionCard(ownerDoc, feedback, totalMs / 1000);
@@ -321,26 +321,26 @@ export function createActionCommandLifecycle(params: {
     const ensureMounted = () => {
       if (!ownerDoc || !chatBox) return;
       if (element && element.isConnected) return;
-      chatBox.querySelector(".llm-action-progress-card")?.remove();
+      chatBox.querySelector(".paperpilotaction-progress-card")?.remove();
       const wrapper = ownerDoc.createElement("div");
-      wrapper.className = "llm-action-progress-card";
+      wrapper.className = "paperpilotaction-progress-card";
       const header = ownerDoc.createElement("div");
-      header.className = "llm-action-progress-header";
+      header.className = "paperpilotaction-progress-header";
       const title = ownerDoc.createElement("div");
-      title.className = "llm-action-progress-title";
+      title.className = "paperpilotaction-progress-title";
       title.textContent = `${formatActionLabel(actionName)}`;
       const typing = ownerDoc.createElement("div");
-      typing.className = "llm-typing llm-action-progress-typing";
+      typing.className = "paperpilottyping paperpilotaction-progress-typing";
       typing.innerHTML =
-        '<span class="llm-typing-dot"></span><span class="llm-typing-dot"></span><span class="llm-typing-dot"></span>';
+        '<span class="paperpilottyping-dot"></span><span class="paperpilottyping-dot"></span><span class="paperpilottyping-dot"></span>';
       header.append(title, typing);
       wrapper.appendChild(header);
       stepText = ownerDoc.createElement("div");
-      stepText.className = "llm-action-progress-step";
+      stepText.className = "paperpilotaction-progress-step";
       stepText.textContent = "Starting...";
       wrapper.appendChild(stepText);
       summaryText = ownerDoc.createElement("div");
-      summaryText.className = "llm-action-progress-summary";
+      summaryText.className = "paperpilotaction-progress-summary";
       summaryText.textContent = "";
       wrapper.appendChild(summaryText);
       chatBox.appendChild(wrapper);

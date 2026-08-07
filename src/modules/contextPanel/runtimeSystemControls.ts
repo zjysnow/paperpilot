@@ -107,7 +107,7 @@ export function createRuntimeSystemControls(
   const group = createElement(
     doc,
     "div",
-    ["llm-runtime-system-controls", options.groupClassName]
+    ["paperpilotruntime-system-controls", options.groupClassName]
       .filter(Boolean)
       .join(" "),
     options.groupId ? { id: options.groupId } : undefined,
@@ -121,8 +121,8 @@ export function createRuntimeSystemControls(
       doc,
       "button",
       [
-        "llm-runtime-system-toggle",
-        `llm-runtime-system-toggle--${system.replace("_", "-")}`,
+        "paperpilotruntime-system-toggle",
+        `paperpilotruntime-system-toggle--${system.replace("_", "-")}`,
         options.buttonClassName,
       ]
         .filter(Boolean)
@@ -143,8 +143,8 @@ export function createRuntimeSystemControls(
       doc,
       "span",
       [
-        "llm-runtime-system-toggle-icon",
-        `llm-runtime-system-toggle-icon--${system.replace("_", "-")}`,
+        "paperpilotruntime-system-toggle-icon",
+        `paperpilotruntime-system-toggle-icon--${system.replace("_", "-")}`,
       ].join(" "),
     );
     icon.setAttribute("aria-hidden", "true");

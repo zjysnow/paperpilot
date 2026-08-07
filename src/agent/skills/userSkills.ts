@@ -389,11 +389,11 @@ async function migrateLegacyFlatSkills(
         seeded.add(filename);
       }
       Zotero.debug?.(
-        `[llm-for-zotero] Migrated skill ${filename} to ${targetFile}`,
+        `[paperpilotfor-zotero] Migrated skill ${filename} to ${targetFile}`,
       );
     } catch (err) {
       Zotero.debug?.(
-        `[llm-for-zotero] Skill migration warning for ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+        `[paperpilotfor-zotero] Skill migration warning for ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -532,7 +532,7 @@ export async function initUserSkills(): Promise<void> {
           delete bodyHashes[file];
           seeded.delete(file);
           Zotero.debug?.(
-            `[llm-for-zotero] Removed obsolete ${file}` +
+            `[paperpilotfor-zotero] Removed obsolete ${file}` +
               (unmodifiedByBootstrap
                 ? " (bootstrap: shipped fingerprint match)"
                 : ""),
@@ -540,11 +540,11 @@ export async function initUserSkills(): Promise<void> {
         } else {
           // Customized or unknown legacy copy → keep as personal skill
           seeded.delete(file);
-          Zotero.debug?.(`[llm-for-zotero] Kept ${file} as personal skill`);
+          Zotero.debug?.(`[paperpilotfor-zotero] Kept ${file} as personal skill`);
         }
       } catch (err) {
         Zotero.debug?.(
-          `[llm-for-zotero] Obsolete skill cleanup warning for ${file}: ${err instanceof Error ? err.message : String(err)}`,
+          `[paperpilotfor-zotero] Obsolete skill cleanup warning for ${file}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
@@ -575,7 +575,7 @@ export async function initUserSkills(): Promise<void> {
         await io.write(filePath, encoder.encode(shippedContent));
         bodyHashes[filename] = shippedHash;
         seeded.add(filename);
-        Zotero.debug?.(`[llm-for-zotero] Seeded skill: ${filename}`);
+        Zotero.debug?.(`[paperpilotfor-zotero] Seeded skill: ${filename}`);
         continue;
       }
 
@@ -616,7 +616,7 @@ export async function initUserSkills(): Promise<void> {
 
       if (trackedCustomizedBody) {
         Zotero.debug?.(
-          `[llm-for-zotero] Kept customized skill body: ${filename} ` +
+          `[paperpilotfor-zotero] Kept customized skill body: ${filename} ` +
             `(shipped v${shippedSkill.version} available — use preferences to restore defaults)`,
         );
       } else if (storedHash && onDiskHash === storedHash) {
@@ -629,7 +629,7 @@ export async function initUserSkills(): Promise<void> {
             await io.write(filePath, encoder.encode(spliced));
             bodyHashes[filename] = shippedHash;
             Zotero.debug?.(
-              `[llm-for-zotero] Refreshed managed block: ${filename}`,
+              `[paperpilotfor-zotero] Refreshed managed block: ${filename}`,
             );
             seeded.add(filename);
             continue;
@@ -637,7 +637,7 @@ export async function initUserSkills(): Promise<void> {
         }
         await io.write(filePath, encoder.encode(shippedContent));
         bodyHashes[filename] = shippedHash;
-        Zotero.debug?.(`[llm-for-zotero] Upgraded skill: ${filename}`);
+        Zotero.debug?.(`[paperpilotfor-zotero] Upgraded skill: ${filename}`);
       } else if (!storedHash) {
         // Bootstrap: no hash record (pre-hash installation). Only upgrade if
         // the raw file still matches a known shipped version for this built-in;
@@ -652,7 +652,7 @@ export async function initUserSkills(): Promise<void> {
           await io.write(filePath, encoder.encode(shippedContent));
           bodyHashes[filename] = shippedHash;
           Zotero.debug?.(
-            `[llm-for-zotero] Bootstrap-upgraded skill: ${filename} (v${onDiskSkill.version} → v${shippedSkill.version})`,
+            `[paperpilotfor-zotero] Bootstrap-upgraded skill: ${filename} (v${onDiskSkill.version} → v${shippedSkill.version})`,
           );
         } else {
           // Same/newer version, unknown raw body, or edited previous version
@@ -664,7 +664,7 @@ export async function initUserSkills(): Promise<void> {
         // Leave file alone, but log so the developer / advanced user knows
         // a shipped update is available (surfaced via the preferences UI).
         Zotero.debug?.(
-          `[llm-for-zotero] Kept customized skill: ${filename} ` +
+          `[paperpilotfor-zotero] Kept customized skill: ${filename} ` +
             `(shipped v${shippedSkill.version} available — use preferences to restore defaults)`,
         );
       }
@@ -672,7 +672,7 @@ export async function initUserSkills(): Promise<void> {
       seeded.add(filename);
     } catch (err) {
       Zotero.debug?.(
-        `[llm-for-zotero] Skill processing error for ${filename}: ${err instanceof Error ? err.message : String(err)}`,
+        `[paperpilotfor-zotero] Skill processing error for ${filename}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -703,12 +703,12 @@ export async function initUserSkills(): Promise<void> {
         if (patched) {
           await io.write(filePath, encoder.encode(patched));
           Zotero.debug?.(
-            `[llm-for-zotero] Patched skill metadata: ${filename}`,
+            `[paperpilotfor-zotero] Patched skill metadata: ${filename}`,
           );
         }
       } catch (err) {
         Zotero.debug?.(
-          `[llm-for-zotero] Skill metadata patch warning for ${filename}: ${err instanceof Error ? err.message : String(err)}`,
+          `[paperpilotfor-zotero] Skill metadata patch warning for ${filename}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
@@ -750,14 +750,14 @@ export async function loadUserSkills(): Promise<AgentSkill[]> {
         OBSOLETE_SKILL_IDS.has(skill.id)
       ) {
         Zotero.debug?.(
-          `[llm-for-zotero] Skipping obsolete preserved skill file: ${filePath}`,
+          `[paperpilotfor-zotero] Skipping obsolete preserved skill file: ${filePath}`,
         );
         continue;
       }
 
       if (skill.id === "unknown" || skill.patterns.length === 0) {
         Zotero.debug?.(
-          `[llm-for-zotero] Skipping invalid skill file (missing id or match patterns): ${filePath}`,
+          `[paperpilotfor-zotero] Skipping invalid skill file (missing id or match patterns): ${filePath}`,
         );
         continue;
       }
@@ -776,14 +776,14 @@ export async function loadUserSkills(): Promise<AgentSkill[]> {
       skills.push(skill);
     } catch (err) {
       Zotero.debug?.(
-        `[llm-for-zotero] Error loading skill file ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+        `[paperpilotfor-zotero] Error loading skill file ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
 
   if (skills.length > 0) {
     Zotero.debug?.(
-      `[llm-for-zotero] Loaded ${skills.length} skill(s) from ${dir}`,
+      `[paperpilotfor-zotero] Loaded ${skills.length} skill(s) from ${dir}`,
     );
   }
 
@@ -812,7 +812,7 @@ export async function deleteSkillFile(filePath: string): Promise<boolean> {
     return true;
   } catch (err) {
     Zotero.debug?.(
-      `[llm-for-zotero] Failed to delete skill file ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+      `[paperpilotfor-zotero] Failed to delete skill file ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
     );
     return false;
   }
@@ -882,7 +882,7 @@ Describe when and how the agent should behave when this skill matches.
     return filePath;
   } catch (err) {
     Zotero.debug?.(
-      `[llm-for-zotero] Failed to create skill template: ${err instanceof Error ? err.message : String(err)}`,
+      `[paperpilotfor-zotero] Failed to create skill template: ${err instanceof Error ? err.message : String(err)}`,
     );
     return null;
   }
@@ -971,7 +971,7 @@ export async function getSkillListing(): Promise<SkillListingEntry[]> {
       });
     } catch (err) {
       Zotero.debug?.(
-        `[llm-for-zotero] Error listing skill file ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+        `[paperpilotfor-zotero] Error listing skill file ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -1028,11 +1028,11 @@ export async function restoreSkillToDefault(
     const seeded = getSeededSkills();
     seeded.add(filename);
     setSeededSkills(seeded);
-    Zotero.debug?.(`[llm-for-zotero] Restored skill to default: ${filename}`);
+    Zotero.debug?.(`[paperpilotfor-zotero] Restored skill to default: ${filename}`);
     return true;
   } catch (err) {
     Zotero.debug?.(
-      `[llm-for-zotero] Failed to restore skill ${filename}: ${err instanceof Error ? err.message : String(err)}`,
+      `[paperpilotfor-zotero] Failed to restore skill ${filename}: ${err instanceof Error ? err.message : String(err)}`,
     );
     return false;
   }
@@ -1081,7 +1081,7 @@ export async function openSkillFile(filePath: string): Promise<void> {
     }
   } catch (err) {
     Zotero.debug?.(
-      `[llm-for-zotero] Failed to open skill file ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+      `[paperpilotfor-zotero] Failed to open skill file ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 }

@@ -227,7 +227,7 @@ function isPanelRootInitialized(
 
 function isPanelBodyInitialized(body: Element): boolean {
   return isPanelRootInitialized(
-    body.querySelector("#llm-main") as HTMLElement | null,
+    body.querySelector("#paperpilotmain") as HTMLElement | null,
   );
 }
 
@@ -257,11 +257,11 @@ export function registerReaderContextPanel() {
     paneID: PANE_ID,
     pluginID: config.addonID,
     header: {
-      l10nID: getLocaleID("llm-panel-head"),
+      l10nID: getLocaleID("paperpilotpanel-head"),
       icon: `chrome://${config.addonRef}/content/icons/icon.svg`,
     },
     sidenav: {
-      l10nID: getLocaleID("llm-panel-sidenav-tooltip"),
+      l10nID: getLocaleID("paperpilotpanel-sidenav-tooltip"),
       icon: `chrome://${config.addonRef}/content/icons/icon.svg`,
     },
     onInit: ({ setEnabled, tabType }) => {
@@ -302,7 +302,7 @@ export function registerReaderContextPanel() {
         return;
       }
       try {
-        const panelRoot = body.querySelector("#llm-main") as HTMLElement | null;
+        const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
         // Treat missing panel root as needing a full render — the body may
         // belong to a tab that onAsyncRender never fired for.
         // Also treat an uninitialized shell as incomplete.  Zotero can fire a
@@ -404,7 +404,7 @@ export function registerReaderContextPanel() {
           // if we defer buildUI, the stale panel from the previous tab wins.
           buildUI(body, resolvedState.item);
           const nextPanelRoot = body.querySelector(
-            "#llm-main",
+            "#paperpilotmain",
           ) as HTMLElement | null;
           writePanelContextDataset(nextPanelRoot, rawContextItem);
           activeContextPanels.set(body, () => resolvedState.item);
@@ -509,14 +509,14 @@ export function registerReaderContextPanel() {
         renderClaim.outcome === "sync-rendered" ? renderClaim.cycle : null;
       const contextRefreshOnly =
         renderClaim.outcome === "context-refresh" &&
-        Boolean(body.querySelector("#llm-main"));
+        Boolean(body.querySelector("#paperpilotmain"));
       if (contextRefreshOnly) {
         activeContextPanels.set(body, () => resolvedItem);
         activeContextPanelRawItems.set(body, item || null);
       } else if (!syncAlreadyRendered) {
         persistPendingChatScrollRestoreFromBody(body);
         buildUI(body, resolvedItem);
-        const panelRoot = body.querySelector("#llm-main") as HTMLElement | null;
+        const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
         writePanelContextDataset(panelRoot, item || resolvedItem);
         activeContextPanelRawItems.set(body, item || null);
       }
@@ -1046,7 +1046,7 @@ function refreshPanelsForConversationKey(conversationKey: number): void {
       continue;
     }
     const activeRoot = activeBody.querySelector(
-      "#llm-main",
+      "#paperpilotmain",
     ) as HTMLDivElement | null;
     const activeConversationKey = activeRoot
       ? Number(activeRoot.dataset.itemId || 0)
@@ -1071,7 +1071,7 @@ export function refreshNoteEditingPanelsForNote(noteId: number): number {
       continue;
     }
     const activeRoot = activeBody.querySelector(
-      "#llm-main",
+      "#paperpilotmain",
     ) as HTMLDivElement | null;
     const panelNoteId = Number(activeRoot?.dataset.noteId || 0);
     if (
@@ -1108,7 +1108,7 @@ function getActiveNotePanelConversationSystems(
   for (const [activeBody] of activeContextPanelStateSync) {
     if (!(activeBody as Element).isConnected) continue;
     const activeRoot = activeBody.querySelector(
-      "#llm-main",
+      "#paperpilotmain",
     ) as HTMLDivElement | null;
     const panelNoteId = Number(activeRoot?.dataset.noteId || 0);
     if (!Number.isFinite(panelNoteId) || Math.floor(panelNoteId) !== noteId) {
@@ -1175,7 +1175,7 @@ function refreshTrackedNoteEditingSelection(
     const activeEl = win.document.activeElement;
     if (
       activeEl &&
-      (activeEl.id === "llm-main" || activeEl.closest?.("#llm-main"))
+      (activeEl.id === "paperpilotmain" || activeEl.closest?.("#paperpilotmain"))
     ) {
       return;
     }

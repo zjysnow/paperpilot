@@ -1310,7 +1310,7 @@ export function addSelectedTextContext(
   options: AddSelectedTextContextOptions = {},
 ): boolean {
   const normalizedText = normalizeSelectedText(text || "");
-  const status = body.querySelector("#llm-status") as HTMLElement | null;
+  const status = body.querySelector("#paperpilotstatus") as HTMLElement | null;
   if (!normalizedText) {
     if (status && options.noSelectionStatusText) {
       setStatus(status, options.noSelectionStatusText, "error");
@@ -1336,7 +1336,7 @@ export function addSelectedTextContext(
   }
   if (options.focusInput !== false) {
     const inputEl = body.querySelector(
-      "#llm-input",
+      "#paperpilotinput",
     ) as HTMLTextAreaElement | null;
     inputEl?.focus({ preventScroll: true });
   }
@@ -1386,9 +1386,9 @@ export function createNoteContextChip(
     ? `Note ${snapshot.noteId}`
     : snapshot.title || "Note";
   const noteChip = ownerDoc.createElement("div");
-  noteChip.className = "llm-selected-context llm-note-context-chip";
+  noteChip.className = "paperpilotselected-context paperpilotnote-context-chip";
   if (options.pinned) {
-    noteChip.classList.add("llm-selected-context-pinned");
+    noteChip.classList.add("paperpilotselected-context-pinned");
   }
   noteChip.dataset.noteChip = "true";
   noteChip.dataset.noteChipKind = options.noteChipKind;
@@ -1399,21 +1399,21 @@ export function createNoteContextChip(
   noteChip.classList.toggle("collapsed", !options.expanded);
 
   const noteHeader = ownerDoc.createElement("div");
-  noteHeader.className = "llm-image-preview-header llm-selected-context-header";
+  noteHeader.className = "paperpilotimage-preview-header paperpilotselected-context-header";
 
   const noteMeta = ownerDoc.createElement("button");
   noteMeta.type = "button";
   noteMeta.className =
-    "llm-image-preview-meta llm-selected-context-meta llm-note-context-meta";
+    "paperpilotimage-preview-meta paperpilotselected-context-meta paperpilotnote-context-meta";
   noteMeta.setAttribute("aria-label", `Note context: ${noteLabelText}`);
   noteMeta.setAttribute("aria-expanded", options.expanded ? "true" : "false");
   if (options.removableIndex !== undefined) {
     noteMeta.dataset.contextIndex = `${options.removableIndex}`;
     noteChip.dataset.contextIndex = `${options.removableIndex}`;
   }
-  const noteIcon = createContextIcon(ownerDoc, "note", "llm-note-context-icon");
+  const noteIcon = createContextIcon(ownerDoc, "note", "paperpilotnote-context-icon");
   const noteLabel = ownerDoc.createElement("span");
-  noteLabel.className = "llm-note-context-label";
+  noteLabel.className = "paperpilotnote-context-label";
   noteLabel.textContent = noteLabelText;
   noteMeta.append(noteIcon, noteLabel);
   noteHeader.appendChild(noteMeta);
@@ -1421,7 +1421,7 @@ export function createNoteContextChip(
   if (options.removableIndex !== undefined) {
     const noteClear = ownerDoc.createElement("button");
     noteClear.type = "button";
-    noteClear.className = "llm-remove-img-btn llm-selected-context-clear";
+    noteClear.className = "paperpilotremove-img-btn paperpilotselected-context-clear";
     noteClear.dataset.contextIndex = `${options.removableIndex}`;
     noteClear.textContent = "×";
     noteClear.title = `Clear ${noteLabelText}`;
@@ -1431,11 +1431,11 @@ export function createNoteContextChip(
 
   const noteExpanded = ownerDoc.createElement("div");
   noteExpanded.className =
-    "llm-image-preview-expanded llm-selected-context-expanded";
+    "paperpilotimage-preview-expanded paperpilotselected-context-expanded";
   noteExpanded.hidden = false;
   noteExpanded.style.display = "flex";
   const noteBody = ownerDoc.createElement("div");
-  noteBody.className = "llm-selected-context-text llm-note-context-text";
+  noteBody.className = "paperpilotselected-context-text paperpilotnote-context-text";
   noteBody.textContent = snapshot.text || "Empty note";
   noteExpanded.appendChild(noteBody);
 
@@ -1451,7 +1451,7 @@ export function refreshNoteChipPreview(noteChip: Element): void {
     ? `${snapshot.noteId}`
     : "";
   const noteMeta = noteChip.querySelector(
-    ".llm-note-context-meta",
+    ".paperpilotnote-context-meta",
   ) as HTMLButtonElement | null;
   if (noteMeta) {
     noteMeta.removeAttribute("title");
@@ -1460,14 +1460,14 @@ export function refreshNoteChipPreview(noteChip: Element): void {
       : snapshot.title || "Note";
     noteMeta.setAttribute("aria-label", `Note context: ${noteLabelText}`);
     const noteLabel = noteMeta.querySelector(
-      ".llm-note-context-label",
+      ".paperpilotnote-context-label",
     ) as HTMLSpanElement | null;
     if (noteLabel) {
       noteLabel.textContent = noteLabelText;
     }
   }
   const bodyEl = noteChip.querySelector(
-    ".llm-note-context-text",
+    ".paperpilotnote-context-text",
   ) as HTMLDivElement | null;
   if (bodyEl) {
     bodyEl.textContent = snapshot.text || "Empty note";
@@ -1476,15 +1476,15 @@ export function refreshNoteChipPreview(noteChip: Element): void {
 
 export function applySelectedTextPreview(body: Element, itemId: number) {
   const previewList = body.querySelector(
-    "#llm-selected-context-list",
+    "#paperpilotselected-context-list",
   ) as HTMLDivElement | null;
   const selectTextBtn = body.querySelector(
-    "#llm-select-text",
+    "#paperpilotselect-text",
   ) as HTMLButtonElement | null;
   if (!previewList) return;
 
   const selectedContexts = getSelectedTextContextEntries(itemId);
-  const panelRoot = body.querySelector("#llm-main") as HTMLDivElement | null;
+  const panelRoot = body.querySelector("#paperpilotmain") as HTMLDivElement | null;
   // Show the active-note chip whenever the panel is in note-editing mode,
   // regardless of whether the user has selected any text in the editor.
   const showActiveNoteChip = Boolean(panelRoot?.dataset.noteId);
@@ -1516,7 +1516,7 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     selectedTextPreviewExpandedCache.delete(itemId);
     selectedNotePreviewExpandedCache.delete(itemId);
     if (selectTextBtn) {
-      selectTextBtn.classList.remove("llm-action-btn-active");
+      selectTextBtn.classList.remove("paperpilotaction-btn-active");
     }
     return;
   }
@@ -1603,61 +1603,61 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     })();
 
     const previewBox = ownerDoc.createElement("div");
-    previewBox.className = "llm-selected-context";
+    previewBox.className = "paperpilotselected-context";
     previewBox.dataset.contextIndex = `${index}`;
     previewBox.dataset.contextSource = selectedSource;
     previewBox.classList.toggle("expanded", isExpanded);
     previewBox.classList.toggle("collapsed", !isExpanded);
     previewBox.classList.toggle(
-      "llm-selected-context-source-pdf",
+      "paperpilotselected-context-source-pdf",
       selectedSource === "pdf",
     );
     previewBox.classList.toggle(
-      "llm-selected-context-source-model",
+      "paperpilotselected-context-source-model",
       selectedSource === "model",
     );
     previewBox.classList.toggle(
-      "llm-selected-context-source-note",
+      "paperpilotselected-context-source-note",
       selectedSource === "note",
     );
     previewBox.classList.toggle(
-      "llm-selected-context-source-note-edit",
+      "paperpilotselected-context-source-note-edit",
       selectedSource === "note-edit",
     );
-    previewBox.classList.toggle("llm-selected-context-pinned", pinned);
+    previewBox.classList.toggle("paperpilotselected-context-pinned", pinned);
     previewBox.dataset.pinned = pinned ? "true" : "false";
     previewBox.dataset.contextPinKey =
       buildPinnedSelectedTextKey(selectedContext);
 
     const previewHeader = ownerDoc.createElement("div");
     previewHeader.className =
-      "llm-image-preview-header llm-selected-context-header";
+      "paperpilotimage-preview-header paperpilotselected-context-header";
 
     const previewMeta = ownerDoc.createElement("button");
     previewMeta.type = "button";
-    previewMeta.className = "llm-image-preview-meta llm-selected-context-meta";
+    previewMeta.className = "paperpilotimage-preview-meta paperpilotselected-context-meta";
     previewMeta.dataset.contextIndex = `${index}`;
     previewMeta.dataset.contextSource = selectedSource;
     previewMeta.classList.toggle(
-      "llm-selected-context-source-pdf",
+      "paperpilotselected-context-source-pdf",
       selectedSource === "pdf",
     );
     previewMeta.classList.toggle(
-      "llm-selected-context-source-model",
+      "paperpilotselected-context-source-model",
       selectedSource === "model",
     );
     previewMeta.classList.toggle(
-      "llm-selected-context-source-note",
+      "paperpilotselected-context-source-note",
       selectedSource === "note",
     );
     previewMeta.classList.toggle(
-      "llm-selected-context-source-note-edit",
+      "paperpilotselected-context-source-note-edit",
       selectedSource === "note-edit",
     );
     previewMeta.textContent = contextLabel;
     const isCorrupted = isLikelyCorruptedSelectedText(selectedText);
     previewMeta.classList.toggle(
-      "llm-selected-context-meta-corrupted",
+      "paperpilotselected-context-meta-corrupted",
       isCorrupted,
     );
     const pageLabel = formatSelectedTextContextPageLabel(selectedContext);
@@ -1694,7 +1694,7 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     if (selectedSource !== "note-edit") {
       const previewClear = ownerDoc.createElement("button");
       previewClear.type = "button";
-      previewClear.className = "llm-remove-img-btn llm-selected-context-clear";
+      previewClear.className = "paperpilotremove-img-btn paperpilotselected-context-clear";
       previewClear.dataset.contextIndex = `${index}`;
       previewClear.textContent = "×";
       previewClear.title = "Clear selected context";
@@ -1704,16 +1704,16 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
 
     const previewExpanded = ownerDoc.createElement("div");
     previewExpanded.className =
-      "llm-image-preview-expanded llm-selected-context-expanded";
+      "paperpilotimage-preview-expanded paperpilotselected-context-expanded";
     previewExpanded.hidden = false;
     previewExpanded.style.display = "flex";
 
     const previewText = ownerDoc.createElement("div");
-    previewText.className = "llm-selected-context-text";
+    previewText.className = "paperpilotselected-context-text";
     previewText.textContent = selectedText;
 
     const previewWarning = ownerDoc.createElement("div");
-    previewWarning.className = "llm-selected-context-warning";
+    previewWarning.className = "paperpilotselected-context-warning";
     previewWarning.textContent =
       "Recommend to use screenshots option for corrupted text";
     previewWarning.style.display = isCorrupted ? "block" : "none";
@@ -1725,16 +1725,16 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
 
   if (selectTextBtn) {
     selectTextBtn.classList.toggle(
-      "llm-action-btn-active",
+      "paperpilotaction-btn-active",
       selectedContexts.length > 0,
     );
   }
 }
 
 export function refreshActiveNoteChipPreview(body: Element): void {
-  const panelRoot = body.querySelector("#llm-main") as HTMLDivElement | null;
+  const panelRoot = body.querySelector("#paperpilotmain") as HTMLDivElement | null;
   const previewList = body.querySelector(
-    "#llm-selected-context-list",
+    "#paperpilotselected-context-list",
   ) as HTMLDivElement | null;
   if (!panelRoot || !previewList) return;
   const noteChip = previewList.querySelector(
@@ -1752,7 +1752,7 @@ export function refreshActiveNoteChipPreview(body: Element): void {
     noteChip.dataset.contextOwnerId || panelRoot.dataset.itemId || 0,
   );
   const noteMeta = noteChip.querySelector(
-    ".llm-note-context-meta",
+    ".paperpilotnote-context-meta",
   ) as HTMLButtonElement | null;
   noteMeta?.setAttribute(
     "aria-expanded",

@@ -20,7 +20,7 @@ import {
 } from "./mineruCache";
 import { pdfTextCache, pdfTextLoadingTasks } from "./state";
 
-export const MINERU_SYNC_PACKAGE_KIND = "llm-for-zotero/mineru-cache";
+export const MINERU_SYNC_PACKAGE_KIND = "paperpilotfor-zotero/mineru-cache";
 export const MINERU_SYNC_PACKAGE_VERSION = 1;
 export const MINERU_SYNC_ATTACHMENT_TITLE_PREFIX =
   "[LLM for Zotero] MinerU cache";
@@ -721,7 +721,7 @@ function getTempRootDir(): string {
     ).getTempDirectory?.()?.path || "";
   return joinLocalPath(
     tempPath || getMineruCacheDir(),
-    "llm-for-zotero-mineru-sync",
+    "paperpilotfor-zotero-mineru-sync",
   );
 }
 

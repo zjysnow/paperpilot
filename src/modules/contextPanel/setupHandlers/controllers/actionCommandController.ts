@@ -479,7 +479,7 @@ export function createActionCommandController(
     if (!slashMenu) return [];
     const win = body.ownerDocument?.defaultView;
     return Array.from(
-      slashMenu.querySelectorAll(".llm-action-picker-item"),
+      slashMenu.querySelectorAll(".paperpilotaction-picker-item"),
     ).filter((element) => {
       if ((element as HTMLButtonElement).disabled) return false;
       const style = win?.getComputedStyle(element as Element);
@@ -528,7 +528,7 @@ export function createActionCommandController(
     clearAgentSlashItems();
     setBaseSlashItemsVisible(true);
     if (slashMenu) {
-      Array.from(slashMenu.querySelectorAll(".llm-action-picker-item")).forEach(
+      Array.from(slashMenu.querySelectorAll(".paperpilotaction-picker-item")).forEach(
         (el) => (el as HTMLButtonElement).removeAttribute("aria-selected"),
       );
     }
@@ -570,7 +570,7 @@ export function createActionCommandController(
     actionPickerList.innerHTML = "";
     if (!actionPickerItems.length) {
       actionPickerList.appendChild(
-        createElement(ownerDoc, "div", "llm-action-picker-empty", {
+        createElement(ownerDoc, "div", "paperpilotaction-picker-empty", {
           textContent: "No actions matched.",
         }),
       );
@@ -581,7 +581,7 @@ export function createActionCommandController(
       const option = createElement(
         ownerDoc,
         "div",
-        "llm-action-picker-item",
+        "paperpilotaction-picker-item",
         {},
       );
       option.setAttribute("role", "option");
@@ -591,10 +591,10 @@ export function createActionCommandController(
       );
       option.tabIndex = -1;
       option.append(
-        createElement(ownerDoc, "div", "llm-action-picker-title", {
+        createElement(ownerDoc, "div", "paperpilotaction-picker-title", {
           textContent: action.name,
         }),
-        createElement(ownerDoc, "div", "llm-action-picker-description", {
+        createElement(ownerDoc, "div", "paperpilotaction-picker-description", {
           textContent: action.description,
         }),
       );
@@ -691,7 +691,7 @@ export function createActionCommandController(
   const syncHasActionCardAttr = () => {
     const hasCard = Boolean(
       chatBox?.querySelector(
-        ".llm-action-inline-card, .llm-action-progress-card",
+        ".paperpilotaction-inline-card, .paperpilotaction-progress-card",
       ),
     );
     if (hasCard) {
@@ -1122,12 +1122,12 @@ export function createActionCommandController(
       const properties =
         (schema as { properties?: Record<string, { description?: string }> })
           .properties || {};
-      chatBox.querySelector(".llm-action-inline-card")?.remove();
+      chatBox.querySelector(".paperpilotaction-inline-card")?.remove();
       const wrapper = ownerDoc.createElement("div");
-      wrapper.className = "llm-action-inline-card";
-      const form = createElement(ownerDoc, "div", "llm-action-launch-form", {});
+      wrapper.className = "paperpilotaction-inline-card";
+      const form = createElement(ownerDoc, "div", "paperpilotaction-launch-form", {});
       form.appendChild(
-        createElement(ownerDoc, "div", "llm-action-launch-form-header", {
+        createElement(ownerDoc, "div", "paperpilotaction-launch-form-header", {
           textContent: formatActionLabel(actionName),
         }),
       );
@@ -1139,7 +1139,7 @@ export function createActionCommandController(
         const label = createElement(
           ownerDoc,
           "label",
-          "llm-action-launch-form-label",
+          "paperpilotaction-launch-form-label",
           {
             textContent: properties[fieldName]?.description ?? fieldName,
           },
@@ -1147,7 +1147,7 @@ export function createActionCommandController(
         const input = createElement(
           ownerDoc,
           "textarea",
-          "llm-action-launch-form-input llm-input",
+          "paperpilotaction-launch-form-input paperpilotinput",
           { placeholder: fieldName },
         ) as HTMLTextAreaElement;
         input.rows = 2;
@@ -1157,19 +1157,19 @@ export function createActionCommandController(
       const buttons = createElement(
         ownerDoc,
         "div",
-        "llm-action-launch-form-btns",
+        "paperpilotaction-launch-form-btns",
         {},
       );
       const runButton = createElement(
         ownerDoc,
         "button",
-        "llm-action-launch-form-run-btn",
+        "paperpilotaction-launch-form-run-btn",
         { textContent: "Run", type: "button" },
       ) as HTMLButtonElement;
       const cancelButton = createElement(
         ownerDoc,
         "button",
-        "llm-action-launch-form-cancel-btn",
+        "paperpilotaction-launch-form-cancel-btn",
         { textContent: "Cancel", type: "button" },
       ) as HTMLButtonElement;
       buttons.append(runButton, cancelButton);
@@ -1455,10 +1455,10 @@ export function createActionCommandController(
       });
       const ownerDoc = body.ownerDocument;
       if (!ownerDoc || !chatBox) return;
-      chatBox.querySelector(".llm-action-inline-card")?.remove();
+      chatBox.querySelector(".paperpilotaction-inline-card")?.remove();
       const wrapper = ownerDoc.createElement("div");
       wrapper.className =
-        "llm-action-inline-card llm-action-inline-card-review";
+        "paperpilotaction-inline-card paperpilotaction-inline-card-review";
       wrapper.appendChild(
         renderPendingActionCard(ownerDoc, {
           requestId,

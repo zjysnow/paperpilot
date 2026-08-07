@@ -815,7 +815,7 @@ let currentLocale: string = "auto";
 export function initI18n(): void {
   try {
     const pref = Zotero.Prefs.get(
-      "extensions.zotero.llmforzotero.locale",
+      "extensions.zotero.paperpilot.locale",
       true,
     );
     currentLocale = typeof pref === "string" ? pref : "auto";
@@ -858,22 +858,22 @@ export function getWebChatWelcomeHtml(
   const domain = targetDomain || "the chat site";
   if (getEffectiveLocale().startsWith("zh")) {
     return `
-      <div class="llm-start-page llm-webchat-start-page">
-        <div class="llm-start-page-title">LLM-for-Zotero WebChat</div>
-        <div class="llm-start-page-subtitle">通过已打开的 ${label} 浏览器标签页工作</div>
-        <div class="llm-start-page-recommendations">
-          <div class="llm-start-page-rec-title">工作方式</div>
-          <ol class="llm-start-page-rec-list">
+      <div class="paperpilotstart-page paperpilotwebchat-start-page">
+        <div class="paperpilotstart-page-title">LLM-for-Zotero WebChat</div>
+        <div class="paperpilotstart-page-subtitle">通过已打开的 ${label} 浏览器标签页工作</div>
+        <div class="paperpilotstart-page-recommendations">
+          <div class="paperpilotstart-page-rec-title">工作方式</div>
+          <ol class="paperpilotstart-page-rec-list">
             <li>Zotero 会通过 Sync for Zotero 浏览器扩展，把你的问题发送到已经打开的 <strong>${domain}</strong> 标签页，然后把回答同步回这里。</li>
           </ol>
-          <div class="llm-start-page-rec-title llm-webchat-warning-title">⚠️⚠️⚠️ 发送前必须确认</div>
-          <ol class="llm-start-page-rec-list">
+          <div class="paperpilotstart-page-rec-title paperpilotwebchat-warning-title">⚠️⚠️⚠️ 发送前必须确认</div>
+          <ol class="paperpilotstart-page-rec-list">
             <li>已经安装并启用 <strong>Sync for Zotero</strong> 浏览器扩展。</li>
             <li>已经在 Chrome 或 Edge 中打开 <strong>${domain}</strong>，并且已经登录。</li>
             <li>保持 <strong>${domain}</strong> 标签页可见；不要最小化，不要放到另一个显示器。Zotero 模型标签旁的绿点表示已连接。</li>
           </ol>
-          <div class="llm-start-page-rec-title llm-webchat-rec-title-spaced">怎么提问</div>
-          <ol class="llm-start-page-rec-list">
+          <div class="paperpilotstart-page-rec-title paperpilotwebchat-rec-title-spaced">怎么提问</div>
+          <ol class="paperpilotstart-page-rec-list">
             <li>在这里输入问题并点击 <strong>Send</strong>。</li>
             <li>论文对话中，论文标签高亮表示下一轮会附加当前 PDF；未高亮时只发送提问。发送成功后，标签会自动切换为仅发送提问；之后随时可以右键论文标签重新附加当前 PDF。</li>
             <li>如果没有反应，请刷新 <strong>${domain}</strong> 标签页，确认扩展已启用，并让 Zotero 和浏览器保持在同一个显示器。</li>
@@ -883,22 +883,22 @@ export function getWebChatWelcomeHtml(
     `;
   }
   return `
-    <div class="llm-start-page llm-webchat-start-page">
-      <div class="llm-start-page-title">LLM-for-Zotero WebChat</div>
-      <div class="llm-start-page-subtitle">Use your open ${label} browser tab</div>
-      <div class="llm-start-page-recommendations">
-        <div class="llm-start-page-rec-title">How it works</div>
-        <ol class="llm-start-page-rec-list">
+    <div class="paperpilotstart-page paperpilotwebchat-start-page">
+      <div class="paperpilotstart-page-title">LLM-for-Zotero WebChat</div>
+      <div class="paperpilotstart-page-subtitle">Use your open ${label} browser tab</div>
+      <div class="paperpilotstart-page-recommendations">
+        <div class="paperpilotstart-page-rec-title">How it works</div>
+        <ol class="paperpilotstart-page-rec-list">
           <li>Zotero sends your question to the already-open <strong>${domain}</strong> tab through the Sync for Zotero browser extension, then streams the answer back here.</li>
         </ol>
-        <div class="llm-start-page-rec-title llm-webchat-warning-title">⚠️⚠️⚠️ Before sending</div>
-        <ol class="llm-start-page-rec-list">
+        <div class="paperpilotstart-page-rec-title paperpilotwebchat-warning-title">⚠️⚠️⚠️ Before sending</div>
+        <ol class="paperpilotstart-page-rec-list">
           <li>Install and enable the <strong>Sync for Zotero</strong> browser extension.</li>
           <li>Open <strong>${domain}</strong> in Chrome or Edge, and make sure you are signed in.</li>
           <li>Keep the <strong>${domain}</strong> tab visible; do not minimize it or put it on another monitor. A green dot in Zotero's model chip means connected.</li>
         </ol>
-        <div class="llm-start-page-rec-title llm-webchat-rec-title-spaced">Ask from Zotero</div>
-        <ol class="llm-start-page-rec-list">
+        <div class="paperpilotstart-page-rec-title paperpilotwebchat-rec-title-spaced">Ask from Zotero</div>
+        <ol class="paperpilotstart-page-rec-list">
           <li>Type your question here and press <strong>Send</strong>.</li>
           <li>For paper chat, a highlighted paper chip means the current PDF will be attached on the next turn; an unhighlighted chip sends only the prompt. After a successful send, the chip switches to prompt-only mode, and you can right-click it at any time to attach the current PDF again.</li>
           <li>If nothing happens, reload the <strong>${domain}</strong> tab, confirm the extension is enabled, and keep Zotero and the browser on the same monitor.</li>
@@ -911,11 +911,11 @@ export function getWebChatWelcomeHtml(
 export function getWelcomeHtml(): string {
   if (getEffectiveLocale().startsWith("zh")) {
     return `
-      <div class="llm-welcome">
-        <div class="llm-welcome-icon llm-context-svg-icon llm-context-icon-model-chip" aria-hidden="true"></div>
-        <div class="llm-welcome-text">
-          <div class="llm-welcome-title">开始对话 — 以下是你可以做的。</div>
-          <ul class="llm-welcome-list">
+      <div class="paperpilotwelcome">
+        <div class="paperpilotwelcome-icon paperpilotcontext-svg-icon paperpilotcontext-icon-model-chip" aria-hidden="true"></div>
+        <div class="paperpilotwelcome-text">
+          <div class="paperpilotwelcome-title">开始对话 — 以下是你可以做的。</div>
+          <ul class="paperpilotwelcome-list">
             <li><strong>论文对话</strong>回答关于当前打开的 PDF 的问题。<strong>开放对话</strong>是一个自由形式的工作区，可跨多篇论文和文件提问。</li>
             <li>输入 <strong>/</strong> 打开快捷操作：附加文件、添加参考文献、发送当前 PDF 页面或发送整个 PDF。输入 <strong>@</strong> 从文献库添加论文作为上下文。</li>
             <li>在工具栏中启用 <strong>Agent 模式</strong>，让助手自主搜索文献库、查看论文并完成多步骤研究任务。</li>
@@ -926,11 +926,11 @@ export function getWelcomeHtml(): string {
     `;
   }
   return `
-    <div class="llm-welcome">
-      <div class="llm-welcome-icon llm-context-svg-icon llm-context-icon-model-chip" aria-hidden="true"></div>
-      <div class="llm-welcome-text">
-        <div class="llm-welcome-title">Start chatting — here's what you can do.</div>
-        <ul class="llm-welcome-list">
+    <div class="paperpilotwelcome">
+      <div class="paperpilotwelcome-icon paperpilotcontext-svg-icon paperpilotcontext-icon-model-chip" aria-hidden="true"></div>
+      <div class="paperpilotwelcome-text">
+        <div class="paperpilotwelcome-title">Start chatting — here's what you can do.</div>
+        <ul class="paperpilotwelcome-list">
           <li><strong>Paper chat</strong> answers questions about the currently open PDF. <strong>Library chat</strong> is a free-form workspace for questions across multiple papers and files.</li>
           <li>Type <strong>/</strong> to open quick actions: attach files, add a reference, send the current PDF page, or send the entire PDF. Type <strong>@</strong> to add a paper from your library as context.</li>
           <li>Enable <strong>Agent mode</strong> with the toggle in the toolbar to let the assistant autonomously search your library, inspect papers, and complete multi-step research tasks.</li>
@@ -944,10 +944,10 @@ export function getWelcomeHtml(): string {
 export function getPaperChatStartPageHtml(): string {
   if (getEffectiveLocale().startsWith("zh")) {
     return `
-      <div class="llm-start-page">
-        <div class="llm-start-page-title">LLM-for-Zotero</div>
-        <div class="llm-start-page-subtitle">从这里开始，读懂这篇论文的一切</div>
-        <div class="llm-start-page-desc">
+      <div class="paperpilotstart-page">
+        <div class="paperpilotstart-page-title">LLM-for-Zotero</div>
+        <div class="paperpilotstart-page-subtitle">从这里开始，读懂这篇论文的一切</div>
+        <div class="paperpilotstart-page-desc">
           <p>论文对话回答关于当前活跃论文的问题。论文将在你提问前预加载到上下文中。</p>
           <p>内联添加上下文：<strong>文本</strong>、<strong>截图</strong>或 <strong>@论文</strong>。左键点击论文标签发送 PDF；右键点击切换全文/检索模式。</p>
           <p>使用文献库对话请点击顶部的<strong>在新窗口中打开</strong>按钮。</p>
@@ -956,10 +956,10 @@ export function getPaperChatStartPageHtml(): string {
     `;
   }
   return `
-    <div class="llm-start-page">
-      <div class="llm-start-page-title">LLM-for-Zotero</div>
-      <div class="llm-start-page-subtitle">Understand everything of this paper, from here</div>
-      <div class="llm-start-page-desc">
+    <div class="paperpilotstart-page">
+      <div class="paperpilotstart-page-title">LLM-for-Zotero</div>
+      <div class="paperpilotstart-page-subtitle">Understand everything of this paper, from here</div>
+      <div class="paperpilotstart-page-desc">
         <p>Paper chat answers questions about your current active paper. The paper will be pre-loaded into context before your first question.</p>
         <p>Add context inline: <strong>text</strong>, <strong>screenshots</strong>, or <strong>@papers</strong>. Left-click a paper chip to send its PDF; right-click to toggle between full-text and retrieval mode.</p>
         <p>For library chat, click the <strong>Open in Window</strong> button at the top.</p>
@@ -971,10 +971,10 @@ export function getPaperChatStartPageHtml(): string {
 export function getNoteEditingStartPageHtml(): string {
   if (getEffectiveLocale().startsWith("zh")) {
     return `
-      <div class="llm-start-page">
-        <div class="llm-start-page-title">LLM-for-Zotero</div>
-        <div class="llm-start-page-subtitle">一起写笔记，让想法进化</div>
-        <div class="llm-start-page-desc">
+      <div class="paperpilotstart-page">
+        <div class="paperpilotstart-page-title">LLM-for-Zotero</div>
+        <div class="paperpilotstart-page-subtitle">一起写笔记，让想法进化</div>
+        <div class="paperpilotstart-page-desc">
           <p>选中一段文字，我可以帮你<strong>重写润色</strong>。</p>
           <p>如果是条目笔记，论文上下文会<strong>自动预加载</strong>；如果是独立笔记，那就自由发挥吧。</p>
           <p>重写后的内容会以 <strong>diff 模式</strong>显示，让你清楚看到每处改动，帮助你越写越好。</p>
@@ -983,10 +983,10 @@ export function getNoteEditingStartPageHtml(): string {
     `;
   }
   return `
-    <div class="llm-start-page">
-      <div class="llm-start-page-title">LLM-for-Zotero</div>
-      <div class="llm-start-page-subtitle">Write with me, evolve your ideas</div>
-      <div class="llm-start-page-desc">
+    <div class="paperpilotstart-page">
+      <div class="paperpilotstart-page-title">LLM-for-Zotero</div>
+      <div class="paperpilotstart-page-subtitle">Write with me, evolve your ideas</div>
+      <div class="paperpilotstart-page-desc">
         <p>Select a text snippet, and I can <strong>rewrite</strong> it for you.</p>
         <p>If it's an item note, the paper context will be <strong>automatically preloaded</strong> for you; if it's a standalone note, let's freestyle.</p>
         <p>The rewritten note will show in <strong>diff mode</strong>, so you can see exactly what changed — helping you evolve to write better.</p>
@@ -998,13 +998,13 @@ export function getNoteEditingStartPageHtml(): string {
 export function getStandaloneLibraryChatStartPageHtml(): string {
   if (getEffectiveLocale().startsWith("zh")) {
     return `
-      <div class="llm-standalone-start-page">
-        <div class="llm-start-page-title">LLM-for-Zotero Agent</div>
-        <div class="llm-start-page-subtitle">为你和你的文献库服务</div>
-        <div class="llm-start-page-recommendations">
-          <div class="llm-start-page-rec-title">推荐设置以获得最佳体验</div>
-          <ol class="llm-start-page-rec-list">
-            <li><strong>偏好设置 → MinerU</strong>：将 PDF 解析为 Markdown + 图片<span class="llm-rec-reason">（MD 是 LLM 的语言；可以利用解析出的图片写出更好的笔记；节省 token）</span></li>
+      <div class="paperpilotstandalone-start-page">
+        <div class="paperpilotstart-page-title">LLM-for-Zotero Agent</div>
+        <div class="paperpilotstart-page-subtitle">为你和你的文献库服务</div>
+        <div class="paperpilotstart-page-recommendations">
+          <div class="paperpilotstart-page-rec-title">推荐设置以获得最佳体验</div>
+          <ol class="paperpilotstart-page-rec-list">
+            <li><strong>偏好设置 → MinerU</strong>：将 PDF 解析为 Markdown + 图片<span class="paperpilotrec-reason">（MD 是 LLM 的语言；可以利用解析出的图片写出更好的笔记；节省 token）</span></li>
             <li>启用 <strong>Agent 模式</strong>，让助手自主完成研究任务</li>
             <li>使用<strong>高智能模型</strong>：如 Codex、GPT-5.4 等</li>
             <li>在偏好设置中配置<strong>笔记目录路径</strong>（设置 → Agent 标签页）</li>
@@ -1014,13 +1014,13 @@ export function getStandaloneLibraryChatStartPageHtml(): string {
     `;
   }
   return `
-    <div class="llm-standalone-start-page">
-      <div class="llm-start-page-title">LLM-for-Zotero Agent</div>
-      <div class="llm-start-page-subtitle">serve you and your library</div>
-      <div class="llm-start-page-recommendations">
-        <div class="llm-start-page-rec-title">Recommended settings for the best experience</div>
-        <ol class="llm-start-page-rec-list">
-          <li><strong>Preferences → MinerU</strong>: parse your PDFs to Markdown + images<span class="llm-rec-reason"> (MD is the language of LLMs; enables better notes with parsed images; saves tokens)</span></li>
+    <div class="paperpilotstandalone-start-page">
+      <div class="paperpilotstart-page-title">LLM-for-Zotero Agent</div>
+      <div class="paperpilotstart-page-subtitle">serve you and your library</div>
+      <div class="paperpilotstart-page-recommendations">
+        <div class="paperpilotstart-page-rec-title">Recommended settings for the best experience</div>
+        <ol class="paperpilotstart-page-rec-list">
+          <li><strong>Preferences → MinerU</strong>: parse your PDFs to Markdown + images<span class="paperpilotrec-reason"> (MD is the language of LLMs; enables better notes with parsed images; saves tokens)</span></li>
           <li>Activate <strong>Agent mode</strong> for autonomous research</li>
           <li>Use an <strong>intelligent model</strong>: Codex, GPT-5.4, or similar high-intelligence models</li>
           <li>Set up <strong>Notes directory</strong> in Preferences (Settings → Agent tab)</li>

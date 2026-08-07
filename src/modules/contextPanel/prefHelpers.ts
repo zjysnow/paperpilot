@@ -494,21 +494,21 @@ export function getProviderLabelForSettings(
 
 export function applyPanelFontScale(panel: HTMLElement | null): void {
   if (!panel) return;
-  panel.style.setProperty("--llm-font-scale", `${panelFontScalePercent / 100}`);
+  panel.style.setProperty("--paperpilotfont-scale", `${panelFontScalePercent / 100}`);
   panel.style.setProperty(
-    "--llm-message-line-height",
+    "--paperpilotmessage-line-height",
     `${messageLineSpacingPercent / 100}`,
   );
   panel.style.setProperty(
-    "--llm-message-paragraph-spacing",
+    "--paperpilotmessage-paragraph-spacing",
     `${messageParagraphSpacingPx}px`,
   );
   panel.style.setProperty(
-    "--llm-message-word-spacing",
+    "--paperpilotmessage-word-spacing",
     `${messageWordSpacingPx}px`,
   );
   panel.style.setProperty(
-    "--llm-message-font-family",
+    "--paperpilotmessage-font-family",
     formatMessageFontFamilyCssValue(messageFontFamily),
   );
 }

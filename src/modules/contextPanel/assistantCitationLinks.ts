@@ -263,15 +263,15 @@ export const INLINE_CITATION_SKIP_SELECTOR = [
   "a",
   "code",
   "pre",
-  ".llm-paper-citation-row",
-  ".llm-paper-citation-link",
-  ".llm-citation-row-container",
-  ".llm-citation-row",
-  ".llm-citation-inline-wrap",
-  ".llm-citation-text",
-  ".llm-citation-icon",
-  ".llm-quote-citation-anchor",
-  ".llm-quote-card",
+  ".paperpilotpaper-citation-row",
+  ".paperpilotpaper-citation-link",
+  ".paperpilotcitation-row-container",
+  ".paperpilotcitation-row",
+  ".paperpilotcitation-inline-wrap",
+  ".paperpilotcitation-text",
+  ".paperpilotcitation-icon",
+  ".paperpilotquote-citation-anchor",
+  ".paperpilotquote-card",
 ].join(", ");
 
 const INLINE_CITATION_PATTERN =
@@ -433,10 +433,10 @@ function setCitationButtonLabel(
     pageLabel,
   );
   // In the new icon-based layout the text span is a sibling of the button
-  // inside a shared .llm-citation-row / .llm-citation-inline-wrap container.
+  // inside a shared .paperpilotcitation-row / .paperpilotcitation-inline-wrap container.
   const container = button.parentElement;
   const textSpan = container?.querySelector(
-    ".llm-citation-text",
+    ".paperpilotcitation-text",
   ) as HTMLSpanElement | null;
   if (textSpan) {
     const rawText = textSpan.dataset.rawText;
@@ -943,7 +943,7 @@ function findConsumedCitationRemovalElement(
   }
   let removalTarget: Element = citationEl;
   let parent = citationEl.parentElement;
-  while (parent && !parent.classList.contains("llm-quote-card")) {
+  while (parent && !parent.classList.contains("paperpilotquote-card")) {
     if (!isStandaloneCitationElementForQuote(parent, extractedCitation)) break;
     removalTarget = parent;
     parent = parent.parentElement;
@@ -2019,7 +2019,7 @@ function updateCitationButtonPage(
   try {
     const container = button.parentElement;
     const textSpan = container?.querySelector(
-      ".llm-citation-text",
+      ".paperpilotcitation-text",
     ) as HTMLElement | null;
     if (textSpan) {
       const current = textSpan.textContent || "";
@@ -2064,7 +2064,7 @@ function updateCitationButtonPage(
   for (const doc of docs) {
     try {
       const syncButtons = Array.from(
-        doc.querySelectorAll("button.llm-citation-icon"),
+        doc.querySelectorAll("button.paperpilotcitation-icon"),
       ) as HTMLButtonElement[];
       for (const syncButton of syncButtons) {
         if (syncButton === button) continue;
@@ -2776,7 +2776,7 @@ async function resolveAndNavigateAssistantCitation(params: {
   quoteText: string;
   paragraphQuoteText?: string;
 }): Promise<void> {
-  const status = params.body.querySelector("#llm-status") as HTMLElement | null;
+  const status = params.body.querySelector("#paperpilotstatus") as HTMLElement | null;
   if (params.button.dataset.loading === "true") return;
   const endNavigationActivity = beginQuoteNavigationActivity();
   params.button.dataset.loading = "true";
@@ -3450,7 +3450,7 @@ function refreshAllCitationButtonPages(
 ): void {
   try {
     const buttons = Array.from(
-      body.querySelectorAll("button.llm-citation-icon"),
+      body.querySelectorAll("button.paperpilotcitation-icon"),
     ) as HTMLButtonElement[];
     for (const button of buttons) {
       if (!button.isConnected) continue;
@@ -3473,8 +3473,8 @@ function refreshAllCitationButtonPages(
       if (!cachedPageLabel) continue;
       // Read the current display label from the button text
       const textSpan = button
-        .closest(".llm-citation-row, .llm-citation-inline-wrap")
-        ?.querySelector(".llm-citation-text");
+        .closest(".paperpilotcitation-row, .paperpilotcitation-inline-wrap")
+        ?.querySelector(".paperpilotcitation-text");
       if (!textSpan) continue;
       const baseLabel = getCitationBaseLabelForRefresh(textSpan);
       if (baseLabel) {
@@ -3575,12 +3575,12 @@ function createCitationButton(params: {
   // --- Container ---
   const container = params.ownerDoc.createElement("span");
   container.className = params.inline
-    ? "llm-citation-inline-wrap"
-    : "llm-citation-row";
+    ? "paperpilotcitation-inline-wrap"
+    : "paperpilotcitation-row";
 
   // --- Plain-text citation label ---
   const textSpan = params.ownerDoc.createElement("span");
-  textSpan.className = "llm-citation-text";
+  textSpan.className = "paperpilotcitation-text";
   const verifiedPageLabel = lookupVerifiedCachedCitationPageForButton(
     params.candidates,
     params.quoteText,
@@ -3614,8 +3614,8 @@ function createCitationButton(params: {
   ) as HTMLButtonElement;
   citationButton.type = "button";
   citationButton.className = params.inline
-    ? "llm-citation-icon llm-citation-icon-inline"
-    : "llm-citation-icon";
+    ? "paperpilotcitation-icon paperpilotcitation-icon-inline"
+    : "paperpilotcitation-icon";
   citationButtonCandidateCache.set(citationButton, params.candidates.slice());
   if (params.quoteCitation) {
     citationButtonQuoteCitationCache.set(citationButton, params.quoteCitation);
@@ -3923,7 +3923,7 @@ function appendQuoteCardBodyContent(
   quoteContent: ParentNode | null | undefined,
 ): boolean {
   if (!quoteContent?.firstChild) return false;
-  body.classList.add("llm-rendered-markdown");
+  body.classList.add("paperpilotrendered-markdown");
   const firstElement =
     "firstElementChild" in quoteContent ? quoteContent.firstElementChild : null;
   const hasSingleParagraph =
@@ -3950,8 +3950,8 @@ function createQuoteCardElement(params: {
   const interactive = status === "verified";
   const wrapper = params.ownerDoc.createElement("div");
   wrapper.className = params.quoteCitationId
-    ? "llm-quote-card llm-quote-citation-anchor"
-    : "llm-quote-card";
+    ? "paperpilotquote-card paperpilotquote-citation-anchor"
+    : "paperpilotquote-card";
   wrapper.dataset.quoteStatus = status;
   wrapper.dataset.expanded = interactive ? "false" : "true";
   if (params.quoteCitationId) {
@@ -3962,7 +3962,7 @@ function createQuoteCardElement(params: {
   }
 
   const content = params.ownerDoc.createElement("div");
-  content.className = "llm-quote-card-content";
+  content.className = "paperpilotquote-card-content";
   if (interactive) {
     content.setAttribute("role", "button");
     content.setAttribute("tabindex", "0");
@@ -3972,13 +3972,13 @@ function createQuoteCardElement(params: {
   wrapper.appendChild(content);
   if (params.citationContent) {
     const citation = params.ownerDoc.createElement("span");
-    citation.className = "llm-quote-card-citation";
+    citation.className = "paperpilotquote-card-citation";
     citation.appendChild(params.citationContent);
     wrapper.appendChild(citation);
   }
 
   const body = params.ownerDoc.createElement("div");
-  body.className = "llm-quote-card-body";
+  body.className = "paperpilotquote-card-body";
   let bodyRendered = false;
   const ensureBodyRendered = () => {
     if (bodyRendered) return;
@@ -3995,7 +3995,7 @@ function createQuoteCardElement(params: {
   }
 
   const preview = params.ownerDoc.createElement("span");
-  preview.className = "llm-quote-card-preview";
+  preview.className = "paperpilotquote-card-preview";
   preview.textContent =
     buildQuoteCardPreviewText(params.quoteText) ||
     sanitizeText(params.quoteText || "").trim();
@@ -4021,7 +4021,7 @@ function createQuoteCardElement(params: {
         : null;
     return Boolean(
       element?.closest(
-        ".llm-citation-row, .llm-citation-inline-wrap, .llm-citation-text, .llm-citation-icon",
+        ".paperpilotcitation-row, .paperpilotcitation-inline-wrap, .paperpilotcitation-text, .paperpilotcitation-icon",
       ),
     );
   };
@@ -4329,7 +4329,7 @@ function liftQuoteCardsOutOfParagraph(paragraph: HTMLElement): void {
     !children.some(
       (node) =>
         node.nodeType === 1 &&
-        (node as Element).classList?.contains("llm-quote-card"),
+        (node as Element).classList?.contains("paperpilotquote-card"),
     )
   ) {
     return;
@@ -4348,7 +4348,7 @@ function liftQuoteCardsOutOfParagraph(paragraph: HTMLElement): void {
   for (const child of children) {
     if (
       child.nodeType === 1 &&
-      (child as Element).classList?.contains("llm-quote-card")
+      (child as Element).classList?.contains("paperpilotquote-card")
     ) {
       flushInlineParagraph();
       replacement.appendChild(child);
@@ -4748,7 +4748,7 @@ export function decorateAssistantCitationLinks(params: {
   for (const [blockquoteIndex, blockquote] of blockquotes.entries()) {
     if (
       blockquote.closest(
-        ".llm-quote-citation-anchor, [data-quote-status='not-source'], [data-quote-status='unverified']",
+        ".paperpilotquote-citation-anchor, [data-quote-status='not-source'], [data-quote-status='unverified']",
       )
     ) {
       continue;

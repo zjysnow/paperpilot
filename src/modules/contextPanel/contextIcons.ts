@@ -26,7 +26,7 @@ export function isContextIconName(value: unknown): value is ContextIconName {
 }
 
 export function getContextIconClassName(iconName: ContextIconName): string {
-  return `llm-context-icon-${iconName}`;
+  return `paperpilotcontext-icon-${iconName}`;
 }
 
 export function createContextIcon(
@@ -37,7 +37,7 @@ export function createContextIcon(
   const icon = createElement(
     ownerDoc,
     "span",
-    ["llm-context-svg-icon", getContextIconClassName(iconName), className]
+    ["paperpilotcontext-svg-icon", getContextIconClassName(iconName), className]
       .filter(Boolean)
       .join(" "),
   );
@@ -62,7 +62,7 @@ export function createSelectedTextSourceIcon(
     const icon = createElement(
       ownerDoc,
       "span",
-      ["llm-context-glyph-icon", "llm-context-icon-note-edit", className]
+      ["paperpilotcontext-glyph-icon", "paperpilotcontext-icon-note-edit", className]
         .filter(Boolean)
         .join(" "),
       { textContent: NOTE_EDIT_PENCIL_ICON },

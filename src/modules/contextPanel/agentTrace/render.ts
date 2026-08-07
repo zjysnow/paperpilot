@@ -172,11 +172,11 @@ function appendAgentActivityDisclosure(params: {
   agentActivityExpandedCache.set(message, state);
 
   const details = doc.createElement("details") as HTMLDetailsElement;
-  details.className = "llm-agent-activity-details";
+  details.className = "paperpilotagent-activity-details";
   details.open = params.forceOpen === true || state.open;
 
   const summary = doc.createElement("summary") as HTMLElement;
-  summary.className = "llm-agent-activity-summary";
+  summary.className = "paperpilotagent-activity-summary";
   summary.textContent = working
     ? "Working…"
     : `Worked for ${formatAgentActivityDuration(
@@ -351,14 +351,14 @@ function renderReviewValueCell(
 ): HTMLDivElement {
   const value = doc.createElement("div");
   const baseClasses = multiline
-    ? ["llm-agent-hitl-review-value", "llm-agent-hitl-review-value-multiline"]
-    : ["llm-agent-hitl-review-value"];
+    ? ["paperpilotagent-hitl-review-value", "paperpilotagent-hitl-review-value-multiline"]
+    : ["paperpilotagent-hitl-review-value"];
   if (variant === "after") {
-    baseClasses.push("llm-agent-hitl-review-value-after");
+    baseClasses.push("paperpilotagent-hitl-review-value-after");
   }
   const trimmed = (raw || "").trim();
   if (!trimmed) {
-    baseClasses.push("llm-agent-hitl-review-value-empty");
+    baseClasses.push("paperpilotagent-hitl-review-value-empty");
     value.textContent = "(empty)";
   } else {
     value.textContent = trimmed;
@@ -386,14 +386,14 @@ function renderReviewTableField(
   // otherwise the block's border would duplicate the outer HITL card border.
   const root = doc.createElement("div");
   root.className = paperTitle
-    ? "llm-agent-hitl-paper-block"
-    : "llm-agent-hitl-paper-block llm-agent-hitl-paper-block--plain";
+    ? "paperpilotagent-hitl-paper-block"
+    : "paperpilotagent-hitl-paper-block paperpilotagent-hitl-paper-block--plain";
 
   if (paperTitle) {
     const header = doc.createElement("div");
-    header.className = "llm-agent-hitl-paper-title";
+    header.className = "paperpilotagent-hitl-paper-title";
     const titleSpan = doc.createElement("span");
-    titleSpan.className = "llm-agent-hitl-paper-title-text";
+    titleSpan.className = "paperpilotagent-hitl-paper-title-text";
     titleSpan.textContent = paperTitle;
     titleSpan.setAttribute("title", paperTitle);
     header.appendChild(titleSpan);
@@ -403,7 +403,7 @@ function renderReviewTableField(
       typeof meta.paperIndex === "number"
     ) {
       const badge = doc.createElement("span");
-      badge.className = "llm-agent-hitl-paper-title-index";
+      badge.className = "paperpilotagent-hitl-paper-title-index";
       badge.textContent = `${meta.paperIndex} / ${meta.paperTotal}`;
       header.appendChild(badge);
     }
@@ -411,25 +411,25 @@ function renderReviewTableField(
   }
 
   const list = doc.createElement("div");
-  list.className = "llm-agent-hitl-review-list";
+  list.className = "paperpilotagent-hitl-review-list";
   root.appendChild(list);
 
   for (const item of field.rows) {
     const row = doc.createElement("div");
-    row.className = "llm-agent-hitl-review-item";
+    row.className = "paperpilotagent-hitl-review-item";
 
     const label = doc.createElement("div");
-    label.className = "llm-agent-hitl-review-label";
+    label.className = "paperpilotagent-hitl-review-label";
     label.textContent = item.label;
     row.appendChild(label);
 
     const values = doc.createElement("div");
-    values.className = "llm-agent-hitl-review-values";
+    values.className = "paperpilotagent-hitl-review-values";
 
     const beforeCol = doc.createElement("div");
-    beforeCol.className = "llm-agent-hitl-review-column";
+    beforeCol.className = "paperpilotagent-hitl-review-column";
     const beforeLabel = doc.createElement("div");
-    beforeLabel.className = "llm-agent-hitl-review-column-label";
+    beforeLabel.className = "paperpilotagent-hitl-review-column-label";
     beforeLabel.textContent = "Before";
     beforeCol.append(
       beforeLabel,
@@ -437,14 +437,14 @@ function renderReviewTableField(
     );
 
     const arrow = doc.createElement("div");
-    arrow.className = "llm-agent-hitl-review-arrow";
+    arrow.className = "paperpilotagent-hitl-review-arrow";
     arrow.textContent = "\u2192";
     arrow.setAttribute("aria-hidden", "true");
 
     const afterCol = doc.createElement("div");
-    afterCol.className = "llm-agent-hitl-review-column";
+    afterCol.className = "paperpilotagent-hitl-review-column";
     const afterLabel = doc.createElement("div");
-    afterLabel.className = "llm-agent-hitl-review-column-label";
+    afterLabel.className = "paperpilotagent-hitl-review-column-label";
     afterLabel.textContent = "After";
     afterCol.append(
       afterLabel,
@@ -467,10 +467,10 @@ function renderDiffPreviewField(
   update: (nextAfter: string) => void;
 } {
   const wrap = doc.createElement("div");
-  wrap.className = "llm-agent-hitl-diff";
+  wrap.className = "paperpilotagent-hitl-diff";
 
   const body = doc.createElement("div");
-  body.className = "llm-agent-hitl-diff-body";
+  body.className = "paperpilotagent-hitl-diff-body";
   wrap.appendChild(body);
 
   const update = (nextAfter: string) => {
@@ -480,7 +480,7 @@ function renderDiffPreviewField(
     });
     if (!lines.length) {
       const empty = doc.createElement("div");
-      empty.className = "llm-agent-hitl-diff-empty";
+      empty.className = "paperpilotagent-hitl-diff-empty";
       empty.textContent = field.emptyMessage || "No changes.";
       body.appendChild(empty);
       return;
@@ -489,7 +489,7 @@ function renderDiffPreviewField(
     for (const line of lines) {
       if (line.kind === "gap") {
         const gap = doc.createElement("div");
-        gap.className = "llm-agent-hitl-diff-gap";
+        gap.className = "paperpilotagent-hitl-diff-gap";
         gap.textContent = `... ${line.omittedCount} unchanged line${
           line.omittedCount === 1 ? "" : "s"
         } ...`;
@@ -498,13 +498,13 @@ function renderDiffPreviewField(
       }
 
       const row = doc.createElement("div");
-      row.className = `llm-agent-hitl-diff-line llm-agent-hitl-diff-line-${line.kind}`;
+      row.className = `paperpilotagent-hitl-diff-line paperpilotagent-hitl-diff-line-${line.kind}`;
 
       const gutter = doc.createElement("div");
-      gutter.className = "llm-agent-hitl-diff-gutter";
+      gutter.className = "paperpilotagent-hitl-diff-gutter";
 
       const lineNumber = doc.createElement("span");
-      lineNumber.className = "llm-agent-hitl-diff-line-number";
+      lineNumber.className = "paperpilotagent-hitl-diff-line-number";
       lineNumber.textContent =
         typeof line.oldLineNumber === "number"
           ? String(line.oldLineNumber)
@@ -513,20 +513,20 @@ function renderDiffPreviewField(
             : "";
 
       const marker = doc.createElement("span");
-      marker.className = "llm-agent-hitl-diff-marker";
+      marker.className = "paperpilotagent-hitl-diff-marker";
       marker.textContent =
         line.kind === "add" ? "+" : line.kind === "remove" ? "\u2212" : " ";
 
       gutter.append(lineNumber, marker);
 
       const content = doc.createElement("pre");
-      content.className = "llm-agent-hitl-diff-content";
+      content.className = "paperpilotagent-hitl-diff-content";
       for (const segment of line.segments) {
         const segmentEl = doc.createElement("span");
         segmentEl.className =
           segment.kind === "context"
-            ? "llm-agent-hitl-diff-segment"
-            : `llm-agent-hitl-diff-segment llm-agent-hitl-diff-segment-${segment.kind}`;
+            ? "paperpilotagent-hitl-diff-segment"
+            : `paperpilotagent-hitl-diff-segment paperpilotagent-hitl-diff-segment-${segment.kind}`;
         segmentEl.textContent = segment.text;
         content.appendChild(segmentEl);
       }
@@ -548,12 +548,12 @@ function renderImageGalleryField(
   field: Extract<AgentPendingField, { type: "image_gallery" }>,
 ): HTMLDivElement {
   const previewGrid = doc.createElement("div");
-  previewGrid.className = "llm-agent-hitl-preview-grid";
+  previewGrid.className = "paperpilotagent-hitl-preview-grid";
   for (const image of field.items) {
     const previewCard = doc.createElement("div");
-    previewCard.className = "llm-agent-hitl-preview-card";
+    previewCard.className = "paperpilotagent-hitl-preview-card";
     const previewImg = doc.createElement("img");
-    previewImg.className = "llm-agent-hitl-preview-image";
+    previewImg.className = "paperpilotagent-hitl-preview-image";
     previewImg.loading = "lazy";
     previewImg.alt = image.title || image.label;
     const previewUrl = toFileUrl(image.storedPath);
@@ -561,7 +561,7 @@ function renderImageGalleryField(
       previewImg.src = previewUrl;
     }
     const previewLabel = doc.createElement("div");
-    previewLabel.className = "llm-agent-hitl-preview-label";
+    previewLabel.className = "paperpilotagent-hitl-preview-label";
     previewLabel.textContent = image.label;
     previewCard.append(previewImg, previewLabel);
     previewGrid.appendChild(previewCard);
@@ -583,27 +583,27 @@ function renderChecklistField(
   };
 } {
   const wrap = doc.createElement("div");
-  wrap.className = "llm-agent-hitl-checklist";
+  wrap.className = "paperpilotagent-hitl-checklist";
 
   const toolbar = doc.createElement("div");
-  toolbar.className = "llm-agent-hitl-checklist-toolbar";
+  toolbar.className = "paperpilotagent-hitl-checklist-toolbar";
 
   const selectAllButton = doc.createElement("button");
   selectAllButton.type = "button";
-  selectAllButton.className = "llm-agent-hitl-btn llm-agent-hitl-btn-alt";
+  selectAllButton.className = "paperpilotagent-hitl-btn paperpilotagent-hitl-btn-alt";
   selectAllButton.textContent = "Select all";
   toolbar.appendChild(selectAllButton);
 
   const clearAllButton = doc.createElement("button");
   clearAllButton.type = "button";
-  clearAllButton.className = "llm-agent-hitl-btn llm-agent-hitl-btn-secondary";
+  clearAllButton.className = "paperpilotagent-hitl-btn paperpilotagent-hitl-btn-secondary";
   clearAllButton.textContent = "Clear all";
   toolbar.appendChild(clearAllButton);
 
   wrap.appendChild(toolbar);
 
   const list = doc.createElement("div");
-  list.className = "llm-agent-hitl-checklist-list";
+  list.className = "paperpilotagent-hitl-checklist-list";
   wrap.appendChild(list);
 
   const checkboxes: HTMLInputElement[] = [];
@@ -620,27 +620,27 @@ function renderChecklistField(
 
   for (const item of field.items) {
     const row = doc.createElement("label");
-    row.className = "llm-agent-hitl-checklist-item";
+    row.className = "paperpilotagent-hitl-checklist-item";
 
     const checkbox = doc.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.className = "llm-agent-hitl-checklist-checkbox";
+    checkbox.className = "paperpilotagent-hitl-checklist-checkbox";
     checkbox.value = item.id;
     checkbox.checked = item.checked !== false;
     checkbox.addEventListener("change", emitValidityChange);
     checkboxes.push(checkbox);
 
     const content = doc.createElement("span");
-    content.className = "llm-agent-hitl-checklist-content";
+    content.className = "paperpilotagent-hitl-checklist-content";
 
     const title = doc.createElement("span");
-    title.className = "llm-agent-hitl-checklist-title";
+    title.className = "paperpilotagent-hitl-checklist-title";
     title.textContent = item.label;
     content.appendChild(title);
 
     if (item.description) {
       const description = doc.createElement("span");
-      description.className = "llm-agent-hitl-checklist-description";
+      description.className = "paperpilotagent-hitl-checklist-description";
       description.textContent = item.description;
       content.appendChild(description);
     }
@@ -696,7 +696,7 @@ function renderAssignmentTableField(
   };
 } {
   const wrap = doc.createElement("div");
-  wrap.className = "llm-agent-hitl-assignment-table";
+  wrap.className = "paperpilotagent-hitl-assignment-table";
 
   const rows: Array<{
     select: HTMLSelectElement;
@@ -717,35 +717,35 @@ function renderAssignmentTableField(
 
   for (const item of field.rows) {
     const row = doc.createElement("div");
-    row.className = "llm-agent-hitl-assignment-row";
+    row.className = "paperpilotagent-hitl-assignment-row";
 
     const content = doc.createElement("div");
-    content.className = "llm-agent-hitl-assignment-content";
+    content.className = "paperpilotagent-hitl-assignment-content";
 
     const title = doc.createElement("div");
-    title.className = "llm-agent-hitl-assignment-title";
+    title.className = "paperpilotagent-hitl-assignment-title";
     title.textContent = item.label;
     if (item.label) title.setAttribute("title", item.label);
     content.appendChild(title);
 
     if (item.description) {
       const description = doc.createElement("div");
-      description.className = "llm-agent-hitl-assignment-description";
+      description.className = "paperpilotagent-hitl-assignment-description";
       description.textContent = item.description;
       content.appendChild(description);
     }
 
     const control = doc.createElement("div");
-    control.className = "llm-agent-hitl-assignment-control";
+    control.className = "paperpilotagent-hitl-assignment-control";
 
     const selectLabel = doc.createElement("div");
-    selectLabel.className = "llm-agent-hitl-assignment-select-label";
+    selectLabel.className = "paperpilotagent-hitl-assignment-select-label";
     selectLabel.textContent = "Move to";
     control.appendChild(selectLabel);
 
     const select = doc.createElement("select");
     select.className =
-      "llm-agent-hitl-page-input llm-agent-hitl-assignment-select";
+      "paperpilotagent-hitl-page-input paperpilotagent-hitl-assignment-select";
     for (const option of field.options) {
       const optionEl = doc.createElement("option");
       optionEl.value = option.id;
@@ -810,7 +810,7 @@ function renderTagAssignmentTableField(
   };
 } {
   const wrap = doc.createElement("div");
-  wrap.className = "llm-agent-hitl-assignment-table";
+  wrap.className = "paperpilotagent-hitl-assignment-table";
 
   const rows: Array<{
     buttons: HTMLButtonElement[];
@@ -842,42 +842,42 @@ function renderTagAssignmentTableField(
 
   for (const item of field.rows) {
     const row = doc.createElement("div");
-    row.className = "llm-agent-hitl-assignment-row";
+    row.className = "paperpilotagent-hitl-assignment-row";
 
     const content = doc.createElement("div");
-    content.className = "llm-agent-hitl-assignment-content";
+    content.className = "paperpilotagent-hitl-assignment-content";
 
     const title = doc.createElement("div");
-    title.className = "llm-agent-hitl-assignment-title";
+    title.className = "paperpilotagent-hitl-assignment-title";
     title.textContent = item.label;
     if (item.label) title.setAttribute("title", item.label);
     content.appendChild(title);
 
     if (item.description) {
       const description = doc.createElement("div");
-      description.className = "llm-agent-hitl-assignment-description";
+      description.className = "paperpilotagent-hitl-assignment-description";
       description.textContent = item.description;
       content.appendChild(description);
     }
 
     const control = doc.createElement("div");
-    control.className = "llm-agent-hitl-assignment-control";
+    control.className = "paperpilotagent-hitl-assignment-control";
 
     const inputLabel = doc.createElement("div");
-    inputLabel.className = "llm-agent-hitl-assignment-select-label";
+    inputLabel.className = "paperpilotagent-hitl-assignment-select-label";
     inputLabel.textContent = "Suggested tags";
     control.appendChild(inputLabel);
 
     const editor = doc.createElement("div");
-    editor.className = "llm-agent-hitl-tag-editor";
+    editor.className = "paperpilotagent-hitl-tag-editor";
 
     const chipList = doc.createElement("div");
-    chipList.className = "llm-agent-hitl-tag-chip-list";
+    chipList.className = "paperpilotagent-hitl-tag-chip-list";
     editor.appendChild(chipList);
 
     const addButton = doc.createElement("button");
     addButton.type = "button";
-    addButton.className = "llm-agent-hitl-tag-add";
+    addButton.className = "paperpilotagent-hitl-tag-add";
     addButton.textContent = "Add tag";
     editor.appendChild(addButton);
 
@@ -917,16 +917,16 @@ function renderTagAssignmentTableField(
     const addChip = (initialValue = "") => {
       const chip = doc.createElement("div");
       chip.className =
-        "llm-selected-context llm-paper-context-chip llm-selected-context-pinned llm-agent-hitl-tag-chip";
+        "paperpilotselected-context paperpilotpaper-context-chip paperpilotselected-context-pinned paperpilotagent-hitl-tag-chip";
 
       const chipHeader = doc.createElement("div");
       chipHeader.className =
-        "llm-selected-context-header llm-paper-context-chip-header llm-agent-hitl-tag-chip-header";
+        "paperpilotselected-context-header paperpilotpaper-context-chip-header paperpilotagent-hitl-tag-chip-header";
 
       const input = doc.createElement("input");
       input.type = "text";
       input.className =
-        "llm-paper-context-chip-label llm-agent-hitl-tag-chip-input";
+        "paperpilotpaper-context-chip-label paperpilotagent-hitl-tag-chip-input";
       input.value = initialValue;
       input.placeholder = item.placeholder || "tag";
       updateChipInputSize(input);
@@ -964,7 +964,7 @@ function renderTagAssignmentTableField(
       const removeButton = doc.createElement("button");
       removeButton.type = "button";
       removeButton.className =
-        "llm-remove-img-btn llm-paper-context-clear llm-agent-hitl-tag-chip-remove";
+        "paperpilotremove-img-btn paperpilotpaper-context-clear paperpilotagent-hitl-tag-chip-remove";
       removeButton.textContent = "×";
       removeButton.addEventListener("click", () => {
         removeChip(chip, input);
@@ -1038,35 +1038,35 @@ function renderResultCardList(
 ): HTMLDivElement {
   const container = doc.createElement("div");
   container.className =
-    "llm-agent-hitl-card llm-search-results llm-search-results-readonly";
+    "paperpilotagent-hitl-card paperpilotsearch-results paperpilotsearch-results-readonly";
 
   const header = doc.createElement("div");
-  header.className = "llm-agent-hitl-header";
+  header.className = "paperpilotagent-hitl-header";
   header.textContent = `${cards.length} paper${cards.length === 1 ? "" : "s"} found online`;
   container.appendChild(header);
 
   const list = doc.createElement("div");
-  list.className = "llm-search-results-list";
+  list.className = "paperpilotsearch-results-list";
   container.appendChild(list);
 
   for (const card of cards) {
     const row = doc.createElement("div");
-    row.className = "llm-search-results-item";
+    row.className = "paperpilotsearch-results-item";
 
     const content = doc.createElement("div");
-    content.className = "llm-search-results-content";
+    content.className = "paperpilotsearch-results-content";
 
     const titleRow = doc.createElement("div");
-    titleRow.className = "llm-search-results-title-row";
+    titleRow.className = "paperpilotsearch-results-title-row";
 
     const titleEl = doc.createElement("span");
-    titleEl.className = "llm-search-results-title";
+    titleEl.className = "paperpilotsearch-results-title";
     titleEl.textContent = card.title;
     titleRow.appendChild(titleEl);
 
     if (card.href) {
       const openBtn = doc.createElement("a");
-      openBtn.className = "llm-search-results-open";
+      openBtn.className = "paperpilotsearch-results-open";
       openBtn.textContent = "Open ↗";
       openBtn.href = card.href;
       openBtn.addEventListener("click", (e) => {
@@ -1086,24 +1086,24 @@ function renderResultCardList(
 
     if (card.subtitle) {
       const subtitleEl = doc.createElement("div");
-      subtitleEl.className = "llm-search-results-subtitle";
+      subtitleEl.className = "paperpilotsearch-results-subtitle";
       subtitleEl.textContent = card.subtitle;
       content.appendChild(subtitleEl);
     }
 
     if (card.body) {
       const bodyEl = doc.createElement("div");
-      bodyEl.className = "llm-search-results-body";
+      bodyEl.className = "paperpilotsearch-results-body";
       bodyEl.textContent = card.body;
       content.appendChild(bodyEl);
     }
 
     if (card.badges?.length) {
       const badgeRow = doc.createElement("div");
-      badgeRow.className = "llm-search-results-badges";
+      badgeRow.className = "paperpilotsearch-results-badges";
       for (const badge of card.badges) {
         const badgeEl = doc.createElement("span");
-        badgeEl.className = "llm-agent-hitl-badge";
+        badgeEl.className = "paperpilotagent-hitl-badge";
         badgeEl.textContent = badge;
         badgeRow.appendChild(badgeEl);
       }
@@ -1134,7 +1134,7 @@ function renderPaperResultListField(
   type SortKey = "relevance" | "date" | "citations";
 
   const container = doc.createElement("div");
-  container.className = "llm-search-results";
+  container.className = "paperpilotsearch-results";
 
   // Resolve the mode list. Legacy cards without `modes` get a single implicit
   // mode built from the flat `rows`. In legacy mode, rows default to checked
@@ -1191,15 +1191,15 @@ function renderPaperResultListField(
   let modeTabsEl: HTMLDivElement | null = null;
   if (modes.length > 1) {
     modeTabsEl = doc.createElement("div");
-    modeTabsEl.className = "llm-search-mode-tabs";
+    modeTabsEl.className = "paperpilotsearch-mode-tabs";
     for (const mode of modes) {
       const tab = doc.createElement("button");
       tab.type = "button";
-      tab.className = "llm-search-mode-tab";
+      tab.className = "paperpilotsearch-mode-tab";
       tab.dataset.modeId = mode.id;
       tab.textContent = mode.label;
       if (mode.id === activeModeId)
-        tab.classList.add("llm-search-mode-tab-active");
+        tab.classList.add("paperpilotsearch-mode-tab-active");
       tab.addEventListener("click", () => {
         if (activeModeId === mode.id) return;
         activeModeId = mode.id;
@@ -1215,7 +1215,7 @@ function renderPaperResultListField(
     if (!modeTabsEl) return;
     for (const tab of Array.from(modeTabsEl.children) as HTMLButtonElement[]) {
       tab.classList.toggle(
-        "llm-search-mode-tab-active",
+        "paperpilotsearch-mode-tab-active",
         tab.dataset.modeId === activeModeId,
       );
     }
@@ -1223,16 +1223,16 @@ function renderPaperResultListField(
 
   // ── Toolbar (select-all checkbox on the left, sort group on the right) ──
   const toolbar = doc.createElement("div");
-  toolbar.className = "llm-agent-hitl-checklist-toolbar";
+  toolbar.className = "paperpilotagent-hitl-checklist-toolbar";
   container.appendChild(toolbar);
 
   const selectAllLabel = doc.createElement("label");
-  selectAllLabel.className = "llm-search-select-all";
+  selectAllLabel.className = "paperpilotsearch-select-all";
   const selectAllCheckbox = doc.createElement("input");
   selectAllCheckbox.type = "checkbox";
-  selectAllCheckbox.className = "llm-search-select-all-checkbox";
+  selectAllCheckbox.className = "paperpilotsearch-select-all-checkbox";
   const selectAllText = doc.createElement("span");
-  selectAllText.className = "llm-search-select-all-text";
+  selectAllText.className = "paperpilotsearch-select-all-text";
   selectAllText.textContent = "Select all";
   selectAllLabel.append(selectAllCheckbox, selectAllText);
   toolbar.appendChild(selectAllLabel);
@@ -1247,21 +1247,21 @@ function renderPaperResultListField(
   const sortButtons: Record<string, HTMLButtonElement> = {};
   if (anyModeHasSortableData) {
     const sortSep = doc.createElement("span");
-    sortSep.className = "llm-search-sort-separator";
+    sortSep.className = "paperpilotsearch-sort-separator";
     toolbar.appendChild(sortSep);
 
     sortGroupEl = doc.createElement("span");
-    sortGroupEl.className = "llm-search-sort-group";
+    sortGroupEl.className = "paperpilotsearch-sort-group";
 
     const sortLabel = doc.createElement("span");
-    sortLabel.className = "llm-search-sort-label";
+    sortLabel.className = "paperpilotsearch-sort-label";
     sortLabel.textContent = "Sort:";
     sortGroupEl.appendChild(sortLabel);
 
     for (const key of ["relevance", "date", "citations"] as SortKey[]) {
       const btn = doc.createElement("button");
       btn.type = "button";
-      btn.className = "llm-search-sort-btn";
+      btn.className = "paperpilotsearch-sort-btn";
       btn.textContent =
         key === "relevance"
           ? "Relevance"
@@ -1280,11 +1280,11 @@ function renderPaperResultListField(
 
   // ── List container (rows re-rendered when mode or sort changes) ─────────
   const list = doc.createElement("div");
-  list.className = "llm-search-results-list";
+  list.className = "paperpilotsearch-results-list";
   container.appendChild(list);
 
   const emptyState = doc.createElement("div");
-  emptyState.className = "llm-search-results-empty";
+  emptyState.className = "paperpilotsearch-results-empty";
   emptyState.style.display = "none";
   container.appendChild(emptyState);
 
@@ -1292,13 +1292,13 @@ function renderPaperResultListField(
 
   const renderRow = (rowData: FieldRow): HTMLElement => {
     const row = doc.createElement("label");
-    row.className = "llm-search-results-item";
+    row.className = "paperpilotsearch-results-item";
 
     const checkboxWrap = doc.createElement("div");
-    checkboxWrap.className = "llm-search-results-checkbox-wrap";
+    checkboxWrap.className = "paperpilotsearch-results-checkbox-wrap";
     const checkbox = doc.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.className = "llm-search-results-checkbox";
+    checkbox.className = "paperpilotsearch-results-checkbox";
     checkbox.checked = selectedIds.has(rowData.id);
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) selectedIds.add(rowData.id);
@@ -1311,19 +1311,19 @@ function renderPaperResultListField(
     rowCheckboxes.push(checkbox);
 
     const content = doc.createElement("div");
-    content.className = "llm-search-results-content";
+    content.className = "paperpilotsearch-results-content";
 
     const titleRow = doc.createElement("div");
-    titleRow.className = "llm-search-results-title-row";
+    titleRow.className = "paperpilotsearch-results-title-row";
 
     const titleEl = doc.createElement("span");
-    titleEl.className = "llm-search-results-title";
+    titleEl.className = "paperpilotsearch-results-title";
     titleEl.textContent = rowData.title;
     titleRow.appendChild(titleEl);
 
     if (rowData.href) {
       const openBtn = doc.createElement("a");
-      openBtn.className = "llm-search-results-open";
+      openBtn.className = "paperpilotsearch-results-open";
       openBtn.textContent = "Open ↗";
       openBtn.href = rowData.href;
       openBtn.addEventListener("click", (event) => {
@@ -1343,24 +1343,24 @@ function renderPaperResultListField(
 
     if (rowData.subtitle) {
       const subtitleEl = doc.createElement("div");
-      subtitleEl.className = "llm-search-results-subtitle";
+      subtitleEl.className = "paperpilotsearch-results-subtitle";
       subtitleEl.textContent = rowData.subtitle;
       content.appendChild(subtitleEl);
     }
 
     if (rowData.body) {
       const bodyEl = doc.createElement("div");
-      bodyEl.className = "llm-search-results-body";
+      bodyEl.className = "paperpilotsearch-results-body";
       bodyEl.textContent = rowData.body;
       content.appendChild(bodyEl);
     }
 
     if (rowData.badges?.length) {
       const badgeRow = doc.createElement("div");
-      badgeRow.className = "llm-search-results-badges";
+      badgeRow.className = "paperpilotsearch-results-badges";
       for (const badge of rowData.badges) {
         const badgeEl = doc.createElement("span");
-        badgeEl.className = "llm-agent-hitl-badge";
+        badgeEl.className = "paperpilotagent-hitl-badge";
         badgeEl.textContent = badge;
         badgeRow.appendChild(badgeEl);
       }
@@ -1374,7 +1374,7 @@ function renderPaperResultListField(
   const syncSortButtonsActive = () => {
     const key = sortByMode.get(activeModeId) || "relevance";
     for (const [k, btn] of Object.entries(sortButtons)) {
-      btn.classList.toggle("llm-search-sort-active", k === key);
+      btn.classList.toggle("paperpilotsearch-sort-active", k === key);
     }
   };
 
@@ -1455,10 +1455,10 @@ function renderPaperResultListField(
   let loadMoreButton: HTMLButtonElement | null = null;
   if (field.loadMoreActionId && requestId) {
     const loadMoreWrap = doc.createElement("div");
-    loadMoreWrap.className = "llm-search-load-more-wrap";
+    loadMoreWrap.className = "paperpilotsearch-load-more-wrap";
     loadMoreButton = doc.createElement("button");
     loadMoreButton.type = "button";
-    loadMoreButton.className = "llm-search-load-more-btn";
+    loadMoreButton.className = "paperpilotsearch-load-more-btn";
     loadMoreButton.textContent = field.loadMoreLabel || "Load more";
     loadMoreButton.addEventListener("click", () => {
       if (!loadMoreButton) return;
@@ -1667,7 +1667,7 @@ export function renderPendingActionCard(
   pending: { requestId: string; action: AgentPendingAction },
 ): HTMLDivElement {
   const card = doc.createElement("div");
-  card.className = "llm-agent-hitl-card";
+  card.className = "paperpilotagent-hitl-card";
   card.dataset.requestId = pending.requestId;
   const normalizedActions = normalizePendingActions(pending.action);
   const isPagedReviewCard = isPagedReviewAction(pending.action);
@@ -1676,7 +1676,7 @@ export function renderPendingActionCard(
   }
 
   const header = doc.createElement("div");
-  header.className = "llm-agent-hitl-header";
+  header.className = "paperpilotagent-hitl-header";
   header.textContent =
     pending.action.mode === "review" && !isPagedReviewCard
       ? "Review required"
@@ -1684,20 +1684,20 @@ export function renderPendingActionCard(
   card.appendChild(header);
 
   const title = doc.createElement("div");
-  title.className = "llm-agent-hitl-title";
+  title.className = "paperpilotagent-hitl-title";
   title.textContent = pending.action.title;
   card.appendChild(title);
 
   if (pending.action.description) {
     const description = doc.createElement("div");
-    description.className = "llm-agent-hitl-description";
+    description.className = "paperpilotagent-hitl-description";
     description.textContent = pending.action.description;
     card.appendChild(description);
   }
 
   const pagedTopControls = isPagedReviewCard ? doc.createElement("div") : null;
   if (pagedTopControls) {
-    pagedTopControls.className = "llm-agent-hitl-paged-top-controls";
+    pagedTopControls.className = "paperpilotagent-hitl-paged-top-controls";
     card.appendChild(pagedTopControls);
   }
   const pagedFooterCenterControls = isPagedReviewCard
@@ -1705,7 +1705,7 @@ export function renderPendingActionCard(
     : null;
   if (pagedFooterCenterControls) {
     pagedFooterCenterControls.className =
-      "llm-agent-hitl-paged-footer-controls";
+      "paperpilotagent-hitl-paged-footer-controls";
   }
   const buttonLayout = getPendingActionButtonLayout(pending.action);
   let activeActionId = normalizedActions.defaultActionId;
@@ -1740,18 +1740,18 @@ export function renderPendingActionCard(
 
   for (const field of pending.action.fields) {
     const fieldContainer = doc.createElement("div");
-    fieldContainer.className = "llm-agent-hitl-field";
+    fieldContainer.className = "paperpilotagent-hitl-field";
     if (field.type === "textarea") {
       const label = doc.createElement("label");
-      label.className = "llm-agent-hitl-label";
+      label.className = "paperpilotagent-hitl-label";
       label.textContent = field.label;
       fieldContainer.appendChild(label);
 
       const textarea = doc.createElement("textarea");
       textarea.className =
         field.editorMode === "json"
-          ? "llm-agent-hitl-input llm-agent-hitl-input-code"
-          : "llm-agent-hitl-input";
+          ? "paperpilotagent-hitl-input paperpilotagent-hitl-input-code"
+          : "paperpilotagent-hitl-input";
       textarea.value = field.value || "";
       textarea.placeholder = field.placeholder || "";
       textarea.spellcheck = field.spellcheck ?? field.editorMode !== "json";
@@ -1787,13 +1787,13 @@ export function renderPendingActionCard(
 
     if (field.type === "text") {
       const label = doc.createElement("label");
-      label.className = "llm-agent-hitl-label";
+      label.className = "paperpilotagent-hitl-label";
       label.textContent = field.label;
       fieldContainer.appendChild(label);
 
       const input = doc.createElement("input");
       input.type = "text";
-      input.className = "llm-agent-hitl-page-input";
+      input.className = "paperpilotagent-hitl-page-input";
       input.value = field.value || "";
       input.placeholder = field.placeholder || "";
       fieldContainer.appendChild(input);
@@ -1822,12 +1822,12 @@ export function renderPendingActionCard(
 
     if (field.type === "code_preview") {
       const label = doc.createElement("label");
-      label.className = "llm-agent-hitl-label";
+      label.className = "paperpilotagent-hitl-label";
       label.textContent = field.label;
       fieldContainer.appendChild(label);
 
       const pre = doc.createElement("pre");
-      pre.className = "llm-agent-hitl-code-preview";
+      pre.className = "paperpilotagent-hitl-code-preview";
       const code = doc.createElement("code");
       if (field.language) {
         code.className = `language-${field.language}`;
@@ -1850,7 +1850,7 @@ export function renderPendingActionCard(
 
     if (field.type === "select") {
       const label = doc.createElement("label");
-      label.className = "llm-agent-hitl-label";
+      label.className = "paperpilotagent-hitl-label";
       const isPagedPageSizeField = isPagedReviewCard && field.id === "pageSize";
       const isPagedTagsField = isPagedReviewCard && field.id === "tagsPerPaper";
       const isPagedInlineSelect = isPagedPageSizeField || isPagedTagsField;
@@ -1865,7 +1865,7 @@ export function renderPendingActionCard(
       }
 
       const select = doc.createElement("select");
-      select.className = "llm-agent-hitl-page-input";
+      select.className = "paperpilotagent-hitl-page-input";
       for (const option of field.options) {
         const optionEl = doc.createElement("option");
         optionEl.value = option.id;
@@ -1902,14 +1902,14 @@ export function renderPendingActionCard(
         field.id === "tagsPerPaper" &&
         pagedTopControls
       ) {
-        fieldContainer.className += " llm-agent-hitl-paged-top-field";
+        fieldContainer.className += " paperpilotagent-hitl-paged-top-field";
         pagedTopControls.appendChild(fieldContainer);
       } else if (
         isPagedReviewCard &&
         field.id === "pageSize" &&
         pagedFooterCenterControls
       ) {
-        fieldContainer.className += " llm-agent-hitl-paged-footer-field";
+        fieldContainer.className += " paperpilotagent-hitl-paged-footer-field";
         pagedFooterCenterControls.appendChild(fieldContainer);
       } else {
         card.appendChild(fieldContainer);
@@ -1941,7 +1941,7 @@ export function renderPendingActionCard(
     if (field.type === "diff_preview") {
       if (field.label) {
         const label = doc.createElement("label");
-        label.className = "llm-agent-hitl-label";
+        label.className = "paperpilotagent-hitl-label";
         label.textContent = field.label;
         fieldContainer.appendChild(label);
       }
@@ -1966,7 +1966,7 @@ export function renderPendingActionCard(
     if (field.type === "image_gallery") {
       if (field.label) {
         const label = doc.createElement("label");
-        label.className = "llm-agent-hitl-label";
+        label.className = "paperpilotagent-hitl-label";
         label.textContent = field.label;
         fieldContainer.appendChild(label);
       }
@@ -1985,7 +1985,7 @@ export function renderPendingActionCard(
 
     if (field.type === "checklist") {
       const label = doc.createElement("label");
-      label.className = "llm-agent-hitl-label";
+      label.className = "paperpilotagent-hitl-label";
       label.textContent = field.label;
       fieldContainer.appendChild(label);
       const rendered = renderChecklistField(doc, field);
@@ -2001,7 +2001,7 @@ export function renderPendingActionCard(
 
     if (field.type === "assignment_table") {
       const label = doc.createElement("label");
-      label.className = "llm-agent-hitl-label";
+      label.className = "paperpilotagent-hitl-label";
       label.textContent = field.label;
       fieldContainer.appendChild(label);
       const rendered = renderAssignmentTableField(doc, field);
@@ -2017,7 +2017,7 @@ export function renderPendingActionCard(
 
     if (field.type === "tag_assignment_table") {
       const label = doc.createElement("label");
-      label.className = "llm-agent-hitl-label";
+      label.className = "paperpilotagent-hitl-label";
       label.textContent = field.label;
       fieldContainer.appendChild(label);
       const rendered = renderTagAssignmentTableField(doc, field);
@@ -2034,7 +2034,7 @@ export function renderPendingActionCard(
     if (field.type === "paper_result_list") {
       if (field.label) {
         const label = doc.createElement("label");
-        label.className = "llm-agent-hitl-label";
+        label.className = "paperpilotagent-hitl-label";
         label.textContent = field.label;
         fieldContainer.appendChild(label);
       }
@@ -2124,7 +2124,7 @@ export function renderPendingActionCard(
   let actionChooser: HTMLDivElement | null = null;
   if (buttonLayout.hasActionChooser && !isPagedReviewCard) {
     actionChooser = doc.createElement("div");
-    actionChooser.className = "llm-agent-hitl-action-choices";
+    actionChooser.className = "paperpilotagent-hitl-action-choices";
     for (const action of normalizedActions.primaryActions) {
       const actionButton = doc.createElement("button");
       actionButton.type = "button";
@@ -2133,10 +2133,10 @@ export function renderPendingActionCard(
         action.style === "primary" ? "true" : "false";
       actionButton.className =
         action.id === activeActionId
-          ? "llm-agent-hitl-btn llm-agent-hitl-btn-active"
+          ? "paperpilotagent-hitl-btn paperpilotagent-hitl-btn-active"
           : action.style === "primary"
-            ? "llm-agent-hitl-btn"
-            : "llm-agent-hitl-btn llm-agent-hitl-btn-secondary";
+            ? "paperpilotagent-hitl-btn"
+            : "paperpilotagent-hitl-btn paperpilotagent-hitl-btn-secondary";
       actionButton.textContent = action.label;
       actionButton.addEventListener("click", () => {
         const nextActionNeedsSeparateSubmit = actionNeedsSeparateSubmit(
@@ -2170,7 +2170,7 @@ export function renderPendingActionCard(
   }
 
   const actionRow = doc.createElement("div");
-  actionRow.className = "llm-agent-hitl-actions";
+  actionRow.className = "paperpilotagent-hitl-actions";
   let executeButton: HTMLButtonElement | null = null;
   let backButton: HTMLButtonElement | null = null;
   const setButtonsDisabled = (disabled: boolean) => {
@@ -2230,10 +2230,10 @@ export function renderPendingActionCard(
       if (button.dataset.actionChoice) {
         const isActive = button.dataset.actionChoice === activeActionId;
         button.className = isActive
-          ? "llm-agent-hitl-btn llm-agent-hitl-btn-active"
+          ? "paperpilotagent-hitl-btn paperpilotagent-hitl-btn-active"
           : button.dataset.primary === "true"
-            ? "llm-agent-hitl-btn"
-            : "llm-agent-hitl-btn llm-agent-hitl-btn-secondary";
+            ? "paperpilotagent-hitl-btn"
+            : "paperpilotagent-hitl-btn paperpilotagent-hitl-btn-secondary";
       }
     }
     syncConfirmButton();
@@ -2248,7 +2248,7 @@ export function renderPendingActionCard(
     executeButton = doc.createElement("button");
     executeButton.type = "button";
     executeButton.dataset.kind = "save";
-    executeButton.className = "llm-agent-hitl-btn";
+    executeButton.className = "paperpilotagent-hitl-btn";
     executeButton.textContent = pending.action.confirmLabel || "Apply";
     executeButton.addEventListener("click", () => {
       handleExecute();
@@ -2261,7 +2261,7 @@ export function renderPendingActionCard(
     backButton = doc.createElement("button");
     backButton.type = "button";
     backButton.dataset.kind = "back";
-    backButton.className = "llm-agent-hitl-btn llm-agent-hitl-btn-secondary";
+    backButton.className = "paperpilotagent-hitl-btn paperpilotagent-hitl-btn-secondary";
     backButton.textContent = getBackLabel(activeActionId);
     backButton.hidden = true;
     backButton.addEventListener("click", () => {
@@ -2293,7 +2293,7 @@ export function renderPendingActionCard(
   if (isPagedReviewCard) {
     const refreshButton = createPendingActionButton(
       "refresh",
-      "llm-agent-hitl-refresh-btn",
+      "paperpilotagent-hitl-refresh-btn",
     );
     if (refreshButton) {
       refreshButton.textContent = "";
@@ -2303,29 +2303,29 @@ export function renderPendingActionCard(
     }
 
     const pagedActions = doc.createElement("div");
-    pagedActions.className = "llm-agent-hitl-paged-actions";
+    pagedActions.className = "paperpilotagent-hitl-paged-actions";
 
     const left = doc.createElement("div");
     left.className =
-      "llm-agent-hitl-paged-actions-slot llm-agent-hitl-paged-actions-left";
+      "paperpilotagent-hitl-paged-actions-slot paperpilotagent-hitl-paged-actions-left";
     const previousButton = createPendingActionButton(
       "previous",
-      "llm-agent-hitl-btn llm-agent-hitl-btn-secondary llm-agent-hitl-paged-nav-btn llm-agent-hitl-paged-previous-btn",
+      "paperpilotagent-hitl-btn paperpilotagent-hitl-btn-secondary paperpilotagent-hitl-paged-nav-btn paperpilotagent-hitl-paged-previous-btn",
     );
     if (previousButton) left.appendChild(previousButton);
 
     const center = doc.createElement("div");
     center.className =
-      "llm-agent-hitl-paged-actions-slot llm-agent-hitl-paged-actions-center";
+      "paperpilotagent-hitl-paged-actions-slot paperpilotagent-hitl-paged-actions-center";
     const confirmButton = createPendingActionButton(
       "confirm",
-      "llm-agent-hitl-btn llm-agent-hitl-paged-confirm-btn",
+      "paperpilotagent-hitl-btn paperpilotagent-hitl-paged-confirm-btn",
     );
     if (confirmButton) center.appendChild(confirmButton);
     const pageLabel = getPagedActionPageLabel(pending.action.title);
     if (pageLabel) {
       const pageIndicator = doc.createElement("span");
-      pageIndicator.className = "llm-agent-hitl-page-indicator";
+      pageIndicator.className = "paperpilotagent-hitl-page-indicator";
       pageIndicator.textContent = pageLabel;
       center.appendChild(pageIndicator);
     }
@@ -2334,16 +2334,16 @@ export function renderPendingActionCard(
     }
     const cancelButton = createPendingActionButton(
       "cancel",
-      "llm-agent-hitl-btn llm-agent-hitl-btn-secondary llm-agent-hitl-paged-cancel-btn",
+      "paperpilotagent-hitl-btn paperpilotagent-hitl-btn-secondary paperpilotagent-hitl-paged-cancel-btn",
     );
     if (cancelButton) center.appendChild(cancelButton);
 
     const right = doc.createElement("div");
     right.className =
-      "llm-agent-hitl-paged-actions-slot llm-agent-hitl-paged-actions-right";
+      "paperpilotagent-hitl-paged-actions-slot paperpilotagent-hitl-paged-actions-right";
     const nextButton = createPendingActionButton(
       "next",
-      "llm-agent-hitl-btn llm-agent-hitl-paged-nav-btn llm-agent-hitl-paged-next-btn",
+      "paperpilotagent-hitl-btn paperpilotagent-hitl-paged-nav-btn paperpilotagent-hitl-paged-next-btn",
     );
     if (nextButton) right.appendChild(nextButton);
 
@@ -2355,7 +2355,7 @@ export function renderPendingActionCard(
     const cancelButton = doc.createElement("button");
     cancelButton.type = "button";
     cancelButton.dataset.kind = "cancel";
-    cancelButton.className = "llm-agent-hitl-btn llm-agent-hitl-btn-secondary";
+    cancelButton.className = "paperpilotagent-hitl-btn paperpilotagent-hitl-btn-secondary";
     cancelButton.textContent =
       normalizedActions.cancelAction.label ||
       pending.action.cancelLabel ||
@@ -3785,24 +3785,24 @@ function renderAgentTraceChips(
 ): HTMLDivElement | null {
   if (!chips?.length) return null;
   const chipsEl = doc.createElement("div") as HTMLDivElement;
-  chipsEl.className = "llm-agent-process-chips";
+  chipsEl.className = "paperpilotagent-process-chips";
   for (const chip of chips) {
     const chipEl = doc.createElement("div") as HTMLDivElement;
-    chipEl.className = "llm-agent-process-chip";
+    chipEl.className = "paperpilotagent-process-chip";
     if (chip.title) {
       chipEl.title = chip.title;
     }
     const chipLabel = doc.createElement("span") as HTMLSpanElement;
-    chipLabel.className = "llm-agent-process-chip-label";
+    chipLabel.className = "paperpilotagent-process-chip-label";
     chipLabel.textContent = chip.label;
     const chipIcon = isContextIconName(chip.iconName)
-      ? createContextIcon(doc, chip.iconName, "llm-agent-process-chip-icon")
+      ? createContextIcon(doc, chip.iconName, "paperpilotagent-process-chip-icon")
       : null;
     if (chipIcon) {
       chipEl.append(chipIcon, chipLabel);
     } else if (chip.icon) {
       const fallbackIcon = doc.createElement("span") as HTMLSpanElement;
-      fallbackIcon.className = "llm-agent-process-chip-icon";
+      fallbackIcon.className = "paperpilotagent-process-chip-icon";
       fallbackIcon.textContent = chip.icon;
       chipEl.append(fallbackIcon, chipLabel);
     } else {
@@ -3818,26 +3818,26 @@ function renderAgentTraceDetailsBody(
   details: AgentTraceDetail[],
 ): HTMLDivElement {
   const body = doc.createElement("div") as HTMLDivElement;
-  body.className = "llm-agent-process-details";
+  body.className = "paperpilotagent-process-details";
   for (const detail of details) {
     const item = doc.createElement("div") as HTMLDivElement;
-    item.className = "llm-agent-process-detail";
+    item.className = "paperpilotagent-process-detail";
 
     const label = doc.createElement("div") as HTMLDivElement;
-    label.className = "llm-agent-process-detail-label";
+    label.className = "paperpilotagent-process-detail-label";
     label.textContent = detail.label;
 
     if (detail.kind === "code" || detail.kind === "json") {
       const pre = doc.createElement("pre") as HTMLPreElement;
-      pre.className = `llm-agent-process-detail-value llm-agent-process-detail-value-${detail.kind}`;
+      pre.className = `paperpilotagent-process-detail-value paperpilotagent-process-detail-value-${detail.kind}`;
       const code = doc.createElement("code") as HTMLElement;
       code.textContent = detail.value;
       pre.appendChild(code);
       item.append(label, pre);
     } else {
       const value = doc.createElement("div") as HTMLDivElement;
-      value.className = `llm-agent-process-detail-value${
-        detail.kind === "url" ? " llm-agent-process-detail-value-url" : ""
+      value.className = `paperpilotagent-process-detail-value${
+        detail.kind === "url" ? " paperpilotagent-process-detail-value-url" : ""
       }`;
       value.textContent = detail.value;
       item.append(label, value);
@@ -3865,19 +3865,19 @@ export function renderAgentTrace({
     return null;
   }
   const wrap = doc.createElement("div");
-  wrap.className = "llm-agent-activity";
+  wrap.className = "paperpilotagent-activity";
   const list = doc.createElement("div");
-  list.className = "llm-agent-activity-list";
+  list.className = "paperpilotagent-activity-list";
 
   if (!events.length) {
     onTraceMissing?.();
     const loadingRow = doc.createElement("div");
-    loadingRow.className = "llm-at-row llm-at-row-plan";
+    loadingRow.className = "paperpilotat-row paperpilotat-row-plan";
     const loadingIcon = doc.createElement("span");
-    loadingIcon.className = "llm-at-icon";
+    loadingIcon.className = "paperpilotat-icon";
     loadingIcon.textContent = "…";
     const loadingText = doc.createElement("span");
-    loadingText.className = "llm-at-text llm-at-plan-text";
+    loadingText.className = "paperpilotat-text paperpilotat-plan-text";
     loadingText.textContent = "Loading agent activity...";
     loadingRow.append(loadingIcon, loadingText);
     list.appendChild(loadingRow);
@@ -3899,7 +3899,7 @@ export function renderAgentTrace({
   }
   const pending = getPendingConfirmation(events);
   if (pending) {
-    wrap.classList.add("llm-agent-activity-with-pending-action");
+    wrap.classList.add("paperpilotagent-activity-with-pending-action");
   }
   const hasFinalResponse = events.some(
     (entry) => entry.payload.type === "final",
@@ -3907,7 +3907,7 @@ export function renderAgentTrace({
   for (const [itemIndex, itemEntry] of processItems.entries()) {
     if (itemEntry.type === "inline_text") {
       const inlineEl = doc.createElement("div");
-      inlineEl.className = "llm-agent-inline-text";
+      inlineEl.className = "paperpilotagent-inline-text";
       const inlineText = buildAgentTraceMarkdownForRender(
         itemEntry.text,
         message,
@@ -3923,9 +3923,9 @@ export function renderAgentTrace({
 
     if (itemEntry.type === "message") {
       const messageEl = doc.createElement("div");
-      messageEl.className = `llm-agent-process-message llm-agent-process-message-${itemEntry.tone}`;
+      messageEl.className = `paperpilotagent-process-message paperpilotagent-process-message-${itemEntry.tone}`;
       if (itemEntry.markdown) {
-        messageEl.classList.add("llm-agent-process-message-markdown");
+        messageEl.classList.add("paperpilotagent-process-message-markdown");
         const markdownText = buildAgentTraceMarkdownForRender(
           itemEntry.text,
           message,
@@ -3949,14 +3949,14 @@ export function renderAgentTrace({
 
     if (itemEntry.type === "image_grid") {
       const container = doc.createElement("div") as HTMLDivElement;
-      container.className = "llm-agent-image-artifacts";
+      container.className = "paperpilotagent-image-artifacts";
       const rendered = renderAssistantGeneratedImagesInto(
         container,
         itemEntry.images,
         doc,
         {
-          wrapClassName: "llm-agent-image-artifacts-grid",
-          frameClassName: "llm-agent-image-artifact-frame",
+          wrapClassName: "paperpilotagent-image-artifacts-grid",
+          frameClassName: "paperpilotagent-image-artifact-frame",
         },
       );
       if (rendered) list.appendChild(container);
@@ -3965,12 +3965,12 @@ export function renderAgentTrace({
 
     if (itemEntry.type === "reasoning") {
       const details = doc.createElement("details") as HTMLDetailsElement;
-      details.className = "llm-agent-reasoning";
+      details.className = "paperpilotagent-reasoning";
       const expansionKey = `${runId}:${itemEntry.key}`;
       details.open = Boolean(agentReasoningExpandedCache.get(expansionKey));
 
       const summary = doc.createElement("summary") as HTMLElement;
-      summary.className = "llm-agent-reasoning-summary";
+      summary.className = "paperpilotagent-reasoning-summary";
       summary.textContent = itemEntry.label;
       let reasoningToggleHandled = false;
       const toggleReasoning = (event: Event) => {
@@ -3999,15 +3999,15 @@ export function renderAgentTrace({
       details.appendChild(summary);
 
       const bodyWrap = doc.createElement("div") as HTMLDivElement;
-      bodyWrap.className = "llm-agent-reasoning-body";
+      bodyWrap.className = "paperpilotagent-reasoning-body";
 
       // Show only summary — details from most models duplicate the summary
       const reasoningText = itemEntry.summary || itemEntry.details;
       if (reasoningText) {
         const summaryBlock = doc.createElement("div") as HTMLDivElement;
-        summaryBlock.className = "llm-agent-reasoning-block";
+        summaryBlock.className = "paperpilotagent-reasoning-block";
         const text = doc.createElement("div") as HTMLDivElement;
-        text.className = "llm-agent-reasoning-text";
+        text.className = "paperpilotagent-reasoning-text";
         text.textContent = reasoningText;
         summaryBlock.appendChild(text);
         bodyWrap.appendChild(summaryBlock);
@@ -4025,8 +4025,8 @@ export function renderAgentTrace({
     const actionWrap = doc.createElement(
       isExpandable ? "details" : "div",
     ) as HTMLElement;
-    actionWrap.className = `llm-agent-process-action${
-      isExpandable ? " llm-agent-process-action-expandable" : ""
+    actionWrap.className = `paperpilotagent-process-action${
+      isExpandable ? " paperpilotagent-process-action-expandable" : ""
     }`;
     const expansionKey = `${runId}:action:${itemEntry.detailKey || itemIndex}`;
     if (isExpandable) {
@@ -4035,18 +4035,18 @@ export function renderAgentTrace({
       );
     }
     const row = doc.createElement("div");
-    row.className = `llm-at-row llm-at-row-${itemEntry.row.kind}`;
+    row.className = `paperpilotat-row paperpilotat-row-${itemEntry.row.kind}`;
     const icon = doc.createElement("span");
-    icon.className = "llm-at-icon";
+    icon.className = "paperpilotat-icon";
     icon.textContent = itemEntry.row.icon;
     const text = doc.createElement("span");
-    text.className = `llm-at-text llm-at-${itemEntry.row.kind}-text`;
+    text.className = `paperpilotat-text paperpilotat-${itemEntry.row.kind}-text`;
     text.textContent = itemEntry.row.text;
     if (isExpandable) {
       row.append(icon, text);
 
       const summary = doc.createElement("summary") as HTMLElement;
-      summary.className = "llm-agent-process-action-summary";
+      summary.className = "paperpilotagent-process-action-summary";
       summary.appendChild(row);
       const chips = renderAgentTraceChips(doc, itemEntry.chips);
       if (chips) summary.appendChild(chips);
@@ -4083,14 +4083,14 @@ export function renderAgentTrace({
   const hasAnswerText = Boolean(message.text?.trim());
   if (hasFinalResponse || (hasAnswerText && !inlineTextReplacesAssistantText)) {
     const divider = doc.createElement("div");
-    divider.className = "llm-agent-output-divider";
+    divider.className = "paperpilotagent-output-divider";
     divider.setAttribute("aria-hidden", "true");
     wrap.appendChild(divider);
   }
 
   if (pending) {
     const pendingShell = doc.createElement("div");
-    pendingShell.className = "llm-agent-pending-action-shell";
+    pendingShell.className = "paperpilotagent-pending-action-shell";
     pendingShell.appendChild(renderPendingActionCard(doc, pending));
     wrap.appendChild(pendingShell);
   }

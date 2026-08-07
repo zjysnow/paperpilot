@@ -584,7 +584,7 @@ export function setupHandlers(
   hooks?: SetupHandlersHooks,
 ) {
   const existingPanelRoot = body.querySelector(
-    "#llm-main",
+    "#paperpilotmain",
   ) as HTMLElement | null;
   // A repeated lifecycle callback for the same completed DOM must be a true
   // no-op. Disposing before this check would tear down cleanup-managed
@@ -823,13 +823,13 @@ export function setupHandlers(
   const isElementNode = (value: unknown): value is Element =>
     Boolean(ElementCtor && value instanceof ElementCtor);
   const headerTop = body.querySelector(
-    ".llm-header-top",
+    ".paperpilotheader-top",
   ) as HTMLDivElement | null;
   const headerInfo = headerTop?.querySelector(
-    ".llm-header-info",
+    ".paperpilotheader-info",
   ) as HTMLDivElement | null;
   const headerActions = headerTop?.querySelector(
-    ".llm-header-actions",
+    ".paperpilotheader-actions",
   ) as HTMLDivElement | null;
   panelRoot.tabIndex = 0;
   applyPanelFontScale(panelRoot);
@@ -995,7 +995,7 @@ export function setupHandlers(
   const updateRuntimeModeButton = () => {
     if (!runtimeModeBtn) return;
     const indicator = runtimeModeBtn.querySelector(
-      ".llm-agent-toggle-indicator",
+      ".paperpilotagent-toggle-indicator",
     ) as HTMLSpanElement | null;
     if (isRuntimeConversationSystem()) {
       const labelText = isCodexConversationSystem() ? "Codex" : "Claude Code";
@@ -1004,13 +1004,13 @@ export function setupHandlers(
         : "agent";
       runtimeModeBtn.style.display = "";
       const label = runtimeModeBtn.querySelector(
-        ".llm-agent-toggle-label",
+        ".paperpilotagent-toggle-label",
       ) as HTMLSpanElement | null;
       if (label) {
         label.textContent = labelText;
       }
-      runtimeModeBtn.classList.remove("llm-agent-toggle-enabled");
-      runtimeModeBtn.classList.add("llm-runtime-mode-static");
+      runtimeModeBtn.classList.remove("paperpilotagent-toggle-enabled");
+      runtimeModeBtn.classList.add("paperpilotruntime-mode-static");
       runtimeModeBtn.dataset.mode = staticMode;
       runtimeModeBtn.dataset.system = getConversationSystem();
       runtimeModeBtn.title = isCodexConversationSystem()
@@ -1027,7 +1027,7 @@ export function setupHandlers(
       panelRoot.dataset.runtimeMode = staticMode;
       return;
     }
-    runtimeModeBtn.classList.remove("llm-runtime-mode-static");
+    runtimeModeBtn.classList.remove("paperpilotruntime-mode-static");
     delete runtimeModeBtn.dataset.system;
     runtimeModeBtn.removeAttribute("aria-disabled");
     runtimeModeBtn.disabled = false;
@@ -1050,12 +1050,12 @@ export function setupHandlers(
     const mode = getCurrentRuntimeMode();
     const enabled = mode === "agent";
     const label = runtimeModeBtn.querySelector(
-      ".llm-agent-toggle-label",
+      ".paperpilotagent-toggle-label",
     ) as HTMLSpanElement | null;
     if (label) {
       label.textContent = t("Agent (beta)");
     }
-    runtimeModeBtn.classList.toggle("llm-agent-toggle-enabled", enabled);
+    runtimeModeBtn.classList.toggle("paperpilotagent-toggle-enabled", enabled);
     runtimeModeBtn.dataset.mode = mode;
     runtimeModeBtn.title = enabled
       ? t("Agent mode ON. Click to switch to Chat mode")
@@ -1501,7 +1501,7 @@ export function setupHandlers(
     }
     if (modeChipBtn) {
       // [webchat] Don't overwrite — applyWebChatModeUI manages the chip in webchat mode
-      if (!modeChipBtn.querySelector(".llm-webchat-dot")) {
+      if (!modeChipBtn.querySelector(".paperpilotwebchat-dot")) {
         const currentLabel = noteSession
           ? noteSession.conversationKind === "global"
             ? t("Library chat")
@@ -2746,7 +2746,7 @@ export function setupHandlers(
     if (paperChipMenu) {
       paperChipMenu.style.display = "none";
     }
-    paperChipMenuAnchor?.classList.remove("llm-paper-context-chip-menu-open");
+    paperChipMenuAnchor?.classList.remove("paperpilotpaper-context-chip-menu-open");
     paperChipMenuAnchor = null;
     paperChipMenuTarget = null;
     paperChipMenuSticky = false;
@@ -2823,7 +2823,7 @@ export function setupHandlers(
     const card = createElement(
       ownerDoc,
       "button",
-      `llm-paper-picker-item llm-paper-picker-group-row llm-paper-chip-menu-row ${getContextSourceModeCssClassName(options?.contentSourceMode)}`,
+      `paperpilotpaper-picker-item paperpilotpaper-picker-group-row paperpilotpaper-chip-menu-row ${getContextSourceModeCssClassName(options?.contentSourceMode)}`,
       {
         type: "button",
         title: options?.sourceOption
@@ -2839,7 +2839,7 @@ export function setupHandlers(
     if (options?.mineruState) {
       card.dataset.mineruState = options.mineruState;
       card.classList.add(
-        `llm-paper-chip-menu-row-mineru-${options.mineruState}`,
+        `paperpilotpaper-chip-menu-row-mineru-${options.mineruState}`,
       );
       if (options.mineruAction && options.mineruAction !== "select") {
         card.dataset.mineruAction = options.mineruAction;
@@ -2854,7 +2854,7 @@ export function setupHandlers(
     if (options?.disabledReason) {
       card.disabled = true;
       card.setAttribute("aria-disabled", "true");
-      card.classList.add("llm-paper-chip-menu-row-disabled");
+      card.classList.add("paperpilotpaper-chip-menu-row-disabled");
       card.title = options.disabledReason;
     }
     if (options?.selected) {
@@ -2863,14 +2863,14 @@ export function setupHandlers(
     const rowMain = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-group-row-main",
+      "paperpilotpaper-picker-group-row-main",
     );
     const titleLine = createElement(
       ownerDoc,
       "div",
-      "llm-paper-picker-group-title-line",
+      "paperpilotpaper-picker-group-title-line",
     );
-    const title = createElement(ownerDoc, "span", "llm-paper-picker-title", {
+    const title = createElement(ownerDoc, "span", "paperpilotpaper-picker-title", {
       textContent: options?.title || paperContext.title,
       title: options?.title || paperContext.title,
     });
@@ -2892,7 +2892,7 @@ export function setupHandlers(
                   ? "DOCX"
                   : null);
     if (badgeText) {
-      const badge = createElement(ownerDoc, "span", "llm-paper-picker-badge", {
+      const badge = createElement(ownerDoc, "span", "paperpilotpaper-picker-badge", {
         textContent: badgeText,
         title: options?.mineruActionTitle,
       });
@@ -2904,7 +2904,7 @@ export function setupHandlers(
       : buildPaperMetaText(paperContext);
     if (metaText) {
       rowMain.appendChild(
-        createElement(ownerDoc, "span", "llm-paper-picker-meta", {
+        createElement(ownerDoc, "span", "paperpilotpaper-picker-meta", {
           textContent: metaText,
           title: metaText,
         }),
@@ -2922,7 +2922,7 @@ export function setupHandlers(
         createElement(
           ownerDoc,
           "span",
-          "llm-paper-picker-meta llm-paper-context-card-attachment",
+          "paperpilotpaper-picker-meta paperpilotpaper-context-card-attachment",
           {
             textContent: displayAttachmentText,
             title: displayAttachmentText,
@@ -2935,7 +2935,7 @@ export function setupHandlers(
         createElement(
           ownerDoc,
           "span",
-          "llm-paper-picker-meta llm-paper-chip-disabled-reason",
+          "paperpilotpaper-picker-meta paperpilotpaper-chip-disabled-reason",
           {
             textContent: options.disabledReason,
             title: options.disabledReason,
@@ -3149,7 +3149,7 @@ export function setupHandlers(
     const menu = createElement(
       ownerDoc,
       "div",
-      "llm-model-menu llm-paper-chip-cache-menu",
+      "paperpilotmodel-menu paperpilotpaper-chip-cache-menu",
     );
     menu.style.display = "none";
     menu.addEventListener("pointerdown", (event: Event) => {
@@ -3166,7 +3166,7 @@ export function setupHandlers(
     const showCacheButton = createElement(
       ownerDoc,
       "button",
-      "llm-paper-chip-cache-menu-item",
+      "paperpilotpaper-chip-cache-menu-item",
       {
         type: "button",
         textContent: t("Show MinerU cache in file system"),
@@ -3221,7 +3221,7 @@ export function setupHandlers(
     const menu = createElement(
       ownerDoc,
       "div",
-      "llm-model-menu llm-paper-chip-menu",
+      "paperpilotmodel-menu paperpilotpaper-chip-menu",
     );
     menu.style.display = "none";
     menu.addEventListener("mouseenter", () => {
@@ -3244,7 +3244,7 @@ export function setupHandlers(
       const target = e.target as Element | null;
       if (!target) return;
       const card = target.closest(
-        ".llm-paper-chip-menu-row",
+        ".paperpilotpaper-chip-menu-row",
       ) as HTMLButtonElement | null;
       if (!card || !paperChipMenuTarget) return;
       e.preventDefault();
@@ -3319,7 +3319,7 @@ export function setupHandlers(
       const target = e.target as Element | null;
       if (!target) return;
       const card = target.closest(
-        ".llm-paper-chip-menu-row",
+        ".paperpilotpaper-chip-menu-row",
       ) as HTMLButtonElement | null;
       if (!card || !paperChipMenuTarget) return;
       const option = resolvePaperChipMenuSourceOptionFromCard(card);
@@ -3427,10 +3427,10 @@ export function setupHandlers(
     if (!menu) return;
     clearPaperChipMenuHideTimer();
     if (paperChipMenuAnchor && paperChipMenuAnchor !== chip) {
-      paperChipMenuAnchor.classList.remove("llm-paper-context-chip-menu-open");
+      paperChipMenuAnchor.classList.remove("paperpilotpaper-context-chip-menu-open");
     }
     paperChipMenuAnchor = chip;
-    chip.classList.add("llm-paper-context-chip-menu-open");
+    chip.classList.add("paperpilotpaper-context-chip-menu-open");
     chip.classList.remove("expanded");
     chip.classList.add("collapsed");
     if (item) {
@@ -3626,12 +3626,12 @@ export function setupHandlers(
     const chip = createElement(
       ownerDoc,
       "div",
-      "llm-selected-context llm-paper-context-chip",
+      "paperpilotselected-context paperpilotpaper-context-chip",
     );
     chip.dataset.paperContextMenu = hasSourceMenu ? "true" : "false";
-    chip.classList.toggle("llm-paper-context-chip-static", isStaticChip);
+    chip.classList.toggle("paperpilotpaper-context-chip-static", isStaticChip);
     if (options?.autoLoaded) {
-      chip.classList.add("llm-paper-context-chip-autoloaded");
+      chip.classList.add("paperpilotpaper-context-chip-autoloaded");
       chip.dataset.autoLoaded = "true";
     }
     chip.dataset.paperItemId = `${paperContext.itemId}`;
@@ -3640,11 +3640,11 @@ export function setupHandlers(
       chip.dataset.paperContextIndex = `${options?.removableIndex ?? -1}`;
     }
     chip.dataset.fullText = fullText ? "true" : "false";
-    chip.classList.toggle("llm-paper-context-chip-full", fullText);
+    chip.classList.toggle("paperpilotpaper-context-chip-full", fullText);
     chip.dataset.contentSource = contentSourceMode;
     chip.classList.add(getContextSourceModeCssClassName(contentSourceMode));
     chip.classList.toggle(
-      "llm-paper-context-chip-webchat-inactive",
+      "paperpilotpaper-context-chip-webchat-inactive",
       isWebChatMode() && contentSourceMode === "pdf" && !fullText,
     );
     chip.classList.add("collapsed");
@@ -3652,12 +3652,12 @@ export function setupHandlers(
     const chipHeader = createElement(
       ownerDoc,
       "div",
-      "llm-image-preview-header llm-selected-context-header llm-paper-context-chip-header",
+      "paperpilotimage-preview-header paperpilotselected-context-header paperpilotpaper-context-chip-header",
     );
     const chipLabel = createElement(
       ownerDoc,
       "span",
-      "llm-paper-context-chip-label",
+      "paperpilotpaper-context-chip-label",
       {
         title: formatPaperContextChipTitle(paperContext, contentSourceMode),
       },
@@ -3665,12 +3665,12 @@ export function setupHandlers(
     const chipIcon = createContextIcon(
       ownerDoc,
       "paper",
-      "llm-paper-context-chip-icon",
+      "paperpilotpaper-context-chip-icon",
     );
     const chipText = createElement(
       ownerDoc,
       "span",
-      "llm-paper-context-chip-text",
+      "paperpilotpaper-context-chip-text",
       {
         textContent: formatPaperContextChipLabel(
           paperContext,
@@ -3685,7 +3685,7 @@ export function setupHandlers(
       const removeBtn = createElement(
         ownerDoc,
         "button",
-        "llm-remove-img-btn llm-paper-context-clear",
+        "paperpilotremove-img-btn paperpilotpaper-context-clear",
         {
           type: "button",
           textContent: "×",
@@ -3701,7 +3701,7 @@ export function setupHandlers(
     const chipExpanded = createElement(
       ownerDoc,
       "div",
-      "llm-selected-context-expanded llm-paper-context-chip-expanded",
+      "paperpilotselected-context-expanded paperpilotpaper-context-chip-expanded",
     );
     chipExpanded.appendChild(
       buildPaperChipMenuCard(ownerDoc, paperContext, { contentSourceMode }),
@@ -3735,7 +3735,7 @@ export function setupHandlers(
     const summaryChip = createElement(
       ownerDoc,
       "div",
-      "llm-selected-context llm-paper-context-summary-chip",
+      "paperpilotselected-context paperpilotpaper-context-summary-chip",
     ) as HTMLDivElement;
     summaryChip.dataset.paperContextSummary = "true";
     summaryChip.dataset.paperContextCount = `${params.paperCount}`;
@@ -3743,7 +3743,7 @@ export function setupHandlers(
     const summaryToggle = createElement(
       ownerDoc,
       "button",
-      "llm-paper-context-summary-toggle",
+      "paperpilotpaper-context-summary-toggle",
       {
         type: "button",
         title: params.expanded
@@ -3765,19 +3765,19 @@ export function setupHandlers(
     const summaryIcon = createContextIcon(
       ownerDoc,
       "papers",
-      "llm-paper-context-summary-icon",
+      "paperpilotpaper-context-summary-icon",
     );
     const summaryText = createElement(
       ownerDoc,
       "span",
-      "llm-paper-context-summary-text",
+      "paperpilotpaper-context-summary-text",
       { textContent: params.label },
     );
     summaryToggle.append(summaryIcon, summaryText);
     const clearButton = createElement(
       ownerDoc,
       "button",
-      "llm-remove-img-btn llm-paper-context-summary-clear",
+      "paperpilotremove-img-btn paperpilotpaper-context-summary-clear",
       {
         type: "button",
         textContent: "×",
@@ -3798,7 +3798,7 @@ export function setupHandlers(
     const chip = createElement(
       ownerDoc,
       "div",
-      `llm-selected-context llm-other-ref-chip llm-other-ref-chip-${ref.refKind}`,
+      `paperpilotselected-context paperpilotother-ref-chip paperpilotother-ref-chip-${ref.refKind}`,
     );
     chip.dataset.otherRefItemId = `${ref.contextItemId}`;
     chip.dataset.otherRefIndex = `${removableIndex}`;
@@ -3807,12 +3807,12 @@ export function setupHandlers(
     const chipHeader = createElement(
       ownerDoc,
       "div",
-      "llm-image-preview-header llm-selected-context-header llm-other-ref-chip-header",
+      "paperpilotimage-preview-header paperpilotselected-context-header paperpilotother-ref-chip-header",
     );
     const chipLabel = createElement(
       ownerDoc,
       "span",
-      "llm-other-ref-chip-label",
+      "paperpilotother-ref-chip-label",
       {
         title: `${ref.refKind === "figure" ? "Figure" : "File"}: ${ref.title}`,
       },
@@ -3820,19 +3820,19 @@ export function setupHandlers(
     const chipIcon = createContextIcon(
       ownerDoc,
       ref.refKind === "figure" ? "image" : "file",
-      "llm-other-ref-chip-icon",
+      "paperpilotother-ref-chip-icon",
     );
     const chipTitle = createElement(
       ownerDoc,
       "span",
-      "llm-other-ref-chip-title",
+      "paperpilotother-ref-chip-title",
       { textContent: ref.title },
     );
     chipLabel.append(chipIcon, chipTitle);
     const removeBtn = createElement(
       ownerDoc,
       "button",
-      "llm-remove-img-btn llm-other-ref-clear",
+      "paperpilotremove-img-btn paperpilotother-ref-clear",
       {
         type: "button",
         textContent: "×",
@@ -3855,7 +3855,7 @@ export function setupHandlers(
     const chip = createElement(
       ownerDoc,
       "div",
-      "llm-selected-context llm-collection-context-chip",
+      "paperpilotselected-context paperpilotcollection-context-chip",
     );
     chip.dataset.collectionId = `${ref.collectionId}`;
     chip.dataset.collectionIndex = `${removableIndex}`;
@@ -3864,12 +3864,12 @@ export function setupHandlers(
     const chipHeader = createElement(
       ownerDoc,
       "div",
-      "llm-image-preview-header llm-selected-context-header llm-collection-chip-header",
+      "paperpilotimage-preview-header paperpilotselected-context-header paperpilotcollection-chip-header",
     );
     const chipLabel = createElement(
       ownerDoc,
       "span",
-      "llm-collection-chip-label",
+      "paperpilotcollection-chip-label",
       {
         title: `Collection: ${ref.name}`,
       },
@@ -3877,19 +3877,19 @@ export function setupHandlers(
     const chipIcon = createContextIcon(
       ownerDoc,
       "collection",
-      "llm-collection-chip-icon",
+      "paperpilotcollection-chip-icon",
     );
     const chipTitle = createElement(
       ownerDoc,
       "span",
-      "llm-collection-chip-title",
+      "paperpilotcollection-chip-title",
       { textContent: ref.name },
     );
     chipLabel.append(chipIcon, chipTitle);
     const removeBtn = createElement(
       ownerDoc,
       "button",
-      "llm-remove-img-btn llm-collection-clear",
+      "paperpilotremove-img-btn paperpilotcollection-clear",
       {
         type: "button",
         textContent: "\u00D7",
@@ -3912,7 +3912,7 @@ export function setupHandlers(
     const chip = createElement(
       ownerDoc,
       "div",
-      "llm-selected-context llm-tag-context-chip",
+      "paperpilotselected-context paperpilottag-context-chip",
     );
     chip.dataset.tagIndex = `${removableIndex}`;
     chip.classList.add("collapsed");
@@ -3920,20 +3920,20 @@ export function setupHandlers(
     const chipHeader = createElement(
       ownerDoc,
       "div",
-      "llm-image-preview-header llm-selected-context-header llm-tag-chip-header",
+      "paperpilotimage-preview-header paperpilotselected-context-header paperpilottag-chip-header",
     );
-    const chipLabel = createElement(ownerDoc, "span", "llm-tag-chip-label", {
+    const chipLabel = createElement(ownerDoc, "span", "paperpilottag-chip-label", {
       title: `Tag: ${ref.name}`,
     });
-    const chipIcon = createContextIcon(ownerDoc, "tag", "llm-tag-chip-icon");
-    const chipTitle = createElement(ownerDoc, "span", "llm-tag-chip-title", {
+    const chipIcon = createContextIcon(ownerDoc, "tag", "paperpilottag-chip-icon");
+    const chipTitle = createElement(ownerDoc, "span", "paperpilottag-chip-title", {
       textContent: ref.name,
     });
     chipLabel.append(chipIcon, chipTitle);
     const removeBtn = createElement(
       ownerDoc,
       "button",
-      "llm-remove-img-btn llm-tag-clear",
+      "paperpilotremove-img-btn paperpilottag-clear",
       {
         type: "button",
         textContent: "\u00D7",
@@ -4093,24 +4093,24 @@ export function setupHandlers(
     const ownerDoc = body.ownerDocument;
     if (!ownerDoc) return;
     files.forEach((attachment, index) => {
-      const row = createElement(ownerDoc, "div", "llm-file-context-item");
+      const row = createElement(ownerDoc, "div", "paperpilotfile-context-item");
       row.dataset.fileContextIndex = `${index}`;
       const pinned = isPinnedFile(pinnedFileKeys, itemId, attachment);
-      row.classList.toggle("llm-file-context-item-pinned", pinned);
+      row.classList.toggle("paperpilotfile-context-item-pinned", pinned);
       row.dataset.pinned = pinned ? "true" : "false";
-      const type = createElement(ownerDoc, "span", "llm-file-context-type", {
+      const type = createElement(ownerDoc, "span", "paperpilotfile-context-type", {
         textContent: getAttachmentTypeLabel(attachment),
         title: attachment.mimeType || attachment.category || "file",
       });
-      const info = createElement(ownerDoc, "div", "llm-file-context-text");
-      const name = createElement(ownerDoc, "span", "llm-file-context-name", {
+      const info = createElement(ownerDoc, "div", "paperpilotfile-context-text");
+      const name = createElement(ownerDoc, "span", "paperpilotfile-context-name", {
         textContent: attachment.name,
         title: attachment.name,
       });
       const meta = createElement(
         ownerDoc,
         "span",
-        "llm-file-context-meta-info",
+        "paperpilotfile-context-meta-info",
         {
           textContent: `${attachment.mimeType || "application/octet-stream"} · ${(attachment.sizeBytes / 1024 / 1024).toFixed(2)} MB`,
         },
@@ -4118,7 +4118,7 @@ export function setupHandlers(
       const removeBtn = createElement(
         ownerDoc,
         "button",
-        "llm-file-context-remove",
+        "paperpilotfile-context-remove",
         {
           type: "button",
           textContent: "×",
@@ -4239,22 +4239,22 @@ export function setupHandlers(
 
       previewStrip.innerHTML = "";
       for (const [index, imageUrl] of selectedImages.entries()) {
-        const thumbItem = createElement(ownerDoc, "div", "llm-preview-item");
+        const thumbItem = createElement(ownerDoc, "div", "paperpilotpreview-item");
         thumbItem.dataset.imageContextIndex = `${index}`;
         const pinned = isPinnedImage(pinnedImageKeys, item.id, imageUrl);
-        thumbItem.classList.toggle("llm-preview-item-pinned", pinned);
+        thumbItem.classList.toggle("paperpilotpreview-item-pinned", pinned);
         thumbItem.dataset.pinned = pinned ? "true" : "false";
         const thumbBtn = createElement(
           ownerDoc,
           "button",
-          "llm-preview-thumb",
+          "paperpilotpreview-thumb",
           {
             type: "button",
             title: `Screenshot ${index + 1}`,
           },
         ) as HTMLButtonElement;
         thumbBtn.classList.toggle("active", index === activeIndex);
-        const thumb = createElement(ownerDoc, "img", "llm-preview-img", {
+        const thumb = createElement(ownerDoc, "img", "paperpilotpreview-img", {
           alt: "Selected screenshot",
         }) as HTMLImageElement;
         thumb.src = imageUrl;
@@ -4273,7 +4273,7 @@ export function setupHandlers(
         const removeOneBtn = createElement(
           ownerDoc,
           "button",
-          "llm-preview-remove-one",
+          "paperpilotpreview-remove-one",
           {
             type: "button",
             textContent: "×",
@@ -4702,7 +4702,7 @@ export function setupHandlers(
     const section = createElement(
       body.ownerDocument as Document,
       "div",
-      "llm-model-menu-section",
+      "paperpilotmodel-menu-section",
       {
         textContent: providerLabel,
       },
@@ -4718,7 +4718,7 @@ export function setupHandlers(
     const empty = createElement(
       body.ownerDocument as Document,
       "div",
-      "llm-model-menu-empty",
+      "paperpilotmodel-menu-empty",
       {
         textContent: text,
       },
@@ -4736,7 +4736,7 @@ export function setupHandlers(
     const action = createElement(
       body.ownerDocument as Document,
       "button",
-      "llm-response-menu-item llm-model-option",
+      "paperpilotresponse-menu-item paperpilotmodel-option",
       {
         type: "button",
         textContent: text,
@@ -4788,7 +4788,7 @@ export function setupHandlers(
     appendDropdownInstruction(
       modelMenu,
       t("Select model"),
-      "llm-model-menu-hint",
+      "paperpilotmodel-menu-hint",
     );
     appendCodexModelCatalogStatus(modelMenu);
     if (!groupedChoices.length) {
@@ -4803,7 +4803,7 @@ export function setupHandlers(
         const option = createElement(
           body.ownerDocument as Document,
           "button",
-          "llm-response-menu-item llm-model-option",
+          "paperpilotresponse-menu-item paperpilotmodel-option",
           {
             type: "button",
             textContent: isSelected
@@ -4937,7 +4937,7 @@ export function setupHandlers(
 
               // Show preloading screen to verify connectivity before enabling webchat
               const chatShellEl = body.querySelector(
-                ".llm-chat-shell",
+                ".paperpilotchat-shell",
               ) as HTMLElement | null;
               if (chatShellEl) {
                 try {
@@ -5028,7 +5028,7 @@ export function setupHandlers(
         const option = createElement(
           body.ownerDocument as Document,
           "button",
-          "llm-response-menu-item llm-model-option",
+          "paperpilotresponse-menu-item paperpilotmodel-option",
           {
             type: "button",
             textContent: isSelected
@@ -5395,10 +5395,10 @@ export function setupHandlers(
         const { testConnection } = await import("../../webchat/client");
         const alive = await testConnection(host);
         dot.className = alive
-          ? "llm-webchat-dot llm-webchat-dot-connected"
-          : "llm-webchat-dot llm-webchat-dot-disconnected";
+          ? "paperpilotwebchat-dot paperpilotwebchat-dot-connected"
+          : "paperpilotwebchat-dot paperpilotwebchat-dot-disconnected";
       } catch {
-        dot.className = "llm-webchat-dot llm-webchat-dot-disconnected";
+        dot.className = "paperpilotwebchat-dot paperpilotwebchat-dot-disconnected";
       }
     };
     void check(); // immediate first check
@@ -5456,10 +5456,10 @@ export function setupHandlers(
       const reasoningLabel = resolvedReasoningLabel;
       reasoningBtn.disabled = !item;
       reasoningBtn.classList.toggle(
-        "llm-reasoning-btn-unavailable",
+        "paperpilotreasoning-btn-unavailable",
         !available,
       );
-      reasoningBtn.classList.toggle("llm-reasoning-btn-active", active);
+      reasoningBtn.classList.toggle("paperpilotreasoning-btn-active", active);
       reasoningBtn.style.background = "";
       reasoningBtn.style.borderColor = "";
       reasoningBtn.style.color = "";
@@ -5482,7 +5482,7 @@ export function setupHandlers(
       appendDropdownInstruction(
         reasoningMenu,
         "Webchat mode",
-        "llm-reasoning-menu-section",
+        "paperpilotreasoning-menu-section",
       );
       const currentSel = selectedReasoningCache.get(item.id) || "none";
       for (const mode of WEBCHAT_MODES) {
@@ -5490,7 +5490,7 @@ export function setupHandlers(
         const option = createElement(
           body.ownerDocument as Document,
           "button",
-          "llm-response-menu-item llm-reasoning-option",
+          "paperpilotresponse-menu-item paperpilotreasoning-option",
           {
             type: "button",
             textContent: isSelected ? `\u2713 ${mode.label}` : mode.label,
@@ -5525,7 +5525,7 @@ export function setupHandlers(
     appendDropdownInstruction(
       reasoningMenu,
       t("Reasoning level"),
-      "llm-reasoning-menu-section",
+      "paperpilotreasoning-menu-section",
     );
     if (isClaudeConversationSystem()) {
       const claudeModes: Array<{
@@ -5544,7 +5544,7 @@ export function setupHandlers(
         const option = createElement(
           body.ownerDocument as Document,
           "button",
-          "llm-response-menu-item llm-reasoning-option",
+          "paperpilotresponse-menu-item paperpilotreasoning-option",
           {
             type: "button",
             textContent:
@@ -5574,7 +5574,7 @@ export function setupHandlers(
         const option = createElement(
           body.ownerDocument as Document,
           "button",
-          "llm-response-menu-item llm-reasoning-option",
+          "paperpilotresponse-menu-item paperpilotreasoning-option",
           {
             type: "button",
             textContent:
@@ -5599,7 +5599,7 @@ export function setupHandlers(
       const offOption = createElement(
         body.ownerDocument as Document,
         "button",
-        "llm-response-menu-item llm-reasoning-option",
+        "paperpilotresponse-menu-item paperpilotreasoning-option",
         {
           type: "button",
           textContent: "\u2713 off",
@@ -5635,7 +5635,7 @@ export function setupHandlers(
       const offOption = createElement(
         body.ownerDocument as Document,
         "button",
-        "llm-response-menu-item llm-reasoning-option",
+        "paperpilotresponse-menu-item paperpilotreasoning-option",
         {
           type: "button",
           textContent: isSelected ? "\u2713 Off" : "Off",
@@ -5661,7 +5661,7 @@ export function setupHandlers(
       const option = createElement(
         body.ownerDocument as Document,
         "button",
-        "llm-response-menu-item llm-reasoning-option",
+        "paperpilotresponse-menu-item paperpilotreasoning-option",
         {
           type: "button",
           textContent:
@@ -5701,7 +5701,7 @@ export function setupHandlers(
         option.addEventListener("click", applyReasoningSelection);
       } else {
         option.disabled = true;
-        option.classList.add("llm-reasoning-option-disabled");
+        option.classList.add("paperpilotreasoning-option-disabled");
       }
       reasoningMenu.appendChild(option);
     }
@@ -5810,11 +5810,11 @@ export function setupHandlers(
         }
 
         let dot = modeChipBtn.querySelector(
-          ".llm-webchat-dot",
+          ".paperpilotwebchat-dot",
         ) as HTMLElement | null;
         if (!dot) {
           dot = (modeChipBtn.ownerDocument as Document).createElement("span");
-          dot.className = "llm-webchat-dot llm-webchat-dot-disconnected";
+          dot.className = "paperpilotwebchat-dot paperpilotwebchat-dot-disconnected";
         }
         modeChipBtn.textContent = "";
         modeChipBtn.appendChild(dot);
@@ -5830,7 +5830,7 @@ export function setupHandlers(
         modeChipBtn.style.cursor = "default";
         startWebChatConnectionCheck(dot);
       } else {
-        const oldDot = modeChipBtn.querySelector(".llm-webchat-dot");
+        const oldDot = modeChipBtn.querySelector(".paperpilotwebchat-dot");
         if (oldDot) {
           oldDot.remove();
           // Restore mode chip text — the normal render sync skips it while the dot is present
@@ -5918,7 +5918,7 @@ export function setupHandlers(
   try {
     if (isWebChatMode() && !hasExistingWebChatSessionForCurrentItem()) {
       const chatShellEl = body.querySelector(
-        ".llm-chat-shell",
+        ".paperpilotchat-shell",
       ) as HTMLElement | null;
       if (chatShellEl) {
         void (async () => {
@@ -5977,7 +5977,7 @@ export function setupHandlers(
   // NOTE: We intentionally do NOT sync on "focusin" because focusin fires
   // on every internal focus change (e.g. clicking the input box).
   // syncModelFromPrefs → updateModelButton → applyResponsiveActionButtonsLayout
-  // mutates DOM → changes flex layout → resizes .llm-messages → shifts scroll
+  // mutates DOM → changes flex layout → resizes .paperpilotmessages → shifts scroll
   // position.  pointerenter is sufficient and fires before interaction.
   body.addEventListener("pointerenter", () => {
     withScrollGuard(chatBox, conversationKey, () => {
@@ -6117,10 +6117,10 @@ export function setupHandlers(
 
   const setInputDropActive = (active: boolean) => {
     if (inputSection) {
-      inputSection.classList.toggle("llm-input-drop-active", active);
+      inputSection.classList.toggle("paperpilotinput-drop-active", active);
     }
     if (inputBox) {
-      inputBox.classList.toggle("llm-input-drop-active", active);
+      inputBox.classList.toggle("paperpilotinput-drop-active", active);
     }
   };
 
@@ -6274,7 +6274,7 @@ export function setupHandlers(
       if (dragEvent.dataTransfer) {
         dragEvent.dataTransfer.dropEffect = "copy";
       }
-      if (!inputSection.classList.contains("llm-input-drop-active")) {
+      if (!inputSection.classList.contains("paperpilotinput-drop-active")) {
         setInputDropActive(true);
       }
     });
@@ -6343,9 +6343,9 @@ export function setupHandlers(
       scheduleActionPickerTrigger();
     });
 
-    // Command row dismiss button (reuses .llm-paper-context-clear class)
+    // Command row dismiss button (reuses .paperpilotpaper-context-clear class)
     const commandRowClearBtn = body.querySelector(
-      "#llm-command-row .llm-paper-context-clear",
+      "#paperpilotcommand-row .paperpilotpaper-context-clear",
     );
     if (commandRowClearBtn) {
       commandRowClearBtn.addEventListener("click", () => {
@@ -6396,22 +6396,22 @@ export function setupHandlers(
     queueBar.style.display = "flex";
 
     const rail = ownerDoc.createElement("div") as HTMLDivElement;
-    rail.className = "llm-queued-input-rail";
+    rail.className = "paperpilotqueued-input-rail";
 
     const list = ownerDoc.createElement("div") as HTMLDivElement;
-    list.className = "llm-queued-input-list";
+    list.className = "paperpilotqueued-input-list";
     for (const entry of queuedFollowUpInputs) {
       const row = ownerDoc.createElement("div") as HTMLDivElement;
-      row.className = "llm-queued-input-item";
+      row.className = "paperpilotqueued-input-item";
 
       const text = ownerDoc.createElement("span") as HTMLSpanElement;
-      text.className = "llm-queued-input-chip";
+      text.className = "paperpilotqueued-input-chip";
       text.textContent = entry.text;
       text.title = entry.text;
 
       const removeBtn = ownerDoc.createElement("button") as HTMLButtonElement;
       removeBtn.type = "button";
-      removeBtn.className = "llm-queued-input-remove";
+      removeBtn.className = "paperpilotqueued-input-remove";
       removeBtn.textContent = "×";
       removeBtn.title = "Remove queued input";
       removeBtn.setAttribute("aria-label", "Remove queued input");
@@ -6755,7 +6755,7 @@ export function setupHandlers(
     },
     getWebChatHost: () => {
       const port = Zotero.Prefs.get("httpServer.port") || 23119;
-      return `http://127.0.0.1:${port}/llm-for-zotero/webchat`;
+      return `http://127.0.0.1:${port}/paperpilotfor-zotero/webchat`;
     },
     markNextWebChatSendAsNewChat,
   });
@@ -7509,7 +7509,7 @@ export function setupHandlers(
         }
       }
     }
-    body.querySelectorAll(".llm-typing").forEach((el: Element) => el.remove());
+    body.querySelectorAll(".paperpilottyping").forEach((el: Element) => el.remove());
     // Re-enable UI for the cancelled conversation
     if (inputBox) inputBox.disabled = false;
     if (sendBtn) {
@@ -7556,7 +7556,7 @@ export function setupHandlers(
       if (isWebChatMode()) {
         abortWebChatPreload();
         // Immediately remove preload overlay for instant visual feedback
-        body.querySelector(".llm-webchat-preload")?.remove();
+        body.querySelector(".paperpilotwebchat-preload")?.remove();
         stopWebChatConnectionCheck();
         clearNextWebChatNewChatIntent();
         // Restore previous model, or fall back to first non-webchat model

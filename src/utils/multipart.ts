@@ -60,7 +60,7 @@ export function buildManualMultipartBody(
   } = {},
 ): { body: Uint8Array; contentType: string } {
   const encoder = new TextEncoder();
-  const boundaryPrefix = options.boundaryPrefix || "llmforzotero";
+  const boundaryPrefix = options.boundaryPrefix || "paperpilot";
   const boundary = `----${boundaryPrefix}${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
   const fallbackName = options.fallbackName || "field";
   const parts: Uint8Array[] = [];

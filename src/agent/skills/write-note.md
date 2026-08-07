@@ -39,7 +39,7 @@ match: /\b(use|apply|with)\b.*\btemplate\b/i
   Delete this file to recreate from shipped default on next restart.
 -->
 
-<!-- LLM-FOR-ZOTERO:MANAGED-BEGIN -->
+<!-- Paper Pilot:MANAGED-BEGIN -->
 
 ## Write Note
 
@@ -293,7 +293,7 @@ Three components, joined by single hyphens:
 
 #### Customize the filename pattern
 
-Users can override the default pattern by adding a `## Your customizations` section **AFTER** the `LLM-FOR-ZOTERO:MANAGED-END` marker at the bottom of this skill file. The agent will follow the custom pattern instead of the default above (see Key rules).
+Users can override the default pattern by adding a `## Your customizations` section **AFTER** the `Paper Pilot:MANAGED-END` marker at the bottom of this skill file. The agent will follow the custom pattern instead of the default above (see Key rules).
 
 Example customizations:
 
@@ -326,4 +326,4 @@ Any placeholder the user writes (`{citekey}`, `{firstauthor}`, `{year}`, `{doi}`
 
 Total tool calls: 2–5 (read content, optionally look up citekeys, optionally copy images, write note).
 
-<!-- LLM-FOR-ZOTERO:MANAGED-END -->
+<!-- Paper Pilot:MANAGED-END -->

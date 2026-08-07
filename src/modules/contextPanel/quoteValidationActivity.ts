@@ -6,7 +6,7 @@ const DEFAULT_INTERACTION_GRACE_MS = 250;
  * response so navigation never mutates quote provenance directly.
  */
 export const QUOTE_PROVENANCE_REVALIDATION_REQUEST_EVENT =
-  "llm-quote-provenance-revalidation-request";
+  "paperpilotquote-provenance-revalidation-request";
 
 let activeNavigationCount = 0;
 let interactionGraceUntil = 0;

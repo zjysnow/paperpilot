@@ -47,7 +47,7 @@ const defaultDependencies: ReaderTextInclusionDependencies = {
 };
 
 function getPanelConversationKey(body: Element): number {
-  const root = body.querySelector("#llm-main") as HTMLElement | null;
+  const root = body.querySelector("#paperpilotmain") as HTMLElement | null;
   const parsed = Number(root?.dataset.itemId || 0);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
 }
@@ -113,7 +113,7 @@ export async function includeReaderSelectedText(
   }
 
   const selectedText = normalizeSelectedText(input.selectedText || "");
-  const status = input.body.querySelector("#llm-status") as HTMLElement | null;
+  const status = input.body.querySelector("#paperpilotstatus") as HTMLElement | null;
   if (!selectedText) {
     if (status) {
       setStatus(status, t("Select text in the reader first"), "warning");
@@ -171,7 +171,7 @@ export async function includeReaderSelectedText(
     setStatus(status, t("Selected text included"), "ready");
   }
   const inputEl = input.body.querySelector(
-    "#llm-input",
+    "#paperpilotinput",
   ) as HTMLTextAreaElement | null;
   inputEl?.focus({ preventScroll: true });
 

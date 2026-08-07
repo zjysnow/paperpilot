@@ -156,7 +156,7 @@ export function appendHistorySearchHighlightedText(
     const mark = createElement(
       ownerDoc,
       "mark",
-      "llm-history-search-highlight",
+      "paperpilothistory-search-highlight",
       {
         textContent: text.slice(start, end),
       },

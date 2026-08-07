@@ -251,7 +251,7 @@ function findRenderedMermaidSvgForSource(
     return null;
   }
   const previews = Array.from(
-    root.querySelectorAll(".llm-mermaid-preview[data-llm-mermaid-source]"),
+    root.querySelectorAll(".paperpilotmermaid-preview[data-paperpilotmermaid-source]"),
   ) as HTMLElement[];
   for (const preview of previews) {
     if ((preview.dataset.llmMermaidSource || "").trim() !== normalizedSource) {

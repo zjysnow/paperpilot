@@ -16,11 +16,11 @@ import {
 type TranslateFn = (label: string) => string;
 
 export const HISTORY_SEARCH_POPUP_ITEM_TAG = "div";
-export const HISTORY_SEARCH_POPUP_DELETE_CLASS = "llm-standalone-search-delete";
+export const HISTORY_SEARCH_POPUP_DELETE_CLASS = "paperpilotstandalone-search-delete";
 export const HISTORY_SEARCH_POPUP_THEME_DARK_CLASS =
-  "llm-history-search-theme-dark";
+  "paperpilothistory-search-theme-dark";
 export const HISTORY_SEARCH_POPUP_THEME_LIGHT_CLASS =
-  "llm-history-search-theme-light";
+  "paperpilothistory-search-theme-light";
 
 export type HistorySearchPopupController = {
   open: () => void;
@@ -170,12 +170,12 @@ export function createHistorySearchPopupController(
   const translate: TranslateFn = deps.translate || ((label) => label);
   const log = deps.log || (() => undefined);
 
-  const overlay = createElement(doc, "div", "llm-standalone-search-overlay");
+  const overlay = createElement(doc, "div", "paperpilotstandalone-search-overlay");
   overlay.style.display = "none";
 
-  const popup = createElement(doc, "div", "llm-standalone-search-popup");
-  const header = createElement(doc, "div", "llm-standalone-search-header");
-  const input = createElement(doc, "input", "llm-standalone-search-input", {
+  const popup = createElement(doc, "div", "paperpilotstandalone-search-popup");
+  const header = createElement(doc, "div", "paperpilotstandalone-search-header");
+  const input = createElement(doc, "input", "paperpilotstandalone-search-input", {
     type: "text",
     placeholder: translate("Search history"),
   }) as HTMLInputElement;
@@ -186,14 +186,14 @@ export function createHistorySearchPopupController(
   const closeButton = createElement(
     doc,
     "button",
-    "llm-standalone-search-close",
+    "paperpilotstandalone-search-close",
     {
       type: "button",
       textContent: "\u00D7",
       title: translate("Close"),
     },
   ) as HTMLButtonElement;
-  const results = createElement(doc, "div", "llm-standalone-search-results");
+  const results = createElement(doc, "div", "paperpilotstandalone-search-results");
 
   header.append(input, closeButton);
   popup.append(header, results);
@@ -281,7 +281,7 @@ export function createHistorySearchPopupController(
     );
 
     if (!entries.length) {
-      const empty = createElement(doc, "div", "llm-standalone-search-empty", {
+      const empty = createElement(doc, "div", "paperpilotstandalone-search-empty", {
         textContent: query
           ? translate("No matching history")
           : translate("No conversations yet"),
@@ -295,7 +295,7 @@ export function createHistorySearchPopupController(
       const dayLabel = createElement(
         doc,
         "div",
-        "llm-standalone-search-day-label",
+        "paperpilotstandalone-search-day-label",
         { textContent: group.label },
       );
       results.appendChild(dayLabel);
@@ -306,7 +306,7 @@ export function createHistorySearchPopupController(
         const item = createElement(
           doc,
           HISTORY_SEARCH_POPUP_ITEM_TAG,
-          "llm-standalone-search-item",
+          "paperpilotstandalone-search-item",
         ) as HTMLDivElement;
         item.setAttribute("role", "button");
         item.setAttribute("tabindex", "0");
@@ -315,14 +315,14 @@ export function createHistorySearchPopupController(
         const textWrap = createElement(
           doc,
           "div",
-          "llm-standalone-search-text",
+          "paperpilotstandalone-search-text",
         );
-        const label = createElement(doc, "span", "llm-standalone-search-label");
+        const label = createElement(doc, "span", "paperpilotstandalone-search-label");
         label.dataset.labelType = getHistoryEntryLabelType(entry);
         const labelText = resolveLabel(entry);
         label.textContent = labelText;
 
-        const title = createElement(doc, "span", "llm-standalone-search-title");
+        const title = createElement(doc, "span", "paperpilotstandalone-search-title");
         const displayTitle = entry.title || translate("Untitled chat");
         const searchResult = searchResultsByKey.get(entry.conversationKey);
         if (searchResult?.titleRanges.length) {
@@ -362,7 +362,7 @@ export function createHistorySearchPopupController(
         const metaText = timestamp
           ? `${scopeLabel} \u00B7 ${timestamp}`
           : scopeLabel;
-        const meta = createElement(doc, "div", "llm-standalone-search-meta", {
+        const meta = createElement(doc, "div", "paperpilotstandalone-search-meta", {
           textContent: metaText,
         });
         item.appendChild(meta);
@@ -371,7 +371,7 @@ export function createHistorySearchPopupController(
           const preview = createElement(
             doc,
             "div",
-            "llm-standalone-search-preview",
+            "paperpilotstandalone-search-preview",
           );
           appendHistorySearchHighlightedText(
             preview,
@@ -505,7 +505,7 @@ export function createHistorySearchPopupController(
   });
   const selectResultFromTarget = (target: Element | null): boolean => {
     const item = target?.closest(
-      ".llm-standalone-search-item",
+      ".paperpilotstandalone-search-item",
     ) as HTMLDivElement | null;
     if (!item) return false;
     const conversationKey = Number.parseInt(
@@ -534,7 +534,7 @@ export function createHistorySearchPopupController(
     ) as HTMLElement | null;
     if (!deleteButton) return false;
     const item = deleteButton.closest(
-      ".llm-standalone-search-item",
+      ".paperpilotstandalone-search-item",
     ) as HTMLDivElement | null;
     if (!item) return false;
     const conversationKey = Number.parseInt(

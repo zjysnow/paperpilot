@@ -17,10 +17,10 @@ export function attachFontScaleShortcutController(panelDoc: Document): void {
   }
 
   const isEventWithinActivePanel = (event: Event) => {
-    const panel = panelDoc.querySelector("#llm-main") as HTMLElement | null;
+    const panel = panelDoc.querySelector("#paperpilotmain") as HTMLElement | null;
     if (!panel) return null;
     const standaloneRoot = panelDoc.getElementById(
-      "llmforzotero-standalone-chat-root",
+      "paperpilot-standalone-chat-root",
     ) as HTMLElement | null;
     if (standaloneRoot) return panel;
     const target = event.target as Node | null;
@@ -53,7 +53,7 @@ export function attachFontScaleShortcutController(panelDoc: Document): void {
     event.stopPropagation();
     applyPanelFontScale(panel);
     const standaloneRoot = panelDoc.getElementById(
-      "llmforzotero-standalone-chat-root",
+      "paperpilot-standalone-chat-root",
     ) as HTMLElement | null;
     if (standaloneRoot) applyPanelFontScale(standaloneRoot);
   };

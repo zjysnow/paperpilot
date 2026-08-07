@@ -310,7 +310,7 @@ export function renderAssistantGeneratedImagesInto(
 
   const wrap = doc.createElement("div") as HTMLDivElement;
   wrap.className = [
-    "llm-assistant-generated-images",
+    "paperpilotassistant-generated-images",
     options.wrapClassName || "",
   ]
     .filter(Boolean)
@@ -318,14 +318,14 @@ export function renderAssistantGeneratedImagesInto(
   for (const { image, src } of renderable) {
     const figure = doc.createElement("figure") as HTMLElement;
     figure.className = [
-      "llm-assistant-generated-image-frame",
+      "paperpilotassistant-generated-image-frame",
       options.frameClassName || "",
     ]
       .filter(Boolean)
       .join(" ");
 
     const img = doc.createElement("img") as HTMLImageElement;
-    img.className = "llm-assistant-generated-image";
+    img.className = "paperpilotassistant-generated-image";
     img.src = src;
     img.alt = image.label || "Generated image";
     img.title = image.revisedPrompt || image.label || "";
@@ -351,7 +351,7 @@ export function renderAssistantGeneratedImagesInto(
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      button.className = `llm-generated-image-action ${className}`;
+      button.className = `paperpilotgenerated-image-action ${className}`;
       button.type = "button";
       button.title = title;
       button.setAttribute("aria-label", title);
@@ -376,10 +376,10 @@ export function renderAssistantGeneratedImagesInto(
 
     if (isEmbeddableGeneratedImage(image)) {
       const actions = doc.createElement("div") as HTMLDivElement;
-      actions.className = "llm-assistant-generated-image-actions";
+      actions.className = "paperpilotassistant-generated-image-actions";
       actions.appendChild(
         createActionButton(
-          "llm-generated-image-action-copy",
+          "paperpilotgenerated-image-action-copy",
           "Copy image",
           async () => {
             const result = await copyGeneratedImageToClipboard(
@@ -392,7 +392,7 @@ export function renderAssistantGeneratedImagesInto(
       );
       actions.appendChild(
         createActionButton(
-          "llm-generated-image-action-save",
+          "paperpilotgenerated-image-action-save",
           "Save image as...",
           async () => {
             const asset = await resolveGeneratedImageAsset(image);
@@ -420,7 +420,7 @@ export function renderAssistantGeneratedImagesInto(
       const localPath = resolveGeneratedImageLocalPath(image);
       const fileUrl = toFileUrl(localPath);
       const openButton = createActionButton(
-        "llm-generated-image-action-open",
+        "paperpilotgenerated-image-action-open",
         "Show image in folder",
         () => {
           if (localPath && revealLocalPath(localPath)) {
@@ -446,7 +446,7 @@ export function renderAssistantGeneratedImagesInto(
 
     if (image.label) {
       const caption = doc.createElement("figcaption") as HTMLElement;
-      caption.className = "llm-assistant-generated-image-caption";
+      caption.className = "paperpilotassistant-generated-image-caption";
       caption.textContent = image.label;
       caption.title = image.label;
       figure.appendChild(caption);

@@ -2188,23 +2188,23 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     for (const w of wins) {
       const d = w?.document;
       if (!d) continue;
-      d.querySelectorAll("#llm-main").forEach((n: Element) =>
+      d.querySelectorAll("#paperpilotmain").forEach((n: Element) =>
         push(n as HTMLElement),
       );
       push(
         d.getElementById(
-          "llmforzotero-standalone-chat-root",
+          "paperpilot-standalone-chat-root",
         ) as HTMLElement | null,
       );
     }
     const standaloneWin = addon?.data?.standaloneWindow as Window | undefined;
     if (standaloneWin && standaloneWin.document) {
       standaloneWin.document
-        .querySelectorAll("#llm-main")
+        .querySelectorAll("#paperpilotmain")
         .forEach((n: Element) => push(n as HTMLElement));
       push(
         standaloneWin.document.getElementById(
-          "llmforzotero-standalone-chat-root",
+          "paperpilot-standalone-chat-root",
         ) as HTMLElement | null,
       );
     }
@@ -3272,7 +3272,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           if (!exists) {
             throw new Error(`Directory not found: ${fullPath}`);
           }
-          const testFile = joinLocalPath(fullPath, ".llm-for-zotero-test");
+          const testFile = joinLocalPath(fullPath, ".paperpilotfor-zotero-test");
           const bytes = new TextEncoder().encode("test");
           await IOUtils.write(testFile, bytes);
           await IOUtils.remove(testFile);

@@ -59,7 +59,7 @@ export function renderSkillsInSlashMenu(
   context: ActionCommandSlashMenuContext,
   query = "",
 ): void {
-  const list = context.slashMenu?.querySelector(".llm-action-picker-list");
+  const list = context.slashMenu?.querySelector(".paperpilotaction-picker-list");
   if (!list) return;
   const ownerDoc = context.body.ownerDocument;
   if (!ownerDoc) return;
@@ -84,27 +84,27 @@ export function renderSkillsInSlashMenu(
     element.setAttribute("data-slash-skill-item", "true");
     return element;
   };
-  const sectionLabel = mkSkillEl("div", "llm-slash-menu-section");
+  const sectionLabel = mkSkillEl("div", "paperpilotslash-menu-section");
   sectionLabel.setAttribute("aria-hidden", "true");
   sectionLabel.textContent = t("Skills");
   list.insertBefore(sectionLabel, baseAnchor);
   filtered.forEach((skill: AgentSkill) => {
     const button = mkSkillEl(
       "button",
-      "llm-action-picker-item",
+      "paperpilotaction-picker-item",
     ) as HTMLButtonElement;
     button.type = "button";
     button.disabled = false;
     button.setAttribute("aria-disabled", "false");
     button.title = skill.description || skill.id;
     const titleEl = ownerDoc.createElement("span");
-    titleEl.className = "llm-action-picker-title";
+    titleEl.className = "paperpilotaction-picker-title";
     titleEl.textContent = skill.id;
     const descEl = ownerDoc.createElement("span");
-    descEl.className = "llm-action-picker-description";
+    descEl.className = "paperpilotaction-picker-description";
     descEl.textContent = skill.description;
     const badgeEl = ownerDoc.createElement("span");
-    badgeEl.className = "llm-action-picker-badge";
+    badgeEl.className = "paperpilotaction-picker-badge";
     badgeEl.textContent = t(
       skill.source === "system"
         ? "System"
@@ -130,7 +130,7 @@ export function renderAgentActionsInSlashMenu(
 ): void {
   context.clearAgentSlashItems();
   const ownerDoc = context.body.ownerDocument;
-  const list = context.slashMenu?.querySelector(".llm-action-picker-list");
+  const list = context.slashMenu?.querySelector(".paperpilotaction-picker-list");
   if (!ownerDoc || !list) return;
   const firstBase = list.firstChild;
   const mkAgentEl = (tag: string, className: string): HTMLElement => {
@@ -147,7 +147,7 @@ export function renderAgentActionsInSlashMenu(
       commands = [];
     }
     if (!commands.length) {
-      const loading = mkAgentEl("div", "llm-slash-menu-section");
+      const loading = mkAgentEl("div", "paperpilotslash-menu-section");
       loading.setAttribute("aria-hidden", "true");
       loading.textContent = t("Loading Claude commands...");
       list.insertBefore(loading, firstBase);
@@ -157,7 +157,7 @@ export function renderAgentActionsInSlashMenu(
           renderAgentActionsInSlashMenu(context, query);
         })
         .catch(() => {});
-      const baseLabel = mkAgentEl("div", "llm-slash-menu-section");
+      const baseLabel = mkAgentEl("div", "paperpilotslash-menu-section");
       baseLabel.setAttribute("aria-hidden", "true");
       baseLabel.textContent = t("Base actions");
       list.insertBefore(baseLabel, firstBase);
@@ -171,19 +171,19 @@ export function renderAgentActionsInSlashMenu(
         )
       : commands;
     if (filtered.length) {
-      const section = mkAgentEl("div", "llm-slash-menu-section");
+      const section = mkAgentEl("div", "paperpilotslash-menu-section");
       section.setAttribute("aria-hidden", "true");
       section.textContent = "Claude Code";
       list.insertBefore(section, firstBase);
       filtered.forEach((command) => {
         const button = mkAgentEl(
           "button",
-          "llm-action-picker-item",
+          "paperpilotaction-picker-item",
         ) as HTMLButtonElement;
         button.type = "button";
         button.title = command.description;
         const titleEl = ownerDoc.createElement("span");
-        titleEl.className = "llm-action-picker-title";
+        titleEl.className = "paperpilotaction-picker-title";
         titleEl.textContent = `/${command.name}`;
         button.append(titleEl);
         button.addEventListener("click", (event: Event) => {
@@ -200,7 +200,7 @@ export function renderAgentActionsInSlashMenu(
         list.insertBefore(button, firstBase);
       });
     }
-    const baseLabel = mkAgentEl("div", "llm-slash-menu-section");
+    const baseLabel = mkAgentEl("div", "paperpilotslash-menu-section");
     baseLabel.setAttribute("aria-hidden", "true");
     baseLabel.textContent = t("Base actions");
     list.insertBefore(baseLabel, firstBase);
@@ -228,7 +228,7 @@ export function renderAgentActionsInSlashMenu(
       )
     : allActions;
   const baseAnchor = list.querySelector("[data-slash-base-item]") || null;
-  const baseLabel = mkAgentEl("div", "llm-slash-menu-section");
+  const baseLabel = mkAgentEl("div", "paperpilotslash-menu-section");
   baseLabel.setAttribute("aria-hidden", "true");
   baseLabel.setAttribute("data-slash-section", "base");
   baseLabel.textContent = t("Base actions");
@@ -249,15 +249,15 @@ export function renderAgentActionsInSlashMenu(
   ) {
     const button = mkAgentEl(
       "button",
-      "llm-action-picker-item",
+      "paperpilotaction-picker-item",
     ) as HTMLButtonElement;
     button.type = "button";
     button.title = compactAction.description;
     const titleEl = ownerDoc.createElement("span");
-    titleEl.className = "llm-action-picker-title";
+    titleEl.className = "paperpilotaction-picker-title";
     titleEl.textContent = "/compact";
     const descEl = ownerDoc.createElement("span");
-    descEl.className = "llm-action-picker-description";
+    descEl.className = "paperpilotaction-picker-description";
     descEl.textContent = compactAction.description;
     button.append(titleEl, descEl);
     button.addEventListener("click", (event: Event) => {
@@ -269,22 +269,22 @@ export function renderAgentActionsInSlashMenu(
     });
     list.insertBefore(button, baseAnchor);
   }
-  const agentLabel = mkAgentEl("div", "llm-slash-menu-section");
+  const agentLabel = mkAgentEl("div", "paperpilotslash-menu-section");
   agentLabel.setAttribute("aria-hidden", "true");
   agentLabel.textContent = t("Agent actions");
   list.insertBefore(agentLabel, baseLabel);
   filtered.forEach((action) => {
     const button = mkAgentEl(
       "button",
-      "llm-action-picker-item",
+      "paperpilotaction-picker-item",
     ) as HTMLButtonElement;
     button.type = "button";
     button.title = action.description;
     const titleEl = ownerDoc.createElement("span");
-    titleEl.className = "llm-action-picker-title";
+    titleEl.className = "paperpilotaction-picker-title";
     titleEl.textContent = action.name;
     const descEl = ownerDoc.createElement("span");
-    descEl.className = "llm-action-picker-description";
+    descEl.className = "paperpilotaction-picker-description";
     descEl.textContent = firstSentence(action.description);
     button.append(titleEl, descEl);
     button.addEventListener("click", (event: Event) => {

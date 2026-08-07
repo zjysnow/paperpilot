@@ -100,7 +100,7 @@ async function executeCommand(params: {
             "TmpD",
             Components?.interfaces?.nsIFile,
           )?.path || "C:\\Windows\\Temp";
-        const tempOut = `${tempDir}\\zotero-llm-cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`;
+        const tempOut = `${tempDir}\\zotero-paperpilotcmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`;
         const wrappedCommand = `( ${command} ) > "${tempOut}" 2>&1`;
 
         const proc = await Subprocess.call({
@@ -213,7 +213,7 @@ async function executeCommand(params: {
     }
   } catch (error) {
     Zotero.debug?.(
-      `[llm-for-zotero] Subprocess.call failed: ${error instanceof Error ? error.message : String(error)}`,
+      `[paperpilotfor-zotero] Subprocess.call failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 

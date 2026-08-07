@@ -556,7 +556,7 @@ function isReasoningExpandedByDefault(): boolean {
 
 function setHistoryControlsDisabled(body: Element, disabled: boolean): void {
   const historyNewBtn = body.querySelector(
-    "#llm-history-new",
+    "#paperpilothistory-new",
   ) as HTMLButtonElement | null;
   if (historyNewBtn) {
     historyNewBtn.disabled = disabled;
@@ -566,7 +566,7 @@ function setHistoryControlsDisabled(body: Element, disabled: boolean): void {
     }
   }
   const historyToggleBtn = body.querySelector(
-    "#llm-history-toggle",
+    "#paperpilothistory-toggle",
   ) as HTMLButtonElement | null;
   if (historyToggleBtn) {
     historyToggleBtn.disabled = disabled;
@@ -577,13 +577,13 @@ function setHistoryControlsDisabled(body: Element, disabled: boolean): void {
   }
   if (disabled) {
     const historyNewMenu = body.querySelector(
-      "#llm-history-new-menu",
+      "#paperpilothistory-new-menu",
     ) as HTMLDivElement | null;
     if (historyNewMenu) {
       historyNewMenu.style.display = "none";
     }
     const historyMenu = body.querySelector(
-      "#llm-history-menu",
+      "#paperpilothistory-menu",
     ) as HTMLDivElement | null;
     if (historyMenu) {
       historyMenu.style.display = "none";
@@ -866,7 +866,7 @@ function renderUserBubbleContent(
   const match = text.match(/^\/(\S+)(\s[\s\S]*)?$/);
   if (match) {
     const badge = doc.createElement("span");
-    badge.className = "llm-command-badge";
+    badge.className = "paperpilotcommand-badge";
     badge.textContent = `/${match[1]}`;
     bubble.appendChild(badge);
     const rest = (match[2] || "").trim();
@@ -879,8 +879,8 @@ function renderUserBubbleContent(
 }
 
 const ASSISTANT_RESPONSE_CONTEXT_MENU_SUPPRESS_SELECTOR = [
-  ".llm-action-inline-card",
-  ".llm-agent-hitl-card",
+  ".paperpilotaction-inline-card",
+  ".paperpilotagent-hitl-card",
   "button",
   "input",
   "textarea",
@@ -1088,22 +1088,22 @@ function attachAssistantResponseContextMenu(params: {
       me.stopImmediatePropagation();
     }
     const responseMenu = body.querySelector(
-      "#llm-response-menu",
+      "#paperpilotresponse-menu",
     ) as HTMLDivElement | null;
     const exportMenu = body.querySelector(
-      "#llm-export-menu",
+      "#paperpilotexport-menu",
     ) as HTMLDivElement | null;
     const promptMenu = body.querySelector(
-      "#llm-prompt-menu",
+      "#paperpilotprompt-menu",
     ) as HTMLDivElement | null;
     const retryModelMenu = body.querySelector(
-      "#llm-retry-model-menu",
+      "#paperpilotretry-model-menu",
     ) as HTMLDivElement | null;
     const responseMenuDeleteBtn = responseMenu?.querySelector(
-      "#llm-response-menu-delete",
+      "#paperpilotresponse-menu-delete",
     ) as HTMLButtonElement | null;
     const responseMenuForkBtn = responseMenu?.querySelector(
-      "#llm-response-menu-fork",
+      "#paperpilotresponse-menu-fork",
     ) as HTMLButtonElement | null;
     const canDeleteResponseTurn = Boolean(
       pairedUserMessage?.role === "user" && !message.streaming,
@@ -1128,7 +1128,7 @@ function attachAssistantResponseContextMenu(params: {
     if (exportMenu) exportMenu.style.display = "none";
     if (promptMenu) promptMenu.style.display = "none";
     if (retryModelMenu) {
-      retryModelMenu.classList.remove("llm-model-menu-open");
+      retryModelMenu.classList.remove("paperpilotmodel-menu-open");
       retryModelMenu.style.display = "none";
     }
     setPromptMenuTarget(null);
@@ -1193,7 +1193,7 @@ function appendMessageMetaActionButton(params: {
     "button",
   ) as HTMLButtonElement;
   button.type = "button";
-  button.className = `llm-message-action ${params.className}`;
+  button.className = `paperpilotmessage-action ${params.className}`;
   button.title = params.title;
   button.setAttribute("aria-label", params.title);
   if (params.responseAction) {
@@ -1213,7 +1213,7 @@ function appendMessageMetaActionButton(params: {
       });
       if (!invoked) {
         const status = params.body!.querySelector(
-          "#llm-status",
+          "#paperpilotstatus",
         ) as HTMLElement | null;
         if (status) setStatus(status, "Response action unavailable", "error");
       }
@@ -1246,7 +1246,7 @@ export function appendUserMessageCopyAction(params: {
   const button = appendMessageMetaActionButton({
     doc: params.doc,
     actions: params.actions,
-    className: "llm-message-action-copy",
+    className: "paperpilotmessage-action-copy",
     title: "Copy query",
   });
   button.dataset.userAction = "copy";
@@ -1258,7 +1258,7 @@ export function appendUserMessageCopyAction(params: {
     }
     await copyTextToClipboard(params.body, params.message.text || "");
     const status = params.body.querySelector(
-      "#llm-status",
+      "#paperpilotstatus",
     ) as HTMLElement | null;
     if (status) setStatus(status, t("Copied query"), "ready");
   });
@@ -1283,7 +1283,7 @@ function getUserBubbleElement(wrapper: HTMLElement): HTMLDivElement | null {
   const children = Array.from(wrapper.children) as HTMLElement[];
   for (const child of children) {
     if (
-      child.classList.contains("llm-bubble") &&
+      child.classList.contains("paperpilotbubble") &&
       child.classList.contains("user")
     ) {
       return child as HTMLDivElement;
@@ -1293,24 +1293,24 @@ function getUserBubbleElement(wrapper: HTMLElement): HTMLDivElement | null {
 }
 
 export function syncUserContextAlignmentWidths(body: Element): void {
-  const chatBox = body.querySelector("#llm-chat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector("#paperpilotchat-box") as HTMLDivElement | null;
   if (!chatBox) return;
   const wrappers = Array.from(
     chatBox.querySelectorAll(
-      ".llm-message-wrapper.user.llm-user-context-aligned",
+      ".paperpilotmessage-wrapper.user.paperpilotuser-context-aligned",
     ),
   ) as HTMLDivElement[];
   for (const wrapper of wrappers) {
     const bubble = getUserBubbleElement(wrapper);
     if (!bubble) {
-      wrapper.style.removeProperty("--llm-user-bubble-width");
+      wrapper.style.removeProperty("--paperpilotuser-bubble-width");
       continue;
     }
     const bubbleWidth = Math.round(bubble.getBoundingClientRect().width);
     if (bubbleWidth > 0) {
-      wrapper.style.setProperty("--llm-user-bubble-width", `${bubbleWidth}px`);
+      wrapper.style.setProperty("--paperpilotuser-bubble-width", `${bubbleWidth}px`);
     } else {
-      wrapper.style.removeProperty("--llm-user-bubble-width");
+      wrapper.style.removeProperty("--paperpilotuser-bubble-width");
     }
   }
 }
@@ -1390,7 +1390,7 @@ function renderContextUsageSnapshot(
     tokenUsageEl,
     snapshot?.contextTokens || 0,
     snapshot?.contextWindow,
-    body.querySelector("#llm-claude-context-gauge") as HTMLElement | null,
+    body.querySelector("#paperpilotclaude-context-gauge") as HTMLElement | null,
     {
       estimated: snapshot?.estimated !== false,
       cacheReadTokens: snapshot?.cacheReadTokens,
@@ -2197,20 +2197,20 @@ export type PanelRequestUI = {
 
 function getPanelRequestUI(body: Element): PanelRequestUI {
   return {
-    inputBox: body.querySelector("#llm-input") as HTMLTextAreaElement | null,
-    chatBox: body.querySelector("#llm-chat-box") as HTMLDivElement | null,
-    sendBtn: body.querySelector("#llm-send") as HTMLButtonElement | null,
-    cancelBtn: body.querySelector("#llm-cancel") as HTMLButtonElement | null,
-    status: body.querySelector("#llm-status") as HTMLElement | null,
-    tokenUsageEl: body.querySelector("#llm-token-usage") as HTMLElement | null,
+    inputBox: body.querySelector("#paperpilotinput") as HTMLTextAreaElement | null,
+    chatBox: body.querySelector("#paperpilotchat-box") as HTMLDivElement | null,
+    sendBtn: body.querySelector("#paperpilotsend") as HTMLButtonElement | null,
+    cancelBtn: body.querySelector("#paperpilotcancel") as HTMLButtonElement | null,
+    status: body.querySelector("#paperpilotstatus") as HTMLElement | null,
+    tokenUsageEl: body.querySelector("#paperpilottoken-usage") as HTMLElement | null,
   };
 }
 
 function syncInlineActionCardAttr(body: Element): void {
-  const panelRoot = body.querySelector("#llm-main") as HTMLElement | null;
+  const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
   if (!panelRoot) return;
   const hasCard = Boolean(
-    body.querySelector(".llm-action-inline-card, .llm-action-progress-card"),
+    body.querySelector(".paperpilotaction-inline-card, .paperpilotaction-progress-card"),
   );
   if (hasCard) {
     panelRoot.dataset.hasActionCard = "true";
@@ -2225,7 +2225,7 @@ function findNativeMcpActionCard(
 ): HTMLElement | null {
   const cards = Array.from(
     chatBox.querySelectorAll(
-      ".llm-agent-hitl-card[data-request-id], .llm-action-inline-card[data-request-id]",
+      ".paperpilotagent-hitl-card[data-request-id], .paperpilotaction-inline-card[data-request-id]",
     ),
   ) as HTMLElement[];
   return cards.find((card) => card.dataset.requestId === requestId) || null;
@@ -2261,12 +2261,12 @@ function closeNativeMcpActionCard(body: Element, requestId?: string): void {
       findNativeMcpActionCard(chatBox, requestId) ||
       (
         Array.from(
-          chatBox.querySelectorAll(".llm-action-inline-card"),
+          chatBox.querySelectorAll(".paperpilotaction-inline-card"),
         ) as HTMLElement[]
       ).find((entry) => entry.dataset.requestId === requestId) ||
       null;
   } else {
-    card = chatBox.querySelector(".llm-action-inline-card");
+    card = chatBox.querySelector(".paperpilotaction-inline-card");
   }
   card?.remove();
   syncInlineActionCardAttr(body);
@@ -2330,9 +2330,9 @@ function showNativeMcpActionCard(
       });
       return;
     }
-    ui.chatBox.querySelector(".llm-action-inline-card")?.remove();
+    ui.chatBox.querySelector(".paperpilotaction-inline-card")?.remove();
     const wrapper = ownerDoc.createElement("div");
-    wrapper.className = "llm-action-inline-card llm-action-inline-card-review";
+    wrapper.className = "paperpilotaction-inline-card paperpilotaction-inline-card-review";
     wrapper.dataset.requestId = requestId;
     wrapper.appendChild(
       renderPendingActionCard(ownerDoc, { requestId, action }),
@@ -2436,7 +2436,7 @@ export async function resolveCodexNativeApprovalWithOptionalReviewCard(params: {
 
 function isPanelWebChatMode(body: Element): boolean {
   return (
-    (body.querySelector("#llm-main") as HTMLElement | null)?.dataset
+    (body.querySelector("#paperpilotmain") as HTMLElement | null)?.dataset
       ?.webchatMode === "true"
   );
 }
@@ -2511,7 +2511,7 @@ function getPanelBodyConversationKey(
   body: Element,
   fallbackItem?: Zotero.Item | null,
 ): number | null {
-  const panelRoot = body.querySelector("#llm-main") as HTMLElement | null;
+  const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
   const displayedKey = Number(panelRoot?.dataset.itemId || 0);
   if (Number.isFinite(displayedKey) && displayedKey > 0) {
     return displayedKey;
@@ -2611,7 +2611,7 @@ function setStatusForConversationPanels(
     primaryItem,
     (panelBody) => {
       const liveStatus = panelBody.querySelector(
-        "#llm-status",
+        "#paperpilotstatus",
       ) as HTMLElement | null;
       const status =
         liveStatus ||
@@ -2620,7 +2620,7 @@ function setStatusForConversationPanels(
           : null);
       if (!status) return;
       const liveChatBox = panelBody.querySelector(
-        "#llm-chat-box",
+        "#paperpilotchat-box",
       ) as HTMLDivElement | null;
       const chatBox =
         liveChatBox ||
@@ -2643,7 +2643,7 @@ function restoreRequestUIIdle(
   // Guard: only restore UI if the panel is still showing this conversation.
   // If the user switched away, the panel rebuild (onAsyncRender) will handle
   // the correct idle/busy state for the new conversation.
-  const panelRoot = body.querySelector("#llm-main") as HTMLElement | null;
+  const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
   if (panelRoot) {
     const displayedKey = Number(panelRoot.dataset.itemId || 0);
     if (displayedKey > 0 && displayedKey !== conversationKey) return;
@@ -4737,7 +4737,7 @@ function mountClaudeRoseThreeLoader(
   svg.setAttribute("viewBox", "0 0 100 100");
   svg.setAttribute("fill", "none");
   svg.setAttribute("aria-hidden", "true");
-  svg.classList.add("llm-rose-loader-svg");
+  svg.classList.add("paperpilotrose-loader-svg");
 
   const group = doc.createElementNS(
     ROSE_LOADER_SVG_NS,
@@ -8752,7 +8752,7 @@ export async function sendQuestion(
     return;
   }
   const ui = getPanelRequestUI(body);
-  const panelRoot = body.querySelector("#llm-main") as HTMLElement | null;
+  const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
   if (
     panelRoot &&
     (opts.providerProtocol === "web_sync" || opts.authMode === "webchat")
@@ -9759,7 +9759,7 @@ function buildInlineEditWidget(
   _conversationKey: number,
 ): HTMLDivElement {
   const widgetRoot = doc.createElement("div") as HTMLDivElement;
-  widgetRoot.className = "llm-inline-edit-wrapper";
+  widgetRoot.className = "paperpilotinline-edit-wrapper";
 
   // On first entry, grab the real input section and the inputBox from the panel.
   // Subsequent refreshes (e.g. streaming) reuse the saved reference so the
@@ -9768,7 +9768,7 @@ function buildInlineEditWidget(
   let inputSectionEl = inlineEditInputSectionEl;
   if (isFirstEntry) {
     inputSectionEl = body.querySelector(
-      ".llm-input-section",
+      ".paperpilotinput-section",
     ) as HTMLElement | null;
     if (inputSectionEl) {
       setInlineEditInputSection(
@@ -9781,8 +9781,8 @@ function buildInlineEditWidget(
 
   // The real input <textarea>
   const inputBoxEl =
-    (body.querySelector("#llm-input") as HTMLTextAreaElement | null) ??
-    (inputSectionEl?.querySelector("#llm-input") as HTMLTextAreaElement | null);
+    (body.querySelector("#paperpilotinput") as HTMLTextAreaElement | null) ??
+    (inputSectionEl?.querySelector("#paperpilotinput") as HTMLTextAreaElement | null);
 
   // On first entry: save draft and pre-fill with the user message
   if (isFirstEntry) {
@@ -9834,13 +9834,13 @@ function buildInlineEditWidget(
 
   // Header: "Editing" label + Cancel button
   const header = doc.createElement("div") as HTMLDivElement;
-  header.className = "llm-inline-edit-header";
+  header.className = "paperpilotinline-edit-header";
   const headerLabel = doc.createElement("span") as HTMLSpanElement;
-  headerLabel.className = "llm-inline-edit-header-label";
+  headerLabel.className = "paperpilotinline-edit-header-label";
   headerLabel.textContent = "Editing";
   const cancelBtn = doc.createElementNS(HTML_NS, "button") as HTMLButtonElement;
   cancelBtn.type = "button";
-  cancelBtn.className = "llm-inline-edit-header-cancel";
+  cancelBtn.className = "paperpilotinline-edit-header-cancel";
   cancelBtn.textContent = "Cancel";
   cancelBtn.addEventListener("mousedown", (e: Event) => {
     (e as MouseEvent).preventDefault();
@@ -9885,20 +9885,20 @@ export function renderCompactMarkerInto(
   pending: boolean,
 ): void {
   bubble.textContent = "";
-  bubble.classList.add("llm-compact-marker");
-  bubble.classList.toggle("llm-compact-marker-pending", pending);
+  bubble.classList.add("paperpilotcompact-marker");
+  bubble.classList.toggle("paperpilotcompact-marker-pending", pending);
 
   const leftRule = doc.createElement("span") as HTMLSpanElement;
-  leftRule.className = "llm-compact-marker-rule";
+  leftRule.className = "paperpilotcompact-marker-rule";
   const icon = doc.createElement("span") as HTMLSpanElement;
-  icon.className = "llm-compact-marker-icon";
+  icon.className = "paperpilotcompact-marker-icon";
   icon.setAttribute("aria-hidden", "true");
   const label = doc.createElement("span") as HTMLSpanElement;
-  label.className = "llm-compact-marker-label";
+  label.className = "paperpilotcompact-marker-label";
   label.textContent =
     text || (pending ? "Compacting context..." : "Context compacted");
   const rightRule = doc.createElement("span") as HTMLSpanElement;
-  rightRule.className = "llm-compact-marker-rule";
+  rightRule.className = "paperpilotcompact-marker-rule";
 
   bubble.append(leftRule, icon, label, rightRule);
 }
@@ -9910,22 +9910,22 @@ export function renderForkSourceMarkerInto(
   link: ConversationForkLink,
 ): void {
   bubble.textContent = "";
-  bubble.classList.add("llm-fork-source-marker");
+  bubble.classList.add("paperpilotfork-source-marker");
 
   const leftRule = doc.createElement("span") as HTMLSpanElement;
-  leftRule.className = "llm-fork-source-marker-rule";
+  leftRule.className = "paperpilotfork-source-marker-rule";
   const button = doc.createElementNS(HTML_NS, "button") as HTMLButtonElement;
   button.type = "button";
-  button.className = "llm-fork-source-marker-button";
+  button.className = "paperpilotfork-source-marker-button";
   button.title = t("Open original conversation");
   const icon = doc.createElement("span") as HTMLSpanElement;
-  icon.className = "llm-fork-source-marker-icon";
+  icon.className = "paperpilotfork-source-marker-icon";
   icon.setAttribute("aria-hidden", "true");
   const label = doc.createElement("span") as HTMLSpanElement;
-  label.className = "llm-fork-source-marker-label";
+  label.className = "paperpilotfork-source-marker-label";
   label.textContent = t("Forked from conversation");
   const rightRule = doc.createElement("span") as HTMLSpanElement;
-  rightRule.className = "llm-fork-source-marker-rule";
+  rightRule.className = "paperpilotfork-source-marker-rule";
 
   button.append(icon, label);
   button.addEventListener("click", async (event) => {
@@ -9953,7 +9953,7 @@ export function refreshChat(
   item?: Zotero.Item | null,
   options: RefreshChatOptions = {},
 ) {
-  const chatBox = body.querySelector("#llm-chat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector("#paperpilotchat-box") as HTMLDivElement | null;
   if (!chatBox) return;
   const doc = body.ownerDocument!;
   setPromptMenuTarget(null);
@@ -9965,13 +9965,13 @@ export function refreshChat(
 
   if (!item) {
     chatBox.innerHTML = `
-      <div class="llm-welcome">
-        <div class="llm-welcome-icon llm-context-svg-icon llm-context-icon-paper" aria-hidden="true"></div>
-        <div class="llm-welcome-text">Select an item or open a PDF to start.</div>
+      <div class="paperpilotwelcome">
+        <div class="paperpilotwelcome-icon paperpilotcontext-svg-icon paperpilotcontext-icon-paper" aria-hidden="true"></div>
+        <div class="paperpilotwelcome-text">Select an item or open a PDF to start.</div>
       </div>
     `;
     const tokenUsageEl = body.querySelector(
-      "#llm-token-usage",
+      "#paperpilottoken-usage",
     ) as HTMLElement | null;
     if (tokenUsageEl) tokenUsageEl.style.display = "none";
     return;
@@ -9980,9 +9980,9 @@ export function refreshChat(
   const conversationKey = getConversationKey(item);
   // Sync token counter for this conversation
   const tokenUsageEl = body.querySelector(
-    "#llm-token-usage",
+    "#paperpilottoken-usage",
   ) as HTMLElement | null;
-  const panelRoot = body.querySelector("#llm-main") as HTMLDivElement | null;
+  const panelRoot = body.querySelector("#paperpilotmain") as HTMLDivElement | null;
   const isGlobalConversation =
     isGlobalPortalItem(item) ||
     panelRoot?.dataset.conversationKind === "global";
@@ -10069,12 +10069,12 @@ export function refreshChat(
   // Animate transition from start page to chat mode
   const wasStartPage = panelRoot?.dataset.startPageActive === "true";
   if (wasStartPage && panelRoot) {
-    panelRoot.classList.add("llm-start-page-transitioning");
+    panelRoot.classList.add("paperpilotstart-page-transitioning");
     delete panelRoot.dataset.startPageActive;
     const win = body.ownerDocument?.defaultView;
     if (win) {
       win.setTimeout(() => {
-        panelRoot.classList.remove("llm-start-page-transitioning");
+        panelRoot.classList.remove("paperpilotstart-page-transitioning");
       }, 450);
     }
   }
@@ -10112,23 +10112,23 @@ export function refreshChat(
     );
     let hasUserContext = false;
     const wrapper = doc.createElement("div") as HTMLDivElement;
-    wrapper.className = `llm-message-wrapper ${isUser ? "user" : "assistant"}`;
+    wrapper.className = `paperpilotmessage-wrapper ${isUser ? "user" : "assistant"}`;
     wrapper.dataset.messageRole = msg.role;
     wrapper.dataset.messageIndex = `${index}`;
     wrapper.dataset.messageTimestamp = `${Math.floor(
       Number(msg.timestamp) || 0,
     )}`;
     if (!isUser && msg.compactMarker) {
-      wrapper.classList.add("llm-compact-marker-wrapper");
+      wrapper.classList.add("paperpilotcompact-marker-wrapper");
     }
 
     const bubble = doc.createElement("div") as HTMLDivElement;
-    bubble.className = `llm-bubble ${isUser ? "user" : "assistant"}`;
+    bubble.className = `paperpilotbubble ${isUser ? "user" : "assistant"}`;
     let inlineEditEl: HTMLElement | null = null;
 
     if (isUser) {
       const contextBadgesRow = doc.createElement("div") as HTMLDivElement;
-      contextBadgesRow.className = "llm-user-context-badges";
+      contextBadgesRow.className = "paperpilotuser-context-badges";
       let hasContextBadge = false;
 
       const screenshotImages = Array.isArray(msg.screenshotImages)
@@ -10169,16 +10169,16 @@ export function refreshChat(
           "button",
         ) as HTMLButtonElement;
         screenshotBar.type = "button";
-        screenshotBar.className = "llm-user-screenshots-bar";
+        screenshotBar.className = "paperpilotuser-screenshots-bar";
 
         const screenshotIcon = createContextIcon(
           doc,
           "image",
-          "llm-user-screenshots-icon",
+          "paperpilotuser-screenshots-icon",
         );
 
         const screenshotLabel = doc.createElement("span") as HTMLSpanElement;
-        screenshotLabel.className = "llm-user-screenshots-label";
+        screenshotLabel.className = "paperpilotuser-screenshots-label";
         screenshotLabel.textContent = formatFigureCountLabel(
           screenshotImages.length,
         );
@@ -10186,16 +10186,16 @@ export function refreshChat(
         screenshotBar.append(screenshotIcon, screenshotLabel);
 
         const screenshotExpandedEl = doc.createElement("div") as HTMLDivElement;
-        screenshotExpandedEl.className = "llm-user-screenshots-expanded";
+        screenshotExpandedEl.className = "paperpilotuser-screenshots-expanded";
         screenshotExpanded = screenshotExpandedEl;
 
         const thumbStrip = doc.createElement("div") as HTMLDivElement;
-        thumbStrip.className = "llm-user-screenshots-thumbs";
+        thumbStrip.className = "paperpilotuser-screenshots-thumbs";
 
         const previewWrap = doc.createElement("div") as HTMLDivElement;
-        previewWrap.className = "llm-user-screenshots-preview";
+        previewWrap.className = "paperpilotuser-screenshots-preview";
         const previewImg = doc.createElement("img") as HTMLImageElement;
-        previewImg.className = "llm-user-screenshots-preview-img";
+        previewImg.className = "paperpilotuser-screenshots-preview-img";
         previewImg.alt = "Screenshot preview";
         previewWrap.appendChild(previewImg);
 
@@ -10206,11 +10206,11 @@ export function refreshChat(
             "button",
           ) as HTMLButtonElement;
           thumbBtn.type = "button";
-          thumbBtn.className = "llm-user-screenshot-thumb";
+          thumbBtn.className = "paperpilotuser-screenshot-thumb";
           thumbBtn.title = `Screenshot ${index + 1}`;
 
           const thumbImg = doc.createElement("img") as HTMLImageElement;
-          thumbImg.className = "llm-user-screenshot-thumb-img";
+          thumbImg.className = "paperpilotuser-screenshot-thumb-img";
           thumbImg.src = imageUrl;
           thumbImg.alt = `Screenshot ${index + 1}`;
           thumbBtn.appendChild(thumbImg);
@@ -10305,16 +10305,16 @@ export function refreshChat(
         ) as HTMLButtonElement;
         collectionsBar.type = "button";
         collectionsBar.className =
-          "llm-user-papers-bar llm-user-collections-bar";
+          "paperpilotuser-papers-bar paperpilotuser-collections-bar";
 
         const collectionsIcon = createContextIcon(
           doc,
           "collection",
-          "llm-user-papers-icon",
+          "paperpilotuser-papers-icon",
         );
 
         const collectionsLabel = doc.createElement("span") as HTMLSpanElement;
-        collectionsLabel.className = "llm-user-papers-label";
+        collectionsLabel.className = "paperpilotuser-papers-label";
         collectionsLabel.textContent =
           selectedCollectionContexts.length === 1
             ? "Collection"
@@ -10328,23 +10328,23 @@ export function refreshChat(
           "div",
         ) as HTMLDivElement;
         collectionsExpandedEl.className =
-          "llm-user-papers-expanded llm-user-collections-expanded";
+          "paperpilotuser-papers-expanded paperpilotuser-collections-expanded";
         collectionsExpanded = collectionsExpandedEl;
         const collectionsList = doc.createElement("div") as HTMLDivElement;
         collectionsList.className =
-          "llm-user-papers-list llm-user-collections-list";
+          "paperpilotuser-papers-list paperpilotuser-collections-list";
         for (const collectionContext of selectedCollectionContexts) {
           const collectionItem = doc.createElement("div") as HTMLDivElement;
           collectionItem.className =
-            "llm-user-papers-item llm-user-collections-item";
+            "paperpilotuser-papers-item paperpilotuser-collections-item";
 
           const collectionTitle = doc.createElement("span") as HTMLSpanElement;
-          collectionTitle.className = "llm-user-papers-item-title";
+          collectionTitle.className = "paperpilotuser-papers-item-title";
           collectionTitle.textContent = collectionContext.name;
           collectionTitle.title = collectionContext.name;
 
           const collectionMeta = doc.createElement("span") as HTMLSpanElement;
-          collectionMeta.className = "llm-user-papers-item-meta";
+          collectionMeta.className = "paperpilotuser-papers-item-meta";
           collectionMeta.textContent = `collectionId=${collectionContext.collectionId}`;
           collectionMeta.title = collectionMeta.textContent;
 
@@ -10399,11 +10399,11 @@ export function refreshChat(
           "button",
         ) as HTMLButtonElement;
         tagsBar.type = "button";
-        tagsBar.className = "llm-user-papers-bar llm-user-tags-bar";
+        tagsBar.className = "paperpilotuser-papers-bar paperpilotuser-tags-bar";
 
-        const tagsIcon = createContextIcon(doc, "tag", "llm-user-papers-icon");
+        const tagsIcon = createContextIcon(doc, "tag", "paperpilotuser-papers-icon");
         const tagsLabel = doc.createElement("span") as HTMLSpanElement;
-        tagsLabel.className = "llm-user-papers-label";
+        tagsLabel.className = "paperpilotuser-papers-label";
         tagsLabel.textContent =
           selectedTagContexts.length === 1 ? "Tag" : "Tags";
         tagsLabel.title = selectedTagContexts
@@ -10413,21 +10413,21 @@ export function refreshChat(
 
         const tagsExpandedEl = doc.createElement("div") as HTMLDivElement;
         tagsExpandedEl.className =
-          "llm-user-papers-expanded llm-user-tags-expanded";
+          "paperpilotuser-papers-expanded paperpilotuser-tags-expanded";
         tagsExpanded = tagsExpandedEl;
         const tagsList = doc.createElement("div") as HTMLDivElement;
-        tagsList.className = "llm-user-papers-list llm-user-tags-list";
+        tagsList.className = "paperpilotuser-papers-list paperpilotuser-tags-list";
         for (const tagContext of selectedTagContexts) {
           const tagItem = doc.createElement("div") as HTMLDivElement;
-          tagItem.className = "llm-user-papers-item llm-user-tags-item";
+          tagItem.className = "paperpilotuser-papers-item paperpilotuser-tags-item";
 
           const tagTitle = doc.createElement("span") as HTMLSpanElement;
-          tagTitle.className = "llm-user-papers-item-title";
+          tagTitle.className = "paperpilotuser-papers-item-title";
           tagTitle.textContent = tagContext.name;
           tagTitle.title = tagContext.name;
 
           const tagMeta = doc.createElement("span") as HTMLSpanElement;
-          tagMeta.className = "llm-user-papers-item-meta";
+          tagMeta.className = "paperpilotuser-papers-item-meta";
           tagMeta.textContent = tagContext.scope
             ? `tagScope=${tagContext.scope}`
             : "tag";
@@ -10487,16 +10487,16 @@ export function refreshChat(
           "button",
         ) as HTMLButtonElement;
         papersBar.type = "button";
-        papersBar.className = "llm-user-papers-bar";
+        papersBar.className = "paperpilotuser-papers-bar";
 
         const papersIcon = createContextIcon(
           doc,
           "paper",
-          "llm-user-papers-icon",
+          "paperpilotuser-papers-icon",
         );
 
         const papersLabel = doc.createElement("span") as HTMLSpanElement;
-        papersLabel.className = "llm-user-papers-label";
+        papersLabel.className = "paperpilotuser-papers-label";
         papersLabel.textContent = formatPaperCountLabel(paperContexts.length);
         papersLabel.title = displayPaperContexts
           .map((entry) => entry.title)
@@ -10504,25 +10504,25 @@ export function refreshChat(
         papersBar.append(papersIcon, papersLabel);
 
         const papersExpandedEl = doc.createElement("div") as HTMLDivElement;
-        papersExpandedEl.className = "llm-user-papers-expanded";
+        papersExpandedEl.className = "paperpilotuser-papers-expanded";
         papersExpanded = papersExpandedEl;
         const papersList = doc.createElement("div") as HTMLDivElement;
-        papersList.className = "llm-user-papers-list";
+        papersList.className = "paperpilotuser-papers-list";
         for (const paperContext of displayPaperContexts) {
           const paperItem = doc.createElement("div") as HTMLDivElement;
-          paperItem.className = "llm-user-papers-item";
+          paperItem.className = "paperpilotuser-papers-item";
           paperItem.classList.toggle(
-            "llm-user-papers-item-pdf",
+            "paperpilotuser-papers-item-pdf",
             paperContext.contentSourceMode === "pdf",
           );
 
           const paperTitle = doc.createElement("span") as HTMLSpanElement;
-          paperTitle.className = "llm-user-papers-item-title";
+          paperTitle.className = "paperpilotuser-papers-item-title";
           paperTitle.textContent = paperContext.title;
           paperTitle.title = paperContext.title;
 
           const paperMeta = doc.createElement("span") as HTMLSpanElement;
-          paperMeta.className = "llm-user-papers-item-meta";
+          paperMeta.className = "paperpilotuser-papers-item-meta";
           const metaParts = [
             paperContext.firstCreator || "",
             paperContext.year || "",
@@ -10534,7 +10534,7 @@ export function refreshChat(
             paperContext.attachmentTitle ||
             (paperContext.contentSourceMode === "pdf" ? "PDF file" : "");
           const paperAttachment = doc.createElement("span") as HTMLSpanElement;
-          paperAttachment.className = "llm-user-papers-item-attachment";
+          paperAttachment.className = "paperpilotuser-papers-item-attachment";
           paperAttachment.textContent = attachmentTitle;
           paperAttachment.title = attachmentTitle;
 
@@ -10602,22 +10602,22 @@ export function refreshChat(
           "button",
         ) as HTMLButtonElement;
         filesBar.type = "button";
-        filesBar.className = "llm-user-files-bar";
+        filesBar.className = "paperpilotuser-files-bar";
 
-        const filesIcon = createContextIcon(doc, "file", "llm-user-files-icon");
+        const filesIcon = createContextIcon(doc, "file", "paperpilotuser-files-icon");
 
         const filesLabel = doc.createElement("span") as HTMLSpanElement;
-        filesLabel.className = "llm-user-files-label";
+        filesLabel.className = "paperpilotuser-files-label";
         filesLabel.textContent = `Files (${fileAttachments.length})`;
         filesLabel.title = fileAttachments.map((f) => f.name).join("\n");
 
         filesBar.append(filesIcon, filesLabel);
 
         const filesExpandedEl = doc.createElement("div") as HTMLDivElement;
-        filesExpandedEl.className = "llm-user-files-expanded";
+        filesExpandedEl.className = "paperpilotuser-files-expanded";
         filesExpanded = filesExpandedEl;
         const filesList = doc.createElement("div") as HTMLDivElement;
-        filesList.className = "llm-user-files-list";
+        filesList.className = "paperpilotuser-files-list";
 
         for (const attachment of fileAttachments) {
           const canOpen = Boolean(toFileUrl(attachment.storedPath));
@@ -10626,9 +10626,9 @@ export function refreshChat(
               ? doc.createElementNS(HTML_NS, "button")
               : doc.createElement("div")
           ) as HTMLButtonElement | HTMLDivElement;
-          fileItem.className = "llm-user-files-item";
+          fileItem.className = "paperpilotuser-files-item";
           if (canOpen) {
-            fileItem.classList.add("llm-user-files-item-openable");
+            fileItem.classList.add("paperpilotuser-files-item-openable");
             (fileItem as HTMLButtonElement).type = "button";
             (fileItem as HTMLButtonElement).title = `Open ${attachment.name}`;
             fileItem.addEventListener("mousedown", (e: Event) => {
@@ -10652,20 +10652,20 @@ export function refreshChat(
           }
 
           const fileType = doc.createElement("span") as HTMLSpanElement;
-          fileType.className = "llm-user-files-item-type";
+          fileType.className = "paperpilotuser-files-item-type";
           fileType.textContent = getAttachmentTypeLabel(attachment);
           fileType.title = attachment.mimeType || attachment.category || "file";
 
           const fileInfo = doc.createElement("div") as HTMLDivElement;
-          fileInfo.className = "llm-user-files-item-text";
+          fileInfo.className = "paperpilotuser-files-item-text";
 
           const fileName = doc.createElement("span") as HTMLSpanElement;
-          fileName.className = "llm-user-files-item-name";
+          fileName.className = "paperpilotuser-files-item-name";
           fileName.textContent = attachment.name;
           fileName.title = attachment.name;
 
           const fileMeta = doc.createElement("span") as HTMLSpanElement;
-          fileMeta.className = "llm-user-files-item-meta";
+          fileMeta.className = "paperpilotuser-files-item-meta";
           fileMeta.textContent = `${attachment.mimeType || "application/octet-stream"} · ${(attachment.sizeBytes / 1024 / 1024).toFixed(2)} MB`;
 
           fileInfo.append(fileName, fileMeta);
@@ -10760,23 +10760,23 @@ export function refreshChat(
             "button",
           ) as HTMLButtonElement;
           selectedBar.type = "button";
-          selectedBar.className = "llm-user-selected-text";
+          selectedBar.className = "paperpilotuser-selected-text";
           selectedBar.dataset.contextSource = selectedSource;
 
           const selectedIcon = createSelectedTextSourceIcon(
             doc,
             selectedSource,
-            "llm-user-selected-text-icon",
+            "paperpilotuser-selected-text-icon",
           );
 
           const selectedContent = doc.createElement("span") as HTMLSpanElement;
-          selectedContent.className = "llm-user-selected-text-content";
+          selectedContent.className = "paperpilotuser-selected-text-content";
           selectedContent.textContent = selectedTextPaperLabel
             ? `${selectedTextPaperLabel} - ${selectedText}`
             : selectedText;
 
           const selectedExpanded = doc.createElement("div") as HTMLDivElement;
-          selectedExpanded.className = "llm-user-selected-text-expanded";
+          selectedExpanded.className = "paperpilotuser-selected-text-expanded";
           selectedExpanded.textContent = selectedTextPaperLabel
             ? `${selectedTextPaperLabel}\n\n${selectedText}`
             : selectedText;
@@ -10842,7 +10842,7 @@ export function refreshChat(
       } else {
         renderUserBubbleContent(bubble, sanitizeText(msg.text || ""), doc);
         if (canEditUserPrompt) {
-          bubble.classList.add("llm-bubble-editable");
+          bubble.classList.add("paperpilotbubble-editable");
           bubble.addEventListener("click", (e: Event) => {
             if ((e.target as Element | null)?.closest("a, button")) return;
             e.preventDefault();
@@ -10876,22 +10876,22 @@ export function refreshChat(
             me.stopImmediatePropagation();
           }
           const promptMenu = body.querySelector(
-            "#llm-prompt-menu",
+            "#paperpilotprompt-menu",
           ) as HTMLDivElement | null;
           const responseMenu = body.querySelector(
-            "#llm-response-menu",
+            "#paperpilotresponse-menu",
           ) as HTMLDivElement | null;
           const exportMenu = body.querySelector(
-            "#llm-export-menu",
+            "#paperpilotexport-menu",
           ) as HTMLDivElement | null;
           const retryModelMenu = body.querySelector(
-            "#llm-retry-model-menu",
+            "#paperpilotretry-model-menu",
           ) as HTMLDivElement | null;
           const promptMenuDeleteBtn = promptMenu?.querySelector(
-            "#llm-prompt-menu-delete",
+            "#paperpilotprompt-menu-delete",
           ) as HTMLButtonElement | null;
           const promptMenuForkBtn = promptMenu?.querySelector(
-            "#llm-prompt-menu-fork",
+            "#paperpilotprompt-menu-fork",
           ) as HTMLButtonElement | null;
           if (!promptMenu) return;
           const canForkPromptTurn =
@@ -10914,7 +10914,7 @@ export function refreshChat(
           if (responseMenu) responseMenu.style.display = "none";
           if (exportMenu) exportMenu.style.display = "none";
           if (retryModelMenu) {
-            retryModelMenu.classList.remove("llm-model-menu-open");
+            retryModelMenu.classList.remove("paperpilotmodel-menu-open");
             retryModelMenu.style.display = "none";
           }
           setResponseMenuTarget(null);
@@ -11002,10 +11002,10 @@ export function refreshChat(
 
       if (hasModelName && !msg.compactMarker) {
         const modelHeader = doc.createElement("div") as HTMLDivElement;
-        modelHeader.className = "llm-model-header";
+        modelHeader.className = "paperpilotmodel-header";
 
         const modelName = doc.createElement("div") as HTMLDivElement;
-        modelName.className = "llm-model-name";
+        modelName.className = "paperpilotmodel-name";
         modelName.textContent = formatDisplayModelName(
           msg.modelName,
           msg.modelProviderLabel,
@@ -11018,7 +11018,7 @@ export function refreshChat(
 
         if (!hasAnswerText && msg.streaming && isClaudeStreamingConversation) {
           const roseLoader = doc.createElement("span") as HTMLSpanElement;
-          roseLoader.className = "llm-rose-loader llm-rose-loader-inline";
+          roseLoader.className = "paperpilotrose-loader paperpilotrose-loader-inline";
           mountClaudeRoseThreeLoader(
             roseLoader,
             msg.waitingAnimationStartedAt || msg.timestamp || Date.now(),
@@ -11035,11 +11035,11 @@ export function refreshChat(
         (hasReasoningSummary || hasReasoningDetails) && msg.runMode !== "agent";
       if (showTopReasoningPanel) {
         const details = doc.createElement("details") as HTMLDetailsElement;
-        details.className = "llm-agent-reasoning";
+        details.className = "paperpilotagent-reasoning";
         details.open = Boolean(msg.reasoningOpen);
 
         const summary = doc.createElement("summary") as HTMLElement;
-        summary.className = "llm-agent-reasoning-summary";
+        summary.className = "paperpilotagent-reasoning-summary";
         summary.textContent = "Thinking";
         const toggleReasoning = (e: Event) => {
           e.preventDefault();
@@ -11064,16 +11064,16 @@ export function refreshChat(
         details.appendChild(summary);
 
         const bodyWrap = doc.createElement("div") as HTMLDivElement;
-        bodyWrap.className = "llm-agent-reasoning-body";
+        bodyWrap.className = "paperpilotagent-reasoning-body";
 
         if (hasReasoningSummary) {
           const summaryBlock = doc.createElement("div") as HTMLDivElement;
-          summaryBlock.className = "llm-agent-reasoning-block";
+          summaryBlock.className = "paperpilotagent-reasoning-block";
           const label = doc.createElement("div") as HTMLDivElement;
-          label.className = "llm-agent-reasoning-label";
+          label.className = "paperpilotagent-reasoning-label";
           label.textContent = "Summary";
           const text = doc.createElement("div") as HTMLDivElement;
-          text.className = "llm-agent-reasoning-text";
+          text.className = "paperpilotagent-reasoning-text";
           const reasoningSummaryText = buildAssistantDisplayMarkdownForRender({
             text: msg.reasoningSummary || "",
             quoteCitations: msg.quoteCitations,
@@ -11090,12 +11090,12 @@ export function refreshChat(
 
         if (hasReasoningDetails) {
           const detailsBlock = doc.createElement("div") as HTMLDivElement;
-          detailsBlock.className = "llm-agent-reasoning-block";
+          detailsBlock.className = "paperpilotagent-reasoning-block";
           const label = doc.createElement("div") as HTMLDivElement;
-          label.className = "llm-agent-reasoning-label";
+          label.className = "paperpilotagent-reasoning-label";
           label.textContent = "Details";
           const text = doc.createElement("div") as HTMLDivElement;
-          text.className = "llm-agent-reasoning-text";
+          text.className = "paperpilotagent-reasoning-text";
           const reasoningDetailsText = buildAssistantDisplayMarkdownForRender({
             text: msg.reasoningDetails || "",
             quoteCitations: msg.quoteCitations,
@@ -11133,7 +11133,7 @@ export function refreshChat(
           },
           onImageActionStatus: (message, level) => {
             const status = body.querySelector(
-              "#llm-status",
+              "#paperpilotstatus",
             ) as HTMLElement | null;
             if (status) setStatus(status, message, level);
           },
@@ -11154,9 +11154,9 @@ export function refreshChat(
         !(msg.streaming && isClaudeStreamingConversation)
       ) {
         const typing = doc.createElement("div") as HTMLDivElement;
-        typing.className = "llm-typing";
+        typing.className = "paperpilottyping";
         typing.innerHTML =
-          '<span class="llm-typing-dot"></span><span class="llm-typing-dot"></span><span class="llm-typing-dot"></span>';
+          '<span class="paperpilottyping-dot"></span><span class="paperpilottyping-dot"></span><span class="paperpilottyping-dot"></span>';
         bubble.appendChild(typing);
       }
 
@@ -11174,15 +11174,15 @@ export function refreshChat(
     }
 
     const meta = doc.createElement("div") as HTMLDivElement;
-    meta.className = "llm-message-meta";
+    meta.className = "paperpilotmessage-meta";
 
     const time = doc.createElement("span") as HTMLSpanElement;
-    time.className = "llm-message-time";
+    time.className = "paperpilotmessage-time";
     time.textContent = formatTime(msg.timestamp);
     meta.appendChild(time);
     if (isUser && shouldShowUserFooterCopyAction(msg)) {
       const actions = doc.createElement("div") as HTMLDivElement;
-      actions.className = "llm-message-actions";
+      actions.className = "paperpilotmessage-actions";
       appendUserMessageCopyAction({
         body,
         doc,
@@ -11219,7 +11219,7 @@ export function refreshChat(
         contentTarget: actionResponseTarget,
       });
       const actions = doc.createElement("div") as HTMLDivElement;
-      actions.className = "llm-message-actions";
+      actions.className = "paperpilotmessage-actions";
 
       if (
         index === latestAssistantIndex &&
@@ -11231,7 +11231,7 @@ export function refreshChat(
           body,
           doc,
           actions,
-          className: "llm-message-action-retry llm-retry-latest",
+          className: "paperpilotmessage-action-retry paperpilotretry-latest",
           title: "Retry response with another model",
         });
       }
@@ -11241,7 +11241,7 @@ export function refreshChat(
           body,
           doc,
           actions,
-          className: "llm-message-action-copy",
+          className: "paperpilotmessage-action-copy",
           title: "Copy response",
           responseAction: "copy",
           responseTarget: actionResponseTarget,
@@ -11253,7 +11253,7 @@ export function refreshChat(
           body,
           doc,
           actions,
-          className: "llm-message-action-note",
+          className: "paperpilotmessage-action-note",
           title: "Save as note",
           responseAction: "note",
           responseTarget: actionResponseTarget,
@@ -11277,7 +11277,7 @@ export function refreshChat(
           body,
           doc,
           actions,
-          className: "llm-message-action-fork",
+          className: "paperpilotmessage-action-fork",
           title: "Fork this turn",
           responseAction: "fork",
           responseTarget: actionDeleteTarget,
@@ -11291,7 +11291,7 @@ export function refreshChat(
           body,
           doc,
           actions,
-          className: "llm-message-action-delete",
+          className: "paperpilotmessage-action-delete",
           title: "Delete this turn",
           responseAction: "delete",
           responseTarget: actionDeleteTarget,
@@ -11312,10 +11312,10 @@ export function refreshChat(
       const webchatStateLabel = getWebChatRunStateLabel(msg);
       if (webchatStateLabel) {
         webchatStatusRow = doc.createElement("div") as HTMLDivElement;
-        webchatStatusRow.className = "llm-message-webchat-status-row";
+        webchatStatusRow.className = "paperpilotmessage-webchat-status-row";
 
         const status = doc.createElement("span") as HTMLSpanElement;
-        status.className = "llm-message-webchat-status";
+        status.className = "paperpilotmessage-webchat-status";
         status.textContent = webchatStateLabel;
         webchatStatusRow.appendChild(status);
 
@@ -11324,7 +11324,7 @@ export function refreshChat(
           HTML_NS,
           "button",
         ) as HTMLButtonElement;
-        refreshBtn.className = "llm-message-webchat-refresh";
+        refreshBtn.className = "paperpilotmessage-webchat-refresh";
         refreshBtn.textContent = "\u21BB";
         refreshBtn.title = "Re-fetch this conversation from webchat";
         refreshBtn.addEventListener("click", async () => {
@@ -11379,9 +11379,9 @@ export function refreshChat(
     let interruptedRow: HTMLDivElement | null = null;
     if (!isUser && msg.interrupted) {
       interruptedRow = doc.createElement("div") as HTMLDivElement;
-      interruptedRow.className = "llm-message-interrupted-row";
+      interruptedRow.className = "paperpilotmessage-interrupted-row";
       const note = doc.createElement("span") as HTMLSpanElement;
-      note.className = "llm-message-interrupted-note";
+      note.className = "paperpilotmessage-interrupted-note";
       note.textContent = `⚠ ${getStreamInterruptionLabel()}`;
       interruptedRow.appendChild(note);
     }
@@ -11408,15 +11408,15 @@ export function refreshChat(
     ) {
       const markerWrapper = doc.createElement("div") as HTMLDivElement;
       markerWrapper.className =
-        "llm-message-wrapper llm-fork-source-marker-wrapper";
+        "paperpilotmessage-wrapper paperpilotfork-source-marker-wrapper";
       const markerBubble = doc.createElement("div") as HTMLDivElement;
-      markerBubble.className = "llm-bubble";
+      markerBubble.className = "paperpilotbubble";
       renderForkSourceMarkerInto(markerBubble, body, doc, forkLink);
       markerWrapper.appendChild(markerBubble);
       chatBox.appendChild(markerWrapper);
     }
     if (isUser && hasUserContext) {
-      wrapper.classList.add("llm-user-context-aligned");
+      wrapper.classList.add("paperpilotuser-context-aligned");
     }
   }
 
@@ -11468,7 +11468,7 @@ export function refreshConversationPanels(
   const conversationKey = getConversationKey(primaryItem);
   const refreshedPanels = new Set<Element>();
   const refreshOne = (body: Element, item: Zotero.Item) => {
-    const panelRoot = body.querySelector("#llm-main") as HTMLElement | null;
+    const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
     const displayedKey = Number(panelRoot?.dataset.itemId || 0);
     if (
       Number.isFinite(displayedKey) &&
@@ -11478,7 +11478,7 @@ export function refreshConversationPanels(
       return;
     }
     const chatBox = body.querySelector(
-      "#llm-chat-box",
+      "#paperpilotchat-box",
     ) as HTMLDivElement | null;
     if (includeChat && !chatBox) return;
     const syncPanelState = activeContextPanelStateSync.get(body);

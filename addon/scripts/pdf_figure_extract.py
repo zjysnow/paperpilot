@@ -30,7 +30,7 @@ from scipy import ndimage
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MINERU_ROOT = Path(
-    os.environ.get("LLM_FOR_ZOTERO_MINERU_ROOT", "~/Zotero/llm-for-zotero-mineru")
+    os.environ.get("LLM_FOR_ZOTERO_MINERU_ROOT", "~/Zotero/paperpilotfor-zotero-mineru")
 ).expanduser()
 DEFAULT_ZOTERO_STORAGE = Path(
     os.environ.get("LLM_FOR_ZOTERO_STORAGE", "~/Zotero/storage")

@@ -400,7 +400,7 @@ export async function preflightCodexZoteroMcpServer(
           protocolVersion: "2025-06-18",
           capabilities: {},
           clientInfo: {
-            name: "llm-for-zotero-codex-preflight",
+            name: "paperpilotfor-zotero-codex-preflight",
             version: "1.0.0",
           },
         },

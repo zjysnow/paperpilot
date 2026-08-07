@@ -8,21 +8,21 @@
  * post streaming partials, and submit final responses.
  *
  * Endpoints:
- *   POST /llm-for-zotero/webchat/submit_query
- *   GET  /llm-for-zotero/webchat/poll_query
- *   GET  /llm-for-zotero/webchat/poll_response
- *   POST /llm-for-zotero/webchat/update_partial
- *   POST /llm-for-zotero/webchat/submit_response
- *   GET  /llm-for-zotero/webchat/poll_command
- *   POST /llm-for-zotero/webchat/new_chat
- *   GET  /llm-for-zotero/webchat/chat_history
- *   POST /llm-for-zotero/webchat/chat_history
- *   POST /llm-for-zotero/webchat/update_chat_history
- *   POST /llm-for-zotero/webchat/update_chat_url
- *   POST /llm-for-zotero/webchat/load_chat
+ *   POST /paperpilotfor-zotero/webchat/submit_query
+ *   GET  /paperpilotfor-zotero/webchat/poll_query
+ *   GET  /paperpilotfor-zotero/webchat/poll_response
+ *   POST /paperpilotfor-zotero/webchat/update_partial
+ *   POST /paperpilotfor-zotero/webchat/submit_response
+ *   GET  /paperpilotfor-zotero/webchat/poll_command
+ *   POST /paperpilotfor-zotero/webchat/new_chat
+ *   GET  /paperpilotfor-zotero/webchat/chat_history
+ *   POST /paperpilotfor-zotero/webchat/chat_history
+ *   POST /paperpilotfor-zotero/webchat/update_chat_history
+ *   POST /paperpilotfor-zotero/webchat/update_chat_url
+ *   POST /paperpilotfor-zotero/webchat/load_chat
  */
 
-const PREFIX = "/llm-for-zotero/webchat";
+const PREFIX = "/paperpilotfor-zotero/webchat";
 const PRE_SUBMIT_RECLAIM_MS = 120_000;
 const PIPELINE_TIMEOUT_MS = 180_000;
 

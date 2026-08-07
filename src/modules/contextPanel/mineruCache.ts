@@ -16,7 +16,7 @@ import {
 export { getManifestFigureBaseLabel } from "./mineruFigureBlocks";
 export type ContentListEntry = MineruContentListEntry;
 
-const MINERU_CACHE_DIR_NAME = "llm-for-zotero-mineru";
+const MINERU_CACHE_DIR_NAME = "paperpilotfor-zotero-mineru";
 export const MINERU_SOURCE_PROVENANCE_FILE = "_llm_source.json";
 
 export type MineruCacheFile = {
@@ -25,7 +25,7 @@ export type MineruCacheFile = {
 };
 
 export const MINERU_SOURCE_PROVENANCE_KIND =
-  "llm-for-zotero/mineru-cache-source";
+  "paperpilotfor-zotero/mineru-cache-source";
 export const MINERU_SOURCE_PROVENANCE_VERSION = 2;
 
 export type MineruSourceOrigin = "parsed" | "restored";

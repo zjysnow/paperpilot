@@ -115,7 +115,7 @@ function readRuntimeSystemToggles(
   return (
     Array.from(
       group.querySelectorAll(
-        ".llm-runtime-system-toggle[data-conversation-system]",
+        ".paperpilotruntime-system-toggle[data-conversation-system]",
       ),
     ) as HTMLButtonElement[]
   )
@@ -196,7 +196,7 @@ function getVisibleRuntimeButtonRects(group: HTMLElement): DOMRect[] {
   return (
     Array.from(
       group.querySelectorAll(
-        ".llm-runtime-system-toggle[data-conversation-system]",
+        ".paperpilotruntime-system-toggle[data-conversation-system]",
       ),
     ) as HTMLElement[]
   )
@@ -232,8 +232,8 @@ function getWorkflowDocument(): Document {
 
 function appendHost(doc: Document): HTMLElement {
   const host = doc.createElement("div");
-  host.className = "llm-workflow-test-host";
-  host.setAttribute("data-llm-workflow-test", "true");
+  host.className = "paperpilotworkflow-test-host";
+  host.setAttribute("data-paperpilotworkflow-test", "true");
   host.style.position = "fixed";
   host.style.left = "-10000px";
   host.style.top = "0";
@@ -342,7 +342,7 @@ async function writeTempFile(
   data: Uint8Array,
 ): Promise<string> {
   const path = getTempPath(
-    `llm-for-zotero-workflow-${Date.now()}-${sanitizeTempFilename(filename)}`,
+    `paperpilotfor-zotero-workflow-${Date.now()}-${sanitizeTempFilename(filename)}`,
   );
   const ioUtils = (
     globalThis as unknown as {
@@ -606,7 +606,7 @@ async function startNewPanelConversation(
   assertWorkflowTestEnabled();
   const panel = getPanel(panelId);
   const before = await getDiagnostics(panelId);
-  dispatchWorkflowClick(panel.body, "#llm-history-new", "New chat button");
+  dispatchWorkflowClick(panel.body, "#paperpilothistory-new", "New chat button");
   return waitForPanelConversationChange({
     panelId,
     previousConversationKey: before.conversationKey,
@@ -619,7 +619,7 @@ async function togglePanelConversationMode(
   assertWorkflowTestEnabled();
   const panel = getPanel(panelId);
   const before = await getDiagnostics(panelId);
-  dispatchWorkflowClick(panel.body, "#llm-mode-chip", "Chat mode button");
+  dispatchWorkflowClick(panel.body, "#paperpilotmode-chip", "Chat mode button");
   return waitForPanelConversationChange({
     panelId,
     previousConversationKind: before.conversationKind,
@@ -632,7 +632,7 @@ async function exerciseDuplicatePanelSetup(
   assertWorkflowTestEnabled();
   const panel = getPanel(panelId);
   const panelRootBefore = panel.body.querySelector(
-    "#llm-main",
+    "#paperpilotmain",
   ) as HTMLElement | null;
   if (!panelRootBefore) {
     throw new Error(`Panel ${panelId} has no mounted root`);
@@ -645,7 +645,7 @@ async function exerciseDuplicatePanelSetup(
   setupHandlers(panel.body, mountedItem);
 
   const panelRootAfter = panel.body.querySelector(
-    "#llm-main",
+    "#paperpilotmain",
   ) as HTMLElement | null;
   return {
     samePanelRoot: panelRootAfter === panelRootBefore,
@@ -663,9 +663,9 @@ async function exercisePanelDraftStateRefresh(
 ): Promise<WorkflowTestDraftRefreshDiagnostics> {
   assertWorkflowTestEnabled();
   const panel = getPanel(panelId);
-  const panelRoot = panel.body.querySelector("#llm-main") as HTMLElement | null;
+  const panelRoot = panel.body.querySelector("#paperpilotmain") as HTMLElement | null;
   const input = panel.body.querySelector(
-    "#llm-input",
+    "#paperpilotinput",
   ) as HTMLTextAreaElement | null;
   if (!panelRoot || !input) {
     throw new Error(`Panel ${panelId} has no mounted composer`);
@@ -705,7 +705,7 @@ async function seedPanelStoredUserMessage(
     timestamp: Date.now(),
   };
   const conversationSystem =
-    (panel.body.querySelector("#llm-main") as HTMLElement | null)?.dataset
+    (panel.body.querySelector("#paperpilotmain") as HTMLElement | null)?.dataset
       .conversationSystem || "upstream";
   await appendWorkflowStoredMessage(
     conversationSystem === "codex" || conversationSystem === "claude_code"
@@ -744,7 +744,7 @@ async function clickPanelSystemToggle(
   assertWorkflowTestEnabled();
   const panel = getPanel(panelId);
   const button = panel.body.querySelector(
-    `.llm-panel-runtime-system-toggle[data-conversation-system='${system}']`,
+    `.paperpilotpanel-runtime-system-toggle[data-conversation-system='${system}']`,
   ) as HTMLButtonElement | null;
   if (!button) {
     throw new Error(`Panel ${system} system toggle was not rendered`);
@@ -770,7 +770,7 @@ async function clickPanelSystemTogglesRapidly(
   const eventCtor = panel.body.ownerDocument.defaultView?.MouseEvent;
   for (const system of systems) {
     const button = panel.body.querySelector(
-      `.llm-panel-runtime-system-toggle[data-conversation-system='${system}']`,
+      `.paperpilotpanel-runtime-system-toggle[data-conversation-system='${system}']`,
     ) as HTMLButtonElement | null;
     if (!button) {
       throw new Error(`Panel ${system} system toggle was not rendered`);
@@ -793,21 +793,21 @@ async function measurePanelRuntimeGeometry(
 ): Promise<WorkflowTestRuntimeGeometry> {
   assertWorkflowTestEnabled();
   const panel = getPanel(panelId);
-  const panelRoot = panel.body.querySelector("#llm-main") as HTMLElement | null;
+  const panelRoot = panel.body.querySelector("#paperpilotmain") as HTMLElement | null;
   const header = panel.body.querySelector(
-    ".llm-header-top",
+    ".paperpilotheader-top",
   ) as HTMLElement | null;
   const runtimeControls = panel.body.querySelector(
-    ".llm-panel-runtime-system-controls",
+    ".paperpilotpanel-runtime-system-controls",
   ) as HTMLElement | null;
   const modeChip = panel.body.querySelector(
-    ".llm-mode-chip",
+    ".paperpilotmode-chip",
   ) as HTMLElement | null;
   const headerActions = panel.body.querySelector(
-    ".llm-header-actions",
+    ".paperpilotheader-actions",
   ) as HTMLElement | null;
   const clearButton = panel.body.querySelector(
-    ".llm-clear-btn",
+    ".paperpilotclear-btn",
   ) as HTMLButtonElement | null;
   if (
     !panelRoot ||
@@ -821,9 +821,9 @@ async function measurePanelRuntimeGeometry(
   }
 
   const previousWidth = panel.body.style.width;
-  const previousScale = panelRoot.style.getPropertyValue("--llm-font-scale");
+  const previousScale = panelRoot.style.getPropertyValue("--paperpilotfont-scale");
   panel.body.style.width = `${input.width}px`;
-  panelRoot.style.setProperty("--llm-font-scale", String(input.fontScale));
+  panelRoot.style.setProperty("--paperpilotfont-scale", String(input.fontScale));
   await Zotero.Promise.delay(50);
   try {
     const containerRect = header.getBoundingClientRect();
@@ -866,9 +866,9 @@ async function measurePanelRuntimeGeometry(
   } finally {
     panel.body.style.width = previousWidth;
     if (previousScale) {
-      panelRoot.style.setProperty("--llm-font-scale", previousScale);
+      panelRoot.style.setProperty("--paperpilotfont-scale", previousScale);
     } else {
-      panelRoot.style.removeProperty("--llm-font-scale");
+      panelRoot.style.removeProperty("--paperpilotfont-scale");
     }
   }
 }
@@ -881,14 +881,14 @@ async function ask(
   lastSend = null;
   const panel = getPanel(panelId);
   const input = panel.body.querySelector(
-    "#llm-input",
+    "#paperpilotinput",
   ) as HTMLTextAreaElement | null;
   if (!input) throw new Error("Workflow test input box was not rendered");
   input.value = text;
   const eventCtor = panel.body.ownerDocument.defaultView?.Event ?? Event;
   input.dispatchEvent(new eventCtor("input", { bubbles: true }));
   const sendBtn = panel.body.querySelector(
-    "#llm-send",
+    "#paperpilotsend",
   ) as HTMLButtonElement | null;
   if (!sendBtn) throw new Error("Workflow test send button was not rendered");
   sendBtn.click();
@@ -906,7 +906,7 @@ async function renderAssistantForPanel(
   const panel = getPanel(panelId);
   const doc = panel.body.ownerDocument;
   const bubble = doc.createElement("div") as HTMLDivElement;
-  bubble.className = "llm-message-content";
+  bubble.className = "paperpilotmessage-content";
   panel.body.appendChild(bubble);
 
   const assistantMessage: Message = {
@@ -946,10 +946,10 @@ async function renderAssistantForPanel(
   });
 
   const quoteCards = Array.from(
-    bubble.querySelectorAll(".llm-quote-card"),
+    bubble.querySelectorAll(".paperpilotquote-card"),
   ) as HTMLElement[];
   const quoteCardBodiesBeforeExpansion = Array.from(
-    bubble.querySelectorAll(".llm-quote-card-body"),
+    bubble.querySelectorAll(".paperpilotquote-card-body"),
   ).map((node) => ((node as Element).textContent || "").trim());
   for (const quoteCard of quoteCards) {
     if (quoteCard.dataset.quoteStatus === "verified") quoteCard.click();
@@ -958,14 +958,14 @@ async function renderAssistantForPanel(
     renderedText: bubble.textContent || "",
     quoteCardBodiesBeforeExpansion,
     quoteCardBodies: Array.from(
-      bubble.querySelectorAll(".llm-quote-card-body"),
+      bubble.querySelectorAll(".paperpilotquote-card-body"),
     ).map((node) => ((node as Element).textContent || "").trim()),
     quoteCardPreviewTexts: Array.from(
-      bubble.querySelectorAll(".llm-quote-card-preview"),
+      bubble.querySelectorAll(".paperpilotquote-card-preview"),
     ).map((node) => ((node as Element).textContent || "").trim()),
     quoteCardStatuses: quoteCards.map((node) => node.dataset.quoteStatus || ""),
     quoteCardCitationTexts: Array.from(
-      bubble.querySelectorAll(".llm-quote-card-citation"),
+      bubble.querySelectorAll(".paperpilotquote-card-citation"),
     ).map((node) => ((node as Element).textContent || "").trim()),
     quoteCardVerticalMargins: quoteCards.map((node) => {
       const style = doc.defaultView?.getComputedStyle(node);
@@ -1029,14 +1029,14 @@ async function exerciseTargetedQuoteRefresh(
   refreshChat(panel.body, item);
 
   const chatBox = panel.body.querySelector(
-    "#llm-chat-box",
+    "#paperpilotchat-box",
   ) as HTMLElement | null;
   if (!chatBox) throw new Error("Workflow panel chat box was not rendered");
   const wrappersBefore = new Map(
     (
       Array.from(
         chatBox.querySelectorAll(
-          ".llm-message-wrapper[data-message-timestamp]",
+          ".paperpilotmessage-wrapper[data-message-timestamp]",
         ),
       ) as HTMLElement[]
     ).map((wrapper) => [wrapper.dataset.messageTimestamp || "", wrapper]),
@@ -1056,7 +1056,7 @@ async function exerciseTargetedQuoteRefresh(
   });
 
   const wrappersAfter = Array.from(
-    chatBox.querySelectorAll(".llm-message-wrapper[data-message-timestamp]"),
+    chatBox.querySelectorAll(".paperpilotmessage-wrapper[data-message-timestamp]"),
   ) as HTMLElement[];
   let unchangedWrapperCount = 0;
   let replacedWrapperCount = 0;
@@ -1072,7 +1072,7 @@ async function exerciseTargetedQuoteRefresh(
   return {
     messageCount: messages.length,
     assistantMessageCount: assistantMessages.length,
-    quoteCardCount: chatBox.querySelectorAll(".llm-quote-card").length,
+    quoteCardCount: chatBox.querySelectorAll(".paperpilotquote-card").length,
     unchangedWrapperCount,
     replacedWrapperCount,
     targetWasReplaced:
@@ -1080,10 +1080,10 @@ async function exerciseTargetedQuoteRefresh(
       wrappersBefore.get(targetTimestamp) !== targetWrapper,
     targetNotSourceCardCount:
       targetWrapper?.querySelectorAll(
-        '.llm-quote-card[data-quote-status="not-source"]',
+        '.paperpilotquote-card[data-quote-status="not-source"]',
       ).length || 0,
     targetStrongBodyCount:
-      targetWrapper?.querySelectorAll(".llm-quote-card-body strong").length ||
+      targetWrapper?.querySelectorAll(".paperpilotquote-card-body strong").length ||
       0,
   };
 }
@@ -1147,11 +1147,11 @@ async function waitForStandaloneReady(): Promise<Document> {
   while (Date.now() - startedAt < 7000) {
     const win = getStandaloneWindowForTest();
     const doc = win?.document;
-    const root = doc?.getElementById("llmforzotero-standalone-chat-root");
+    const root = doc?.getElementById("paperpilot-standalone-chat-root");
     const paperTab = doc?.querySelector(
-      ".llm-standalone-tab[data-tab='paper']",
+      ".paperpilotstandalone-tab[data-tab='paper']",
     );
-    const panelRoot = doc?.querySelector(".llm-standalone-content #llm-main");
+    const panelRoot = doc?.querySelector(".paperpilotstandalone-content #paperpilotmain");
     if (doc && root && paperTab && panelRoot) {
       return doc;
     }
@@ -1164,28 +1164,28 @@ function readStandaloneDiagnostics(): WorkflowTestStandaloneDiagnostics {
   const win = getStandaloneWindowForTest();
   const doc = win?.document || null;
   const activeTab = doc?.querySelector(
-    ".llm-standalone-tab.active",
+    ".paperpilotstandalone-tab.active",
   ) as HTMLElement | null;
   const paperTab = doc?.querySelector(
-    ".llm-standalone-tab[data-tab='paper']",
+    ".paperpilotstandalone-tab[data-tab='paper']",
   ) as HTMLElement | null;
   const openTab = doc?.querySelector(
-    ".llm-standalone-tab[data-tab='open']",
+    ".paperpilotstandalone-tab[data-tab='open']",
   ) as HTMLElement | null;
   const contentArea = doc?.querySelector(
-    ".llm-standalone-content",
+    ".paperpilotstandalone-content",
   ) as HTMLElement | null;
   const panelRoot = contentArea?.querySelector(
-    "#llm-main",
+    "#paperpilotmain",
   ) as HTMLElement | null;
   const statusEl = contentArea?.querySelector(
-    "#llm-status",
+    "#paperpilotstatus",
   ) as HTMLElement | null;
   const titleEl = doc?.querySelector(
-    ".llm-standalone-content-title-text",
+    ".paperpilotstandalone-content-title-text",
   ) as HTMLElement | null;
   const chatBox = contentArea?.querySelector(
-    "#llm-chat-box",
+    "#paperpilotchat-box",
   ) as HTMLElement | null;
   const mountedItem = contentArea
     ? activeContextPanels.get(contentArea)?.() || null
@@ -1212,10 +1212,10 @@ function readStandaloneDiagnostics(): WorkflowTestStandaloneDiagnostics {
     conversationSystem: panelRoot?.dataset.conversationSystem || undefined,
     titleText: titleEl?.textContent?.trim() || undefined,
     chipText: Array.from(
-      contentArea?.querySelectorAll(".llm-paper-context-chip-text") || [],
+      contentArea?.querySelectorAll(".paperpilotpaper-context-chip-text") || [],
     ).map((node) => ((node as Element).textContent || "").trim()),
     selectedContextLabels: Array.from(
-      contentArea?.querySelectorAll(".llm-selected-context-meta") || [],
+      contentArea?.querySelectorAll(".paperpilotselected-context-meta") || [],
     ).map((node) => ((node as Element).textContent || "").trim()),
     messageText: chatBox?.textContent?.trim() || undefined,
     paperTabText: paperTab?.textContent?.trim() || undefined,
@@ -1223,7 +1223,7 @@ function readStandaloneDiagnostics(): WorkflowTestStandaloneDiagnostics {
     statusText: statusEl?.textContent?.trim() || undefined,
     runtimeSystemToggles: readRuntimeSystemToggles(
       doc,
-      ".llm-standalone-runtime-system-controls",
+      ".paperpilotstandalone-runtime-system-controls",
     ),
     lastSend,
     lastFinalRequest,
@@ -1268,7 +1268,7 @@ async function clickStandaloneTab(
   assertWorkflowTestEnabled();
   const doc = await waitForStandaloneReady();
   const button = doc.querySelector(
-    `.llm-standalone-tab[data-tab='${tab}']`,
+    `.paperpilotstandalone-tab[data-tab='${tab}']`,
   ) as HTMLButtonElement | null;
   if (!button) throw new Error(`Standalone ${tab} tab was not rendered`);
   button.click();
@@ -1282,7 +1282,7 @@ async function clickStandaloneSystemToggle(
   assertWorkflowTestEnabled();
   const doc = await waitForStandaloneReady();
   const button = doc.querySelector(
-    `.llm-standalone-runtime-system-toggle[data-conversation-system='${system}']`,
+    `.paperpilotstandalone-runtime-system-toggle[data-conversation-system='${system}']`,
   ) as HTMLButtonElement | null;
   if (!button) {
     throw new Error(`Standalone ${system} system toggle was not rendered`);
@@ -1299,7 +1299,7 @@ async function clickStandaloneSystemTogglesRapidly(
   const doc = await waitForStandaloneReady();
   for (const system of systems) {
     const button = doc.querySelector(
-      `.llm-standalone-runtime-system-toggle[data-conversation-system='${system}']`,
+      `.paperpilotstandalone-runtime-system-toggle[data-conversation-system='${system}']`,
     ) as HTMLButtonElement | null;
     if (!button) {
       throw new Error(`Standalone ${system} system toggle was not rendered`);
@@ -1317,16 +1317,16 @@ async function measureStandaloneRuntimeGeometry(input: {
   assertWorkflowTestEnabled();
   const doc = await waitForStandaloneReady();
   const root = doc.getElementById(
-    "llmforzotero-standalone-chat-root",
+    "paperpilot-standalone-chat-root",
   ) as HTMLElement | null;
   const tabRow = doc.querySelector(
-    ".llm-standalone-tab-row",
+    ".paperpilotstandalone-tab-row",
   ) as HTMLElement | null;
   const runtimeControls = doc.querySelector(
-    ".llm-standalone-runtime-system-controls",
+    ".paperpilotstandalone-runtime-system-controls",
   ) as HTMLElement | null;
   const tabGroup = doc.querySelector(
-    ".llm-standalone-tab-group",
+    ".paperpilotstandalone-tab-group",
   ) as HTMLElement | null;
   if (!root || !tabRow || !runtimeControls || !tabGroup) {
     throw new Error("Standalone runtime geometry targets were not rendered");
@@ -1334,10 +1334,10 @@ async function measureStandaloneRuntimeGeometry(input: {
 
   const previousWidth = tabRow.style.width;
   const previousBoxSizing = tabRow.style.boxSizing;
-  const previousScale = root.style.getPropertyValue("--llm-font-scale");
+  const previousScale = root.style.getPropertyValue("--paperpilotfont-scale");
   tabRow.style.width = `${input.width}px`;
   tabRow.style.boxSizing = "border-box";
-  root.style.setProperty("--llm-font-scale", String(input.fontScale));
+  root.style.setProperty("--paperpilotfont-scale", String(input.fontScale));
   await Zotero.Promise.delay(50);
   try {
     const containerRect = tabRow.getBoundingClientRect();
@@ -1365,9 +1365,9 @@ async function measureStandaloneRuntimeGeometry(input: {
     tabRow.style.width = previousWidth;
     tabRow.style.boxSizing = previousBoxSizing;
     if (previousScale) {
-      root.style.setProperty("--llm-font-scale", previousScale);
+      root.style.setProperty("--paperpilotfont-scale", previousScale);
     } else {
-      root.style.removeProperty("--llm-font-scale");
+      root.style.removeProperty("--paperpilotfont-scale");
     }
   }
 }
@@ -1377,10 +1377,10 @@ async function exerciseStandaloneComposerManualResize(): Promise<WorkflowTestSta
   const doc = await waitForStandaloneReady();
   const win = getStandaloneWindowForTest();
   const input = doc.querySelector(
-    ".llm-standalone-content #llm-input",
+    ".paperpilotstandalone-content #paperpilotinput",
   ) as HTMLTextAreaElement | null;
   const handle = doc.querySelector(
-    '.llm-standalone-resize-handle[data-resize-target="input"]',
+    '.paperpilotstandalone-resize-handle[data-resize-target="input"]',
   ) as HTMLElement | null;
   if (!win || !input || !handle) {
     throw new Error("Standalone composer resize controls were not rendered");
@@ -1421,14 +1421,14 @@ async function askStandalone(text: string): Promise<SendQuestionOptions> {
   lastSend = null;
   const doc = await waitForStandaloneReady();
   const input = doc.querySelector(
-    ".llm-standalone-content #llm-input",
+    ".paperpilotstandalone-content #paperpilotinput",
   ) as HTMLTextAreaElement | null;
   if (!input) throw new Error("Standalone workflow input box was not rendered");
   input.value = text;
   const eventCtor = doc.defaultView?.Event ?? Event;
   input.dispatchEvent(new eventCtor("input", { bubbles: true }));
   const sendBtn = doc.querySelector(
-    ".llm-standalone-content #llm-send",
+    ".paperpilotstandalone-content #paperpilotsend",
   ) as HTMLButtonElement | null;
   if (!sendBtn)
     throw new Error("Standalone workflow send button was not rendered");
@@ -1446,7 +1446,7 @@ async function seedStandaloneUserMessage(
   assertWorkflowTestEnabled();
   const doc = await waitForStandaloneReady();
   const contentArea = doc.querySelector(
-    ".llm-standalone-content",
+    ".paperpilotstandalone-content",
   ) as HTMLElement | null;
   const item = contentArea
     ? activeContextPanels.get(contentArea)?.() || null
@@ -1461,7 +1461,7 @@ async function seedStandaloneUserMessage(
     timestamp: Date.now(),
   };
   const conversationSystem =
-    (contentArea.querySelector("#llm-main") as HTMLElement | null)?.dataset
+    (contentArea.querySelector("#paperpilotmain") as HTMLElement | null)?.dataset
       .conversationSystem || "upstream";
   await appendWorkflowStoredMessage(
     conversationSystem === "codex" || conversationSystem === "claude_code"
@@ -1544,17 +1544,17 @@ async function getDiagnostics(
 ): Promise<WorkflowTestDiagnostics> {
   const panel = panelId ? panels.get(panelId) : undefined;
   const body = panel?.body;
-  const panelRoot = body?.querySelector("#llm-main") as HTMLElement | null;
+  const panelRoot = body?.querySelector("#paperpilotmain") as HTMLElement | null;
   const mountedItem = body
     ? activeContextPanels.get(body)?.() || panel?.item
     : panel?.item;
   const historyNewBtn = body?.querySelector(
-    "#llm-history-new",
+    "#paperpilothistory-new",
   ) as HTMLElement | null;
   const historyToggleBtn = body?.querySelector(
-    "#llm-history-toggle",
+    "#paperpilothistory-toggle",
   ) as HTMLElement | null;
-  const chatBox = body?.querySelector("#llm-chat-box") as HTMLElement | null;
+  const chatBox = body?.querySelector("#paperpilotchat-box") as HTMLElement | null;
   return {
     panelId,
     activeItemId: parsePositiveInt(mountedItem?.id),
@@ -1567,10 +1567,10 @@ async function getDiagnostics(
     noteParentItemId: parsePositiveInt(panelRoot?.dataset.noteParentItemId),
     contextSnapshot: panel?.contextSnapshot,
     chipText: Array.from(
-      body?.querySelectorAll(".llm-paper-context-chip-text") || [],
+      body?.querySelectorAll(".paperpilotpaper-context-chip-text") || [],
     ).map((node) => ((node as Element).textContent || "").trim()),
     selectedContextLabels: Array.from(
-      body?.querySelectorAll(".llm-selected-context-meta") || [],
+      body?.querySelectorAll(".paperpilotselected-context-meta") || [],
     ).map((node) => ((node as Element).textContent || "").trim()),
     historyNewVisible: historyNewBtn
       ? historyNewBtn.style.display !== "none"
@@ -1580,13 +1580,13 @@ async function getDiagnostics(
       : false,
     runtimeSystemToggles: readRuntimeSystemToggles(
       body,
-      ".llm-panel-runtime-system-controls",
+      ".paperpilotpanel-runtime-system-controls",
     ),
     inputValue: (
-      body?.querySelector("#llm-input") as HTMLTextAreaElement | null
+      body?.querySelector("#paperpilotinput") as HTMLTextAreaElement | null
     )?.value,
     statusText:
-      (body?.querySelector("#llm-status") as HTMLElement | null)?.textContent ||
+      (body?.querySelector("#paperpilotstatus") as HTMLElement | null)?.textContent ||
       undefined,
     messageText: chatBox?.textContent?.trim() || undefined,
     lastSend,
@@ -1798,7 +1798,7 @@ async function waitForFinalRequest(
   const startedAt = Date.now();
   while (!lastFinalRequest) {
     if (Date.now() - startedAt > 15_000) {
-      const status = body.querySelector("#llm-status")?.textContent?.trim();
+      const status = body.querySelector("#paperpilotstatus")?.textContent?.trim();
       throw new Error(
         `Timed out waiting for final workflow model request; status=${status || "<empty>"}`,
       );
@@ -1965,7 +1965,7 @@ async function exerciseReaderPopupStandaloneRouting(input: {
   assertWorkflowTestEnabled();
   const standaloneDoc = await waitForStandaloneReady();
   const standaloneBody = standaloneDoc.querySelector(
-    ".llm-standalone-content",
+    ".paperpilotstandalone-content",
   ) as HTMLElement | null;
   const standaloneItem = standaloneBody
     ? activeContextPanels.get(standaloneBody)?.() || null
@@ -2003,7 +2003,7 @@ async function exerciseReaderPopupStandaloneRouting(input: {
         standaloneConversationKey,
       ).some((context) => context.text === input.selectedText),
       standalonePreviewHasText: Array.from(
-        standaloneBody.querySelectorAll(".llm-selected-context-text"),
+        standaloneBody.querySelectorAll(".paperpilotselected-context-text"),
       ).some((node) => node?.textContent?.trim() === input.selectedText),
     };
   } finally {
@@ -2090,7 +2090,7 @@ async function exerciseHighlightAwareContextRetrieval(input: {
       );
     } else {
       const addTextButton = panel.body.querySelector(
-        "#llm-select-text",
+        "#paperpilotselect-text",
       ) as HTMLButtonElement | null;
       if (!addTextButton) {
         throw new Error("Include selected text action was not rendered");
@@ -2118,7 +2118,7 @@ async function exerciseHighlightAwareContextRetrieval(input: {
     }
     const immediatePreviewText =
       panel.body
-        .querySelector(".llm-selected-context-text")
+        .querySelector(".paperpilotselected-context-text")
         ?.textContent?.trim() || "";
 
     const mountedItem = activeContextPanels.get(panel.body)?.() || panel.item;
