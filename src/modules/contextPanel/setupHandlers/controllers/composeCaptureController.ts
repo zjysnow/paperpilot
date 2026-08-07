@@ -105,26 +105,26 @@ export function attachComposeCaptureController(
 
   {
     const bodyDelegation = body as Element & {
-      __llmAddTextPointerDown?: EventListener;
-      __llmAddTextMouseDown?: EventListener;
-      __llmAddTextClick?: EventListener;
+      __paperpilotAddTextPointerDown?: EventListener;
+      __paperpilotAddTextMouseDown?: EventListener;
+      __paperpilotAddTextClick?: EventListener;
     };
-    if (bodyDelegation.__llmAddTextPointerDown) {
+    if (bodyDelegation.__paperpilotAddTextPointerDown) {
       body.removeEventListener(
         "pointerdown",
-        bodyDelegation.__llmAddTextPointerDown,
+        bodyDelegation.__paperpilotAddTextPointerDown,
         true,
       );
     }
-    if (bodyDelegation.__llmAddTextMouseDown) {
+    if (bodyDelegation.__paperpilotAddTextMouseDown) {
       body.removeEventListener(
         "mousedown",
-        bodyDelegation.__llmAddTextMouseDown,
+        bodyDelegation.__paperpilotAddTextMouseDown,
         true,
       );
     }
-    if (bodyDelegation.__llmAddTextClick) {
-      body.removeEventListener("click", bodyDelegation.__llmAddTextClick, true);
+    if (bodyDelegation.__paperpilotAddTextClick) {
+      body.removeEventListener("click", bodyDelegation.__paperpilotAddTextClick, true);
     }
 
     let pendingSelection: {
@@ -200,11 +200,11 @@ export function attachComposeCaptureController(
       });
     };
 
-    bodyDelegation.__llmAddTextPointerDown =
+    bodyDelegation.__paperpilotAddTextPointerDown =
       cacheSelectionBeforeFocusShift as EventListener;
-    bodyDelegation.__llmAddTextMouseDown =
+    bodyDelegation.__paperpilotAddTextMouseDown =
       cacheSelectionBeforeFocusShift as EventListener;
-    bodyDelegation.__llmAddTextClick = addTextClickHandler as EventListener;
+    bodyDelegation.__paperpilotAddTextClick = addTextClickHandler as EventListener;
 
     body.addEventListener(
       "pointerdown",

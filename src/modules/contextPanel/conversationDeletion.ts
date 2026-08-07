@@ -26,39 +26,7 @@ import {
 } from "./prefHelpers";
 import { clearOwnerAttachmentRefs } from "../../utils/attachmentRefStore";
 import { removeConversationAttachmentFiles } from "./attachmentStorage";
-import {
-  buildClaudeScope,
-  invalidateClaudeConversationSession,
-} from "../../claudeCode/runtime";
-import {
-  activeClaudeGlobalConversationByLibrary,
-  activeClaudePaperConversationByPaper,
-  buildClaudeLibraryStateKey,
-  buildClaudePaperStateKey,
-} from "../../claudeCode/state";
-import {
-  getLastUsedClaudeGlobalConversationKey,
-  getLastUsedClaudePaperConversationKey,
-  removeLastUsedClaudeGlobalConversationKey,
-  removeLastUsedClaudePaperConversationKey,
-} from "../../claudeCode/prefs";
-import { archiveCodexAppServerThread } from "../../codexAppServer/nativeClient";
-import {
-  activeCodexGlobalConversationByLibrary,
-  activeCodexPaperConversationByPaper,
-  buildCodexLibraryStateKey,
-  buildCodexPaperStateKey,
-} from "../../codexAppServer/state";
-import {
-  getLastUsedCodexGlobalConversationKey,
-  getLastUsedCodexPaperConversationKey,
-  removeLastUsedCodexGlobalConversationKey,
-  removeLastUsedCodexPaperConversationKey,
-} from "../../codexAppServer/prefs";
-import {
-  clearAgentConversationState,
-  clearDeletedAgentConversationState,
-} from "./agentConversationCleanup";
+
 import { resolveConversationRefForKey } from "../../shared/conversationRef";
 import {
   getConversationScopeValidationDetails,
@@ -226,22 +194,11 @@ function buildOperations(
     },
     clearOwnerAttachmentRefs,
     removeConversationAttachmentFiles,
-    archiveCodexThread: (threadId) => archiveCodexAppServerThread({ threadId }),
     invalidateClaudeConversation: async (conversationKey, target) => {
       if (!deps.getCoreAgentRuntime) {
         return;
       }
-      await invalidateClaudeConversationSession(
-        (await deps.getCoreAgentRuntime()) as any,
-        {
-          conversationKey,
-          scope: buildClaudeScope({
-            libraryID: target.libraryID,
-            kind: target.kind,
-            paperItemID: target.paperItemID,
-          }),
-        },
-      );
+
     },
     clearRememberedSelection,
     ...deps.operations,
@@ -329,46 +286,7 @@ async function runStep(
 function clearRememberedSelection(target: ConversationDeletionTarget): void {
   const conversationKey = target.conversationKey;
   if (target.kind === "global") {
-    if (target.conversationSystem === "claude_code") {
-      const stateKey = buildClaudeLibraryStateKey(target.libraryID);
-      if (
-        Math.floor(
-          Number(activeClaudeGlobalConversationByLibrary.get(stateKey) || 0),
-        ) === conversationKey
-      ) {
-        activeClaudeGlobalConversationByLibrary.delete(stateKey);
-      }
-      const persistedKey = Number(
-        getLastUsedClaudeGlobalConversationKey(target.libraryID) || 0,
-      );
-      if (
-        Number.isFinite(persistedKey) &&
-        Math.floor(persistedKey) === conversationKey
-      ) {
-        removeLastUsedClaudeGlobalConversationKey(target.libraryID);
-      }
-      return;
-    }
-    if (target.conversationSystem === "codex") {
-      const stateKey = buildCodexLibraryStateKey(target.libraryID);
-      if (
-        Math.floor(
-          Number(activeCodexGlobalConversationByLibrary.get(stateKey) || 0),
-        ) === conversationKey
-      ) {
-        activeCodexGlobalConversationByLibrary.delete(stateKey);
-      }
-      const persistedKey = Number(
-        getLastUsedCodexGlobalConversationKey(target.libraryID) || 0,
-      );
-      if (
-        Number.isFinite(persistedKey) &&
-        Math.floor(persistedKey) === conversationKey
-      ) {
-        removeLastUsedCodexGlobalConversationKey(target.libraryID);
-      }
-      return;
-    }
+
     if (
       Math.floor(
         Number(activeGlobalConversationByLibrary.get(target.libraryID) || 0),
@@ -398,46 +316,7 @@ function clearRememberedSelection(target: ConversationDeletionTarget): void {
 
   const paperItemID = normalizePositiveInt(target.paperItemID);
   if (!paperItemID) return;
-  if (target.conversationSystem === "claude_code") {
-    const stateKey = buildClaudePaperStateKey(target.libraryID, paperItemID);
-    if (
-      Math.floor(
-        Number(activeClaudePaperConversationByPaper.get(stateKey) || 0),
-      ) === conversationKey
-    ) {
-      activeClaudePaperConversationByPaper.delete(stateKey);
-    }
-    const persistedKey = Number(
-      getLastUsedClaudePaperConversationKey(target.libraryID, paperItemID) || 0,
-    );
-    if (
-      Number.isFinite(persistedKey) &&
-      Math.floor(persistedKey) === conversationKey
-    ) {
-      removeLastUsedClaudePaperConversationKey(target.libraryID, paperItemID);
-    }
-    return;
-  }
-  if (target.conversationSystem === "codex") {
-    const stateKey = buildCodexPaperStateKey(target.libraryID, paperItemID);
-    if (
-      Math.floor(
-        Number(activeCodexPaperConversationByPaper.get(stateKey) || 0),
-      ) === conversationKey
-    ) {
-      activeCodexPaperConversationByPaper.delete(stateKey);
-    }
-    const persistedKey = Number(
-      getLastUsedCodexPaperConversationKey(target.libraryID, paperItemID) || 0,
-    );
-    if (
-      Number.isFinite(persistedKey) &&
-      Math.floor(persistedKey) === conversationKey
-    ) {
-      removeLastUsedCodexPaperConversationKey(target.libraryID, paperItemID);
-    }
-    return;
-  }
+
   const stateKey = buildPaperStateKey(target.libraryID, paperItemID);
   if (
     Math.floor(Number(activePaperConversationByPaper.get(stateKey) || 0)) ===

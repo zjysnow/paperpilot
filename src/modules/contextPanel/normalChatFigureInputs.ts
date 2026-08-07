@@ -64,17 +64,7 @@ export async function resolveNormalChatFigureInputs(params: {
   }
 
   try {
-    const [
-      { PdfService },
-      { PdfPageService },
-      { PdfFigureExtractionService },
-      { ZoteroGateway },
-    ] = await Promise.all([
-      import("../../agent/services/pdfService"),
-      import("../../agent/services/pdfPageService"),
-      import("../../agent/services/pdfFigureExtractionService"),
-      import("../../agent/services/zoteroGateway"),
-    ]);
+
     const pdfService = new PdfService();
     const zoteroGateway = new ZoteroGateway();
     const pageService = new PdfPageService(pdfService, zoteroGateway);

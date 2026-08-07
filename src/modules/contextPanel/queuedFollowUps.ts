@@ -8,9 +8,9 @@ export type QueuedFollowUpInput = {
 export type QueuedFollowUpBodySync = (body: Element) => void;
 
 export const SCHEDULE_QUEUED_FOLLOW_UP_DRAIN_PROPERTY =
-  "__llmScheduleQueuedFollowUpDrain";
+  "__paperpilotScheduleQueuedFollowUpDrain";
 export const SCHEDULE_QUEUED_FOLLOW_UP_THREAD_DRAIN_PROPERTY =
-  "__llmScheduleQueuedFollowUpThreadDrain";
+  "__paperpilotScheduleQueuedFollowUpThreadDrain";
 
 let queuedFollowUpInputSeq = 0;
 const queuedFollowUpsByThread = new Map<string, QueuedFollowUpInput[]>();

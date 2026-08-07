@@ -129,29 +129,13 @@ export function resolveNoteEditingScope(
 
 export function resolvePreferredNoteFocusSystem(params: {
   preferredSystem?: ConversationSystem | null;
-  claudeAvailable: boolean;
-  codexAvailable: boolean;
 }): ConversationSystem {
   const preferred = params.preferredSystem || "upstream";
-  if (preferred === "claude_code" && !params.claudeAvailable) {
-    return "upstream";
-  }
-  if (preferred === "codex" && !params.codexAvailable) {
-    return "upstream";
-  }
   return preferred;
 }
 
 export function resolveNoteFocusSystemSwitch(params: {
   nextSystem: ConversationSystem;
-  claudeAvailable?: boolean;
-  codexAvailable: boolean;
 }): ConversationSystem | null {
-  if (params.nextSystem === "claude_code" && !params.claudeAvailable) {
-    return null;
-  }
-  if (params.nextSystem === "codex" && !params.codexAvailable) {
-    return null;
-  }
   return params.nextSystem;
 }

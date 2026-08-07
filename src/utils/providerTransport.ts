@@ -232,7 +232,6 @@ export function resolveProviderTransportEndpoint(params: {
   authMode?: ModelProviderAuthMode;
 }): string {
   if (
-    params.protocol === "codex_responses" ||
     params.protocol === "responses_api"
   ) {
     // Copilot uses /responses (no /v1 prefix)
@@ -255,9 +254,6 @@ export function resolveProviderTransportEndpoint(params: {
       API_ENDPOINT,
     );
   }
-  if (params.protocol === "anthropic_messages") {
-    return resolveAnthropicMessagesEndpoint(params.apiBase);
-  }
   return resolveGeminiNativeEndpoint({
     apiBase: params.apiBase,
     model: params.model || "",
@@ -265,13 +261,13 @@ export function resolveProviderTransportEndpoint(params: {
   });
 }
 
+
 export function buildProviderTransportHeaders(params: {
   protocol: ProviderProtocol;
   apiKey: string;
   authMode?: ModelProviderAuthMode;
 }): Record<string, string> {
   if (
-    params.protocol === "codex_responses" ||
     params.protocol === "responses_api" ||
     params.protocol === "openai_chat_compat"
   ) {

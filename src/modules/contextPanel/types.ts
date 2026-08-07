@@ -330,7 +330,7 @@ export type MultiContextPlan = {
 };
 
 export type GlobalPortalItem = {
-  __llmGlobalPortalItem: true;
+  __paperpilotGlobalPortalItem: true;
   id: number;
   libraryID: number;
   parentID?: number;
@@ -342,9 +342,9 @@ export type GlobalPortalItem = {
 };
 
 export type PaperPortalItem = {
-  __llmPaperPortalItem: true;
-  __llmPaperPortalBaseItemID: number;
-  __llmPaperPortalSessionVersion: number;
+  __paperpilotPaperPortalItem: true;
+  __paperpilotPaperPortalBaseItemID: number;
+  __paperpilotPaperPortalSessionVersion: number;
   id: number;
   libraryID: number;
   parentID?: number;
@@ -356,8 +356,8 @@ export type PaperPortalItem = {
 };
 
 export type ClaudeGlobalPortalItem = {
-  __llmClaudeGlobalPortalItem: true;
-  __llmClaudeConversationKind: "global";
+  __paperpilotClaudeGlobalPortalItem: true;
+  __paperpilotClaudeConversationKind: "global";
   id: number;
   libraryID: number;
   parentID?: number;
@@ -369,9 +369,9 @@ export type ClaudeGlobalPortalItem = {
 };
 
 export type ClaudePaperPortalItem = {
-  __llmClaudePaperPortalItem: true;
-  __llmClaudeConversationKind: "paper";
-  __llmClaudePaperPortalBaseItemID: number;
+  __paperpilotClaudePaperPortalItem: true;
+  __paperpilotClaudeConversationKind: "paper";
+  __paperpilotClaudePaperPortalBaseItemID: number;
   id: number;
   libraryID: number;
   parentID?: number;
@@ -383,8 +383,8 @@ export type ClaudePaperPortalItem = {
 };
 
 export type CodexGlobalPortalItem = {
-  __llmCodexGlobalPortalItem: true;
-  __llmCodexConversationKind: "global";
+  __paperpilotCodexGlobalPortalItem: true;
+  __paperpilotCodexConversationKind: "global";
   id: number;
   libraryID: number;
   parentID?: number;
@@ -396,9 +396,9 @@ export type CodexGlobalPortalItem = {
 };
 
 export type CodexPaperPortalItem = {
-  __llmCodexPaperPortalItem: true;
-  __llmCodexConversationKind: "paper";
-  __llmCodexPaperPortalBaseItemID: number;
+  __paperpilotCodexPaperPortalItem: true;
+  __paperpilotCodexConversationKind: "paper";
+  __paperpilotCodexPaperPortalBaseItemID: number;
   id: number;
   libraryID: number;
   parentID?: number;

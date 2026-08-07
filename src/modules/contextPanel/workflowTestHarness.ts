@@ -1626,12 +1626,12 @@ async function exerciseReaderSelectionTrackingRecovery(): Promise<WorkflowTestRe
     await Zotero.Promise.delay(25);
   }
   const afterHealthCheck = countWorkflowReaderSelectionListeners(readerAPI);
-  const markerPresent = Boolean(readerAPI.__llmSelectionTracking);
+  const markerPresent = Boolean(readerAPI.__paperpilotSelectionTracking);
   const markerLive = Boolean(
-    readerAPI.__llmSelectionTracking &&
+    readerAPI.__paperpilotSelectionTracking &&
     (readerAPI._registeredListeners || []).some(
       (listener) =>
-        listener.handler === readerAPI.__llmSelectionTracking?.handler,
+        listener.handler === readerAPI.__paperpilotSelectionTracking?.handler,
     ),
   );
   const elapsedMs = Date.now() - startedAt;
@@ -1842,7 +1842,7 @@ async function dispatchWorkflowReaderAddTextPopup(input: {
   const readerApi = Zotero.Reader as unknown as ReaderSelectionTrackingReader<
     _ZoteroTypes.Reader.EventHandler<"renderTextSelectionPopup">
   >;
-  const handler = readerApi.__llmSelectionTracking?.handler;
+  const handler = readerApi.__paperpilotSelectionTracking?.handler;
   if (!handler) {
     popupHost.remove();
     throw new Error("Add Text reader selection handler is unavailable");
@@ -2057,7 +2057,7 @@ async function exerciseHighlightAwareContextRetrieval(input: {
         Zotero.Reader as unknown as ReaderSelectionTrackingReader<
           _ZoteroTypes.Reader.EventHandler<"renderTextSelectionPopup">
         >;
-      const handler = readerApi.__llmSelectionTracking?.handler;
+      const handler = readerApi.__paperpilotSelectionTracking?.handler;
       if (!handler) {
         throw new Error("Add Text reader selection handler is unavailable");
       }

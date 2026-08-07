@@ -116,10 +116,7 @@ import {
   hasPanelContextOwnerChanged,
   shouldRefreshContextSourceWithoutPanelRebuild,
 } from "./panelContextLifecycle";
-import {
-  retainClaudeRuntimeForBody,
-  releaseClaudeRuntimeForBody,
-} from "../../claudeCode/runtimeRetention";
+
 
 export { openStandaloneChat } from "./standaloneWindow";
 import {
@@ -289,7 +286,6 @@ export function registerReaderContextPanel() {
       // When standalone window is open, show placeholder instead of full UI
       if (isStandaloneWindowActive()) {
         clearCompletedPanelLifecycleSignature(body);
-        void releaseClaudeRuntimeForBody(body);
         renderStandalonePlaceholder(body);
         const resolvedState = resolveInitialPanelItemState(item);
         activeContextPanels.set(body, () => resolvedState.item);
@@ -409,7 +405,6 @@ export function registerReaderContextPanel() {
           writePanelContextDataset(nextPanelRoot, rawContextItem);
           activeContextPanels.set(body, () => resolvedState.item);
           activeContextPanelRawItems.set(body, item || null);
-          void retainClaudeRuntimeForBody(body, resolvedState.item);
           // Attach handlers synchronously so buttons are
           // immediately interactive — don't gate on ensureConversationLoaded.
           setupEmbeddedPanelHandlers(body, item);
@@ -443,7 +438,6 @@ export function registerReaderContextPanel() {
           activeContextPanels.set(body, () => resolvedState.item);
           activeContextPanelRawItems.set(body, item || null);
           writePanelContextDataset(panelRoot, rawContextItem);
-          void retainClaudeRuntimeForBody(body, resolvedState.item);
           if (sameOwnerContextSourceChanged) {
             persistPendingChatScrollRestoreFromBody(body);
             setPanelRenderClaim(body, {
@@ -451,7 +445,7 @@ export function registerReaderContextPanel() {
               itemKey: getPanelItemIdKey(item || null),
             });
             const refreshContextSource = (body as any)
-              .__llmRefreshContextSourceForCurrentItem;
+              .__paperpilotRefreshContextSourceForCurrentItem;
             if (typeof refreshContextSource === "function") {
               refreshContextSource();
             } else {
@@ -540,7 +534,7 @@ export function registerReaderContextPanel() {
       }
       if (contextRefreshOnly) {
         const refreshContextSource = (body as any)
-          .__llmRefreshContextSourceForCurrentItem;
+          .__paperpilotRefreshContextSourceForCurrentItem;
         if (typeof refreshContextSource === "function") {
           refreshContextSource();
         } else {
@@ -951,7 +945,7 @@ export function unregisterReaderSelectionTracking() {
 }
 
 type MainWindowWithNoteEditingTracker = _ZoteroTypes.MainWindow & {
-  __llmNoteEditingSelectionTracking?: NoteEditingSelectionTrackingLifecycle & {
+  __paperpilotNoteEditingSelectionTracking?: NoteEditingSelectionTrackingLifecycle & {
     lastNoteId: number;
     lastNoteFocusConversationKey: number;
     lastSelectionText: string;
@@ -1164,7 +1158,7 @@ function areCurrentNoteEditingSelectionsSynced(params: {
 function refreshTrackedNoteEditingSelection(
   win: MainWindowWithNoteEditingTracker,
 ): void {
-  const tracker = win.__llmNoteEditingSelectionTracking;
+  const tracker = win.__paperpilotNoteEditingSelectionTracking;
   if (!tracker) return;
 
   // If focus is inside the plugin's own UI (e.g. the input box), the note
@@ -1303,7 +1297,7 @@ export function registerNoteEditingSelectionTracking(
   win: _ZoteroTypes.MainWindow,
 ) {
   const trackedWindow = win as MainWindowWithNoteEditingTracker;
-  if (trackedWindow.__llmNoteEditingSelectionTracking) return;
+  if (trackedWindow.__paperpilotNoteEditingSelectionTracking) return;
   const refresh = () => {
     refreshTrackedNoteEditingSelection(trackedWindow);
   };
@@ -1317,14 +1311,14 @@ export function registerNoteEditingSelectionTracking(
       win.removeEventListener("unload", handleUnload);
       noteEditingSelectionTrackingWindows.delete(trackedWindow);
       if (
-        trackedWindow.__llmNoteEditingSelectionTracking?.dispose ===
+        trackedWindow.__paperpilotNoteEditingSelectionTracking?.dispose ===
         lifecycle.dispose
       ) {
-        delete trackedWindow.__llmNoteEditingSelectionTracking;
+        delete trackedWindow.__paperpilotNoteEditingSelectionTracking;
       }
     },
   });
-  trackedWindow.__llmNoteEditingSelectionTracking = {
+  trackedWindow.__paperpilotNoteEditingSelectionTracking = {
     ...lifecycle,
     lastNoteId: 0,
     lastNoteFocusConversationKey: 0,
@@ -1338,7 +1332,7 @@ export function registerNoteEditingSelectionTracking(
 
 export function unregisterNoteEditingSelectionTracking(win: Window): void {
   const trackedWindow = win as MainWindowWithNoteEditingTracker;
-  trackedWindow.__llmNoteEditingSelectionTracking?.dispose();
+  trackedWindow.__paperpilotNoteEditingSelectionTracking?.dispose();
 }
 
 export function unregisterAllNoteEditingSelectionTracking(): void {

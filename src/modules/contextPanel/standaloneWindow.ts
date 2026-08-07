@@ -102,37 +102,8 @@ import {
   resolveRuntimeSystemToggleTarget,
   syncRuntimeSystemControls,
 } from "./runtimeSystemControls";
-import { buildDefaultClaudeGlobalConversationKey } from "../../claudeCode/constants";
-import {
-  resolveRememberedClaudeConversationKey,
-  invalidateAllClaudeHotRuntimes,
-  refreshClaudeSlashCommands,
-} from "../../claudeCode/runtime";
-import {
-  retainClaudeRuntimeForBody,
-  releaseClaudeRuntimeForBody,
-} from "../../claudeCode/runtimeRetention";
-import {
-  createClaudeProjectSkillTemplate,
-  deleteClaudeProjectSkillFile,
-  getClaudeProjectDir,
-  listClaudeProjectSkillEntries,
-} from "../../claudeCode/projectSkills";
-import { initAgentSubsystem } from "../../agent";
-import {
-  getConversationSystemPref,
-  getStoredConversationSystemPref,
-  getLastUsedClaudeConversationMode,
-  getLastUsedClaudeGlobalConversationKey,
-  setConversationSystemPref,
-  setLastUsedClaudeConversationMode,
-} from "../../claudeCode/prefs";
-import {
-  activeClaudeGlobalConversationByLibrary,
-  activeClaudePaperConversationByPaper,
-  buildClaudeLibraryStateKey,
-  buildClaudePaperStateKey,
-} from "../../claudeCode/state";
+
+
 import { showStandaloneConfirmationDialog } from "./standaloneConfirmationDialog";
 import { showConversationRenameDialog } from "./conversationRenameDialog";
 import {
@@ -146,31 +117,7 @@ import {
   scheduleStandaloneWindowFitForElement,
   STANDALONE_SIDEBAR_DEFAULT_WIDTH_PX,
 } from "./standaloneWindowSizing";
-import {
-  createClaudeGlobalPortalItem,
-  createClaudePaperPortalItem,
-} from "../../claudeCode/portal";
-import { loadAllClaudeConversationHistory } from "../../claudeCode/historyLoader";
-import { buildDefaultCodexGlobalConversationKey } from "../../codexAppServer/constants";
-import {
-  createCodexGlobalPortalItem,
-  createCodexPaperPortalItem,
-} from "../../codexAppServer/portal";
-import {
-  getLastUsedCodexConversationMode,
-  getLastUsedCodexGlobalConversationKey,
-  isCodexAppServerModeEnabled,
-  setLastUsedCodexConversationMode,
-  setLastUsedCodexGlobalConversationKey,
-  setLastUsedCodexPaperConversationKey,
-} from "../../codexAppServer/prefs";
-import {
-  activeCodexGlobalConversationByLibrary,
-  activeCodexPaperConversationByPaper,
-  buildCodexLibraryStateKey,
-  buildCodexPaperStateKey,
-} from "../../codexAppServer/state";
-import { loadAllCodexConversationHistory } from "../../codexAppServer/historyLoader";
+
 import {
   finalizeConversationDeletion,
   getConversationDeletionFailureMessage,
@@ -311,7 +258,6 @@ function restoreEmbeddedPanelsAfterStandaloneClose(
   for (const [body] of activeContextPanels) {
     if (excludedBody && body === excludedBody) continue;
     if (!(body as Element).isConnected) {
-      void releaseClaudeRuntimeForBody(body as Element);
       activeContextPanels.delete(body);
       activeContextPanelRawItems.delete(body);
       activeContextPanelStateSync.delete(body);
@@ -467,15 +413,9 @@ export function openStandaloneChat(options?: {
         preferredSystem: options.initialConversationSystem,
       })
     : null;
-  const storedConversationSystem = getStoredConversationSystemPref();
   const preferredConversationSystem =
-    explicitConversationSystem ||
-    storedConversationSystem ||
-    getConversationSystemPref();
-  const initialRuntimeMode =
-    options?.initialRuntimeMode === "agent"
-      ? "agent"
-      : options?.initialRuntimeMode === "chat"
+    explicitConversationSystem;
+  const initialRuntimeMode =options?.initialRuntimeMode === "chat"
         ? "chat"
         : null;
   const sourceItemSystem = resolveConversationSystemForItem(sourceItem);
@@ -492,12 +432,7 @@ export function openStandaloneChat(options?: {
           item: sourceItemForResolution,
           preferredSystem: preferredConversationSystem,
         })
-      : preferredConversationSystem === "codex" && isCodexAppServerModeEnabled()
-        ? "codex"
-        : preferredConversationSystem === "claude_code" &&
-            getClaudeCodeModeEnabled()
-          ? "claude_code"
-          : "upstream");
+      : "upstream");
   const resolvedSourceState = resolveInitialPanelItemState(
     sourceItemForResolution,
     {
@@ -517,11 +452,6 @@ export function openStandaloneChat(options?: {
   const initialDisplayConversationKind = resolveDisplayConversationKind(
     resolvedSourceState.item || sourceItem,
   );
-  const isClaudeConversationSystem = () =>
-    currentConversationSystem === "claude_code";
-  const isCodexConversationSystem = () => currentConversationSystem === "codex";
-  const isRuntimeConversationSystem = () =>
-    isClaudeConversationSystem() || isCodexConversationSystem();
   const initialLibraryID =
     Number(
       resolvedSourceState.item?.libraryID ||
@@ -532,37 +462,27 @@ export function openStandaloneChat(options?: {
     ) || 1;
 
   const libraryID = initialLibraryID > 0 ? Math.floor(initialLibraryID) : 1;
-  const initialRememberedRuntimeMode =
-    currentConversationSystem === "claude_code"
-      ? getLastUsedClaudeConversationMode(libraryID)
-      : currentConversationSystem === "codex"
-        ? getLastUsedCodexConversationMode(libraryID)
-        : null;
   const initialMode: "open" | "paper" =
     initialDisplayConversationKind === "global"
       ? "open"
       : initialDisplayConversationKind === "paper" && initialBasePaperItem
         ? "paper"
-        : initialRememberedRuntimeMode === "global"
-          ? "open"
-          : initialBasePaperItem
+        : initialBasePaperItem
             ? "paper"
             : "open";
-  const lockedKey = isRuntimeConversationSystem()
-    ? null
-    : getLockedGlobalConversationKey(libraryID);
+  const lockedKey = getLockedGlobalConversationKey(libraryID);
   const sourceClaudeGlobalKey =
     resolvedSourceState.item &&
-    (resolvedSourceState.item as any).__llmClaudeGlobalPortalItem === true
+    (resolvedSourceState.item as any).__paperpilotClaudeGlobalPortalItem === true
       ? Number(resolvedSourceState.item.id || 0)
-      : sourceItem && (sourceItem as any).__llmClaudeGlobalPortalItem === true
+      : sourceItem && (sourceItem as any).__paperpilotClaudeGlobalPortalItem === true
         ? Number(sourceItem.id || 0)
         : 0;
   const sourceCodexGlobalKey =
     resolvedSourceState.item &&
-    (resolvedSourceState.item as any).__llmCodexGlobalPortalItem === true
+    (resolvedSourceState.item as any).__paperpilotCodexGlobalPortalItem === true
       ? Number(resolvedSourceState.item.id || 0)
-      : sourceItem && (sourceItem as any).__llmCodexGlobalPortalItem === true
+      : sourceItem && (sourceItem as any).__paperpilotCodexGlobalPortalItem === true
         ? Number(sourceItem.id || 0)
         : 0;
   const sourceUpstreamGlobalKey = isGlobalPortalItem(resolvedSourceState.item)
@@ -573,33 +493,14 @@ export function openStandaloneChat(options?: {
   const rememberedUpstreamGlobalKey =
     activeGlobalConversationByLibrary.get(libraryID) ??
     getLastUsedUpstreamGlobalConversationKey(libraryID);
-  const conversationKey = isClaudeConversationSystem()
-    ? sourceClaudeGlobalKey > 0
-      ? sourceClaudeGlobalKey
-      : resolveRememberedClaudeConversationKey({
-          libraryID,
-          kind: "global",
-        }) || buildDefaultClaudeGlobalConversationKey(libraryID)
-    : isCodexConversationSystem()
-      ? sourceCodexGlobalKey > 0
-        ? sourceCodexGlobalKey
-        : activeCodexGlobalConversationByLibrary.get(
-            buildCodexLibraryStateKey(libraryID),
-          ) ||
-          getLastUsedCodexGlobalConversationKey(libraryID) ||
-          buildDefaultCodexGlobalConversationKey(libraryID)
-      : sourceUpstreamGlobalKey > 0
+  const conversationKey = sourceUpstreamGlobalKey > 0
         ? sourceUpstreamGlobalKey
         : (lockedKey ??
           (rememberedUpstreamGlobalKey === GLOBAL_CONVERSATION_KEY_BASE
             ? buildDefaultUpstreamGlobalConversationKey(libraryID)
             : rememberedUpstreamGlobalKey) ??
           buildDefaultUpstreamGlobalConversationKey(libraryID));
-  const globalPortalItem = isClaudeConversationSystem()
-    ? createClaudeGlobalPortalItem(libraryID, conversationKey)
-    : isCodexConversationSystem()
-      ? createCodexGlobalPortalItem(libraryID, conversationKey)
-      : createGlobalPortalItem(libraryID, conversationKey);
+  const globalPortalItem = createGlobalPortalItem(libraryID, conversationKey);
   const initialPaperItem =
     initialMode === "paper"
       ? resolvedSourceState.item || initialBasePaperItem
@@ -636,7 +537,7 @@ export function openStandaloneChat(options?: {
   // Mutable state for the standalone window
   let standaloneMode: "open" | "paper" = initialMode;
   let activeConversationKey = getConversationKey(initialMountedItem);
-  let activeItem: Zotero.Item = initialMountedItem;
+  let activeItem: Zotero.Item | null = initialMountedItem;
   let currentPaperItem: Zotero.Item | null = initialPaperItem;
   let currentBasePaperItem: Zotero.Item | null = initialBasePaperItem;
   let currentRawContextItem: Zotero.Item | null =
@@ -938,8 +839,6 @@ export function openStandaloneChat(options?: {
       const updateStandaloneSystemToggles = () => {
         syncRuntimeSystemControls(standaloneRuntimeSystemControls, {
           activeSystem: currentConversationSystem,
-          codexEnabled: isCodexAppServerModeEnabled(),
-          claudeEnabled: getClaudeCodeModeEnabled(),
           hidden: isInWebChatMode,
         });
       };
@@ -1438,247 +1337,10 @@ export function openStandaloneChat(options?: {
         webHistoryRefreshBtn.style.display = isWebChat ? "inline-flex" : "none";
 
         // Sidebar: populate with webchat history, or restore local history
-        if (isWebChat) {
-          sidebarTitle.textContent = t("Web History");
-          void renderWebChatSidebar();
-        } else {
-          sidebarTitle.textContent = t("History");
-          scheduleStandaloneSidebarRender();
-        }
+        sidebarTitle.textContent = t("History");
+        scheduleStandaloneSidebarRender();
       };
 
-      const resolveActiveWebChatHostname = async (): Promise<string | null> => {
-        const [
-          { relayGetStateSnapshot },
-          { getWebChatTargetByModelName, WEBCHAT_TARGETS },
-        ] = await Promise.all([
-          import("../../webchat/relayServer"),
-          import("../../webchat/types"),
-        ]);
-        const currentModelName =
-          currentChatHooks?.getCurrentModelName?.() || null;
-        const currentTargetHostname =
-          getWebChatTargetByModelName(currentModelName || "")?.modelName ||
-          null;
-        if (currentTargetHostname) {
-          return currentTargetHostname;
-        }
-        const activeTarget = relayGetStateSnapshot().active_target || null;
-        return (
-          WEBCHAT_TARGETS.find((target) => target.id === activeTarget)
-            ?.modelName || null
-        );
-      };
-
-      // Render webchat history items directly into the sidebar list
-      let webChatSidebarRenderSeq = 0;
-      const renderWebChatSidebar = async () => {
-        if (cancelled || !isInWebChatMode) return;
-        const mySeq = ++webChatSidebarRenderSeq;
-        webHistoryRefreshBtn.disabled = true;
-        clearSidebarList();
-
-        // Loading indicator
-        const loadingEl = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-        loadingEl.className = "paperpilotstandalone-sidebar-empty";
-        loadingEl.textContent = t("Fetching…");
-        sidebarList.appendChild(loadingEl);
-
-        try {
-          const requestedAt = Date.now();
-          const [
-            { relaySetCommand },
-            {
-              filterWebChatHistorySessionsForHostname,
-              getWebChatHistorySiteSyncEntry,
-              isWebChatHistorySiteFailure,
-              waitForFreshChatHistorySnapshot,
-            },
-          ] = await Promise.all([
-            import("../../webchat/relayServer"),
-            import("../../webchat/client"),
-          ]);
-          const targetHostname = await resolveActiveWebChatHostname();
-
-          relaySetCommand({ type: "SCRAPE_HISTORY" });
-
-          let sessions: Array<{
-            id: string;
-            title: string;
-            chatUrl: string | null;
-          }> = [];
-          let historyFetchFailed = false;
-          try {
-            const snapshot = await waitForFreshChatHistorySnapshot(
-              "",
-              targetHostname,
-              requestedAt,
-            );
-            sessions = filterWebChatHistorySessionsForHostname(
-              snapshot.sessions,
-              targetHostname,
-            );
-            historyFetchFailed = isWebChatHistorySiteFailure(
-              getWebChatHistorySiteSyncEntry(snapshot, targetHostname),
-            );
-          } catch {
-            /* relay not reachable */
-          }
-
-          if (
-            cancelled ||
-            !isInWebChatMode ||
-            mySeq !== webChatSidebarRenderSeq
-          )
-            return;
-          loadingEl.remove();
-
-          if (!sessions.length) {
-            const emptyEl = doc.createElementNS(
-              HTML_NS,
-              "div",
-            ) as HTMLDivElement;
-            emptyEl.className = "paperpilotstandalone-sidebar-empty";
-            emptyEl.textContent = historyFetchFailed
-              ? t("Failed to fetch history")
-              : t("No conversations yet");
-            sidebarList.appendChild(emptyEl);
-            return;
-          }
-
-          for (const session of sessions) {
-            const row = doc.createElementNS(
-              HTML_NS,
-              "button",
-            ) as HTMLButtonElement;
-            row.className = "paperpilotstandalone-conv-item";
-            row.type = "button";
-            row.title = session.title || "Untitled";
-
-            const titleEl = doc.createElementNS(
-              HTML_NS,
-              "span",
-            ) as HTMLSpanElement;
-            titleEl.className = "paperpilotstandalone-conv-title";
-            titleEl.textContent = session.title || "Untitled";
-
-            row.appendChild(titleEl);
-            row.addEventListener("click", () => {
-              if (!activeItem) return;
-              // Load the webchat conversation
-              void (async () => {
-                const key = getConversationKey(activeItem);
-                const isDeepSeekSession =
-                  typeof session.chatUrl === "string" &&
-                  /chat\.deepseek\.com/i.test(session.chatUrl);
-                try {
-                  let loadModelName = "chatgpt.com";
-                  try {
-                    if (session.chatUrl) {
-                      const loadUrl = new URL(session.chatUrl);
-                      const { WEBCHAT_TARGETS: targets } =
-                        await import("../../webchat/types");
-                      const matched = targets.find(
-                        (wt) =>
-                          loadUrl.hostname === wt.modelName ||
-                          loadUrl.hostname === `www.${wt.modelName}`,
-                      );
-                      if (matched) loadModelName = matched.modelName;
-                    }
-                  } catch {
-                    /* default */
-                  }
-
-                  webChatIsolatedConversationKeys.add(key);
-                  loadedConversationKeys.add(key);
-                  chatHistory.set(key, [
-                    {
-                      role: "assistant" as const,
-                      text: `Loading conversation: **${session.title || "Untitled"}**\n\nFetching messages…`,
-                      timestamp: Date.now(),
-                      modelName: loadModelName,
-                      modelProviderLabel: "WebChat",
-                      streaming: true,
-                    },
-                  ]);
-                  refreshChat(contentArea, activeItem);
-
-                  // Clear force-new-chat intent so follow-up sends
-                  // continue in the loaded conversation, not start fresh.
-                  currentChatHooks?.clearWebChatNewChatIntent?.();
-
-                  const { loadChatSession } =
-                    await import("../../webchat/client");
-                  const result = await loadChatSession("", session.id);
-
-                  if (cancelled || !isInWebChatMode) return;
-
-                  const messages: Array<{
-                    role: "user" | "assistant";
-                    text: string;
-                    timestamp: number;
-                    modelName?: string;
-                    modelProviderLabel?: string;
-                    reasoningDetails?: string;
-                  }> = [];
-
-                  if (result?.messages?.length) {
-                    for (const m of result.messages) {
-                      messages.push({
-                        role: m.kind === "user" ? "user" : "assistant",
-                        text: m.text || "",
-                        timestamp: m.timestamp
-                          ? new Date(m.timestamp).getTime()
-                          : Date.now(),
-                        modelName: m.kind === "bot" ? loadModelName : undefined,
-                        modelProviderLabel:
-                          m.kind === "bot" ? "WebChat" : undefined,
-                        reasoningDetails: m.thinking || undefined,
-                      });
-                    }
-                  }
-
-                  chatHistory.set(key, messages);
-                  loadedConversationKeys.add(key);
-                  webChatIsolatedConversationKeys.add(key);
-                  refreshChat(contentArea, activeItem);
-                } catch (err) {
-                  ztoolkit.log(
-                    "LLM: standalone webchat sidebar load failed",
-                    err,
-                  );
-                  chatHistory.set(key, [
-                    {
-                      role: "assistant" as const,
-                      text: isDeepSeekSession
-                        ? t("Failed to load selected DeepSeek conversation")
-                        : t("Failed to load selected conversation"),
-                      timestamp: Date.now(),
-                      modelProviderLabel: "WebChat",
-                    },
-                  ]);
-                  loadedConversationKeys.add(key);
-                  webChatIsolatedConversationKeys.add(key);
-                  refreshChat(contentArea, activeItem);
-                }
-              })();
-            });
-
-            sidebarList.appendChild(row);
-          }
-        } catch (err) {
-          ztoolkit.log("LLM: standalone webchat sidebar fetch failed", err);
-          loadingEl.textContent = t("Failed to fetch history");
-        } finally {
-          webHistoryRefreshBtn.disabled = false;
-        }
-      };
-
-      webHistoryRefreshBtn.addEventListener("click", () => {
-        if (cancelled || !isInWebChatMode || webHistoryRefreshBtn.disabled)
-          return;
-        void renderWebChatSidebar();
-      });
 
       // -----------------------------------------------------------------------
       // Mount chat UI into contentArea
@@ -1704,33 +1366,13 @@ export function openStandaloneChat(options?: {
         sessionVersion?: number;
       }): Zotero.Item | null => {
         if (params.mode === "open") {
-          return isClaudeConversationSystem()
-            ? (createClaudeGlobalPortalItem(
-                getCurrentLibraryScopeID(),
-                params.conversationKey,
-              ) as Zotero.Item)
-            : isCodexConversationSystem()
-              ? (createCodexGlobalPortalItem(
-                  getCurrentLibraryScopeID(),
-                  params.conversationKey,
-                ) as Zotero.Item)
-              : createGlobalPortalItem(
+          return createGlobalPortalItem(
                   getCurrentLibraryScopeID(),
                   params.conversationKey,
                 );
         }
         if (!params.paperItem) return null;
-        return isClaudeConversationSystem()
-          ? (createClaudePaperPortalItem(
-              params.paperItem,
-              params.conversationKey,
-            ) as Zotero.Item)
-          : isCodexConversationSystem()
-            ? (createCodexPaperPortalItem(
-                params.paperItem,
-                params.conversationKey,
-              ) as Zotero.Item)
-            : createPaperPortalItem(
+        return createPaperPortalItem(
                 params.paperItem,
                 params.conversationKey,
                 params.sessionVersion || 1,
@@ -1772,19 +1414,7 @@ export function openStandaloneChat(options?: {
             resolveConversationSystemForItem(mountedItem) ||
             currentConversationSystem;
           activeConversationKey = getConversationKey(mountedItem);
-          if (
-            initialRuntimeMode &&
-            !initialRuntimeModeSeeded &&
-            !isRuntimeConversationSystem()
-          ) {
-            if (!selectedRuntimeModeCache.has(activeConversationKey)) {
-              selectedRuntimeModeCache.set(
-                activeConversationKey,
-                initialRuntimeMode,
-              );
-            }
-            initialRuntimeModeSeeded = true;
-          } else if (initialRuntimeMode && !initialRuntimeModeSeeded) {
+          if (initialRuntimeMode && !initialRuntimeModeSeeded) {
             initialRuntimeModeSeeded = true;
           }
 
@@ -1792,22 +1422,7 @@ export function openStandaloneChat(options?: {
             const paperItemID = Number(currentBasePaperItem.id || 0);
             if (paperItemID > 0) {
               const paperLibraryID = getCurrentPaperLibraryID();
-              if (isClaudeConversationSystem()) {
-                activeClaudePaperConversationByPaper.set(
-                  buildClaudePaperStateKey(paperLibraryID, paperItemID),
-                  activeConversationKey,
-                );
-              } else if (isCodexConversationSystem()) {
-                activeCodexPaperConversationByPaper.set(
-                  buildCodexPaperStateKey(paperLibraryID, paperItemID),
-                  activeConversationKey,
-                );
-                setLastUsedCodexPaperConversationKey(
-                  paperLibraryID,
-                  paperItemID,
-                  activeConversationKey,
-                );
-              } else {
+              {
                 activePaperConversationByPaper.set(
                   buildPaperStateKey(paperLibraryID, paperItemID),
                   activeConversationKey,
@@ -1832,7 +1447,6 @@ export function openStandaloneChat(options?: {
 
           activeContextPanels.set(contentArea, () => activeItem);
           activeContextPanelRawItems.set(contentArea, rawItemForPanel);
-          void retainClaudeRuntimeForBody(contentArea, mountedItem);
           let standaloneInputFitRequestId = 0;
           const cancelPendingStandaloneInputFit = () => {
             standaloneInputFitRequestId += 1;
@@ -2160,37 +1774,7 @@ export function openStandaloneChat(options?: {
         const libraryID = getCurrentLibraryScopeID();
         const limit = 100;
         let entries: SidebarConv[];
-        if (isClaudeConversationSystem()) {
-          entries = (
-            await loadAllClaudeConversationHistory({ libraryID, limit })
-          ).map((entry) => ({
-            conversationKey: entry.conversationKey,
-            conversationID: entry.conversationID,
-            libraryID,
-            lastActivityAt: entry.lastActivityAt,
-            title: entry.title,
-            userTurnCount: entry.userTurnCount,
-            paperItemID: entry.paperItemID,
-            providerSessionId: entry.providerSessionId,
-            scopedConversationKey: entry.scopedConversationKey,
-            mode: entry.kind === "paper" ? "paper" : "open",
-          }));
-        } else if (isCodexConversationSystem()) {
-          entries = (
-            await loadAllCodexConversationHistory({ libraryID, limit })
-          ).map((entry) => ({
-            conversationKey: entry.conversationKey,
-            conversationID: entry.conversationID,
-            libraryID,
-            lastActivityAt: entry.lastActivityAt,
-            title: entry.title,
-            userTurnCount: entry.userTurnCount,
-            paperItemID: entry.paperItemID,
-            providerSessionId: entry.providerSessionId,
-            scopedConversationKey: entry.scopedConversationKey,
-            mode: entry.kind === "paper" ? "paper" : "open",
-          }));
-        } else {
+        {
           entries = (
             await loadAllConversationHistory({ libraryID, limit })
           ).map((entry) => ({
@@ -2414,372 +1998,6 @@ export function openStandaloneChat(options?: {
         searchPopupController.toggle();
       });
 
-      // ----------------------------------------------------------------
-      // Skills popup — open/close/render/interactions
-      // ----------------------------------------------------------------
-      let skillCtxFilePath = ""; // tracks which file the context menu targets
-      let skillCtxFilename = ""; // basename of ctx target
-      let skillCtxSource: "system" | "customized" | "personal" = "personal";
-
-      /** Reload the in-memory skill list from disk (call after create/delete). */
-      const reloadRuntimeSkills = async () => {
-        const { loadUserSkills } =
-          await import("../../agent/skills/userSkills");
-        const { setUserSkills } = await import("../../agent/skills");
-        const skills = await loadUserSkills();
-        setUserSkills(skills);
-      };
-
-      const reloadClaudeProjectCommands = async () => {
-        try {
-          await refreshClaudeSlashCommands(await initAgentSubsystem(), true);
-        } catch (err) {
-          ztoolkit.log("LLM: Claude project command refresh failed", err);
-        }
-      };
-
-      const resolveSkillPopupSystem = (): "upstream" | "claude_code" =>
-        resolveConversationSystemForItem(activeItem) === "claude_code"
-          ? "claude_code"
-          : "upstream";
-
-      let skillRenderSeq = 0;
-      const renderSkillGrid = async () => {
-        const renderSeq = ++skillRenderSeq;
-        const skillSystem = resolveSkillPopupSystem();
-        const isClaudeMode = skillSystem === "claude_code";
-        try {
-          const entries: Array<{
-            filePath: string;
-            openPath?: string;
-            filename: string;
-            description: string;
-            source: "system" | "customized" | "personal";
-            managedBlockOutdated?: boolean;
-            shippedVersion?: number | null;
-            version?: number;
-            id?: string;
-          }> = isClaudeMode
-            ? (await listClaudeProjectSkillEntries()).map((entry) => ({
-                filePath: entry.filePath,
-                openPath: entry.openPath,
-                filename: `/${entry.name}`,
-                description: entry.description,
-                source: "personal" as const,
-              }))
-            : await (
-                await import("../../agent/skills/userSkills")
-              ).getSkillListing();
-          if (
-            renderSeq !== skillRenderSeq ||
-            skillSystem !== resolveSkillPopupSystem()
-          ) {
-            return;
-          }
-          skillGrid.textContent = "";
-
-          // "+" add button — first grid item
-          const addBtn = doc.createElementNS(
-            HTML_NS,
-            "button",
-          ) as HTMLButtonElement;
-          addBtn.className =
-            "paperpilotstandalone-skill-item paperpilotstandalone-skill-add";
-          addBtn.type = "button";
-          const addIcon = doc.createElementNS(
-            HTML_NS,
-            "span",
-          ) as HTMLSpanElement;
-          addIcon.className = "paperpilotstandalone-skill-add-icon";
-          addIcon.textContent = "+";
-          const addLabel = doc.createElementNS(
-            HTML_NS,
-            "span",
-          ) as HTMLSpanElement;
-          addLabel.className = "paperpilotstandalone-skill-label";
-          addLabel.textContent = t("New skill");
-          addBtn.append(addIcon, addLabel);
-          addBtn.addEventListener("click", async () => {
-            const filePath = isClaudeMode
-              ? await createClaudeProjectSkillTemplate()
-              : await (
-                  await import("../../agent/skills/userSkills")
-                ).createSkillTemplate();
-            if (filePath) {
-              try {
-                (
-                  Zotero as unknown as { launchFile?: (p: string) => void }
-                ).launchFile?.(filePath);
-              } catch {
-                /* */
-              }
-              if (isClaudeMode) {
-                await reloadClaudeProjectCommands();
-              } else {
-                await reloadRuntimeSkills();
-              }
-              void renderSkillGrid();
-            }
-          });
-          skillGrid.appendChild(addBtn);
-
-          // Skill file items
-          for (const entry of entries) {
-            const item = doc.createElementNS(
-              HTML_NS,
-              "button",
-            ) as HTMLButtonElement;
-            item.className = "paperpilotstandalone-skill-item";
-            item.type = "button";
-            item.dataset.filePath = entry.filePath;
-            item.dataset.source = entry.source;
-
-            // Customized built-ins get an accent border; outdated-format gets
-            // a stronger amber cue so the user notices they should restore.
-            if (entry.source === "customized") {
-              item.style.borderColor = entry.managedBlockOutdated
-                ? "#d97706"
-                : "var(--color-accent, #2563eb)";
-            }
-
-            const icon = doc.createElementNS(
-              HTML_NS,
-              "span",
-            ) as HTMLSpanElement;
-            icon.className = "paperpilotstandalone-skill-doc-icon";
-
-            const label = doc.createElementNS(
-              HTML_NS,
-              "span",
-            ) as HTMLSpanElement;
-            label.className = "paperpilotstandalone-skill-label";
-            label.textContent = entry.filename;
-
-            item.append(icon, label);
-
-            // Tooltip summarizes source + available actions
-            const tooltipLines = [entry.description || entry.filename, ""];
-            if (entry.source === "system") {
-              tooltipLines.push(`Shipped built-in (v${entry.version ?? 0})`);
-            } else if (entry.source === "customized") {
-              const shippedVersion = entry.shippedVersion ?? null;
-              const version = entry.version ?? 0;
-              tooltipLines.push(
-                entry.managedBlockOutdated
-                  ? `Customized — shipped v${shippedVersion ?? "unknown"} uses a new format. Right-click → Restore to default to adopt it (overwrites your edits).`
-                  : typeof shippedVersion === "number" &&
-                      version < shippedVersion
-                    ? `Customized — shipped v${shippedVersion} available. Right-click → Restore to default to adopt it.`
-                    : `Customized built-in.`,
-              );
-            } else {
-              tooltipLines.push(`Your custom skill.`);
-            }
-            item.title = tooltipLines.filter(Boolean).join("\n");
-
-            // Left click — open in system editor
-            item.addEventListener("click", () => {
-              try {
-                (
-                  Zotero as unknown as { launchFile?: (p: string) => void }
-                ).launchFile?.(entry.openPath || entry.filePath);
-              } catch {
-                /* */
-              }
-            });
-
-            // Right click — context menu
-            item.addEventListener("contextmenu", (e: Event) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const me = e as MouseEvent;
-              skillCtxFilePath = entry.filePath;
-              skillCtxFilename = entry.filename;
-              skillCtxSource = entry.source;
-              skillCtxMenu.style.display = "flex";
-
-              // Show Restore only for customized built-ins
-              skillCtxRestore.style.display =
-                entry.source === "customized" ? "flex" : "none";
-              // Hide Delete for system built-ins (they'd just be re-seeded)
-              skillCtxDelete.style.display =
-                entry.source === "system" ? "none" : "flex";
-
-              // Position with viewport bounds checking
-              const menuW = 200;
-              const menuH = 110;
-              let x = me.clientX + 4;
-              let y = me.clientY + 4;
-              if (x + menuW > (doc.documentElement?.clientWidth ?? 9999))
-                x = me.clientX - menuW;
-              if (y + menuH > (doc.documentElement?.clientHeight ?? 9999))
-                y = me.clientY - menuH;
-              skillCtxMenu.style.left = `${x}px`;
-              skillCtxMenu.style.top = `${y}px`;
-            });
-
-            skillGrid.appendChild(item);
-          }
-        } catch (err) {
-          if (renderSeq !== skillRenderSeq) return;
-          skillGrid.textContent = "";
-          const errorEl = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-          errorEl.className = "paperpilotstandalone-sidebar-empty";
-          errorEl.textContent = t("Failed to load skills");
-          skillGrid.appendChild(errorEl);
-          Zotero.debug?.(
-            `[paperpilotfor-zotero] Standalone skill grid render failed: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-        }
-      };
-
-      const openSkillPopup = () => {
-        skillOverlay.style.display = "flex";
-        skillGrid.textContent = "";
-        const loading = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-        loading.className = "paperpilotstandalone-sidebar-empty";
-        loading.textContent = t("Loading…");
-        skillGrid.appendChild(loading);
-        if (resolveSkillPopupSystem() === "claude_code") {
-          void reloadClaudeProjectCommands();
-        } else {
-          void reloadRuntimeSkills();
-        }
-        void renderSkillGrid();
-      };
-
-      const closeSkillPopup = () => {
-        skillOverlay.style.display = "none";
-        skillCtxMenu.style.display = "none";
-      };
-
-      // Skill icon toggle
-      iconSkill.addEventListener("click", () => {
-        if (skillOverlay.style.display !== "none") {
-          closeSkillPopup();
-        } else {
-          openSkillPopup();
-        }
-      });
-
-      skillCloseBtn.addEventListener("click", () => closeSkillPopup());
-
-      skillOverlay.addEventListener("click", (e: Event) => {
-        if (e.target === skillOverlay) closeSkillPopup();
-      });
-
-      // Escape key — attached at document level so it works regardless of focus
-      doc.addEventListener("keydown", (e: Event) => {
-        if (skillOverlay.style.display === "none") return;
-        if ((e as KeyboardEvent).key === "Escape") {
-          e.preventDefault();
-          closeSkillPopup();
-        }
-      });
-
-      // Context menu: Show in file system
-      skillCtxShowInFs.addEventListener("click", async () => {
-        skillCtxMenu.style.display = "none";
-        const dir =
-          resolveSkillPopupSystem() === "claude_code"
-            ? getClaudeProjectDir()
-            : (
-                await import("../../agent/skills/userSkills")
-              ).getUserSkillsDir();
-        try {
-          (
-            Zotero as unknown as { launchFile?: (p: string) => void }
-          ).launchFile?.(dir);
-        } catch {
-          /* */
-        }
-      });
-
-      const refreshSkillPopupForCurrentSystem = async () => {
-        if (resolveSkillPopupSystem() === "claude_code") {
-          await reloadClaudeProjectCommands();
-        } else {
-          await reloadRuntimeSkills();
-        }
-        await renderSkillGrid();
-      };
-
-      // Context menu: Restore to default (customized built-ins only)
-      skillCtxRestore.addEventListener("click", async () => {
-        skillCtxMenu.style.display = "none";
-        if (!skillCtxFilename || skillCtxSource !== "customized") return;
-        const { restoreSkillToDefault } =
-          await import("../../agent/skills/userSkills");
-        const confirmed = await showStandaloneConfirmationDialog(doc, {
-          title: t("Restore skill to default?"),
-          message: `Restore ${skillCtxFilename} to the shipped default? Your customizations in this file will be lost.`,
-          confirmLabel: t("Restore"),
-          cancelLabel: t("Cancel"),
-          destructive: true,
-        });
-        if (!confirmed) return;
-        const ok = await restoreSkillToDefault(skillCtxFilename);
-        skillCtxFilePath = "";
-        skillCtxFilename = "";
-        if (ok) {
-          await refreshSkillPopupForCurrentSystem();
-        }
-      });
-
-      // Context menu: Delete (+ reload runtime skills)
-      skillCtxDelete.addEventListener("click", async () => {
-        skillCtxMenu.style.display = "none";
-        if (!skillCtxFilePath) return;
-        if (resolveSkillPopupSystem() === "claude_code") {
-          await deleteClaudeProjectSkillFile(skillCtxFilePath);
-          await reloadClaudeProjectCommands();
-        } else {
-          const { deleteSkillFile } =
-            await import("../../agent/skills/userSkills");
-          await deleteSkillFile(skillCtxFilePath);
-          await reloadRuntimeSkills();
-        }
-        skillCtxFilePath = "";
-        skillCtxFilename = "";
-        await refreshSkillPopupForCurrentSystem();
-      });
-
-      // Header: Check for updates — re-seed built-ins and refresh the grid
-      skillRefreshBtn.addEventListener("click", async () => {
-        skillRefreshBtn.disabled = true;
-        const originalText = skillRefreshBtn.textContent;
-        skillRefreshBtn.textContent = t("Checking…");
-        try {
-          if (resolveSkillPopupSystem() === "claude_code") {
-            await reloadClaudeProjectCommands();
-          } else {
-            const { initUserSkills } =
-              await import("../../agent/skills/userSkills");
-            await initUserSkills();
-            await reloadRuntimeSkills();
-          }
-          await renderSkillGrid();
-          skillRefreshBtn.textContent = t("Up to date");
-          doc.defaultView?.setTimeout(() => {
-            skillRefreshBtn.textContent = originalText;
-            skillRefreshBtn.disabled = false;
-          }, 1500);
-        } catch (err) {
-          Zotero.debug?.(
-            `[paperpilotfor-zotero] Skill refresh failed: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-          skillRefreshBtn.textContent = t("Update failed");
-          doc.defaultView?.setTimeout(() => {
-            skillRefreshBtn.textContent = originalText;
-            skillRefreshBtn.disabled = false;
-          }, 2000);
-        }
-      });
-
       // Dismiss context menu on click outside
       doc.addEventListener("mousedown", (e: Event) => {
         const target = e.target as HTMLElement;
@@ -2964,18 +2182,7 @@ export function openStandaloneChat(options?: {
           const currentLibraryID = Number(
             entry.libraryID || getCurrentLibraryScopeID(),
           );
-          if (isClaudeConversationSystem()) {
-            activeClaudeGlobalConversationByLibrary.set(
-              buildClaudeLibraryStateKey(currentLibraryID),
-              key,
-            );
-          } else if (isCodexConversationSystem()) {
-            activeCodexGlobalConversationByLibrary.set(
-              buildCodexLibraryStateKey(currentLibraryID),
-              key,
-            );
-            setLastUsedCodexGlobalConversationKey(currentLibraryID, key);
-          } else {
+          {
             activeGlobalConversationByLibrary.set(currentLibraryID, key);
             setLastUsedUpstreamGlobalConversationKey(currentLibraryID, key);
           }
@@ -3081,7 +2288,6 @@ export function openStandaloneChat(options?: {
           {
             resetSessionTokens,
             scheduleAttachmentGc: scheduleStandaloneAttachmentGc,
-            getCoreAgentRuntime: initAgentSubsystem,
             log: (message, ...args) => ztoolkit.log(message, ...args),
           },
         );
@@ -3299,18 +2505,7 @@ export function openStandaloneChat(options?: {
 
         if (standaloneMode === "open") {
           const currentLibraryID = getCurrentLibraryScopeID();
-          if (isClaudeConversationSystem()) {
-            activeClaudeGlobalConversationByLibrary.set(
-              buildClaudeLibraryStateKey(currentLibraryID),
-              key,
-            );
-          } else if (isCodexConversationSystem()) {
-            activeCodexGlobalConversationByLibrary.set(
-              buildCodexLibraryStateKey(currentLibraryID),
-              key,
-            );
-            setLastUsedCodexGlobalConversationKey(currentLibraryID, key);
-          } else {
+          {
             activeGlobalConversationByLibrary.set(currentLibraryID, key);
             setLastUsedUpstreamGlobalConversationKey(currentLibraryID, key);
           }
@@ -3408,21 +2603,7 @@ export function openStandaloneChat(options?: {
         openTab.classList.add("active");
         activeConversationKey = normalizedKey;
         const currentLibraryID = getCurrentLibraryScopeID();
-        if (isClaudeConversationSystem()) {
-          activeClaudeGlobalConversationByLibrary.set(
-            buildClaudeLibraryStateKey(currentLibraryID),
-            normalizedKey,
-          );
-        } else if (isCodexConversationSystem()) {
-          activeCodexGlobalConversationByLibrary.set(
-            buildCodexLibraryStateKey(currentLibraryID),
-            normalizedKey,
-          );
-          setLastUsedCodexGlobalConversationKey(
-            currentLibraryID,
-            normalizedKey,
-          );
-        } else {
+        {
           activeGlobalConversationByLibrary.set(
             currentLibraryID,
             normalizedKey,
@@ -3505,18 +2686,7 @@ export function openStandaloneChat(options?: {
             if (!newKey || cancelled) return;
             await touchStandaloneEmptyDraftActivity(newKey, "global");
             activeConversationKey = newKey;
-            if (isClaudeConversationSystem()) {
-              activeClaudeGlobalConversationByLibrary.set(
-                buildClaudeLibraryStateKey(currentLibraryID),
-                newKey,
-              );
-            } else if (isCodexConversationSystem()) {
-              activeCodexGlobalConversationByLibrary.set(
-                buildCodexLibraryStateKey(currentLibraryID),
-                newKey,
-              );
-              setLastUsedCodexGlobalConversationKey(currentLibraryID, newKey);
-            } else {
+            {
               activeGlobalConversationByLibrary.set(currentLibraryID, newKey);
               setLastUsedUpstreamGlobalConversationKey(
                 currentLibraryID,
@@ -3614,12 +2784,9 @@ export function openStandaloneChat(options?: {
         if (activeNoteSession && activeNoteItem) {
           const resolvedNextSystem = resolveNoteFocusSystemSwitch({
             nextSystem,
-            codexAvailable: isCodexAppServerModeEnabled(),
-            claudeAvailable: getClaudeCodeModeEnabled(),
           });
           if (!resolvedNextSystem) return;
           if (resolvedNextSystem === currentConversationSystem) return;
-          setConversationSystemPref(resolvedNextSystem);
           currentConversationSystem = resolvedNextSystem;
           if (options?.forceFresh === true) {
             if (activeNoteSession.conversationKind === "global") {
@@ -3629,18 +2796,7 @@ export function openStandaloneChat(options?: {
               await touchStandaloneEmptyDraftActivity(newKey, "global");
               if (switchSeq !== systemSwitchSeq) return;
               const libraryID = activeNoteSession.libraryID;
-              if (resolvedNextSystem === "claude_code") {
-                activeClaudeGlobalConversationByLibrary.set(
-                  buildClaudeLibraryStateKey(libraryID),
-                  newKey,
-                );
-              } else if (resolvedNextSystem === "codex") {
-                activeCodexGlobalConversationByLibrary.set(
-                  buildCodexLibraryStateKey(libraryID),
-                  newKey,
-                );
-                setLastUsedCodexGlobalConversationKey(libraryID, newKey);
-              } else {
+              {
                 activeGlobalConversationByLibrary.set(libraryID, newKey);
                 setLastUsedUpstreamGlobalConversationKey(libraryID, newKey);
               }
@@ -3657,22 +2813,7 @@ export function openStandaloneChat(options?: {
               if (switchSeq !== systemSwitchSeq) return;
               const libraryID = getLibraryIDForPaperItem(paperItem);
               const paperItemID = Number(paperItem.id || 0);
-              if (resolvedNextSystem === "claude_code") {
-                activeClaudePaperConversationByPaper.set(
-                  buildClaudePaperStateKey(libraryID, paperItemID),
-                  newKey,
-                );
-              } else if (resolvedNextSystem === "codex") {
-                activeCodexPaperConversationByPaper.set(
-                  buildCodexPaperStateKey(libraryID, paperItemID),
-                  newKey,
-                );
-                setLastUsedCodexPaperConversationKey(
-                  libraryID,
-                  paperItemID,
-                  newKey,
-                );
-              } else {
+              {
                 activePaperConversationByPaper.set(
                   buildPaperStateKey(libraryID, paperItemID),
                   newKey,
@@ -3692,32 +2833,15 @@ export function openStandaloneChat(options?: {
         const currentSystem = currentConversationSystem;
         if (nextSystem === currentSystem) return;
         const forceFresh = options?.forceFresh === true;
-        setConversationSystemPref(nextSystem);
         currentConversationSystem = nextSystem;
         updateStandaloneSystemToggles();
         if (standaloneMode === "open") {
           const libraryID = getCurrentLibraryScopeID();
           const mountOpenConversation = (conversationKey: number) => {
             if (switchSeq !== systemSwitchSeq) return;
-            const nextItem =
-              nextSystem === "claude_code"
-                ? createClaudeGlobalPortalItem(libraryID, conversationKey)
-                : nextSystem === "codex"
-                  ? createCodexGlobalPortalItem(libraryID, conversationKey)
-                  : createGlobalPortalItem(libraryID, conversationKey);
+            const nextItem = createGlobalPortalItem(libraryID, conversationKey);
             activeConversationKey = conversationKey;
-            if (nextSystem === "claude_code") {
-              activeClaudeGlobalConversationByLibrary.set(
-                buildClaudeLibraryStateKey(libraryID),
-                conversationKey,
-              );
-            } else if (nextSystem === "codex") {
-              activeCodexGlobalConversationByLibrary.set(
-                buildCodexLibraryStateKey(libraryID),
-                conversationKey,
-              );
-              setLastUsedCodexGlobalConversationKey(libraryID, conversationKey);
-            } else {
+            {
               activeGlobalConversationByLibrary.set(libraryID, conversationKey);
               setLastUsedUpstreamGlobalConversationKey(
                 libraryID,
@@ -3771,12 +2895,7 @@ export function openStandaloneChat(options?: {
           if (!newKey) return;
           await touchStandaloneEmptyDraftActivity(newKey, "paper");
           if (switchSeq !== systemSwitchSeq) return;
-          const freshItem =
-            nextSystem === "claude_code"
-              ? createClaudePaperPortalItem(paperItem, newKey)
-              : nextSystem === "codex"
-                ? createCodexPaperPortalItem(paperItem, newKey)
-                : createPaperPortalItem(paperItem, newKey, sessionVersion || 1);
+          const freshItem = createPaperPortalItem(paperItem, newKey, sessionVersion || 1);
           activeConversationKey = newKey;
           currentPaperItem = paperItem;
           mountChatPanel(freshItem as Zotero.Item, currentRawContextItem);
@@ -3838,26 +2957,6 @@ export function openStandaloneChat(options?: {
             unregister();
             return;
           }
-          if (!getClaudeCodeModeEnabled()) {
-            void releaseClaudeRuntimeForBody(contentArea as Element);
-            void initAgentSubsystem()
-              .then((coreRuntime) =>
-                invalidateAllClaudeHotRuntimes(coreRuntime),
-              )
-              .catch((err) => {
-                ztoolkit.log(
-                  "LLM: Failed to invalidate all Claude hot runtimes",
-                  err,
-                );
-              });
-            if (getConversationSystemPref() === "claude_code") {
-              setConversationSystemPref("upstream");
-            }
-            if (isClaudeConversationSystem()) {
-              void switchConversationSystem("upstream");
-              return;
-            }
-          }
           updateStandaloneSystemToggles();
         };
         const onCodexModePrefChange = () => {
@@ -3865,46 +2964,13 @@ export function openStandaloneChat(options?: {
             unregister();
             return;
           }
-          if (!isCodexAppServerModeEnabled()) {
-            if (getConversationSystemPref() === "codex") {
-              setConversationSystemPref("upstream");
-            }
-            if (isCodexConversationSystem()) {
-              void switchConversationSystem("upstream");
-              return;
-            }
-          }
           updateStandaloneSystemToggles();
         };
-        try {
-          claudeObserverId = (Zotero as any).Prefs.registerObserver(
-            claudeModePrefKey,
-            onClaudeModePrefChange,
-            true,
-          );
-          codexObserverId = (Zotero as any).Prefs.registerObserver(
-            codexModePrefKey,
-            onCodexModePrefChange,
-            true,
-          );
-        } catch {
-          void 0;
-        }
       }
 
       const commitStandaloneMode = (mode: "open" | "paper") => {
         standaloneMode = mode;
-        if (isClaudeConversationSystem()) {
-          setLastUsedClaudeConversationMode(
-            getCurrentLibraryScopeID(),
-            mode === "open" ? "global" : "paper",
-          );
-        } else if (isCodexConversationSystem()) {
-          setLastUsedCodexConversationMode(
-            getCurrentLibraryScopeID(),
-            mode === "open" ? "global" : "paper",
-          );
-        } else {
+        {
           setLastUsedUpstreamConversationMode(
             getCurrentLibraryScopeID(),
             mode === "open" ? "global" : "paper",

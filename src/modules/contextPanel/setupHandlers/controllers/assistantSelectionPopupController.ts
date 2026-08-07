@@ -41,14 +41,14 @@ export function attachAssistantSelectionPopup(
     isElementNode,
   } = deps;
   const popupHost = panelRoot as HTMLDivElement & {
-    __llmSelectionPopupCleanup?: () => void;
+    __paperpilotSelectionPopupCleanup?: () => void;
   };
   panelRoot
     .querySelectorAll(".paperpilotassistant-selection-action")
     .forEach((node: Element) => node.remove());
-  if (popupHost.__llmSelectionPopupCleanup) {
-    popupHost.__llmSelectionPopupCleanup();
-    delete popupHost.__llmSelectionPopupCleanup;
+  if (popupHost.__paperpilotSelectionPopupCleanup) {
+    popupHost.__paperpilotSelectionPopupCleanup();
+    delete popupHost.__paperpilotSelectionPopupCleanup;
   }
   const selectionPopup = createElement(
     panelDoc,
@@ -330,9 +330,9 @@ export function attachAssistantSelectionPopup(
     chatBox?.removeEventListener("contextmenu", onChatContextMenu, true);
     panelWin?.removeEventListener("resize", onChatScrollHide);
     selectionPopup.remove();
-    if (popupHost.__llmSelectionPopupCleanup === disposeSelectionPopup) {
-      delete popupHost.__llmSelectionPopupCleanup;
+    if (popupHost.__paperpilotSelectionPopupCleanup === disposeSelectionPopup) {
+      delete popupHost.__paperpilotSelectionPopupCleanup;
     }
   };
-  popupHost.__llmSelectionPopupCleanup = disposeSelectionPopup;
+  popupHost.__paperpilotSelectionPopupCleanup = disposeSelectionPopup;
 }

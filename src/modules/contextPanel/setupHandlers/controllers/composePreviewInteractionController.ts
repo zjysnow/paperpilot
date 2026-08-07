@@ -915,12 +915,12 @@ export function attachComposePreviewInteractionController(
   }
 
   const bodyWithPinnedDismiss = body as Element & {
-    __llmPinnedContextDismissHandler?: EventListener;
+    __paperpilotPinnedContextDismissHandler?: EventListener;
   };
-  if (bodyWithPinnedDismiss.__llmPinnedContextDismissHandler) {
+  if (bodyWithPinnedDismiss.__paperpilotPinnedContextDismissHandler) {
     body.removeEventListener(
       "mousedown",
-      bodyWithPinnedDismiss.__llmPinnedContextDismissHandler,
+      bodyWithPinnedDismiss.__paperpilotPinnedContextDismissHandler,
       true,
     );
   }
@@ -985,6 +985,6 @@ export function attachComposePreviewInteractionController(
     deps.updateImagePreviewPreservingScroll();
   };
   body.addEventListener("mousedown", dismissPinnedContextPanels, true);
-  bodyWithPinnedDismiss.__llmPinnedContextDismissHandler =
+  bodyWithPinnedDismiss.__paperpilotPinnedContextDismissHandler =
     dismissPinnedContextPanels;
 }

@@ -16,8 +16,7 @@ import { resolveActiveLibraryID } from "./modules/contextPanel/portalScope";
 import { invalidatePaperSearchCache } from "./modules/contextPanel/paperSearch";
 import { registerZoteroItemContextMenu } from "./modules/contextPanel/zoteroItemContextMenu";
 import { initChatStore } from "./utils/chatStore";
-import { initClaudeCodeStore } from "./claudeCode/store";
-import { initCodexAppServerStore } from "./codexAppServer/store";
+
 import {
   runDeferredLegacyMigrations,
   runStartupPreferenceMigrations,
@@ -33,7 +32,6 @@ type ConversationStoreReadiness = {
   codexStoreReady: boolean;
 };
 
-let startupUserSkillsLoadTask: Promise<void> | null = null;
 
 function getStartupPrefKey(key: string): string {
   return `${config.prefsPrefix}.${key}`;
@@ -79,18 +77,6 @@ function runDeferredStartupTask(
   })();
 }
 
-async function ensureStartupUserSkillsLoaded(): Promise<void> {
-  if (!startupUserSkillsLoadTask) {
-    startupUserSkillsLoadTask = (async () => {
-      const { initUserSkills, loadUserSkills } =
-        await import("./agent/skills/userSkills");
-      const { setUserSkills } = await import("./agent/skills");
-      await initUserSkills();
-      setUserSkills(await loadUserSkills());
-    })();
-  }
-  await startupUserSkillsLoadTask;
-}
 
 async function initializeConversationStoresForStartup(): Promise<ConversationStoreReadiness> {
   const readiness: ConversationStoreReadiness = {
@@ -104,21 +90,6 @@ async function initializeConversationStoresForStartup(): Promise<ConversationSto
     readiness.chatStoreReady = true;
   } catch (err) {
     ztoolkit.log("LLM: Failed to initialize chat store", err);
-  }
-  try {
-    await measureStartupPhase("Claude Code store", initClaudeCodeStore);
-    readiness.claudeStoreReady = true;
-  } catch (err) {
-    ztoolkit.log("LLM: Failed to initialize Claude Code store", err);
-  }
-  try {
-    await measureStartupPhase(
-      "Codex App Server store",
-      initCodexAppServerStore,
-    );
-    readiness.codexStoreReady = true;
-  } catch (err) {
-    ztoolkit.log("LLM: Failed to initialize Codex App Server store", err);
   }
 
   return readiness;
@@ -169,29 +140,7 @@ function scheduleConversationIntegrityAudit(): void {
   });
 }
 
-function scheduleClaudeProjectBootstrapIfEnabled(): void {
-  if (!getStartupBoolPref("enableClaudeCodeMode")) return;
-  runDeferredStartupTask("Claude project bootstrap", async () => {
-    const { ensureClaudeProjectBootstrapIfEnabled } =
-      await import("./claudeCode/bootstrapGate");
-    await ensureClaudeProjectBootstrapIfEnabled();
-  });
-}
 
-function scheduleAgentSubsystemStartup(): void {
-  runDeferredStartupTask("agent subsystem", async () => {
-    const { getAgentApi, initAgentSubsystem } = await import("./agent");
-    await initAgentSubsystem();
-    addon.api.agent = getAgentApi();
-    await ensureStartupUserSkillsLoaded();
-  });
-}
-
-function scheduleUserSkillsLoad(): void {
-  runDeferredStartupTask("user skills", async () => {
-    await ensureStartupUserSkillsLoaded();
-  });
-}
 
 function scheduleAttachmentMaintenance(): void {
   runDeferredStartupTask("attachment reference maintenance", async () => {
@@ -207,12 +156,7 @@ function scheduleAttachmentMaintenance(): void {
   });
 }
 
-function scheduleWebChatRelayRegistration(): void {
-  runDeferredStartupTask("webchat relay registration", async () => {
-    const { registerWebChatRelay } = await import("./webchat/relayServer");
-    registerWebChatRelay();
-  });
-}
+
 
 function scheduleMineruAutoWatchRegistration(): void {
   runDeferredStartupTask("MinerU auto-watch", async () => {
@@ -230,11 +174,7 @@ function scheduleDeferredStartupWork(
   );
   scheduleConversationMaintenance(readiness);
   scheduleConversationIntegrityAudit();
-  scheduleClaudeProjectBootstrapIfEnabled();
-  scheduleAgentSubsystemStartup();
-  scheduleUserSkillsLoad();
   scheduleAttachmentMaintenance();
-  scheduleWebChatRelayRegistration();
   scheduleMineruAutoWatchRegistration();
 }
 

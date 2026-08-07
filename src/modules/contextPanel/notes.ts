@@ -50,16 +50,7 @@ import {
   resolveNoteParentItem,
   resolvePaperPortalBaseItem,
 } from "./portalScope";
-import {
-  isClaudeGlobalPortalItem,
-  isClaudePaperPortalItem,
-  resolveClaudePaperPortalBaseItem,
-} from "../../claudeCode/portal";
-import {
-  isCodexGlobalPortalItem,
-  isCodexPaperPortalItem,
-  resolveCodexPaperPortalBaseItem,
-} from "../../codexAppServer/portal";
+
 import { getMessageCitationPaperContexts } from "./citationContexts";
 import { findMatchingTrustedQuoteCitation } from "./quoteCitations";
 import {
@@ -205,20 +196,12 @@ export function resolveParentItemForNoteTarget(
   item: Zotero.Item,
 ): Zotero.Item | null {
   if (
-    isGlobalPortalItem(item) ||
-    isClaudeGlobalPortalItem(item) ||
-    isCodexGlobalPortalItem(item)
+    isGlobalPortalItem(item)
   ) {
     return null;
   }
   if (isPaperPortalItem(item)) {
     return resolvePaperPortalBaseItem(item);
-  }
-  if (isClaudePaperPortalItem(item)) {
-    return resolveClaudePaperPortalBaseItem(item);
-  }
-  if (isCodexPaperPortalItem(item)) {
-    return resolveCodexPaperPortalBaseItem(item);
   }
   const noteParentItem = resolveNoteParentItem(item);
   if (noteParentItem) {
@@ -1177,7 +1160,7 @@ export async function createAssistantResponseNote(params: {
   generatedImages?: GeneratedChatImage[];
   figureRender?: NoteFigureRenderOptions;
 }): Promise<AssistantResponseNoteResult> {
-  let libraryID = 0;
+  let libraryID;
   let parentId: number | undefined;
   if (params.destination.kind === "item") {
     const parentItem = resolveParentItemForNoteTarget(params.destination.item);

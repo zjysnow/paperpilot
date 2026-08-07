@@ -16,7 +16,7 @@ export type ReaderSelectionListenerRecord<THandler = unknown> = {
 };
 
 export type ReaderSelectionTrackingReader<THandler> = {
-  __llmSelectionTracking?: ReaderSelectionTrackingRecord<THandler>;
+  __paperpilotSelectionTracking?: ReaderSelectionTrackingRecord<THandler>;
   _registeredListeners?: ReaderSelectionListenerRecord<THandler>[];
   registerEventListener: (
     type: typeof READER_TEXT_SELECTION_POPUP_EVENT,
@@ -85,7 +85,7 @@ export function registerReaderSelectionTrackingListener<THandler>(
   pluginID: string,
   handler: THandler,
 ): boolean {
-  const existingTracking = readerAPI.__llmSelectionTracking;
+  const existingTracking = readerAPI.__paperpilotSelectionTracking;
   if (
     existingTracking?.pluginID === pluginID &&
     existingTracking.type === READER_TEXT_SELECTION_POPUP_EVENT
@@ -108,7 +108,7 @@ export function registerReaderSelectionTrackingListener<THandler>(
     handler,
     pluginID,
   );
-  readerAPI.__llmSelectionTracking = {
+  readerAPI.__paperpilotSelectionTracking = {
     pluginID,
     type: READER_TEXT_SELECTION_POPUP_EVENT,
     handler,
@@ -119,7 +119,7 @@ export function registerReaderSelectionTrackingListener<THandler>(
 export function ensureMarkedReaderSelectionTrackingListener<THandler>(
   readerAPI: ReaderSelectionTrackingReader<THandler>,
 ): boolean {
-  const tracking = readerAPI.__llmSelectionTracking;
+  const tracking = readerAPI.__paperpilotSelectionTracking;
   if (!tracking) return false;
   return registerReaderSelectionTrackingListener(
     readerAPI,
@@ -137,10 +137,10 @@ export function unregisterReaderSelectionTrackingListener<THandler>(
     pluginID,
   );
   const hadMarker =
-    readerAPI.__llmSelectionTracking?.pluginID === pluginID &&
-    readerAPI.__llmSelectionTracking.type === READER_TEXT_SELECTION_POPUP_EVENT;
+    readerAPI.__paperpilotSelectionTracking?.pluginID === pluginID &&
+    readerAPI.__paperpilotSelectionTracking.type === READER_TEXT_SELECTION_POPUP_EVENT;
   if (hadMarker) {
-    delete readerAPI.__llmSelectionTracking;
+    delete readerAPI.__paperpilotSelectionTracking;
   }
   return removedListeners || hadMarker;
 }

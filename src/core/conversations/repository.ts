@@ -1,41 +1,4 @@
-import {
-  createClaudeGlobalConversation,
-  createClaudePaperConversation,
-  deleteClaudeConversationLocalRows,
-  deleteClaudeConversation,
-  deleteClaudeTurnMessages,
-  ensureClaudeGlobalConversation,
-  ensureClaudePaperConversation,
-  getClaudeConversationSummary,
-  loadClaudeConversation,
-  listAllClaudePaperConversationsByLibrary,
-  listClaudeGlobalConversations,
-  listClaudePaperConversations,
-  preflightDeleteClaudeConversationLocalRows,
-  setClaudeConversationTitle,
-  touchClaudeConversationTitle,
-  upsertClaudeConversationSummary,
-} from "../../claudeCode/store";
-import {
-  createCodexGlobalConversation,
-  createCodexPaperConversation,
-  deleteCodexConversationLocalRows,
-  deleteCodexConversation,
-  deleteCodexTurnMessages,
-  ensureCodexGlobalConversation,
-  ensureCodexPaperConversation,
-  forkCodexConversationMessages,
-  getLatestCodexForkableAssistantTimestamp,
-  getCodexConversationSummary,
-  loadCodexConversation,
-  listAllCodexPaperConversationsByLibrary,
-  listCodexGlobalConversations,
-  listCodexPaperConversations,
-  preflightDeleteCodexConversationLocalRows,
-  setCodexConversationTitle,
-  touchCodexConversationTitle,
-  upsertCodexConversationSummary,
-} from "../../codexAppServer/store";
+
 import { isConversationKeyForKind } from "../../shared/conversationKeySpace";
 import {
   canMigrateLegacyAmbiguousPaperRegistryScope,
@@ -75,9 +38,7 @@ import {
   touchPaperConversationTitle,
   type StoredChatMessage,
 } from "../../utils/chatStore";
-import { codexAppServerForkService } from "../../codexAppServer/forkService";
-import { getCodexProfileSignature } from "../../codexAppServer/constants";
-import { releaseConversationScopeToken } from "../../agent/mcp/server";
+
 import {
   deleteConversationForkLink,
   recordConversationForkLink,
@@ -408,45 +369,6 @@ async function touchRuntimeEmptyCatalogActivity(
 ): Promise<void> {
   if (entry.userTurnCount > 0) return;
   const updatedAt = normalizeTimestamp(timestamp, Date.now());
-  if (entry.system === "claude_code") {
-    await upsertClaudeConversationSummary({
-      conversationKey: entry.conversationKey,
-      libraryID: entry.libraryID,
-      kind: entry.kind,
-      paperItemID: entry.paperItemID,
-      createdAt: entry.createdAt,
-      updatedAt,
-      title: entry.title,
-      providerSessionId: entry.providerSessionId,
-      scopedConversationKey: entry.scopedConversationKey,
-      scopeType: entry.scopeType,
-      scopeId: entry.scopeId,
-      scopeLabel: entry.scopeLabel,
-      cwd: entry.cwd,
-      model: entry.model,
-      effort: entry.effort,
-    });
-    return;
-  }
-  if (entry.system === "codex") {
-    await upsertCodexConversationSummary({
-      conversationKey: entry.conversationKey,
-      libraryID: entry.libraryID,
-      kind: entry.kind,
-      paperItemID: entry.paperItemID,
-      createdAt: entry.createdAt,
-      updatedAt,
-      title: entry.title,
-      providerSessionId: entry.providerSessionId,
-      scopedConversationKey: entry.scopedConversationKey,
-      scopeType: entry.scopeType,
-      scopeId: entry.scopeId,
-      scopeLabel: entry.scopeLabel,
-      cwd: entry.cwd,
-      model: entry.model,
-      effort: entry.effort,
-    });
-  }
 }
 
 export const conversationRepository = {
@@ -455,16 +377,7 @@ export const conversationRepository = {
   ): Promise<ConversationCatalogEntry | null> {
     const conversationKey = normalizePositiveInt(target.conversationKey);
     if (!conversationKey) return null;
-    if (target.system === "claude_code") {
-      return fromClaudeSummary(
-        await getClaudeConversationSummary(conversationKey),
-      );
-    }
-    if (target.system === "codex") {
-      return fromCodexSummary(
-        await getCodexConversationSummary(conversationKey),
-      );
-    }
+
     if (
       target.kind === "global" ||
       isUpstreamGlobalConversationKey(conversationKey)
@@ -490,12 +403,7 @@ export const conversationRepository = {
     const conversationKey = normalizePositiveInt(target.conversationKey);
     if (!conversationKey) return [];
     const limit = normalizeLimit(target.limit, 200);
-    if (target.system === "claude_code") {
-      return loadClaudeConversation(conversationKey, limit);
-    }
-    if (target.system === "codex") {
-      return loadCodexConversation(conversationKey, limit);
-    }
+
     return loadUpstreamConversation(conversationKey, limit);
   },
 
@@ -504,22 +412,7 @@ export const conversationRepository = {
     if (!conversationKey) return;
     const userTimestamp = normalizeTimestamp(target.userTimestamp);
     const assistantTimestamp = normalizeTimestamp(target.assistantTimestamp);
-    if (target.system === "claude_code") {
-      await deleteClaudeTurnMessages(
-        conversationKey,
-        userTimestamp,
-        assistantTimestamp,
-      );
-      return;
-    }
-    if (target.system === "codex") {
-      await deleteCodexTurnMessages(
-        conversationKey,
-        userTimestamp,
-        assistantTimestamp,
-      );
-      return;
-    }
+
     await deleteUpstreamTurnMessages(
       conversationKey,
       userTimestamp,
@@ -535,59 +428,6 @@ export const conversationRepository = {
     const conversationKey = normalizePositiveInt(params.conversationKey);
     if (!libraryID) return null;
 
-    if (params.system === "claude_code") {
-      if (conversationKey) {
-        const existing = await getClaudeConversationSummary(conversationKey);
-        if (existing) {
-          const entry = fromClaudeSummary(existing);
-          if (!catalogEntryMatchesScope(entry, params)) return null;
-          await repairRuntimeRegistryFromSummary("claude_code", existing);
-          return entry;
-        }
-        await upsertClaudeConversationSummary({
-          conversationKey,
-          libraryID,
-          kind: params.kind,
-          paperItemID,
-          title: params.title || "",
-        });
-        return fromClaudeSummary(
-          await getClaudeConversationSummary(conversationKey),
-        );
-      }
-      return fromClaudeSummary(
-        params.kind === "paper"
-          ? await ensureClaudePaperConversation(libraryID, paperItemID)
-          : await ensureClaudeGlobalConversation(libraryID),
-      );
-    }
-
-    if (params.system === "codex") {
-      if (conversationKey) {
-        const existing = await getCodexConversationSummary(conversationKey);
-        if (existing) {
-          const entry = fromCodexSummary(existing);
-          if (!catalogEntryMatchesScope(entry, params)) return null;
-          await repairRuntimeRegistryFromSummary("codex", existing);
-          return entry;
-        }
-        await upsertCodexConversationSummary({
-          conversationKey,
-          libraryID,
-          kind: params.kind,
-          paperItemID,
-          title: params.title || "",
-        });
-        return fromCodexSummary(
-          await getCodexConversationSummary(conversationKey),
-        );
-      }
-      return fromCodexSummary(
-        params.kind === "paper"
-          ? await ensureCodexPaperConversation(libraryID, paperItemID)
-          : await ensureCodexGlobalConversation(libraryID),
-      );
-    }
 
     if (params.kind === "global") {
       if (!conversationKey) return null;
@@ -620,20 +460,7 @@ export const conversationRepository = {
     const libraryID = normalizePositiveInt(params.libraryID);
     const paperItemID = normalizePositiveInt(params.paperItemID);
     if (!libraryID) return null;
-    if (params.system === "claude_code") {
-      return fromClaudeSummary(
-        params.kind === "paper"
-          ? await createClaudePaperConversation(libraryID, paperItemID)
-          : await createClaudeGlobalConversation(libraryID),
-      );
-    }
-    if (params.system === "codex") {
-      return fromCodexSummary(
-        params.kind === "paper"
-          ? await createCodexPaperConversation(libraryID, paperItemID)
-          : await createCodexGlobalConversation(libraryID),
-      );
-    }
+
     if (params.kind === "paper") {
       return fromUpstreamPaperSummary(
         paperItemID
@@ -676,13 +503,7 @@ export const conversationRepository = {
     const sourceProviderSessionId =
       normalizeTitle(sourceEntry.providerSessionId) || "";
 
-    if (params.system === "codex") {
-      const latestCodexForkableAssistantTimestamp =
-        await getLatestCodexForkableAssistantTimestamp(sourceConversationKey);
-      if (latestCodexForkableAssistantTimestamp !== throughAssistantTimestamp) {
-        return null;
-      }
-    }
+
 
     const entry = await conversationRepository.createCatalogEntry({
       system: params.system,
@@ -696,54 +517,7 @@ export const conversationRepository = {
     // conversation it belongs to. Codex binds the Zotero scope header when it
     // creates the target conversation, and resume never rebinds it, so a fork
     // that inherits the source header would stay bound to the source scope.
-    let forkedCodexThreadId: string | null = null;
-    if (params.system === "codex" && sourceProviderSessionId) {
-      const discardForkEntry = async () => {
-        await conversationRepository
-          .deleteCatalogEntry({
-            system: "codex",
-            kind: entry.kind,
-            conversationKey: entry.conversationKey,
-          })
-          .catch(() => {});
-      };
-      try {
-        forkedCodexThreadId = await codexAppServerForkService.forkThread({
-          threadId: sourceProviderSessionId,
-          targetConversationKey: entry.conversationKey,
-        });
-      } catch (err) {
-        await discardForkEntry();
-        throw err;
-      }
-      if (!forkedCodexThreadId) {
-        await discardForkEntry();
-        return null;
-      }
-    }
-    if (params.system === "codex" && forkedCodexThreadId) {
-      const persistedProviderSession = await upsertCodexConversationSummary({
-        conversationKey: entry.conversationKey,
-        libraryID,
-        kind: entry.kind,
-        paperItemID: entry.paperItemID,
-        createdAt: entry.createdAt,
-        updatedAt: Date.now(),
-        title: entry.title,
-        providerSessionId: forkedCodexThreadId,
-      });
-      if (!persistedProviderSession) {
-        await conversationRepository.deleteCatalogEntry({
-          system: "codex",
-          kind: entry.kind,
-          conversationKey: entry.conversationKey,
-        });
-        await codexAppServerForkService
-          .archiveThread({ threadId: forkedCodexThreadId })
-          .catch(() => {});
-        return null;
-      }
-    }
+
 
     const cleanupForkEntry = async () => {
       await conversationRepository.deleteCatalogEntry({
@@ -751,24 +525,11 @@ export const conversationRepository = {
         kind: entry.kind,
         conversationKey: entry.conversationKey,
       });
-      if (params.system === "codex" && forkedCodexThreadId) {
-        await codexAppServerForkService
-          .archiveThread({ threadId: forkedCodexThreadId })
-          .catch(() => {});
-      }
     };
-    let copiedMessageCount = 0;
-    let targetAnchorAssistantTimestamp = 0;
+    let copiedMessageCount;
+    let targetAnchorAssistantTimestamp;
     try {
-      const copyResult =
-        params.system === "codex"
-          ? await forkCodexConversationMessages({
-              sourceConversationKey,
-              targetConversationKey: entry.conversationKey,
-              throughAssistantTimestamp,
-              timestampBase: Date.now(),
-            })
-          : await forkUpstreamConversationMessages({
+      const copyResult = await forkUpstreamConversationMessages({
               sourceConversationKey,
               targetConversationKey: entry.conversationKey,
               throughAssistantTimestamp,
@@ -836,24 +597,7 @@ export const conversationRepository = {
     const paperItemID = normalizePositiveInt(params.paperItemID);
     const limit = normalizeLimit(params.limit);
     if (!libraryID) return [];
-    if (params.system === "claude_code") {
-      const rows =
-        params.kind === "paper"
-          ? await listClaudePaperConversations(libraryID, paperItemID, limit)
-          : await listClaudeGlobalConversations(libraryID, limit);
-      return rows
-        .map((row) => fromClaudeSummary(row))
-        .filter((row): row is ConversationCatalogEntry => Boolean(row));
-    }
-    if (params.system === "codex") {
-      const rows =
-        params.kind === "paper"
-          ? await listCodexPaperConversations(libraryID, paperItemID, limit)
-          : await listCodexGlobalConversations(libraryID, limit);
-      return rows
-        .map((row) => fromCodexSummary(row))
-        .filter((row): row is ConversationCatalogEntry => Boolean(row));
-    }
+
     const rows =
       params.kind === "paper"
         ? await listPaperConversations(
@@ -885,28 +629,7 @@ export const conversationRepository = {
     const limit =
       params.limit === null ? null : normalizeLimit(params.limit, 100);
     if (!libraryID) return [];
-    if (params.system === "claude_code") {
-      const [paperRows, globalRows] = await Promise.all([
-        listAllClaudePaperConversationsByLibrary(libraryID, limit),
-        listClaudeGlobalConversations(libraryID, limit),
-      ]);
-      return sortCatalogEntries(
-        [...paperRows, ...globalRows]
-          .map((row) => fromClaudeSummary(row))
-          .filter((row): row is ConversationCatalogEntry => Boolean(row)),
-      );
-    }
-    if (params.system === "codex") {
-      const [paperRows, globalRows] = await Promise.all([
-        listAllCodexPaperConversationsByLibrary(libraryID, limit),
-        listCodexGlobalConversations(libraryID, limit),
-      ]);
-      return sortCatalogEntries(
-        [...paperRows, ...globalRows]
-          .map((row) => fromCodexSummary(row))
-          .filter((row): row is ConversationCatalogEntry => Boolean(row)),
-      );
-    }
+
     const [paperRows, globalRows] = await Promise.all([
       listAllPaperConversationsByLibrary(libraryID, limit),
       listGlobalConversations(libraryID, limit, false),
@@ -926,14 +649,7 @@ export const conversationRepository = {
   ): Promise<void> {
     const conversationKey = normalizePositiveInt(target.conversationKey);
     if (!conversationKey) return;
-    if (target.system === "claude_code") {
-      await setClaudeConversationTitle(conversationKey, target.title);
-      return;
-    }
-    if (target.system === "codex") {
-      await setCodexConversationTitle(conversationKey, target.title);
-      return;
-    }
+
     if (
       target.kind === "paper" ||
       isUpstreamPaperConversationKey(conversationKey)
@@ -949,14 +665,7 @@ export const conversationRepository = {
   ): Promise<void> {
     const conversationKey = normalizePositiveInt(target.conversationKey);
     if (!conversationKey) return;
-    if (target.system === "claude_code") {
-      await setClaudeConversationTitle(conversationKey, "");
-      return;
-    }
-    if (target.system === "codex") {
-      await setCodexConversationTitle(conversationKey, "");
-      return;
-    }
+
     await clearConversationTitle(conversationKey);
   },
 
@@ -965,20 +674,7 @@ export const conversationRepository = {
   ): Promise<void> {
     const conversationKey = normalizePositiveInt(target.conversationKey);
     if (!conversationKey) return;
-    if (target.system === "claude_code") {
-      const existing = await getClaudeConversationSummary(conversationKey);
-      if (!existing?.title?.trim()) {
-        await touchClaudeConversationTitle(conversationKey, target.title);
-      }
-      return;
-    }
-    if (target.system === "codex") {
-      const existing = await getCodexConversationSummary(conversationKey);
-      if (!existing?.title?.trim()) {
-        await touchCodexConversationTitle(conversationKey, target.title);
-      }
-      return;
-    }
+
     if (
       target.kind === "paper" ||
       isUpstreamPaperConversationKey(conversationKey)
@@ -1018,20 +714,7 @@ export const conversationRepository = {
     const cleanupForkLink = async () => {
       await deleteConversationForkLink(conversationKey).catch(() => {});
     };
-    if (target.system === "claude_code") {
-      await deleteClaudeConversation(conversationKey);
-      await cleanupForkLink();
-      return;
-    }
-    if (target.system === "codex") {
-      await deleteCodexConversation(conversationKey);
-      releaseConversationScopeToken({
-        profileSignature: getCodexProfileSignature(),
-        conversationKey,
-      });
-      await cleanupForkLink();
-      return;
-    }
+
     if (
       target.kind === "paper" ||
       isUpstreamPaperConversationKey(conversationKey)
@@ -1049,18 +732,7 @@ export const conversationRepository = {
   ): Promise<void> {
     const conversationKey = normalizePositiveInt(target.conversationKey);
     if (!conversationKey) return;
-    if (target.system === "claude_code") {
-      await deleteClaudeConversationLocalRows(conversationKey);
-      return;
-    }
-    if (target.system === "codex") {
-      await deleteCodexConversationLocalRows(conversationKey);
-      releaseConversationScopeToken({
-        profileSignature: getCodexProfileSignature(),
-        conversationKey,
-      });
-      return;
-    }
+
     await deleteUpstreamConversationLocalRows(conversationKey, target.kind);
   },
 
@@ -1069,14 +741,7 @@ export const conversationRepository = {
   ): Promise<void> {
     const conversationKey = normalizePositiveInt(target.conversationKey);
     if (!conversationKey) return;
-    if (target.system === "claude_code") {
-      await preflightDeleteClaudeConversationLocalRows(conversationKey);
-      return;
-    }
-    if (target.system === "codex") {
-      await preflightDeleteCodexConversationLocalRows(conversationKey);
-      return;
-    }
+
     await preflightDeleteUpstreamConversationLocalRows(conversationKey);
   },
 };

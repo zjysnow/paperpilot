@@ -101,12 +101,12 @@ export function attachFloatingMenuInteractionController(
   }
 
   const bodyWithRetryMenuDismiss = body as Element & {
-    __llmRetryMenuDismissHandler?: (event: PointerEvent) => void;
+    __paperpilotRetryMenuDismissHandler?: (event: PointerEvent) => void;
   };
-  if (bodyWithRetryMenuDismiss.__llmRetryMenuDismissHandler) {
+  if (bodyWithRetryMenuDismiss.__paperpilotRetryMenuDismissHandler) {
     panelDoc.removeEventListener(
       "pointerdown",
-      bodyWithRetryMenuDismiss.__llmRetryMenuDismissHandler,
+      bodyWithRetryMenuDismiss.__paperpilotRetryMenuDismissHandler,
       true,
     );
   }
@@ -122,16 +122,16 @@ export function attachFloatingMenuInteractionController(
     dismissRetryMenuOnOutsidePointerDown,
     true,
   );
-  bodyWithRetryMenuDismiss.__llmRetryMenuDismissHandler =
+  bodyWithRetryMenuDismiss.__paperpilotRetryMenuDismissHandler =
     dismissRetryMenuOnOutsidePointerDown;
 
   const bodyWithPromptMenuDismiss = body as Element & {
-    __llmPromptMenuDismissHandler?: (event: PointerEvent) => void;
+    __paperpilotPromptMenuDismissHandler?: (event: PointerEvent) => void;
   };
-  if (bodyWithPromptMenuDismiss.__llmPromptMenuDismissHandler) {
+  if (bodyWithPromptMenuDismiss.__paperpilotPromptMenuDismissHandler) {
     panelDoc.removeEventListener(
       "pointerdown",
-      bodyWithPromptMenuDismiss.__llmPromptMenuDismissHandler,
+      bodyWithPromptMenuDismiss.__paperpilotPromptMenuDismissHandler,
       true,
     );
   }
@@ -146,16 +146,16 @@ export function attachFloatingMenuInteractionController(
     dismissPromptMenuOnOutsidePointerDown,
     true,
   );
-  bodyWithPromptMenuDismiss.__llmPromptMenuDismissHandler =
+  bodyWithPromptMenuDismiss.__paperpilotPromptMenuDismissHandler =
     dismissPromptMenuOnOutsidePointerDown;
 
   const bodyWithPaperPickerDismiss = body as Element & {
-    __llmPaperPickerDismissHandler?: (event: PointerEvent) => void;
+    __paperpilotPaperPickerDismissHandler?: (event: PointerEvent) => void;
   };
-  if (bodyWithPaperPickerDismiss.__llmPaperPickerDismissHandler) {
+  if (bodyWithPaperPickerDismiss.__paperpilotPaperPickerDismissHandler) {
     panelDoc.removeEventListener(
       "pointerdown",
-      bodyWithPaperPickerDismiss.__llmPaperPickerDismissHandler,
+      bodyWithPaperPickerDismiss.__paperpilotPaperPickerDismissHandler,
       true,
     );
   }
@@ -172,16 +172,16 @@ export function attachFloatingMenuInteractionController(
     dismissPaperPickerOnOutsidePointerDown,
     true,
   );
-  bodyWithPaperPickerDismiss.__llmPaperPickerDismissHandler =
+  bodyWithPaperPickerDismiss.__paperpilotPaperPickerDismissHandler =
     dismissPaperPickerOnOutsidePointerDown;
 
   const bodyWithPaperChipDismiss = body as Element & {
-    __llmPaperChipDismissHandler?: (event: PointerEvent) => void;
+    __paperpilotPaperChipDismissHandler?: (event: PointerEvent) => void;
   };
-  if (bodyWithPaperChipDismiss.__llmPaperChipDismissHandler) {
+  if (bodyWithPaperChipDismiss.__paperpilotPaperChipDismissHandler) {
     panelDoc.removeEventListener(
       "pointerdown",
-      bodyWithPaperChipDismiss.__llmPaperChipDismissHandler,
+      bodyWithPaperChipDismiss.__paperpilotPaperChipDismissHandler,
       true,
     );
   }
@@ -209,16 +209,16 @@ export function attachFloatingMenuInteractionController(
     dismissPaperChipOnOutsidePointerDown,
     true,
   );
-  bodyWithPaperChipDismiss.__llmPaperChipDismissHandler =
+  bodyWithPaperChipDismiss.__paperpilotPaperChipDismissHandler =
     dismissPaperChipOnOutsidePointerDown;
 
   const bodyWithShortcutMenuDismiss = body as Element & {
-    __llmShortcutMenuDismissHandler?: (event: KeyboardEvent) => void;
+    __paperpilotShortcutMenuDismissHandler?: (event: KeyboardEvent) => void;
   };
-  if (bodyWithShortcutMenuDismiss.__llmShortcutMenuDismissHandler) {
+  if (bodyWithShortcutMenuDismiss.__paperpilotShortcutMenuDismissHandler) {
     panelDoc.removeEventListener(
       "keydown",
-      bodyWithShortcutMenuDismiss.__llmShortcutMenuDismissHandler,
+      bodyWithShortcutMenuDismiss.__paperpilotShortcutMenuDismissHandler,
       true,
     );
   }
@@ -238,7 +238,7 @@ export function attachFloatingMenuInteractionController(
     event.stopPropagation();
   };
   panelDoc.addEventListener("keydown", dismissShortcutMenuOnEscape, true);
-  bodyWithShortcutMenuDismiss.__llmShortcutMenuDismissHandler =
+  bodyWithShortcutMenuDismiss.__paperpilotShortcutMenuDismissHandler =
     dismissShortcutMenuOnEscape;
 
   if (chatBox) {
@@ -340,8 +340,8 @@ export function attachFloatingMenuInteractionController(
   }
 
   if (
-    !(panelDoc as unknown as { __llmModelMenuDismiss?: boolean })
-      .__llmModelMenuDismiss
+    !(panelDoc as unknown as { __paperpilotModelMenuDismiss?: boolean })
+      .__paperpilotModelMenuDismiss
   ) {
     panelDoc.addEventListener("mousedown", (event: Event) => {
       const mouseEvent = event as MouseEvent;
@@ -520,7 +520,7 @@ export function attachFloatingMenuInteractionController(
       }
     });
     (
-      panelDoc as unknown as { __llmModelMenuDismiss?: boolean }
-    ).__llmModelMenuDismiss = true;
+      panelDoc as unknown as { __paperpilotModelMenuDismiss?: boolean }
+    ).__paperpilotModelMenuDismiss = true;
   }
 }

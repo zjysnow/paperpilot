@@ -86,7 +86,7 @@ import {
   resolveProviderTransportEndpoint,
 } from "./providerTransport";
 import { parseDataUrl } from "../shared/dataUrl";
-import { readFileRefAsBase64 } from "../agent/model/shared";
+
 import { buildMultipartRequest } from "./multipart";
 import {
   applyModelInputTokenCap,
@@ -2135,9 +2135,7 @@ export function buildReasoningPayload(
       },
     };
     if (thinkingType === "enabled" && reasoningEffort) {
-      if (providerProtocol === "anthropic_messages") {
-        extra.output_config = { effort: reasoningEffort };
-      } else {
+      {
         extra.reasoning_effort = reasoningEffort;
       }
     }
@@ -2169,48 +2167,6 @@ export function buildReasoningPayload(
     return {
       extra: { thinking: { type: thinkingType } },
       omitTemperature: false,
-    };
-  }
-
-  if (reasoning.provider === "anthropic") {
-    if (providerProtocol !== "anthropic_messages") {
-      return emptyReasoningPayload();
-    }
-    const profile = getAnthropicReasoningProfile(modelName);
-    const mode = resolveAnthropicThinkingMode({
-      profile,
-      override: options?.anthropicModeOverride,
-    });
-    if (!mode) {
-      return emptyReasoningPayload();
-    }
-    if (mode === "adaptive") {
-      const effort = resolveAnthropicAdaptiveEffort(reasoning.level, profile);
-      return {
-        extra: {
-          thinking: {
-            type: "adaptive",
-          },
-          ...(effort ? { output_config: { effort } } : {}),
-        },
-        omitTemperature: true,
-      };
-    }
-
-    const budgetTokens = resolveAnthropicManualBudget({
-      level: reasoning.level,
-      profile,
-      maxTokens: options?.maxTokens,
-      modelName,
-    });
-    return {
-      extra: {
-        thinking: {
-          type: "enabled",
-          budget_tokens: budgetTokens,
-        },
-      },
-      omitTemperature: true,
     };
   }
 
@@ -2303,7 +2259,7 @@ function buildAnthropicMessagesPayload(params: {
     false,
     params.model,
     params.apiBase,
-    "anthropic_messages",
+    "responses_api",
     {
       maxTokens: params.effectiveMaxTokens,
       anthropicModeOverride: params.anthropicModeOverride,
@@ -3110,19 +3066,6 @@ export async function resolveRequestAuthState(params: {
   apiKey: string;
   signal?: AbortSignal;
 }): Promise<RequestAuthState> {
-  if (params.authMode === "codex_auth") {
-    const resolved = await resolveCodexAccessToken({
-      signal: params.signal,
-    });
-    return {
-      mode: "codex_auth",
-      token: resolved.token,
-      codex: {
-        authPath: resolved.authPath,
-        refreshToken: resolved.refreshToken,
-      },
-    };
-  }
   if (params.authMode === "copilot_auth") {
     const token = await resolveCopilotAccessToken({
       githubToken: params.apiKey,
@@ -3149,7 +3092,7 @@ export async function resolveRequestAuthState(params: {
  * non-streaming calls. Passing onDelta enables streaming.
  */
 async function callNativeProtocol(params: {
-  protocol: "anthropic_messages" | "gemini_native";
+  protocol: "responses_api" | "openai_chat_compat";
   apiBase: string;
   apiKey: string;
   model: string;
@@ -3178,10 +3121,7 @@ async function callNativeProtocol(params: {
     onUsage,
   } = params;
   const isStreaming = Boolean(onDelta);
-  const url =
-    protocol === "anthropic_messages"
-      ? resolveAnthropicMessagesEndpoint(apiBase)
-      : resolveGeminiNativeEndpoint({ apiBase, model, stream: isStreaming });
+  const url = resolveGeminiNativeEndpoint({ apiBase, model, stream: isStreaming });
   const headers = buildProviderTransportHeaders({ protocol, apiKey });
   const pdfParts: Array<{ base64: string }> = [];
   if (

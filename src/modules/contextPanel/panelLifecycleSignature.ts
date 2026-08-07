@@ -8,7 +8,7 @@ export type PanelLifecycleSignature = {
 };
 
 const COMPLETED_PANEL_LIFECYCLE_SIGNATURE_KEY =
-  "__llmCompletedPanelLifecycleSignature";
+  "__paperpilotCompletedPanelLifecycleSignature";
 
 export function serializePanelLifecycleSignature(
   signature: PanelLifecycleSignature,

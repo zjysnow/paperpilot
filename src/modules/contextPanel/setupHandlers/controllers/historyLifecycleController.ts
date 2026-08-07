@@ -59,49 +59,9 @@ import {
   loadAllConversationHistory,
   loadConversationHistoryScope,
 } from "../../historyLoader";
-import {
-  loadAllClaudeConversationHistory,
-  loadClaudeConversationHistoryScope,
-} from "../../../../claudeCode/historyLoader";
-import {
-  loadAllCodexConversationHistory,
-  loadCodexConversationHistoryScope,
-} from "../../../../codexAppServer/historyLoader";
-import {
-  rememberClaudeConversationSelection,
-  resolveRememberedClaudeConversationKey,
-  touchClaudeConversation,
-} from "../../../../claudeCode/runtime";
-import {
-  getConversationSystemPref,
-  getLastUsedClaudeGlobalConversationKey,
-  setConversationSystemPref,
-  setLastUsedClaudeGlobalConversationKey,
-} from "../../../../claudeCode/prefs";
-import {
-  activeClaudeGlobalConversationByLibrary,
-  buildClaudeLibraryStateKey,
-} from "../../../../claudeCode/state";
-import {
-  createClaudeGlobalPortalItem,
-  createClaudePaperPortalItem,
-} from "../../../../claudeCode/portal";
-import {
-  getLastUsedCodexGlobalConversationKey,
-  getLastUsedCodexPaperConversationKey,
-  setLastUsedCodexGlobalConversationKey,
-  setLastUsedCodexPaperConversationKey,
-} from "../../../../codexAppServer/prefs";
-import {
-  activeCodexGlobalConversationByLibrary,
-  activeCodexPaperConversationByPaper,
-  buildCodexLibraryStateKey,
-  buildCodexPaperStateKey,
-} from "../../../../codexAppServer/state";
-import {
-  createCodexGlobalPortalItem,
-  createCodexPaperPortalItem,
-} from "../../../../codexAppServer/portal";
+
+
+
 import {
   createGlobalPortalItem,
   createPaperPortalItem,
@@ -121,7 +81,7 @@ import {
   setLockedGlobalConversationKey,
   buildPaperStateKey,
 } from "../../prefHelpers";
-import type { AgentRuntime } from "../../../../agent/runtime";
+
 import {
   finalizeConversationDeletion,
   getConversationDeletionFailureMessage,
@@ -220,7 +180,6 @@ type ForkTurnTarget = {
   assistantTimestamp: number;
 };
 
-export { clearDeletedAgentConversationState } from "../../agentConversationCleanup";
 
 export type HistoryLifecycleControllerDeps = {
   body: Element;
@@ -824,43 +783,7 @@ export function createHistoryLifecycleController(
         : (options.limit ?? Math.max(GLOBAL_HISTORY_LIMIT, 100));
     const entries: ConversationHistoryEntry[] = [];
 
-    if (isClaudeConversationSystem()) {
-      const summaries = await loadAllClaudeConversationHistory({
-        libraryID: normalizedLibraryID,
-        limit: searchLimit,
-      });
-      for (const summary of summaries) {
-        const entry = createHistorySearchEntry({
-          kind: summary.kind === "paper" ? "paper" : "global",
-          conversationID: summary.conversationID,
-          conversationKey: summary.conversationKey,
-          title: summary.title,
-          createdAt: summary.createdAt,
-          lastActivityAt: summary.lastActivityAt,
-          isDraft: summary.isDraft,
-          paperItemID: summary.paperItemID,
-        });
-        if (entry) entries.push(entry);
-      }
-    } else if (isCodexConversationSystem()) {
-      const summaries = await loadAllCodexConversationHistory({
-        libraryID: normalizedLibraryID,
-        limit: searchLimit,
-      });
-      for (const summary of summaries) {
-        const entry = createHistorySearchEntry({
-          kind: summary.kind === "paper" ? "paper" : "global",
-          conversationID: summary.conversationID,
-          conversationKey: summary.conversationKey,
-          title: summary.title,
-          createdAt: summary.createdAt,
-          lastActivityAt: summary.lastActivityAt,
-          isDraft: summary.isDraft,
-          paperItemID: summary.paperItemID,
-        });
-        if (entry) entries.push(entry);
-      }
-    } else {
+    {
       const summaries = await loadAllConversationHistory({
         libraryID: normalizedLibraryID,
         limit: searchLimit,
@@ -1643,141 +1566,7 @@ export function createHistoryLifecycleController(
       const paperItemID = Number(paperItem.id || 0);
       if (paperItemID > 0) {
         try {
-          if (isClaudeConversationSystem()) {
-            const activePaperKey =
-              !isGlobalMode() &&
-              item &&
-              Number.isFinite(getConversationKey(item))
-                ? Math.floor(getConversationKey(item))
-                : 0;
-            if (activePaperKey > 0) {
-              await ensureConversationCatalogEntry({
-                system: "claude_code",
-                conversationKey: activePaperKey,
-                libraryID,
-                kind: "paper",
-                paperItemID,
-              });
-            }
-            const summaries = await loadClaudeConversationHistoryScope({
-              libraryID,
-              kind: "paper",
-              paperItemID,
-              limit: GLOBAL_HISTORY_LIMIT,
-            });
-            if (requestId !== globalHistoryLoadSeq) return;
-            const seenPaperKeys = new Set<number>();
-            for (const summary of summaries) {
-              const conversationKey = Number(summary.conversationKey);
-              const summaryPaperItemID = Number(summary.paperItemID);
-              if (
-                !Number.isFinite(conversationKey) ||
-                conversationKey <= 0 ||
-                !Number.isFinite(summaryPaperItemID) ||
-                summaryPaperItemID !== paperItemID
-              ) {
-                continue;
-              }
-              const normalizedKey = Math.floor(conversationKey);
-              if (pendingHistoryDeletionKeys.has(normalizedKey)) continue;
-              if (seenPaperKeys.has(normalizedKey)) continue;
-              seenPaperKeys.add(normalizedKey);
-              const lastActivity = Number(
-                summary.lastActivityAt || summary.createdAt || 0,
-              );
-              const isDraft = Boolean(summary.isDraft);
-              paperEntries.push({
-                kind: "paper",
-                sourceState: "active",
-                section: "paper",
-                sectionTitle: "Paper Chat",
-                conversationID: summary.conversationID,
-                conversationKey: normalizedKey,
-                libraryID,
-                title: summary.title,
-                timestampText: isDraft
-                  ? "Draft"
-                  : formatGlobalHistoryTimestamp(lastActivity) || "Paper chat",
-                deletable: true,
-                isDraft,
-                isPendingDelete: false,
-                lastActivityAt: Number.isFinite(lastActivity)
-                  ? Math.floor(lastActivity)
-                  : 0,
-                userTurnCount: summary.userTurnCount,
-                paperItemID,
-                providerSessionId: summary.providerSessionId,
-                scopedConversationKey: summary.scopedConversationKey,
-              });
-            }
-          } else if (isCodexConversationSystem()) {
-            const activePaperKey =
-              !isGlobalMode() &&
-              item &&
-              Number.isFinite(getConversationKey(item))
-                ? Math.floor(getConversationKey(item))
-                : 0;
-            if (activePaperKey > 0) {
-              await ensureConversationCatalogEntry({
-                system: "codex",
-                conversationKey: activePaperKey,
-                libraryID,
-                kind: "paper",
-                paperItemID,
-              });
-            }
-            const summaries = await loadCodexConversationHistoryScope({
-              libraryID,
-              kind: "paper",
-              paperItemID,
-              limit: GLOBAL_HISTORY_LIMIT,
-            });
-            if (requestId !== globalHistoryLoadSeq) return;
-            const seenPaperKeys = new Set<number>();
-            for (const summary of summaries) {
-              const conversationKey = Number(summary.conversationKey);
-              const summaryPaperItemID = Number(summary.paperItemID);
-              if (
-                !Number.isFinite(conversationKey) ||
-                conversationKey <= 0 ||
-                !Number.isFinite(summaryPaperItemID) ||
-                summaryPaperItemID !== paperItemID
-              ) {
-                continue;
-              }
-              const normalizedKey = Math.floor(conversationKey);
-              if (pendingHistoryDeletionKeys.has(normalizedKey)) continue;
-              if (seenPaperKeys.has(normalizedKey)) continue;
-              seenPaperKeys.add(normalizedKey);
-              const lastActivity = Number(
-                summary.lastActivityAt || summary.createdAt || 0,
-              );
-              const isDraft = Boolean(summary.isDraft);
-              paperEntries.push({
-                kind: "paper",
-                sourceState: "active",
-                section: "paper",
-                sectionTitle: "Paper Chat",
-                conversationID: summary.conversationID,
-                conversationKey: normalizedKey,
-                libraryID,
-                title: summary.title,
-                timestampText: isDraft
-                  ? "Draft"
-                  : formatGlobalHistoryTimestamp(lastActivity) || "Paper chat",
-                deletable: true,
-                isDraft,
-                isPendingDelete: false,
-                lastActivityAt: Number.isFinite(lastActivity)
-                  ? Math.floor(lastActivity)
-                  : 0,
-                userTurnCount: summary.userTurnCount,
-                paperItemID,
-                providerSessionId: summary.providerSessionId,
-                scopedConversationKey: summary.scopedConversationKey,
-              });
-            }
-          } else {
+          {
             const summaries = await loadConversationHistoryScope({
               mode: "paper",
               libraryID,
@@ -1853,173 +1642,7 @@ export function createHistoryLifecycleController(
     }
 
     if (libraryID) {
-      if (isClaudeConversationSystem()) {
-        let activeGlobalKey = 0;
-        if (isGlobalMode() && item && Number.isFinite(item.id) && item.id > 0) {
-          activeGlobalKey = Math.floor(item.id);
-        } else {
-          const remembered = Number(
-            activeClaudeGlobalConversationByLibrary.get(
-              buildClaudeLibraryStateKey(libraryID),
-            ) ||
-              getLastUsedClaudeGlobalConversationKey(libraryID) ||
-              0,
-          );
-          if (Number.isFinite(remembered) && remembered > 0) {
-            activeGlobalKey = Math.floor(remembered);
-          }
-        }
-        if (activeGlobalKey > 0) {
-          try {
-            await ensureConversationCatalogEntry({
-              system: "claude_code",
-              conversationKey: activeGlobalKey,
-              libraryID,
-              kind: "global",
-            });
-          } catch (err) {
-            ztoolkit.log(
-              "LLM: Failed to ensure active Claude history row",
-              err,
-            );
-          }
-        }
-        if (requestId !== globalHistoryLoadSeq) return;
-
-        let historyEntries: Awaited<
-          ReturnType<typeof loadClaudeConversationHistoryScope>
-        > = [];
-        try {
-          historyEntries = await loadClaudeConversationHistoryScope({
-            libraryID,
-            kind: "global",
-            limit: GLOBAL_HISTORY_LIMIT,
-          });
-        } catch (err) {
-          ztoolkit.log(
-            "LLM: Failed to load Claude global history entries",
-            err,
-          );
-        }
-        if (requestId !== globalHistoryLoadSeq) return;
-
-        const seenGlobalKeys = new Set<number>();
-        for (const entry of historyEntries) {
-          const conversationKey = Number(entry.conversationKey);
-          if (!Number.isFinite(conversationKey) || conversationKey <= 0)
-            continue;
-          const normalizedKey = Math.floor(conversationKey);
-          if (pendingHistoryDeletionKeys.has(normalizedKey)) continue;
-          if (seenGlobalKeys.has(normalizedKey)) continue;
-          seenGlobalKeys.add(normalizedKey);
-          const lastActivity = Number(
-            entry.lastActivityAt || entry.createdAt || 0,
-          );
-          const isDraft = Boolean(entry.isDraft);
-          globalEntries.push({
-            kind: "global",
-            sourceState: "active",
-            section: "open",
-            sectionTitle: "Library Chat",
-            conversationID: entry.conversationID,
-            conversationKey: normalizedKey,
-            libraryID,
-            title: entry.title || (isDraft ? "New Claude chat" : ""),
-            timestampText: isDraft
-              ? "Draft"
-              : formatGlobalHistoryTimestamp(lastActivity) || "Standalone chat",
-            deletable: true,
-            isDraft,
-            isPendingDelete: false,
-            lastActivityAt: Number.isFinite(lastActivity)
-              ? Math.floor(lastActivity)
-              : 0,
-            userTurnCount: entry.userTurnCount,
-            providerSessionId: entry.providerSessionId,
-            scopedConversationKey: entry.scopedConversationKey,
-          });
-        }
-      } else if (isCodexConversationSystem()) {
-        let activeGlobalKey = 0;
-        if (isGlobalMode() && item && Number.isFinite(item.id) && item.id > 0) {
-          activeGlobalKey = Math.floor(item.id);
-        } else {
-          const remembered = Number(
-            activeCodexGlobalConversationByLibrary.get(
-              buildCodexLibraryStateKey(libraryID),
-            ) ||
-              getLastUsedCodexGlobalConversationKey(libraryID) ||
-              0,
-          );
-          if (Number.isFinite(remembered) && remembered > 0) {
-            activeGlobalKey = Math.floor(remembered);
-          }
-        }
-        if (activeGlobalKey > 0) {
-          try {
-            await ensureConversationCatalogEntry({
-              system: "codex",
-              conversationKey: activeGlobalKey,
-              libraryID,
-              kind: "global",
-            });
-          } catch (err) {
-            ztoolkit.log("LLM: Failed to ensure active Codex history row", err);
-          }
-        }
-        if (requestId !== globalHistoryLoadSeq) return;
-
-        let historyEntries: Awaited<
-          ReturnType<typeof loadCodexConversationHistoryScope>
-        > = [];
-        try {
-          historyEntries = await loadCodexConversationHistoryScope({
-            libraryID,
-            kind: "global",
-            limit: GLOBAL_HISTORY_LIMIT,
-          });
-        } catch (err) {
-          ztoolkit.log("LLM: Failed to load Codex global history entries", err);
-        }
-        if (requestId !== globalHistoryLoadSeq) return;
-
-        const seenGlobalKeys = new Set<number>();
-        for (const entry of historyEntries) {
-          const conversationKey = Number(entry.conversationKey);
-          if (!Number.isFinite(conversationKey) || conversationKey <= 0)
-            continue;
-          const normalizedKey = Math.floor(conversationKey);
-          if (pendingHistoryDeletionKeys.has(normalizedKey)) continue;
-          if (seenGlobalKeys.has(normalizedKey)) continue;
-          seenGlobalKeys.add(normalizedKey);
-          const lastActivity = Number(
-            entry.lastActivityAt || entry.createdAt || 0,
-          );
-          const isDraft = Boolean(entry.isDraft);
-          globalEntries.push({
-            kind: "global",
-            sourceState: "active",
-            section: "open",
-            sectionTitle: "Library Chat",
-            conversationID: entry.conversationID,
-            conversationKey: normalizedKey,
-            libraryID,
-            title: entry.title || (isDraft ? "New Codex chat" : ""),
-            timestampText: isDraft
-              ? "Draft"
-              : formatGlobalHistoryTimestamp(lastActivity) || "Standalone chat",
-            deletable: true,
-            isDraft,
-            isPendingDelete: false,
-            lastActivityAt: Number.isFinite(lastActivity)
-              ? Math.floor(lastActivity)
-              : 0,
-            userTurnCount: entry.userTurnCount,
-            providerSessionId: entry.providerSessionId,
-            scopedConversationKey: entry.scopedConversationKey,
-          });
-        }
-      } else {
+      {
         let activeGlobalKey = 0;
         if (isGlobalMode() && item && Number.isFinite(item.id) && item.id > 0) {
           activeGlobalKey = Math.floor(item.id);
@@ -2184,34 +1807,11 @@ export function createHistoryLifecycleController(
         setStatus(status, t("Could not load this conversation"), "error");
       return false;
     }
-    const nextItem =
-      system === "claude_code"
-        ? createClaudeGlobalPortalItem(libraryID, normalizedConversationKey)
-        : system === "codex"
-          ? createCodexGlobalPortalItem(libraryID, normalizedConversationKey)
-          : createGlobalPortalItem(libraryID, normalizedConversationKey);
+    const nextItem = createGlobalPortalItem(libraryID, normalizedConversationKey);
     if (!noteFocusItem) {
       setCurrentItem(nextItem as any);
     }
-    if (system === "claude_code") {
-      rememberClaudeConversationSelection({
-        conversationKey: normalizedConversationKey,
-        kind: "global",
-        libraryID,
-      });
-      void touchClaudeConversation(normalizedConversationKey, {
-        updatedAt: Date.now(),
-      });
-    } else if (system === "codex") {
-      activeCodexGlobalConversationByLibrary.set(
-        buildCodexLibraryStateKey(libraryID),
-        normalizedConversationKey,
-      );
-      setLastUsedCodexGlobalConversationKey(
-        libraryID,
-        normalizedConversationKey,
-      );
-    } else {
+    {
       activeGlobalConversationByLibrary.set(
         libraryID,
         normalizedConversationKey,
@@ -2303,24 +1903,7 @@ export function createHistoryLifecycleController(
       return entry;
     };
     const resolveRememberedPaperConversationKey = (): number => {
-      if (system === "claude_code") {
-        return Number(
-          resolveRememberedClaudeConversationKey({
-            libraryID,
-            kind: "paper",
-            paperItemID,
-          }) || 0,
-        );
-      }
-      if (system === "codex") {
-        return Number(
-          activeCodexPaperConversationByPaper.get(
-            buildCodexPaperStateKey(libraryID, paperItemID),
-          ) ||
-            getLastUsedCodexPaperConversationKey(libraryID, paperItemID) ||
-            0,
-        );
-      }
+
       return Number(
         activePaperConversationByPaper.get(
           buildPaperStateKey(libraryID, paperItemID),
@@ -2348,18 +1931,7 @@ export function createHistoryLifecycleController(
 
     const resolvedConversationKey = Math.floor(targetSummary.conversationKey);
     if (!noteFocusItem) {
-      if (system === "claude_code") {
-        setCurrentItem(
-          createClaudePaperPortalItem(
-            paperItem,
-            resolvedConversationKey,
-          ) as any,
-        );
-      } else if (system === "codex") {
-        setCurrentItem(
-          createCodexPaperPortalItem(paperItem, resolvedConversationKey) as any,
-        );
-      } else {
+      {
         const nextItem =
           resolvedConversationKey === paperItemID
             ? paperItem
@@ -2371,27 +1943,7 @@ export function createHistoryLifecycleController(
         setCurrentItem(nextItem as any);
       }
     }
-    if (system === "claude_code") {
-      rememberClaudeConversationSelection({
-        conversationKey: resolvedConversationKey,
-        kind: "paper",
-        libraryID,
-        paperItemID,
-      });
-      void touchClaudeConversation(resolvedConversationKey, {
-        updatedAt: Date.now(),
-      });
-    } else if (system === "codex") {
-      activeCodexPaperConversationByPaper.set(
-        buildCodexPaperStateKey(libraryID, paperItemID),
-        resolvedConversationKey,
-      );
-      setLastUsedCodexPaperConversationKey(
-        libraryID,
-        paperItemID,
-        resolvedConversationKey,
-      );
-    } else {
+    {
       activePaperConversationByPaper.set(
         buildPaperStateKey(libraryID, paperItemID),
         resolvedConversationKey,
@@ -3424,24 +2976,7 @@ export function createHistoryLifecycleController(
     let reuseReason: "active-draft" | "latest-draft" | null = null;
     const system = getConversationSystem();
     const currentCandidate = (() => {
-      if (system === "claude_code") {
-        return isGlobalMode()
-          ? getConversationKey(item)
-          : Number(
-              activeClaudeGlobalConversationByLibrary.get(
-                buildClaudeLibraryStateKey(libraryID),
-              ) || 0,
-            );
-      }
-      if (system === "codex") {
-        return isGlobalMode()
-          ? getConversationKey(item)
-          : Number(
-              activeCodexGlobalConversationByLibrary.get(
-                buildCodexLibraryStateKey(libraryID),
-              ) || 0,
-            );
-      }
+
       return isGlobalMode() &&
         isUpstreamGlobalConversationKey(Number(getConversationKey(item) || 0))
         ? getConversationKey(item)
@@ -3644,42 +3179,6 @@ export function createHistoryLifecycleController(
       closeExportMenu();
       closeHistoryMenu();
 
-      // [webchat] In webchat mode, "+" creates a new ChatGPT conversation
-      const { selectedEntry: _debugEntry } = getSelectedModelInfo();
-      ztoolkit.log(
-        `[webchat] + clicked: authMode=${_debugEntry?.authMode}, entryId=${_debugEntry?.entryId}, isWebChat=${_debugEntry?.authMode === "webchat"}`,
-      );
-      if (isWebChatMode()) {
-        // Clear local chat panel and mark the relay as needing a new chat.
-        // The next send carries an explicit force_new_chat intent to the relay,
-        // and we also trigger a remote new-chat command immediately.
-        markNextWebChatSendAsNewChat();
-        primeFreshWebChatPaperChipState();
-        // Clear cached images so stale screenshots don't auto-attach to ChatGPT
-        if (item) {
-          selectedImageCache.delete(item.id);
-          updateImagePreviewPreservingScroll();
-        }
-        void (async () => {
-          try {
-            const [{ getRelayBaseUrl }, { sendNewChat }] = await Promise.all([
-              import("../../../../webchat/relayServer"),
-              import("../../../../webchat/client"),
-            ]);
-            await sendNewChat(getRelayBaseUrl());
-          } catch (err) {
-            ztoolkit.log("[webchat] Failed to trigger immediate new chat", err);
-          }
-        })();
-        const key = getConversationKey(item);
-        webChatIsolatedConversationKeys.add(key);
-        chatHistory.set(key, []);
-        loadedConversationKeys.add(key);
-        refreshChatPreservingScroll();
-        if (status)
-          setStatus(status, t("New chat — send a message to start"), "ready");
-        return;
-      }
 
       // Reuse an existing blank draft in the active mode, or create one if none
       // exists. Webchat above is the only mode where "+" always requests a new
@@ -3742,20 +3241,7 @@ export function createHistoryLifecycleController(
         return;
       }
       const libraryID = getCurrentLibraryID();
-      const targetGlobalKey = isClaudeConversationSystem()
-        ? resolveRememberedClaudeConversationKey({
-            libraryID,
-            kind: "global",
-          }) ||
-          getLastUsedClaudeGlobalConversationKey(libraryID) ||
-          0
-        : isCodexConversationSystem()
-          ? activeCodexGlobalConversationByLibrary.get(
-              buildCodexLibraryStateKey(libraryID),
-            ) ||
-            getLastUsedCodexGlobalConversationKey(libraryID) ||
-            0
-          : (() => {
+      const targetGlobalKey = (() => {
               const lockedKey = getLockedGlobalConversationKey(libraryID);
               if (lockedKey !== null) return lockedKey;
               const activeKey = Number(

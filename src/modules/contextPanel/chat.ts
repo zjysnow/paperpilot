@@ -17,52 +17,12 @@ import {
   StoredChatMessage,
 } from "../../utils/chatStore";
 import { conversationRepository } from "../../core/conversations/repository";
-import {
-  appendCodexMessage,
-  pruneCodexConversation,
-  updateLatestCodexAssistantMessage,
-  updateLatestCodexUserMessage,
-} from "../../codexAppServer/store";
-import {
-  getClaudeAutoCompactThresholdPercent,
-  isClaudeAutoCompactEnabled,
-} from "../../claudeCode/prefs";
-import {
-  appendClaudeConversationMessage,
-  buildClaudeScope,
-  captureClaudeSessionInfo,
-  getClaudeBridgeRuntime,
-  isClaudeConversationSystemActive,
-  updateLatestClaudeConversationAssistantMessage,
-  updateLatestClaudeConversationUserMessage,
-} from "../../claudeCode/runtime";
-import { getCodexProfileSignature } from "../../codexAppServer/constants";
+
+
 import { resolveConversationStorageSystem } from "../../shared/conversationStorageRouting";
 import { normalizeForcedSkillIds } from "../../shared/skillIds";
-import {
-  getCodexReasoningModePref,
-  getCodexRuntimeModelPref,
-  isCodexAppServerNativeApprovalsEnabled,
-  isCodexAppServerModeEnabled,
-  isCodexZoteroMcpToolsEnabled,
-} from "../../codexAppServer/prefs";
-import { getEffectiveCodexAppServerBinaryPath } from "../../codexAppServer/binaryPath";
-import { buildCodexAppServerReasoningConfig } from "../../codexAppServer/reasoning";
-import {
-  buildCodexNativeApprovalPendingAction,
-  buildCodexNativeApprovalResponseFromResolution,
-  compactCodexAppServerConversation,
-  isCodexNativeBuiltInApprovalRequest,
-  NO_CODEX_APP_SERVER_THREAD_TO_COMPACT_MESSAGE,
-  resolveCodexNativeApprovalRequest,
-  runCodexAppServerNativeTurn,
-  type CodexNativeApprovalRequest,
-  type CodexNativeConversationScope,
-  type CodexNativeDiagnostics,
-} from "../../codexAppServer/nativeClient";
-import type { CodexNativeSkillContext } from "../../codexAppServer/nativeSkills";
-import { preflightClaudeBridgeLocalPdfCapability } from "../../agent/externalBackendBridge";
-import { validateLocalPdfDocumentBatch } from "../../agent/context/localDocumentBatch";
+
+
 import {
   callLLMStream,
   type ChatParams,
@@ -209,7 +169,7 @@ import {
   type ResponseActionKind,
   type ResponseActionTarget,
 } from "./state";
-import { agentRunTraceCache, agentRunTraceLoadingTasks } from "./agentState";
+
 import {
   sanitizeText,
   formatTime,
@@ -225,11 +185,7 @@ import {
   createContextIcon,
   createSelectedTextSourceIcon,
 } from "./contextIcons";
-import {
-  buildCodexAppServerNativeAttachmentBlockMessage,
-  getBlockedCodexAppServerNativeAttachments,
-  shouldApplyCodexAppServerNativeAttachmentPolicy,
-} from "./codexAppServerAttachmentPolicy";
+
 import {
   normalizeSelectedTextNoteContexts,
   normalizeSelectedTextPaperContexts as normalizeSelectedTextPaperContextEntries,
@@ -288,17 +244,13 @@ import { buildContextPlanSystemMessages } from "./requestSystemMessages";
 import { getWorkflowTestFinalRequestInterceptor } from "./workflowTestHooks";
 import { resolveSelectedTextAnchors } from "./selectedTextAnchors";
 import { canEditUserPromptTurn } from "./editability";
-import { renderAgentTrace, renderPendingActionCard } from "./agentTrace/render";
-import {
-  TOOL_ACTIVITY_VISIBLE_DEDUPE_WINDOW_MS,
-  hasSameToolActivityVisibleIdentity,
-  mergeToolActivityPayload,
-} from "./agentTrace/toolActivityDedupe";
+
+
 import { renderRenderedMarkdownInto } from "./renderedMarkdown";
 import { toFileUrl } from "../../utils/pathFileUrl";
 import { replaceOwnerAttachmentRefs } from "../../utils/attachmentRefStore";
 import { getNotesDirectoryConfig } from "../../utils/notesDirectoryConfig";
-import { getWebChatTargetByModelName } from "../../webchat/types";
+
 import {
   decorateAssistantCitationLinks,
   renderQuoteCitationPlaceholders,
@@ -328,33 +280,14 @@ import {
   QUOTE_RENDER_OCCURRENCE_PATTERN,
 } from "./quoteRenderPlan";
 import { isQuoteValidationPreempted } from "./quoteValidationActivity";
-import {
-  getAgentApi,
-  getCoreAgentRuntime,
-  initAgentSubsystem,
-} from "../../agent/index";
-import { getClaudeReasoningModePref } from "../../claudeCode/prefs";
-import { getAgentRunTrace } from "../../agent/store/traceStore";
+
 import {
   applyHistoryCompression,
   scheduleLLMSummary,
   clearConversationSummary,
 } from "./conversationSummaryCache";
-import type {
-  AgentAttachmentResource,
-  AgentAttachmentResourceSummary,
-  AgentConfirmationResolution,
-  AgentEvent,
-  AgentPendingAction,
-  AgentRunEventRecord,
-  AgentRuntimeRequest,
-  AgentToolArtifact,
-} from "../../agent/types";
-import {
-  sendAgentTurn,
-  retryAgentTurn,
-  type AgentEngineDeps,
-} from "./agentMode/agentEngine";
+
+
 import {
   buildQueuedFollowUpThreadKey,
   scheduleQueuedFollowUpDrainForThread,
@@ -395,17 +328,7 @@ function getAbortControllerCtor(): new () => AbortController {
 
 const blockedConversationLoadKeys = new Set<number>();
 
-function isEffectiveWebChatRequest(item: Zotero.Item): boolean {
-  try {
-    const requestConfig = resolveEffectiveRequestConfig({ item });
-    return (
-      requestConfig.authMode === "webchat" ||
-      requestConfig.providerProtocol === "web_sync"
-    );
-  } catch {
-    return false;
-  }
-}
+
 
 function isolateWebChatConversationKey(
   conversationKey: number,

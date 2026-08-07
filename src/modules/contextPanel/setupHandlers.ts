@@ -445,94 +445,11 @@ import {
   type MineruSourceUiState,
   type PaperSourceOption,
 } from "./setupHandlers/controllers/paperSourceOptionsController";
-import { clearAllAgentToolCaches } from "../../agent/tools";
-import { clearAgentConversationState } from "./agentConversationCleanup";
+
 import { renderShortcuts } from "./shortcuts";
 import { loadConversationHistoryScope } from "./historyLoader";
-import {
-  buildClaudeScope,
-  getClaudeRuntimeModelEntries,
-  getSelectedClaudeRuntimeEntry,
-  invalidateAllClaudeHotRuntimes,
-  invalidateClaudeConversationSession,
-  listClaudeEfforts,
-  rememberClaudeConversationSelection,
-  resolveRememberedClaudeConversationKey,
-  refreshClaudeSlashCommands,
-  touchClaudeConversation,
-} from "../../claudeCode/runtime";
-import {
-  getClaudeReasoningModePref,
-  getConversationSystemPref,
-  getLastUsedClaudeGlobalConversationKey,
-  setClaudeCodeModeEnabled,
-  setConversationSystemPref,
-  getLastUsedClaudePaperConversationKey,
-  removeLastUsedClaudeGlobalConversationKey,
-  removeLastUsedClaudePaperConversationKey,
-  setClaudeReasoningModePref,
-  setClaudeRuntimeModelPref,
-  setLastUsedClaudeConversationMode,
-} from "../../claudeCode/prefs";
-import {
-  getCodexReasoningModePref,
-  getCodexRuntimeModelPref,
-  getLastUsedCodexConversationMode,
-  getLastUsedCodexGlobalConversationKey,
-  getLastUsedCodexPaperConversationKey,
-  isCodexAppServerModeEnabled,
-  removeLastUsedCodexGlobalConversationKey,
-  removeLastUsedCodexPaperConversationKey,
-  setLastUsedCodexGlobalConversationKey,
-  setLastUsedCodexPaperConversationKey,
-  setLastUsedCodexConversationMode,
-  setCodexReasoningModePref,
-  setCodexRuntimeModelPref,
-} from "../../codexAppServer/prefs";
-import { getConfiguredCodexAppServerBinaryPath } from "../../codexAppServer/binaryPath";
-import { buildCodexAppServerReasoningConfig } from "../../codexAppServer/reasoning";
-import {
-  buildCodexRuntimeModelEntries,
-  getCodexAppServerReasoningChoices,
-  loadCodexAppServerModelCatalog,
-  resolveCodexAppServerReasoningSelection,
-  type CodexAppServerModelCatalogEntry,
-} from "../../codexAppServer/modelCatalog";
-import {
-  activeClaudeConversationModeByLibrary,
-  activeClaudeGlobalConversationByLibrary,
-  activeClaudePaperConversationByPaper,
-  buildClaudeLibraryStateKey,
-  buildClaudePaperStateKey,
-} from "../../claudeCode/state";
-import {
-  activeCodexConversationModeByLibrary,
-  activeCodexGlobalConversationByLibrary,
-  activeCodexPaperConversationByPaper,
-  buildCodexLibraryStateKey,
-  buildCodexPaperStateKey,
-} from "../../codexAppServer/state";
-import {
-  retainClaudeRuntimeForBody,
-  releaseClaudeRuntimeForBody,
-} from "../../claudeCode/runtimeRetention";
-import { isClaudePaperPortalItem } from "../../claudeCode/portal";
-import {
-  clearClaudeConversation,
-  touchClaudeConversationTitle,
-} from "../../claudeCode/store";
-import {
-  createClaudeGlobalPortalItem,
-  createClaudePaperPortalItem,
-} from "../../claudeCode/portal";
-import {
-  clearCodexConversation,
-  touchCodexConversationTitle,
-} from "../../codexAppServer/store";
-import {
-  createCodexGlobalPortalItem,
-  createCodexPaperPortalItem,
-} from "../../codexAppServer/portal";
+
+
 import { resolveConversationStorageSystem } from "../../shared/conversationStorageRouting";
 import { validateConversationScope } from "../../shared/conversationRegistry";
 
@@ -749,35 +666,35 @@ export function setupHandlers(
       webChatActive: isWebChatModeActive(),
     });
   const queuedFollowUpBody = body as Element & {
-    __llmQueuedFollowUpRegisteredThreadKey?: string | null;
+    __paperpilotQueuedFollowUpRegisteredThreadKey?: string | null;
   };
   let registeredQueuedFollowUpThreadKey: string | null =
-    queuedFollowUpBody.__llmQueuedFollowUpRegisteredThreadKey || null;
+    queuedFollowUpBody.__paperpilotQueuedFollowUpRegisteredThreadKey || null;
   const syncQueuedFollowUpRegistration = () => {
     const nextThreadKey = getQueuedFollowUpThreadKey();
     if (registeredQueuedFollowUpThreadKey === nextThreadKey) return;
     unregisterQueuedFollowUpBody(registeredQueuedFollowUpThreadKey, body);
     registeredQueuedFollowUpThreadKey = nextThreadKey;
-    queuedFollowUpBody.__llmQueuedFollowUpRegisteredThreadKey =
+    queuedFollowUpBody.__paperpilotQueuedFollowUpRegisteredThreadKey =
       registeredQueuedFollowUpThreadKey;
     registerQueuedFollowUpBody(registeredQueuedFollowUpThreadKey, body);
   };
 
   // Disconnect previous ResizeObservers to prevent accumulation across
   // successive setupHandlers calls (each call creates fresh observers).
-  const prevObservers = (body as any).__llmResizeObservers as
+  const prevObservers = (body as any).__paperpilotResizeObservers as
     | ResizeObserver[]
     | undefined;
   if (prevObservers) {
     for (const obs of prevObservers) obs.disconnect();
-    delete (body as any).__llmResizeObservers;
+    delete (body as any).__paperpilotResizeObservers;
   }
-  const prevResizeSchedulers = (body as any).__llmResizeSchedulers as
+  const prevResizeSchedulers = (body as any).__paperpilotResizeSchedulers as
     | Array<{ cancel?: () => void }>
     | undefined;
   if (prevResizeSchedulers) {
     for (const scheduler of prevResizeSchedulers) scheduler.cancel?.();
-    delete (body as any).__llmResizeSchedulers;
+    delete (body as any).__paperpilotResizeSchedulers;
   }
 
   let renderQueuedFollowUpInputs: () => void = () => {};
@@ -858,11 +775,7 @@ export function setupHandlers(
     });
   const getConversationSystem = (): ConversationSystem =>
     currentConversationSystem;
-  const isClaudeConversationSystem = () =>
-    getConversationSystem() === "claude_code";
-  const isCodexConversationSystem = () => getConversationSystem() === "codex";
-  const isRuntimeConversationSystem = () =>
-    isClaudeConversationSystem() || isCodexConversationSystem();
+
   const shouldRenderDynamicSlashMenuForCurrentConversation = () =>
     shouldRenderDynamicSlashMenu({
       itemPresent: Boolean(item),
@@ -879,32 +792,8 @@ export function setupHandlers(
     });
   panelRoot.dataset.conversationSystem = currentConversationSystem;
   syncQueuedFollowUpRegistration();
-  const isClaudeModeAvailable = () => getClaudeCodeModeEnabled();
-  const isCodexModeAvailable = () => isCodexAppServerModeEnabled();
-  let codexModelCatalogStatus: "idle" | "loading" | "ready" | "error" = "idle";
-  let codexModelCatalogError = "";
-  let codexModelCatalogModels: CodexAppServerModelCatalogEntry[] = [];
-  let codexModelCatalogInFlight: Promise<void> | null = null;
-  let codexModelCatalogPath = "";
-  const resolveCurrentCodexReasoningSelection = () =>
-    resolveCodexAppServerReasoningSelection({
-      mode: getCodexReasoningModePref(),
-      choices: getCodexAppServerReasoningChoices({
-        models: codexModelCatalogModels,
-        selectedModel: getCodexRuntimeModelPref(),
-      }),
-      catalogReady: codexModelCatalogStatus === "ready",
-    });
-  const getCodexReasoningChoices = () =>
-    resolveCurrentCodexReasoningSelection().choices;
-  const reconcileSelectedCodexReasoningMode = () => {
-    const currentMode = getCodexReasoningModePref();
-    const reconciledMode = resolveCurrentCodexReasoningSelection().mode;
-    if (codexModelCatalogStatus === "ready" && reconciledMode !== currentMode) {
-      setCodexReasoningModePref(reconciledMode);
-    }
-    return reconciledMode;
-  };
+
+  
   const refreshOpenCodexModelMenu = () => {
     updateModelButton();
     updateReasoningButton();
@@ -920,56 +809,8 @@ export function setupHandlers(
     }
     positionFloatingMenu(body, modelMenu, modelBtn);
   };
-  const ensureCodexModelCatalogLoaded = (): Promise<void> => {
-    if (!isCodexConversationSystem()) return Promise.resolve();
-    const codexPath = getConfiguredCodexAppServerBinaryPath();
-    if (
-      codexModelCatalogStatus === "ready" &&
-      codexPath === codexModelCatalogPath
-    ) {
-      return Promise.resolve();
-    }
-    if (codexModelCatalogInFlight) return codexModelCatalogInFlight;
-    codexModelCatalogStatus = "loading";
-    codexModelCatalogError = "";
-    codexModelCatalogPath = codexPath;
-    refreshOpenCodexModelMenu();
-    codexModelCatalogInFlight = loadCodexAppServerModelCatalog({ codexPath })
-      .then((catalog) => {
-        codexModelCatalogModels = catalog.models;
-        codexModelCatalogStatus = "ready";
-        codexModelCatalogError = "";
-        reconcileSelectedCodexReasoningMode();
-      })
-      .catch((error: unknown) => {
-        codexModelCatalogModels = [];
-        codexModelCatalogStatus = "error";
-        codexModelCatalogError =
-          error instanceof Error ? error.message : String(error);
-        ztoolkit.log("Codex app-server: failed to load model catalog", error);
-      })
-      .finally(() => {
-        codexModelCatalogInFlight = null;
-        refreshOpenCodexModelMenu();
-      });
-    return codexModelCatalogInFlight;
-  };
-  const getCodexRuntimeModelEntries = (): RuntimeModelEntry[] => {
-    const model = getCodexRuntimeModelPref();
-    return buildCodexRuntimeModelEntries({
-      models: codexModelCatalogModels,
-      selectedModel: model,
-      codexPath: getConfiguredCodexAppServerBinaryPath(),
-    });
-  };
-  const getSelectedCodexRuntimeEntry = (): RuntimeModelEntry => {
-    const selectedModel = getCodexRuntimeModelPref().toLowerCase();
-    const entries = getCodexRuntimeModelEntries();
-    return (
-      entries.find((entry) => entry.model.toLowerCase() === selectedModel) ||
-      entries[0]!
-    );
-  };
+
+
   const getCurrentLibraryID = (): number => {
     const fromItem =
       item && Number.isFinite(item.libraryID) && item.libraryID > 0
@@ -997,36 +838,7 @@ export function setupHandlers(
     const indicator = runtimeModeBtn.querySelector(
       ".paperpilotagent-toggle-indicator",
     ) as HTMLSpanElement | null;
-    if (isRuntimeConversationSystem()) {
-      const labelText = isCodexConversationSystem() ? "Codex" : "Claude Code";
-      const staticMode: ChatRuntimeMode = isCodexConversationSystem()
-        ? "chat"
-        : "agent";
-      runtimeModeBtn.style.display = "";
-      const label = runtimeModeBtn.querySelector(
-        ".paperpilotagent-toggle-label",
-      ) as HTMLSpanElement | null;
-      if (label) {
-        label.textContent = labelText;
-      }
-      runtimeModeBtn.classList.remove("paperpilotagent-toggle-enabled");
-      runtimeModeBtn.classList.add("paperpilotruntime-mode-static");
-      runtimeModeBtn.dataset.mode = staticMode;
-      runtimeModeBtn.dataset.system = getConversationSystem();
-      runtimeModeBtn.title = isCodexConversationSystem()
-        ? "Codex native runtime"
-        : labelText;
-      runtimeModeBtn.setAttribute(
-        "aria-label",
-        isCodexConversationSystem() ? "Codex native runtime" : labelText,
-      );
-      runtimeModeBtn.setAttribute("aria-pressed", "false");
-      runtimeModeBtn.setAttribute("aria-disabled", "true");
-      runtimeModeBtn.disabled = true;
-      if (indicator) indicator.style.display = "none";
-      panelRoot.dataset.runtimeMode = staticMode;
-      return;
-    }
+
     runtimeModeBtn.classList.remove("paperpilotruntime-mode-static");
     delete runtimeModeBtn.dataset.system;
     runtimeModeBtn.removeAttribute("aria-disabled");
@@ -1176,13 +988,10 @@ export function setupHandlers(
     if (noteSession) {
       const resolvedNextSystem = resolveNoteFocusSystemSwitch({
         nextSystem,
-        codexAvailable: isCodexModeAvailable(),
-        claudeAvailable: isClaudeModeAvailable(),
       });
       if (!resolvedNextSystem) return;
       if (resolvedNextSystem === getConversationSystem()) return;
       persistDraftInputForCurrentConversation();
-      setConversationSystemPref(resolvedNextSystem);
       currentConversationSystem = resolvedNextSystem;
       syncConversationIdentity();
       syncQueuedFollowUpRegistration();
@@ -1212,34 +1021,17 @@ export function setupHandlers(
     if (!libraryID) return;
     const forceFresh = options?.forceFresh === true;
     persistDraftInputForCurrentConversation();
-    setConversationSystemPref(nextSystem);
     currentConversationSystem = nextSystem;
     panelRoot.dataset.conversationSystem = nextSystem;
     syncQueuedFollowUpRegistration();
     updateRuntimeSystemToggles();
-    if (nextSystem === "claude_code") {
-      warmClaudeModeCaches();
-    }
+
     if (isGlobalMode()) {
       if (forceFresh) {
         await createAndSwitchGlobalConversation(true);
         return;
       }
-      const nextConversationKey =
-        nextSystem === "claude_code"
-          ? resolveRememberedClaudeConversationKey({
-              libraryID,
-              kind: "global",
-            }) ||
-            getLastUsedClaudeGlobalConversationKey(libraryID) ||
-            0
-          : nextSystem === "codex"
-            ? activeCodexGlobalConversationByLibrary.get(
-                buildCodexLibraryStateKey(libraryID),
-              ) ||
-              getLastUsedCodexGlobalConversationKey(libraryID) ||
-              0
-            : (() => {
+      const nextConversationKey = (() => {
                 const lockedKey = getLockedGlobalConversationKey(libraryID);
                 if (lockedKey !== null) return lockedKey;
                 const activeKey = Number(
@@ -1413,48 +1205,7 @@ export function setupHandlers(
       historyToggleBtn.style.display = "";
     }
     if (item && libraryID > 0 && mode && !noteSession) {
-      if (isClaudeConversationSystem()) {
-        activeClaudeConversationModeByLibrary.set(
-          buildClaudeLibraryStateKey(libraryID),
-          mode,
-        );
-        setLastUsedClaudeConversationMode(libraryID, mode);
-      } else if (isCodexConversationSystem()) {
-        activeCodexConversationModeByLibrary.set(
-          buildCodexLibraryStateKey(libraryID),
-          mode,
-        );
-        setLastUsedCodexConversationMode(libraryID, mode);
-        if (mode === "global") {
-          activeCodexGlobalConversationByLibrary.set(
-            buildCodexLibraryStateKey(libraryID),
-            item.id,
-          );
-          setLastUsedCodexGlobalConversationKey(libraryID, item.id);
-        } else if (
-          Number.isFinite(conversationKey) &&
-          (conversationKey as number) > 0 &&
-          Number.isFinite(currentBasePaperItemID) &&
-          currentBasePaperItemID > 0
-        ) {
-          const normalizedConversationKey = Math.floor(
-            conversationKey as number,
-          );
-          const paperStateKey = buildCodexPaperStateKey(
-            libraryID,
-            Math.floor(currentBasePaperItemID),
-          );
-          activeCodexPaperConversationByPaper.set(
-            paperStateKey,
-            normalizedConversationKey,
-          );
-          setLastUsedCodexPaperConversationKey(
-            libraryID,
-            Math.floor(currentBasePaperItemID),
-            normalizedConversationKey,
-          );
-        }
-      } else {
+      {
         activeConversationModeByLibrary.set(libraryID, mode);
         setLastUsedUpstreamConversationMode(libraryID, mode);
         if (mode === "global") {
@@ -1576,64 +1327,15 @@ export function setupHandlers(
       }
       updateRuntimeModeButton();
     };
-    const onClaudeModePrefChange = () => {
-      if (isPanelUnavailable()) {
-        cleanupPrefObservers?.();
-        return;
-      }
-      if (!getClaudeCodeModeEnabled()) {
-        void releaseClaudeRuntimeForBody(body);
-        void initAgentSubsystem()
-          .then((coreRuntime) => invalidateAllClaudeHotRuntimes(coreRuntime))
-          .catch((err: unknown) => {
-            ztoolkit.log(
-              "LLM: Failed to invalidate all Claude hot runtimes",
-              err,
-            );
-          });
-        if (getConversationSystemPref() === "claude_code") {
-          setConversationSystemPref("upstream");
-        }
-        if (isClaudeConversationSystem()) {
-          void switchConversationSystem("upstream");
-          return;
-        }
-      }
-      updateRuntimeSystemToggles();
-    };
-    const onCodexModePrefChange = () => {
-      if (isPanelUnavailable()) {
-        cleanupPrefObservers?.();
-        return;
-      }
-      if (!isCodexAppServerModeEnabled()) {
-        if (getConversationSystemPref() === "codex") {
-          setConversationSystemPref("upstream");
-        }
-        if (isCodexConversationSystem()) {
-          void switchConversationSystem("upstream");
-          return;
-        }
-      }
-      updateRuntimeSystemToggles();
-      updateRuntimeModeButton();
-    };
+
+
     try {
       agentObserverId = (Zotero as any).Prefs.registerObserver(
         agentPrefKey,
         onAgentPrefChange,
         true,
       );
-      claudeObserverId = (Zotero as any).Prefs.registerObserver(
-        claudeModePrefKey,
-        onClaudeModePrefChange,
-        true,
-      );
-      codexObserverId = (Zotero as any).Prefs.registerObserver(
-        codexModePrefKey,
-        onCodexModePrefChange,
-        true,
-      );
+
     } catch {
       // Zotero.Prefs.registerObserver not available – no live sync
     }
@@ -5072,97 +4774,16 @@ export function setupHandlers(
     }
   };
 
-  type ClaudeReasoningDisplayMode =
-    | "auto"
-    | "low"
-    | "medium"
-    | "high"
-    | "xhigh"
-    | "max";
 
-  let claudeReasoningDisplayOverride: {
-    mode: ClaudeReasoningDisplayMode;
-    modelKey: string;
-  } | null = null;
 
   const getClaudeReasoningDisplayScopeKey = () => {
     const { selectedEntryId, currentModel } = getSelectedModelInfo();
     return `${selectedEntryId || "claude-runtime"}::${currentModel}`;
   };
 
-  const normalizeClaudeReasoningDisplayMode = (
-    value: unknown,
-  ): ClaudeReasoningDisplayMode | null => {
-    if (typeof value !== "string") return null;
-    const normalized = value.trim().toLowerCase();
-    if (normalized === "default" || normalized === "none") return "auto";
-    if (
-      normalized === "auto" ||
-      normalized === "low" ||
-      normalized === "medium" ||
-      normalized === "high" ||
-      normalized === "xhigh" ||
-      normalized === "max"
-    ) {
-      return normalized;
-    }
-    return null;
-  };
 
-  const getClaudeReasoningDisplayMode = (): ClaudeReasoningDisplayMode => {
-    if (claudeReasoningDisplayOverride) {
-      if (
-        claudeReasoningDisplayOverride.modelKey ===
-        getClaudeReasoningDisplayScopeKey()
-      ) {
-        return claudeReasoningDisplayOverride.mode;
-      }
-      claudeReasoningDisplayOverride = null;
-    }
-    return getClaudeReasoningModePref();
-  };
 
-  const getClaudeReasoningDisplayLabel = (mode: ClaudeReasoningDisplayMode) => {
-    if (mode === "auto") return "Auto";
-    if (mode === "xhigh") return "XHigh";
-    if (mode === "max") return "Max";
-    if (mode === "high") return "High";
-    if (mode === "medium") return "Medium";
-    if (mode === "low") return "Low";
-    return "Auto";
-  };
 
-  const buildClaudeReasoningConfigForDisplayMode = (
-    mode: ClaudeReasoningDisplayMode,
-  ): LLMReasoningConfig | undefined => {
-    if (mode === "auto") return undefined;
-    return {
-      provider: "anthropic",
-      level: mode === "max" ? "xhigh" : mode,
-    };
-  };
-
-  const clearClaudeReasoningDisplayOverride = () => {
-    claudeReasoningDisplayOverride = null;
-  };
-
-  const applyClaudeResolvedReasoningDisplay = (effort: unknown) => {
-    if (!isClaudeConversationSystem()) return;
-    const mode = normalizeClaudeReasoningDisplayMode(effort);
-    if (!mode) return;
-    if (mode === getClaudeReasoningModePref()) {
-      claudeReasoningDisplayOverride = null;
-    } else {
-      claudeReasoningDisplayOverride = {
-        mode,
-        modelKey: getClaudeReasoningDisplayScopeKey(),
-      };
-    }
-    updateReasoningButton();
-    if (isFloatingMenuOpen(reasoningMenu)) {
-      rebuildReasoningMenu();
-    }
-  };
 
   const getReasoningState = () => {
     if (!item) {
@@ -5175,53 +4796,7 @@ export function setupHandlers(
       };
     }
     const { currentModel } = getSelectedModelInfo();
-    if (isClaudeConversationSystem()) {
-      const selectedMode = getClaudeReasoningDisplayMode();
-      const options: ReasoningOption[] = [
-        { level: "low", enabled: true, label: "Low" },
-        { level: "medium", enabled: true, label: "Medium" },
-        { level: "high", enabled: true, label: "High" },
-        { level: "xhigh", enabled: true, label: "XHigh" },
-        {
-          level: "xhigh",
-          enabled: true,
-          label: "Max",
-        },
-      ];
-      const selectedLevel =
-        selectedMode === "auto"
-          ? "none"
-          : selectedMode === "max"
-            ? ("xhigh" as ReasoningLevelSelection)
-            : (selectedMode as ReasoningLevelSelection);
-      return {
-        provider: "anthropic" as const,
-        currentModel,
-        options,
-        enabledLevels: options.map((option) => option.level),
-        selectedLevel,
-      };
-    }
-    if (isCodexConversationSystem()) {
-      const selectedMode = getCodexReasoningModePref();
-      const options: ReasoningOption[] = getCodexReasoningChoices()
-        .filter((choice) => choice.value !== "auto")
-        .map((choice) => ({
-          level: choice.value as LLMReasoningLevel,
-          enabled: true,
-          label: choice.label,
-        }));
-      return {
-        provider: "openai" as const,
-        currentModel,
-        options,
-        enabledLevels: options.map((option) => option.level),
-        selectedLevel:
-          selectedMode === "auto"
-            ? "none"
-            : (selectedMode as ReasoningLevelSelection),
-      };
-    }
+
     const selectedProfile = getSelectedModelEntryForItem(item.id);
     const provider = detectReasoningProvider(currentModel);
     const options = getReasoningOptions(
@@ -5295,7 +4870,7 @@ export function setupHandlers(
 
   // [webchat] Remember the previous model so "Exit" can restore it
   let previousNonWebchatModelId: string | null = null;
-  let webchatConnectionTimer: ReturnType<typeof setInterval> | null = null;
+
   // Simple abort token — Zotero's Gecko context lacks AbortController.
   let webchatPreloadAbort: { aborted: boolean } | null = null;
 
@@ -5385,32 +4960,6 @@ export function setupHandlers(
       getSelectedModelInfo().currentModel || null;
   }
 
-  const startWebChatConnectionCheck = (dot: HTMLElement) => {
-    stopWebChatConnectionCheck();
-    const check = async () => {
-      try {
-        // Always use dynamic port — saved apiBase may be stale
-        const { getRelayBaseUrl } = await import("../../webchat/relayServer");
-        const host = getRelayBaseUrl();
-        const { testConnection } = await import("../../webchat/client");
-        const alive = await testConnection(host);
-        dot.className = alive
-          ? "paperpilotwebchat-dot paperpilotwebchat-dot-connected"
-          : "paperpilotwebchat-dot paperpilotwebchat-dot-disconnected";
-      } catch {
-        dot.className = "paperpilotwebchat-dot paperpilotwebchat-dot-disconnected";
-      }
-    };
-    void check(); // immediate first check
-    webchatConnectionTimer = setInterval(check, 5000);
-  };
-
-  const stopWebChatConnectionCheck = () => {
-    if (webchatConnectionTimer !== null) {
-      clearInterval(webchatConnectionTimer);
-      webchatConnectionTimer = null;
-    }
-  };
 
   updateReasoningButton = () => {
     if (!item || !reasoningBtn) return;
@@ -5527,74 +5076,8 @@ export function setupHandlers(
       t("Reasoning level"),
       "paperpilotreasoning-menu-section",
     );
-    if (isClaudeConversationSystem()) {
-      const claudeModes: Array<{
-        value: "auto" | "low" | "medium" | "high" | "xhigh" | "max";
-        label: string;
-      }> = [
-        { value: "auto", label: "Auto" },
-        { value: "low", label: "Low" },
-        { value: "medium", label: "Medium" },
-        { value: "high", label: "High" },
-        { value: "xhigh", label: "XHigh" },
-        { value: "max", label: "Max" },
-      ];
-      const currentMode = getClaudeReasoningDisplayMode();
-      for (const mode of claudeModes) {
-        const option = createElement(
-          body.ownerDocument as Document,
-          "button",
-          "paperpilotresponse-menu-item paperpilotreasoning-option",
-          {
-            type: "button",
-            textContent:
-              currentMode === mode.value ? `\u2713 ${mode.label}` : mode.label,
-          },
-        );
-        const applyClaudeSelection = (e: Event) => {
-          if (!isPrimaryPointerEvent(e)) return;
-          e.preventDefault();
-          e.stopPropagation();
-          if (!item) return;
-          clearClaudeReasoningDisplayOverride();
-          setClaudeReasoningModePref(mode.value as any);
-          setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
-          updateReasoningButton();
-        };
-        option.addEventListener("pointerdown", applyClaudeSelection);
-        option.addEventListener("click", applyClaudeSelection);
-        reasoningMenu.appendChild(option);
-      }
-      return;
-    }
-    if (isCodexConversationSystem()) {
-      const codexModes = getCodexReasoningChoices();
-      const currentMode = getCodexReasoningModePref();
-      for (const mode of codexModes) {
-        const option = createElement(
-          body.ownerDocument as Document,
-          "button",
-          "paperpilotresponse-menu-item paperpilotreasoning-option",
-          {
-            type: "button",
-            textContent:
-              currentMode === mode.value ? `\u2713 ${mode.label}` : mode.label,
-          },
-        );
-        const applyCodexSelection = (e: Event) => {
-          if (!isPrimaryPointerEvent(e)) return;
-          e.preventDefault();
-          e.stopPropagation();
-          setCodexReasoningModePref(mode.value);
-          setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
-          updateReasoningButton();
-        };
-        option.addEventListener("pointerdown", applyCodexSelection);
-        option.addEventListener("click", applyCodexSelection);
-        reasoningMenu.appendChild(option);
-      }
-      return;
-    }
+
+
     if (!enabledLevels.length) {
       const offOption = createElement(
         body.ownerDocument as Document,
@@ -5610,10 +5093,7 @@ export function setupHandlers(
         e.preventDefault();
         e.stopPropagation();
         if (!item) return;
-        if (isClaudeConversationSystem()) {
-          clearClaudeReasoningDisplayOverride();
-          setClaudeReasoningModePref("auto");
-        } else {
+        {
           selectedReasoningCache.clear();
           selectedReasoningCache.set(item.id, "none");
           selectedReasoningProviderCache.set(item.id, provider);
@@ -5681,11 +5161,7 @@ export function setupHandlers(
           e.preventDefault();
           e.stopPropagation();
           if (!item) return;
-          if (isClaudeConversationSystem()) {
-            const nextMode = optionState.label === "Max" ? "max" : level;
-            clearClaudeReasoningDisplayOverride();
-            setClaudeReasoningModePref(nextMode as any);
-          } else {
+          {
             selectedReasoningCache.clear();
             selectedReasoningCache.set(item.id, level);
             selectedReasoningProviderCache.set(item.id, provider);
@@ -5707,9 +5183,6 @@ export function setupHandlers(
     }
   };
 
-  (body as any).__llmApplyResolvedClaudeEffort =
-    applyClaudeResolvedReasoningDisplay;
-
   const syncModelFromPrefs = () => {
     updateModelButton();
     updateReasoningButton();
@@ -5721,7 +5194,7 @@ export function setupHandlers(
     }
   };
 
-  (body as any).__llmRefreshContextSourceForCurrentItem = () => {
+  (body as any).__paperpilotRefreshContextSourceForCurrentItem = () => {
     withScrollGuard(chatBox, conversationKey, () => {
       refreshAutoLoadedPaperContextForCurrentItem();
       updatePaperPreviewPreservingScroll();
@@ -5768,129 +5241,7 @@ export function setupHandlers(
   const { warmUpWebChatHistory } = webChatHistoryController;
   renderWebChatHistoryMenu = webChatHistoryController.renderWebChatHistoryMenu;
 
-  // [webchat] Apply webchat-specific UI changes. Safe to call any time —
-  // only modifies UI when actually in webchat mode, restores defaults otherwise.
-  const applyWebChatModeUI = () => {
-    let isWebChat = false;
-    try {
-      const { selectedEntry } = getSelectedModelInfo();
-      isWebChat = selectedEntry?.authMode === "webchat";
-    } catch {
-      // getSelectedModelInfo may not be ready during initial render —
-      // fall back to checking the last-used model entry directly.
-      try {
-        const lastId = getLastUsedModelEntryId();
-        const entry = lastId ? getModelEntryById(lastId) : null;
-        isWebChat = entry?.authMode === "webchat";
-      } catch {
-        return;
-      }
-    }
 
-    panelRoot.dataset.webchatMode = isWebChat ? "true" : "false";
-    syncQueuedFollowUpRegistration();
-
-    // Mode chip: show target site name with connection dot, or restore original
-    if (modeChipBtn) {
-      if (isWebChat) {
-        // Resolve the target label from the current model name
-        let webchatChipLabel = "chatgpt";
-        let webchatChipTitle = "WebChat Sync";
-        try {
-          const { currentModel } = getSelectedModelInfo();
-          const { getWebChatTargetByModelName } =
-            require("../../webchat/types") as typeof import("../../webchat/types");
-          const entry = getWebChatTargetByModelName(currentModel || "");
-          if (entry) {
-            webchatChipLabel = entry.displayName;
-            webchatChipTitle = `${entry.label} Web Sync (${entry.modelName})`;
-          }
-        } catch {
-          /* fallback to defaults */
-        }
-
-        let dot = modeChipBtn.querySelector(
-          ".paperpilotwebchat-dot",
-        ) as HTMLElement | null;
-        if (!dot) {
-          dot = (modeChipBtn.ownerDocument as Document).createElement("span");
-          dot.className = "paperpilotwebchat-dot paperpilotwebchat-dot-disconnected";
-        }
-        modeChipBtn.textContent = "";
-        modeChipBtn.appendChild(dot);
-        modeChipBtn.appendChild(
-          (modeChipBtn.ownerDocument as Document).createTextNode(
-            ` ${webchatChipLabel}`,
-          ),
-        );
-        modeChipBtn.title = webchatChipTitle;
-        modeChipBtn.disabled = true;
-        modeChipBtn.setAttribute("aria-disabled", "true");
-        modeChipBtn.dataset.webchatStatic = "true";
-        modeChipBtn.style.cursor = "default";
-        startWebChatConnectionCheck(dot);
-      } else {
-        const oldDot = modeChipBtn.querySelector(".paperpilotwebchat-dot");
-        if (oldDot) {
-          oldDot.remove();
-          // Restore mode chip text — the normal render sync skips it while the dot is present
-          const chipLabel = isGlobalMode() ? "Library chat" : "Paper chat";
-          modeChipBtn.textContent = chipLabel;
-          modeChipBtn.title = isGlobalMode()
-            ? "Switch to paper chat"
-            : "Switch to library chat";
-        }
-        stopWebChatConnectionCheck();
-        modeChipBtn.disabled = false;
-        modeChipBtn.removeAttribute("aria-disabled");
-        delete modeChipBtn.dataset.webchatStatic;
-        modeChipBtn.style.cursor = "";
-      }
-    }
-
-    // Model dropdown: fully disabled in webchat (model is ChatGPT, use Exit to change)
-    if (modelBtn) {
-      (modelBtn as HTMLButtonElement).disabled = isWebChat;
-      modelBtn.style.opacity = isWebChat ? "0.5" : "";
-      modelBtn.style.cursor = isWebChat ? "default" : "";
-      modelBtn.style.pointerEvents = isWebChat ? "none" : "";
-    }
-
-    // [webchat] Pre-fetch history in background so it's ready when user clicks
-    if (isWebChat && !hasExistingWebChatSessionForCurrentItem()) {
-      void warmUpWebChatHistory();
-    }
-
-    // Clear button → "Exit" in webchat, restore "Clear" otherwise
-    if (clearBtn) {
-      if (isWebChat) {
-        clearBtn.textContent = "Exit";
-        (clearBtn as HTMLButtonElement).disabled = false;
-        clearBtn.style.opacity = "";
-        clearBtn.title = "Exit webchat and return to previous model";
-      } else {
-        clearBtn.textContent = "Clear";
-        clearBtn.title = "";
-      }
-    }
-
-    // [webchat] Hide the "/" action button — slash menu is disabled in webchat
-    if (uploadBtn) {
-      uploadBtn.style.display = isWebChat ? "none" : "";
-    }
-
-    // [webchat] Re-render paper chips to reflect forced PDF content source
-    if (isWebChat) {
-      updatePaperPreviewPreservingScroll();
-    }
-
-    updateRuntimeModeButton();
-    updateRuntimeSystemToggles();
-
-    // Notify standalone window (or other listeners) of webchat mode change
-    hooks?.onWebChatModeChanged?.(isWebChat);
-    syncRequestUiForCurrentConversation();
-  };
 
   // Initialize model and preview state.  Keep panel-state DOM refresh queued
   // until setup-local helpers are ready, then flush once.
@@ -5898,62 +5249,10 @@ export function setupHandlers(
   syncModelFromPrefs();
   flushResponsiveLayoutSyncNow();
   // Set active_target before applyWebChatModeUI so sidebar filters by the correct site
-  try {
-    if (isWebChatMode()) {
-      const { getWebChatTargetByModelName: getColdTarget } =
-        require("../../webchat/types") as typeof import("../../webchat/types");
-      const { relaySetActiveTarget: setColdTarget } =
-        require("../../webchat/relayServer") as typeof import("../../webchat/relayServer");
-      const { currentModel: coldStartModel } = getSelectedModelInfo();
-      const coldEntry = getColdTarget(coldStartModel || "");
-      if (coldEntry?.id) setColdTarget(coldEntry.id);
-    }
-  } catch {
-    /* isWebChatMode may not be ready */
-  }
-  applyWebChatModeUI();
+
   resetComposePreviewUI();
   flushPanelStateRefreshNow();
-  // [webchat] Cold startup → show preload screen so user knows they're in webchat mode
-  try {
-    if (isWebChatMode() && !hasExistingWebChatSessionForCurrentItem()) {
-      const chatShellEl = body.querySelector(
-        ".paperpilotchat-shell",
-      ) as HTMLElement | null;
-      if (chatShellEl) {
-        void (async () => {
-          try {
-            abortWebChatPreload();
-            const token = { aborted: false };
-            webchatPreloadAbort = token;
-            const { showWebChatPreloadScreen } =
-              await import("../../webchat/preloadScreen");
-            const { getWebChatTargetByModelName } =
-              await import("../../webchat/types");
-            const { relaySetActiveTarget: relaySetTarget2 } =
-              await import("../../webchat/relayServer");
-            const { currentModel: coldModel } = getSelectedModelInfo();
-            const coldTargetEntry = getWebChatTargetByModelName(
-              coldModel || "",
-            );
-            if (coldTargetEntry?.id) relaySetTarget2(coldTargetEntry.id);
-            await showWebChatPreloadScreen(
-              chatShellEl,
-              token,
-              coldTargetEntry?.label,
-              coldTargetEntry?.modelName,
-            );
-          } catch {
-            // Preload failed or was aborted — dot will show connection status
-          } finally {
-            webchatPreloadAbort = null;
-          }
-        })();
-      }
-    }
-  } catch {
-    // isWebChatMode may not be ready during initial render
-  }
+
   restoreDraftInputForCurrentConversation();
   if (isWebChatMode()) {
     initializeWebChatConversationForCurrentItem();
@@ -6012,8 +5311,8 @@ export function setupHandlers(
     }
     // Store observers on body so they can be disconnected on next
     // setupHandlers call (prevents accumulation across tab switches).
-    (body as any).__llmResizeObservers = newObservers;
-    (body as any).__llmResizeSchedulers = [
+    (body as any).__paperpilotResizeObservers = newObservers;
+    (body as any).__paperpilotResizeSchedulers = [
       responsiveLayoutScheduler,
       chatBoxViewportResizeScheduler,
     ];
@@ -6021,12 +5320,7 @@ export function setupHandlers(
 
   function getSelectedProfile() {
     if (!item) return null;
-    if (isClaudeConversationSystem()) {
-      return getSelectedClaudeRuntimeEntry();
-    }
-    if (isCodexConversationSystem()) {
-      return getSelectedCodexRuntimeEntry();
-    }
+      
     return getSelectedModelEntryForItem(item.id);
   }
 
@@ -6034,29 +5328,13 @@ export function setupHandlers(
     entryId: string | undefined,
   ): AdvancedModelParams | undefined => {
     if (!entryId) return undefined;
-    if (isClaudeConversationSystem()) {
-      return getSelectedClaudeRuntimeEntry().advanced;
-    }
-    if (isCodexConversationSystem()) {
-      return getSelectedCodexRuntimeEntry().advanced;
-    }
+
     return getAdvancedModelParamsForEntry(entryId);
   };
 
   const getSelectedReasoning = (): LLMReasoningConfig | undefined => {
     if (!item) return undefined;
-    if (isClaudeConversationSystem()) {
-      return buildClaudeReasoningConfigForDisplayMode(
-        getClaudeReasoningDisplayMode(),
-      );
-    }
-    if (isCodexConversationSystem()) {
-      const mode =
-        codexModelCatalogStatus === "ready"
-          ? reconcileSelectedCodexReasoningMode()
-          : getCodexReasoningModePref();
-      return buildCodexAppServerReasoningConfig(mode);
-    }
+
     const { provider, enabledLevels, selectedLevel } = getReasoningState();
     if (provider === "unsupported" || selectedLevel === "none")
       return undefined;
@@ -6689,43 +5967,16 @@ export function setupHandlers(
       loadedConversationKeys.add(conversationKey);
     },
     invalidateConversationSession: async (conversationKey) => {
-      if (!isClaudeConversationSystem() || !item) return;
+
       const libraryID = Number(item.libraryID || 0);
       const currentKind = resolveDisplayConversationKind(item);
       const baseItem = resolveConversationBaseItem(item);
       if (!Number.isFinite(libraryID) || libraryID <= 0 || !currentKind) return;
-      const scope = buildClaudeScope({
-        libraryID: Math.floor(libraryID),
-        kind: currentKind,
-        paperItemID:
-          currentKind === "paper"
-            ? Number(baseItem?.id || 0) || undefined
-            : undefined,
-        paperTitle:
-          currentKind === "paper"
-            ? String(baseItem?.getField?.("title") || "").trim() || undefined
-            : undefined,
-      });
-      await invalidateClaudeConversationSession(await initAgentSubsystem(), {
-        conversationKey,
-        scope,
-      });
-      void touchClaudeConversation(conversationKey, {
-        providerSessionId: undefined,
-        scopedConversationKey: undefined,
-        scopeType: undefined,
-        scopeId: undefined,
-        scopeLabel: undefined,
-        cwd: undefined,
-        updatedAt: Date.now(),
-      });
+
+
     },
     clearStoredConversation: (conversationKey) =>
-      isClaudeConversationSystem()
-        ? clearClaudeConversation(conversationKey)
-        : isCodexConversationSystem()
-          ? clearCodexConversation(conversationKey)
-          : clearStoredConversation(conversationKey),
+      clearStoredConversation(conversationKey),
     resetConversationTitle: (conversationKey) =>
       conversationRepository.clearCatalogTitle({
         system: getConversationSystem(),
@@ -6793,7 +6044,7 @@ export function setupHandlers(
       // explicitly receive raw PDF paths.
       const isAgent = getCurrentRuntimeMode() === "agent";
       const pdfModePapers =
-        isAgent && !isClaudeConversationSystem()
+        isAgent
           ? []
           : getEffectivePdfModePaperContexts(currentItem, allPaperContexts);
       const pdfModeKeys = new Set(
@@ -7272,9 +6523,7 @@ export function setupHandlers(
     closePromptMenu();
     closeHistoryNewMenu();
     closeHistoryMenu();
-    if (isCodexConversationSystem()) {
-      void ensureCodexModelCatalogLoaded();
-    }
+
     updateModelButton();
     flushResponsiveLayoutSyncNow();
     flushPanelStateRefreshNow();
@@ -7299,9 +6548,7 @@ export function setupHandlers(
     closePromptMenu();
     closeHistoryNewMenu();
     closeHistoryMenu();
-    if (isCodexConversationSystem()) {
-      void ensureCodexModelCatalogLoaded();
-    }
+
     updateReasoningButton();
     flushResponsiveLayoutSyncNow();
     rebuildReasoningMenu();
@@ -7557,7 +6804,7 @@ export function setupHandlers(
         abortWebChatPreload();
         // Immediately remove preload overlay for instant visual feedback
         body.querySelector(".paperpilotwebchat-preload")?.remove();
-        stopWebChatConnectionCheck();
+
         clearNextWebChatNewChatIntent();
         // Restore previous model, or fall back to first non-webchat model
         const restoreId =
@@ -7572,7 +6819,7 @@ export function setupHandlers(
         // Refresh UI back to normal mode
         updateModelButton();
         updateReasoningButton();
-        applyWebChatModeUI();
+
         // Drop only transient WebChat state. WebChat shares the normal paper
         // key, so deleting persisted conversation rows here would erase the
         // user's regular paper chat.
@@ -7608,7 +6855,7 @@ export function setupHandlers(
     setupHandlersCleaned = true;
     // The connection-check interval and preload token outlive the detached
     // body otherwise — one leaked 5s timer per abandoned WebChat panel.
-    stopWebChatConnectionCheck();
+
     abortWebChatPreload();
     disconnectObserverCleanup?.();
     disconnectObserverCleanup = null;
@@ -7624,16 +6871,16 @@ export function setupHandlers(
       true,
     );
     unregisterQueuedFollowUpBody(registeredQueuedFollowUpThreadKey, body);
-    queuedFollowUpBody.__llmQueuedFollowUpRegisteredThreadKey = null;
+    queuedFollowUpBody.__paperpilotQueuedFollowUpRegisteredThreadKey = null;
     activeContextPanelStateSync.delete(body);
-    delete (body as any).__llmApplyResolvedClaudeEffort;
-    delete (body as any).__llmRefreshContextSourceForCurrentItem;
+    delete (body as any).__paperpilotApplyResolvedClaudeEffort;
+    delete (body as any).__paperpilotRefreshContextSourceForCurrentItem;
     delete (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_DRAIN_PROPERTY];
     delete (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_THREAD_DRAIN_PROPERTY];
-    delete (body as any).__llmScheduleClaudeQueueDrain;
-    delete (body as any).__llmScheduleClaudeThreadQueueDrain;
+    delete (body as any).__paperpilotScheduleClaudeQueueDrain;
+    delete (body as any).__paperpilotScheduleClaudeThreadQueueDrain;
     unregisterContextSurfaceActions();
-    void releaseClaudeRuntimeForBody(body);
+
     if (setupHandlersCleanupByBody.get(body) === cleanupSetupHandlers) {
       setupHandlersCleanupByBody.delete(body);
     }

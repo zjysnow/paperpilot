@@ -33,8 +33,6 @@ export type RuntimeSystemControlState = {
 
 export type RuntimeSystemControlsStateInput = {
   activeSystem: ConversationSystem;
-  codexEnabled: boolean;
-  claudeEnabled: boolean;
   hidden?: boolean;
   busy?: boolean;
 };
@@ -55,13 +53,13 @@ function isRuntimeSystemEnabled(
   system: RuntimeConversationSystem,
   input: RuntimeSystemControlsStateInput,
 ): boolean {
-  return system === "codex" ? input.codexEnabled : input.claudeEnabled;
+  return false; // Placeholder for future logic to determine if a runtime system is enabled
 }
 
 export function isRuntimeConversationSystem(
   value: unknown,
 ): value is RuntimeConversationSystem {
-  return value === "codex" || value === "claude_code";
+  return false;
 }
 
 export function resolveRuntimeSystemToggleTarget(

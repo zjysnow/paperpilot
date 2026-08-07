@@ -10,8 +10,8 @@ import { clampNumber } from "../../textUtils";
 
 export function attachFontScaleShortcutController(panelDoc: Document): void {
   if (
-    (panelDoc as unknown as { __llmFontScaleShortcut?: boolean })
-      .__llmFontScaleShortcut
+    (panelDoc as unknown as { __paperpilotFontScaleShortcut?: boolean })
+      .__paperpilotFontScaleShortcut
   ) {
     return;
   }
@@ -120,6 +120,6 @@ export function attachFontScaleShortcutController(panelDoc: Document): void {
   );
 
   (
-    panelDoc as unknown as { __llmFontScaleShortcut?: boolean }
-  ).__llmFontScaleShortcut = true;
+    panelDoc as unknown as { __paperpilotFontScaleShortcut?: boolean }
+  ).__paperpilotFontScaleShortcut = true;
 }
