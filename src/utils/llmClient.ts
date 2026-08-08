@@ -3088,7 +3088,7 @@ export async function resolveRequestAuthState(params: {
  * non-streaming calls. Passing onDelta enables streaming.
  */
 async function callNativeProtocol(params: {
-  protocol: "responses_api" | "openai_chat_compat";
+  protocol: "anthropic_messages" | "gemini_native";
   apiBase: string;
   apiKey: string;
   model: string;
@@ -4166,3 +4166,4 @@ async function parseResponsesStream(
 
   return fullText;
 }
+import { readFileRefAsBase64 } from "../agent/model/shared";

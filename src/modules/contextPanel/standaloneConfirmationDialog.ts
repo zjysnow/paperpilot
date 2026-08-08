@@ -37,7 +37,9 @@ export function showStandaloneConfirmationDialog(
   return new Promise((resolve) => {
     const previousActiveElement = doc.activeElement;
     const titleId = nextDialogElementId("paperpilotstandalone-confirm-title");
-    const messageId = nextDialogElementId("paperpilotstandalone-confirm-message");
+    const messageId = nextDialogElementId(
+      "paperpilotstandalone-confirm-message",
+    );
 
     const overlay = createElement(
       doc,

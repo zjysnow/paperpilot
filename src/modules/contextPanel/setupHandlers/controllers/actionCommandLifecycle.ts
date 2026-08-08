@@ -1,11 +1,9 @@
-
 import {
   ACTION_COMPLETION_DISMISS_MS,
   formatActionCompletionCountdown,
   formatActionLabel,
   type ActionCompletionFeedback,
 } from "../../actionStatusText";
-
 
 const PAGED_REVIEW_TRANSITION_ACTION_IDS = new Set([
   "next",
@@ -38,7 +36,8 @@ export function renderActionCompletionCard(
   secondsRemaining = ACTION_COMPLETION_DISMISS_MS / 1000,
 ): HTMLDivElement {
   const card = doc.createElement("div");
-  card.className = "paperpilotagent-hitl-card paperpilotagent-hitl-card-complete";
+  card.className =
+    "paperpilotagent-hitl-card paperpilotagent-hitl-card-complete";
 
   const header = doc.createElement("div");
   header.className = "paperpilotagent-hitl-header";
@@ -135,7 +134,8 @@ export function renderActionTransitionCard(
   actionId?: string,
 ): HTMLDivElement {
   const card = doc.createElement("div");
-  card.className = "paperpilotagent-hitl-card paperpilotagent-hitl-card-transition";
+  card.className =
+    "paperpilotagent-hitl-card paperpilotagent-hitl-card-transition";
   card.setAttribute("role", "status");
   card.setAttribute("aria-live", "polite");
 
@@ -270,7 +270,8 @@ export function createActionCommandLifecycle(params: {
     chatBox.querySelector(".paperpilotaction-progress-card")?.remove();
     chatBox.querySelector(".paperpilotaction-inline-card")?.remove();
     const wrapper = ownerDoc.createElement("div");
-    wrapper.className = "paperpilotaction-inline-card paperpilotaction-inline-card-status";
+    wrapper.className =
+      "paperpilotaction-inline-card paperpilotaction-inline-card-status";
     const totalMs = feedback.autoDismissMs || ACTION_COMPLETION_DISMISS_MS;
     const startedAt = Date.now();
     const card = renderActionCompletionCard(ownerDoc, feedback, totalMs / 1000);
@@ -380,3 +381,9 @@ export function createActionCommandLifecycle(params: {
     showActionHitlCard,
   };
 }
+import { getAgentApi } from "../../../../agent";
+import type {
+  AgentConfirmationResolution,
+  AgentPendingAction,
+} from "../../../../agent/types";
+import { renderPendingActionCard } from "../../agentTrace/render";

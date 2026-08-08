@@ -427,7 +427,7 @@ async function cachePDFText(
     let pdfWorkerPageChars: number[] | undefined;
     const mainItem =
       item.isAttachment() && item.parentID
-        ? Zotero.Items.get(item.parentID)
+        ? Zotero.Items.get(item.parentID) || null
         : null;
 
     const title = mainItem?.getField("title") || item.getField("title") || "";

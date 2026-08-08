@@ -3566,9 +3566,7 @@ function formatQuoteWithCitationInsideBlockquoteMarkdown(
 }
 
 export type UnresolvedQuoteCitationPlaceholderMode =
-  | "preserve"
-  | "unavailable"
-  | "omit";
+  "preserve" | "unavailable" | "omit";
 
 function formatUnresolvedQuoteCitationPlaceholder(
   mode: UnresolvedQuoteCitationPlaceholderMode,
@@ -3847,8 +3845,7 @@ export function buildSelectedTextQuoteCitations(
   selectedTexts: readonly string[] | undefined,
   selectedTextSources: readonly SelectedTextSource[] | undefined,
   selectedTextPaperContexts:
-    | readonly (PaperContextRef | undefined)[]
-    | undefined,
+    readonly (PaperContextRef | undefined)[] | undefined,
 ): QuoteCitation[] {
   if (!Array.isArray(selectedTexts) || !selectedTexts.length) return [];
   const out: QuoteCitation[] = [];

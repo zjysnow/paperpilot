@@ -32,7 +32,7 @@ export function collectReaderSelectionDocuments(reader: any): Document[] {
   ]);
   pushUniqueDoc(docs, seen, readerDoc);
 
-  let internalReader: any = null;
+  let internalReader: any;
   try {
     internalReader = reader?._internalReader;
   } catch {
@@ -81,7 +81,7 @@ export function getSelectionPopupTextFromReader(
   reader: any,
   normalize: (text: string) => string,
 ): string {
-  let internalReader: any = null;
+  let internalReader: any;
   try {
     internalReader = reader?._internalReader;
   } catch {

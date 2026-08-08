@@ -16,10 +16,7 @@ import type { ProviderPresetId } from "./providerPresets";
 import type { ModelInputMode } from "../shared/types";
 
 export type LegacyModelSlotKey =
-  | "primary"
-  | "secondary"
-  | "tertiary"
-  | "quaternary";
+  "primary" | "secondary" | "tertiary" | "quaternary";
 
 export type AdvancedModelConfig = {
   temperature: number;
@@ -36,11 +33,7 @@ export type ModelProviderModel = AdvancedModelConfig & {
 };
 
 export type ModelProviderAuthMode =
-  | "api_key"
-  | "codex_auth"
-  | "codex_app_server"
-  | "copilot_auth"
-  | "webchat"; // [webchat]
+  "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat"; // [webchat]
 
 export type ModelProviderGroup = {
   id: string;

@@ -284,7 +284,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement | null): string | null {
       return null;
     }
     ctx.drawImage(canvas, 0, 0);
-    let dataUrl: string | null = null;
+    let dataUrl: string | null;
     try {
       dataUrl = temp.toDataURL("image/png");
     } catch {
@@ -863,7 +863,7 @@ export async function renderPdfPageToDataUrl(
     offscreen.style.width = `${offscreen.width}px`;
     offscreen.style.height = `${offscreen.height}px`;
 
-    let dataUrl: string | null = null;
+    let dataUrl: string | null;
     try {
       const context = offscreen.getContext(
         "2d",

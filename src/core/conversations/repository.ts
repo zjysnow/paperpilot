@@ -1,4 +1,3 @@
-
 import { isConversationKeyForKind } from "../../shared/conversationKeySpace";
 import {
   canMigrateLegacyAmbiguousPaperRegistryScope,
@@ -428,7 +427,6 @@ export const conversationRepository = {
     const conversationKey = normalizePositiveInt(params.conversationKey);
     if (!libraryID) return null;
 
-
     if (params.kind === "global") {
       if (!conversationKey) return null;
       const ensured = await ensureGlobalConversationExists(
@@ -503,8 +501,6 @@ export const conversationRepository = {
     const sourceProviderSessionId =
       normalizeTitle(sourceEntry.providerSessionId) || "";
 
-
-
     const entry = await conversationRepository.createCatalogEntry({
       system: params.system,
       kind: params.kind,
@@ -518,7 +514,6 @@ export const conversationRepository = {
     // creates the target conversation, and resume never rebinds it, so a fork
     // that inherits the source header would stay bound to the source scope.
 
-
     const cleanupForkEntry = async () => {
       await conversationRepository.deleteCatalogEntry({
         system: params.system,
@@ -530,11 +525,11 @@ export const conversationRepository = {
     let targetAnchorAssistantTimestamp;
     try {
       const copyResult = await forkUpstreamConversationMessages({
-              sourceConversationKey,
-              targetConversationKey: entry.conversationKey,
-              throughAssistantTimestamp,
-              timestampBase: Date.now(),
-            });
+        sourceConversationKey,
+        targetConversationKey: entry.conversationKey,
+        throughAssistantTimestamp,
+        timestampBase: Date.now(),
+      });
       copiedMessageCount = copyResult.copiedMessageCount;
       targetAnchorAssistantTimestamp =
         copyResult.targetAnchorAssistantTimestamp;

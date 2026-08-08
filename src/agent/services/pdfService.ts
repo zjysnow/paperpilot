@@ -21,7 +21,7 @@ function getFirstPdfChildAttachment(
   }
   if (!item.isRegularItem?.()) return null;
   for (const attachmentId of item.getAttachments()) {
-    const attachment = Zotero.Items.get(attachmentId);
+    const attachment = Zotero.Items.get(attachmentId) || null;
     if (isPdfContextAttachment(attachment)) {
       return attachment;
     }
@@ -32,11 +32,11 @@ function getFirstPdfChildAttachment(
 export function resolveContextItemFromPaperContext(
   paperContext: PaperContextRef,
 ): Zotero.Item | null {
-  const direct = Zotero.Items.get(paperContext.contextItemId);
+  const direct = Zotero.Items.get(paperContext.contextItemId) || null;
   if (isSupportedContextAttachment(direct)) {
     return direct;
   }
-  const item = Zotero.Items.get(paperContext.itemId);
+  const item = Zotero.Items.get(paperContext.itemId) || null;
   return getFirstPdfChildAttachment(item);
 }
 

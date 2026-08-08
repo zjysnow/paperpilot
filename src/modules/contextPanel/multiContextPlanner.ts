@@ -189,7 +189,7 @@ function getFirstPdfChildAttachment(
   if (!item || item.isAttachment()) return null;
   const attachments = item.getAttachments();
   for (const attachmentId of attachments) {
-    const attachment = Zotero.Items.get(attachmentId);
+    const attachment = Zotero.Items.get(attachmentId) || null;
     if (isPdfContextAttachment(attachment)) {
       return attachment;
     }
@@ -198,14 +198,14 @@ function getFirstPdfChildAttachment(
 }
 
 function resolveContextItem(ref: PaperContextRef): Zotero.Item | null {
-  const direct = Zotero.Items.get(ref.contextItemId);
+  const direct = Zotero.Items.get(ref.contextItemId) || null;
   if (isSupportedContextAttachment(direct)) {
     return direct;
   }
   if (direct && (direct as any).isNote?.()) {
     return direct;
   }
-  const item = Zotero.Items.get(ref.itemId);
+  const item = Zotero.Items.get(ref.itemId) || null;
   if (item && (item as any).isNote?.()) {
     return item;
   }
@@ -405,7 +405,7 @@ function collectCollectionItemIds(
 ): number[] {
   if (seenCollections.has(collectionId)) return [];
   seenCollections.add(collectionId);
-  const collection = Zotero.Collections.get(collectionId);
+  const collection = Zotero.Collections.get(collectionId) || null;
   if (!collection) return [];
   const out = new Set<number>(getCollectionChildItemIds(collection));
   for (const childCollectionId of getCollectionChildCollectionIds(collection)) {
@@ -599,7 +599,7 @@ async function resolveCollectionScopePapers(params: {
   for (const collectionContext of collectionContexts) {
     const collectionId = normalizeCollectionId(collectionContext.collectionId);
     if (!collectionId) continue;
-    const collection = Zotero.Collections.get(collectionId);
+    const collection = Zotero.Collections.get(collectionId) || null;
     const collectionName =
       sanitizeText(collectionContext.name).trim() ||
       sanitizeText(collection?.name || "").trim() ||
@@ -607,7 +607,7 @@ async function resolveCollectionScopePapers(params: {
     const itemIds = collection ? collectCollectionItemIds(collectionId) : [];
     let collectionPaperCount = 0;
     for (const itemId of itemIds) {
-      const item = Zotero.Items.get(itemId);
+      const item = Zotero.Items.get(itemId) || null;
       if (!item?.isRegularItem?.()) continue;
       const paperContext = buildPaperRefFromRegularItem(item);
       if (!paperContext) continue;

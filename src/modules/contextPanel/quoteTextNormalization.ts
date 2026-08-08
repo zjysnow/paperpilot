@@ -708,7 +708,7 @@ function matchTokenAlignmentStep(params: {
   }
 
   let sourceText = "";
-  let lastMatchedSourceIndex = params.sourceTokenIndex - 1;
+  let lastMatchedSourceIndex: number;
   for (
     let sourceCursor = params.sourceTokenIndex;
     sourceCursor < sourceTokens.length &&

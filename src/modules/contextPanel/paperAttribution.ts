@@ -501,8 +501,8 @@ export function resolvePaperContextRefFromItem(
   let contextItemId = normalizedItemId;
   const childAttachmentIds = item.getAttachments?.() || [];
   for (const attachmentId of childAttachmentIds) {
-    const attachment = Zotero.Items.get(attachmentId);
-    if (isPdfContextAttachment(attachment)) {
+    const attachment = Zotero.Items.get(attachmentId) || null;
+    if (attachment && isPdfContextAttachment(attachment)) {
       contextItemId = Math.floor(attachment.id);
       break;
     }

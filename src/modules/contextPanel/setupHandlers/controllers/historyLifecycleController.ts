@@ -59,8 +59,20 @@ import {
   loadAllConversationHistory,
   loadConversationHistoryScope,
 } from "../../historyLoader";
-
-
+import type { AgentRuntime } from "../../../../agent/runtime";
+import {
+  getConversationSystemPref,
+  setConversationSystemPref,
+} from "../../../../claudeCode/prefs";
+import { setLastUsedCodexGlobalConversationKey } from "../../../../codexAppServer/prefs";
+import {
+  activeClaudeGlobalConversationByLibrary,
+  buildClaudeLibraryStateKey,
+} from "../../../../claudeCode/state";
+import {
+  activeCodexGlobalConversationByLibrary,
+  buildCodexLibraryStateKey,
+} from "../../../../codexAppServer/state";
 
 import {
   createGlobalPortalItem,
@@ -179,7 +191,6 @@ type ForkTurnTarget = {
   userTimestamp: number;
   assistantTimestamp: number;
 };
-
 
 export type HistoryLifecycleControllerDeps = {
   body: Element;
@@ -1807,7 +1818,10 @@ export function createHistoryLifecycleController(
         setStatus(status, t("Could not load this conversation"), "error");
       return false;
     }
-    const nextItem = createGlobalPortalItem(libraryID, normalizedConversationKey);
+    const nextItem = createGlobalPortalItem(
+      libraryID,
+      normalizedConversationKey,
+    );
     if (!noteFocusItem) {
       setCurrentItem(nextItem as any);
     }
@@ -1903,7 +1917,6 @@ export function createHistoryLifecycleController(
       return entry;
     };
     const resolveRememberedPaperConversationKey = (): number => {
-
       return Number(
         activePaperConversationByPaper.get(
           buildPaperStateKey(libraryID, paperItemID),
@@ -2114,8 +2127,7 @@ export function createHistoryLifecycleController(
         paperItemID: paperItem.id,
         getPane: () =>
           Zotero.getActiveZoteroPane?.() as
-            | HistoryPaperPaneSelector
-            | undefined,
+            HistoryPaperPaneSelector | undefined,
       });
     } catch (err) {
       ztoolkit.log("LLM: Failed to select searched conversation paper", {
@@ -2344,7 +2356,7 @@ export function createHistoryLifecycleController(
     invalidateHistorySearchDocument(sourceConversationKey);
     invalidateHistorySearchDocument(nextConversationKey);
 
-    let loaded = false;
+    let loaded: boolean;
     if (kind === "paper") {
       loaded = Boolean(
         await switchPaperConversation(nextConversationKey, {
@@ -2648,7 +2660,7 @@ export function createHistoryLifecycleController(
     if (originalSystem !== targetSystem) {
       setConversationSystemPref(targetSystem);
     }
-    let deleted = false;
+    let deleted: boolean;
     try {
       deleted = await finalizeConversationDeletionForPending(pending);
     } finally {
@@ -2972,11 +2984,10 @@ export function createHistoryLifecycleController(
       return false;
     }
 
-    let targetConversationKey = 0;
-    let reuseReason: "active-draft" | "latest-draft" | null = null;
+    let targetConversationKey: number;
+    let reuseReason: "active-draft" | "latest-draft" | null;
     const system = getConversationSystem();
     const currentCandidate = (() => {
-
       return isGlobalMode() &&
         isUpstreamGlobalConversationKey(Number(getConversationKey(item) || 0))
         ? getConversationKey(item)
@@ -2995,6 +3006,7 @@ export function createHistoryLifecycleController(
       limit: GLOBAL_HISTORY_LIMIT,
     });
     targetConversationKey = freshDraft.conversationKey;
+    // eslint-disable-next-line prefer-const
     reuseReason =
       freshDraft.source === "current"
         ? "active-draft"
@@ -3079,8 +3091,8 @@ export function createHistoryLifecycleController(
       return false;
     }
 
-    let targetConversationKey = 0;
-    let reuseReason: "active-draft" | "existing-draft" | null = null;
+    let targetConversationKey: number;
+    let reuseReason: "active-draft" | "existing-draft" | null;
 
     const system = getConversationSystem();
     const currentKey = Number(getConversationKey(item) || 0);
@@ -3093,6 +3105,7 @@ export function createHistoryLifecycleController(
       excludeConversationKey,
     });
     targetConversationKey = freshDraft.conversationKey;
+    // eslint-disable-next-line prefer-const
     reuseReason =
       freshDraft.source === "current"
         ? "active-draft"
@@ -3179,7 +3192,6 @@ export function createHistoryLifecycleController(
       closeExportMenu();
       closeHistoryMenu();
 
-
       // Reuse an existing blank draft in the active mode, or create one if none
       // exists. Webchat above is the only mode where "+" always requests a new
       // remote conversation.
@@ -3242,18 +3254,18 @@ export function createHistoryLifecycleController(
       }
       const libraryID = getCurrentLibraryID();
       const targetGlobalKey = (() => {
-              const lockedKey = getLockedGlobalConversationKey(libraryID);
-              if (lockedKey !== null) return lockedKey;
-              const activeKey = Number(
-                activeGlobalConversationByLibrary.get(libraryID) ||
-                  getLastUsedUpstreamGlobalConversationKey(libraryID) ||
-                  0,
-              );
-              if (!isUpstreamGlobalConversationKey(activeKey)) return 0;
-              return activeKey === GLOBAL_CONVERSATION_KEY_BASE
-                ? buildDefaultUpstreamGlobalConversationKey(libraryID)
-                : Math.floor(activeKey);
-            })();
+        const lockedKey = getLockedGlobalConversationKey(libraryID);
+        if (lockedKey !== null) return lockedKey;
+        const activeKey = Number(
+          activeGlobalConversationByLibrary.get(libraryID) ||
+            getLastUsedUpstreamGlobalConversationKey(libraryID) ||
+            0,
+        );
+        if (!isUpstreamGlobalConversationKey(activeKey)) return 0;
+        return activeKey === GLOBAL_CONVERSATION_KEY_BASE
+          ? buildDefaultUpstreamGlobalConversationKey(libraryID)
+          : Math.floor(activeKey);
+      })();
       if (targetGlobalKey > 0) {
         void switchGlobalConversation(targetGlobalKey);
       } else {
@@ -3433,7 +3445,7 @@ export function createHistoryLifecycleController(
         row.dataset.historyKind === "paper" ? "paper" : "global";
       const entry = findHistoryEntryByKey(historyKind, parsedConversationKey);
       void (async () => {
-        let loaded = true;
+        let loaded: boolean;
         if (entry) {
           loaded = await switchToHistoryEntry(entry);
         } else if (historyKind === "paper") {

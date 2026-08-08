@@ -132,7 +132,7 @@ async function loadConversationMemory(
     return rows
       .reverse()
       .map((row) => {
-        let toolsUsed: string[] = [];
+        let toolsUsed: string[];
         try {
           toolsUsed = JSON.parse(String(row.toolsUsedJson || "[]")) as string[];
         } catch {

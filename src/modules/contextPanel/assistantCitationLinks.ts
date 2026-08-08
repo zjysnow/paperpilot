@@ -101,8 +101,7 @@ type CitationCandidateProvenance =
   | "base-paper"
   | "library-search";
 type EffectiveCitationCandidateProvenance =
-  | CitationCandidateProvenance
-  | "unknown";
+  CitationCandidateProvenance | "unknown";
 
 type CitationNavigationTiming = {
   startedAt: number;
@@ -120,9 +119,7 @@ const citationButtonQuoteCitationCache = new WeakMap<
 >();
 
 type CitationNavigationMode =
-  | "inline-citation"
-  | "trusted-quote"
-  | "untrusted-quote";
+  "inline-citation" | "trusted-quote" | "untrusted-quote";
 
 type QuoteCitationTrust = "trusted-anchor" | "source-backed-unverified";
 
@@ -1260,7 +1257,7 @@ export function extractInlineCitationMentions(
   };
 
   INLINE_CITATION_PATTERN.lastIndex = 0;
-  let match: RegExpExecArray | null = null;
+  let match: RegExpExecArray | null;
   while ((match = INLINE_CITATION_PATTERN.exec(cleanText))) {
     const rawMatchText = String(match[1] || "");
     const start = Number(match.index || 0);
@@ -1342,7 +1339,7 @@ export function extractInlineCitationMentions(
     findNextNonSpaceChar(cleanEnd) === ")";
 
   INLINE_NARRATIVE_CITATION_PATTERN.lastIndex = 0;
-  let narrativeMatch: RegExpExecArray | null = null;
+  let narrativeMatch: RegExpExecArray | null;
   while ((narrativeMatch = INLINE_NARRATIVE_CITATION_PATTERN.exec(cleanText))) {
     const rawMatchText = String(narrativeMatch[0] || "");
     const authorText = stripCitationControlChars(
@@ -1363,7 +1360,7 @@ export function extractInlineCitationMentions(
   }
 
   INLINE_NARRATIVE_COMMA_CITATION_PATTERN.lastIndex = 0;
-  let narrativeCommaMatch: RegExpExecArray | null = null;
+  let narrativeCommaMatch: RegExpExecArray | null;
   while (
     (narrativeCommaMatch =
       INLINE_NARRATIVE_COMMA_CITATION_PATTERN.exec(cleanText))
@@ -2776,7 +2773,9 @@ async function resolveAndNavigateAssistantCitation(params: {
   quoteText: string;
   paragraphQuoteText?: string;
 }): Promise<void> {
-  const status = params.body.querySelector("#paperpilotstatus") as HTMLElement | null;
+  const status = params.body.querySelector(
+    "#paperpilotstatus",
+  ) as HTMLElement | null;
   if (params.button.dataset.loading === "true") return;
   const endNavigationActivity = beginQuoteNavigationActivity();
   params.button.dataset.loading = "true";

@@ -494,7 +494,10 @@ export function getProviderLabelForSettings(
 
 export function applyPanelFontScale(panel: HTMLElement | null): void {
   if (!panel) return;
-  panel.style.setProperty("--paperpilotfont-scale", `${panelFontScalePercent / 100}`);
+  panel.style.setProperty(
+    "--paperpilotfont-scale",
+    `${panelFontScalePercent / 100}`,
+  );
   panel.style.setProperty(
     "--paperpilotmessage-line-height",
     `${messageLineSpacingPercent / 100}`,
@@ -994,7 +997,7 @@ export function getTrackedAssistantNoteForParent(
     removeAssistantNoteMapEntry(parentItemId);
     return null;
   }
-  let note: Zotero.Item | null = null;
+  let note: Zotero.Item | null;
   try {
     note = Zotero.Items.get(noteId) || null;
   } catch {

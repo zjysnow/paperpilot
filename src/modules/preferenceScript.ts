@@ -2439,10 +2439,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           if (!exists) {
             throw new Error(`Directory not found: ${fullPath}`);
           }
-          const testFile = joinLocalPath(
-            fullPath,
-            ".paperpilot-test",
-          );
+          const testFile = joinLocalPath(fullPath, ".paperpilot-test");
           const bytes = new TextEncoder().encode("test");
           await IOUtils.write(testFile, bytes);
           await IOUtils.remove(testFile);

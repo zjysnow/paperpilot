@@ -519,8 +519,7 @@ function renderCodeHtml(code: string, lang: string): string {
       codeHighlightCacheBytes > CODE_HIGHLIGHT_CACHE_MAX_BYTES
     ) {
       const oldestKey = codeHighlightCache.keys().next().value as
-        | string
-        | undefined;
+        string | undefined;
       if (oldestKey === undefined) break;
       const oldest = codeHighlightCache.get(oldestKey);
       codeHighlightCache.delete(oldestKey);

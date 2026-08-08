@@ -10,20 +10,9 @@ export type ReasoningProvider =
   | "grok"
   | "anthropic";
 export type ReasoningLevel =
-  | "default"
-  | "minimal"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh";
+  "default" | "minimal" | "low" | "medium" | "high" | "xhigh";
 export type OpenAIReasoningEffort =
-  | "default"
-  | "none"
-  | "minimal"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh";
+  "default" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 export type GeminiThinkingParam = "thinking_level" | "thinking_budget";
 export type GeminiThinkingValue = "low" | "medium" | "high" | number;
 export type GeminiReasoningOption = {
@@ -50,11 +39,7 @@ export type GeminiReasoningProfile = {
 };
 export type AnthropicThinkingMode = "adaptive" | "manual" | "none";
 export type AnthropicAdaptiveEffort =
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh"
-  | "max";
+  "low" | "medium" | "high" | "xhigh" | "max";
 export type AnthropicReasoningProfile = {
   defaultBudgetTokens: number;
   levelToBudgetTokens: Partial<Record<ReasoningLevel, number>>;

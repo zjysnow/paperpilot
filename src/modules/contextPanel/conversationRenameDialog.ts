@@ -69,9 +69,14 @@ export function showConversationRenameDialog(
       "form",
       "paperpilotconversation-rename-form",
     ) as HTMLFormElement;
-    const input = createElement(doc, "input", "paperpilotconversation-rename-input", {
-      type: "text",
-    }) as HTMLInputElement;
+    const input = createElement(
+      doc,
+      "input",
+      "paperpilotconversation-rename-input",
+      {
+        type: "text",
+      },
+    ) as HTMLInputElement;
     input.value = options.initialTitle;
     input.maxLength = Math.max(
       1,

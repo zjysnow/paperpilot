@@ -62,8 +62,8 @@ export async function resolveSelectedWebChatPdfBatch(
     }
     seen.add(sourceKey);
 
-    const attachment = Zotero.Items.get(contextItemId);
-    if (!isZoteroPdfAttachmentCandidate(attachment)) {
+    const attachment = Zotero.Items.get(contextItemId) || null;
+    if (!attachment || !isZoteroPdfAttachmentCandidate(attachment)) {
       throw new Error("The selected WebChat PDF attachment is unavailable.");
     }
     if ((attachment as unknown as { deleted?: unknown }).deleted) {
@@ -72,7 +72,7 @@ export async function resolveSelectedWebChatPdfBatch(
 
     const parentId = Number(attachment.parentID || 0);
     if (parentId) {
-      const parent = Zotero.Items.get(itemId);
+      const parent = Zotero.Items.get(itemId) || null;
       if (parentId !== itemId || !parent?.isRegularItem?.()) {
         throw new Error(
           "The selected WebChat PDF attachment identity changed.",

@@ -17,8 +17,8 @@ export function createCodexGlobalPortalItem(
       ? Math.floor(conversationKey)
       : 1;
   const portalItem: CodexGlobalPortalItem = {
-    __llmCodexGlobalPortalItem: true,
-    __llmCodexConversationKind: "global",
+    __paperpilotCodexGlobalPortalItem: true,
+    __paperpilotCodexConversationKind: "global",
     id: normalizedConversationKey,
     libraryID: normalizedLibraryID,
     parentID: undefined,
@@ -52,9 +52,9 @@ export function createCodexPaperPortalItem(
       ? Math.floor(conversationKey)
       : Math.max(1, basePaperItemID);
   const portalItem: CodexPaperPortalItem = {
-    __llmCodexPaperPortalItem: true,
-    __llmCodexConversationKind: "paper",
-    __llmCodexPaperPortalBaseItemID: basePaperItemID,
+    __paperpilotCodexPaperPortalItem: true,
+    __paperpilotCodexConversationKind: "paper",
+    __paperpilotCodexPaperPortalBaseItemID: basePaperItemID,
     id: normalizedConversationKey,
     libraryID: normalizedLibraryID,
     parentID: undefined,
@@ -93,8 +93,8 @@ export function isCodexGlobalPortalItem(
   return Boolean(
     item &&
     typeof item === "object" &&
-    (item as Partial<CodexGlobalPortalItem>).__llmCodexGlobalPortalItem ===
-      true,
+    (item as Partial<CodexGlobalPortalItem>)
+      .__paperpilotCodexGlobalPortalItem === true,
   );
 }
 
@@ -104,7 +104,8 @@ export function isCodexPaperPortalItem(
   return Boolean(
     item &&
     typeof item === "object" &&
-    (item as Partial<CodexPaperPortalItem>).__llmCodexPaperPortalItem === true,
+    (item as Partial<CodexPaperPortalItem>).__paperpilotCodexPaperPortalItem ===
+      true,
   );
 }
 
@@ -116,7 +117,7 @@ export function isCodexPortalItem(
 
 export function getCodexPaperPortalBaseItemID(item: unknown): number | null {
   if (!isCodexPaperPortalItem(item)) return null;
-  const value = Number(item.__llmCodexPaperPortalBaseItemID);
+  const value = Number(item.__paperpilotCodexPaperPortalBaseItemID);
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
 }
 

@@ -107,16 +107,31 @@ export function createWebChatHistoryController(
     viewport.style.maxHeight = "300px";
     viewport.style.overflowY = "auto";
 
-    const rows = createElement(doc, "div", "paperpilothistory-menu-section-rows", {});
+    const rows = createElement(
+      doc,
+      "div",
+      "paperpilothistory-menu-section-rows",
+      {},
+    );
 
     for (const session of sessions) {
       const row = createElement(doc, "div", "paperpilothistory-menu-row", {});
-      const btn = createElement(doc, "button", "paperpilothistory-menu-row-main", {
-        type: "button",
-      });
-      const titleDiv = createElement(doc, "div", "paperpilothistory-menu-row-title", {
-        textContent: session.title || "Untitled",
-      });
+      const btn = createElement(
+        doc,
+        "button",
+        "paperpilothistory-menu-row-main",
+        {
+          type: "button",
+        },
+      );
+      const titleDiv = createElement(
+        doc,
+        "div",
+        "paperpilothistory-menu-row-title",
+        {
+          textContent: session.title || "Untitled",
+        },
+      );
       titleDiv.title = session.title || "";
       let siteLabel = "webchat";
       try {
@@ -288,9 +303,9 @@ export function createWebChatHistoryController(
     header.appendChild(loadingEl);
     deps.historyMenu.appendChild(header);
 
-    // const { getRelayBaseUrl: getHost, relaySetCommand } =
-    //   await import("../../../../webchat/relayServer");
-    // const host = getHost();
+    const { getRelayBaseUrl, relaySetCommand } =
+      await import("../../../../webchat/relayServer");
+    const host = getRelayBaseUrl();
     // const {
     //   filterWebChatHistorySessionsForHostname,
     //   getWebChatHistorySiteSyncEntry,
@@ -301,14 +316,14 @@ export function createWebChatHistoryController(
     const requestedAt = Date.now();
     relaySetCommand({ type: "SCRAPE_HISTORY" });
 
-    // const { getWebChatTargetByModelName } =
-    //   await import("../../../../webchat/types");
+    const { getWebChatTargetByModelName } =
+      await import("../../../../webchat/types");
     const { currentModel: historyModel } = deps.getSelectedModelInfo();
     const historyTargetEntry = getWebChatTargetByModelName(historyModel || "");
     const targetHostname = historyTargetEntry?.modelName || null;
 
-    let sessions: WebChatHistorySession[] = [];
-    let historyFetchFailed = false;
+    const sessions: WebChatHistorySession[] = [];
+    const historyFetchFailed = false;
     try {
       // const snapshot = await waitForFreshChatHistorySnapshot(
       //   host,

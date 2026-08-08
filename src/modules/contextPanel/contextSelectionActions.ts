@@ -55,11 +55,7 @@ import { resolvePaperContextDisplayMetadata } from "./setupHandlers/controllers/
 
 export type ContextSelectionStatusLevel = "ready" | "warning" | "error";
 export type ReferenceAttachmentContextKind =
-  | "pdf"
-  | "note"
-  | "text"
-  | "figure"
-  | "other";
+  "pdf" | "note" | "text" | "figure" | "other";
 
 export type ContextSelectionActionResult = {
   changed: boolean;
@@ -241,7 +237,7 @@ async function resolveDefaultPaperContextRefFromItem(
   if (!parentItem || typeof parentItem.getBestAttachment !== "function") {
     return null;
   }
-  let bestAttachment: Zotero.Item | null = null;
+  let bestAttachment: Zotero.Item | null;
   try {
     bestAttachment = (await parentItem.getBestAttachment()) || null;
   } catch (_error) {

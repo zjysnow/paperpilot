@@ -104,8 +104,7 @@ export const discoverRelatedAction: AgentAction<
         ? (readContent.results as Record<string, Record<string, unknown>>)
         : {};
     const seedEntry = readResults[String(input.itemId)] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const seedMeta = seedEntry?.metadata;
     const seedTitle =
       getMetadataField(seedMeta, "title") || `Item ${input.itemId}`;
@@ -169,8 +168,7 @@ export const discoverRelatedAction: AgentAction<
       );
       if (!result.ok) {
         const errContent = result.content as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const errMsg =
           errContent && typeof errContent.error === "string"
             ? errContent.error
@@ -502,8 +500,7 @@ export const discoverRelatedAction: AgentAction<
 
     const importContent = importResult.content as Record<string, unknown>;
     const resultObj = importContent.result as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const importedCount =
       importResult.ok && resultObj
         ? Number(resultObj.succeeded || resultObj.importedCount || 0)

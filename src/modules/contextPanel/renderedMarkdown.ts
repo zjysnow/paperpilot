@@ -1508,7 +1508,10 @@ function attachRenderedSvgPreviewButtons(
       MERMAID_PREVIEW_OPEN_ICON,
       "Open SVG preview viewer",
     );
-    openButton.classList.add("paperpilotmermaid-open-btn", "paperpilotsvg-open-btn");
+    openButton.classList.add(
+      "paperpilotmermaid-open-btn",
+      "paperpilotsvg-open-btn",
+    );
     openButton.addEventListener("click", () => {
       const themeKey = getMermaidThemeKey(doc, preview);
       const opened = openStandaloneSvgWindow(doc, {
@@ -1877,7 +1880,9 @@ async function renderMermaidBlocksNow(
   options?: MermaidRenderOptions,
 ): Promise<void> {
   const previews = Array.from(
-    root.querySelectorAll(".paperpilotmermaid-preview[data-paperpilotmermaid-source]"),
+    root.querySelectorAll(
+      ".paperpilotmermaid-preview[data-paperpilotmermaid-source]",
+    ),
   ) as HTMLElement[];
   if (!previews.length) return;
   ensureMermaidThemeWatcher(doc, root);
@@ -2111,7 +2116,10 @@ function getVisualCodeBlockSvgMarkup(shell: HTMLElement): string | null {
   if (svgPreview) {
     return buildSafeSvgMarkup(svgPreview.dataset.llmSvgSource || "");
   }
-  const mermaidPreview = getDirectChildWithClass(shell, "paperpilotmermaid-preview");
+  const mermaidPreview = getDirectChildWithClass(
+    shell,
+    "paperpilotmermaid-preview",
+  );
   const renderedSvg = mermaidPreview?.dataset.llmRenderedSvg || "";
   return renderedSvg.trim() || null;
 }

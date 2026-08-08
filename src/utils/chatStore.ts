@@ -109,11 +109,7 @@ export type StoredChatMessage = {
   interrupted?: boolean;
   webchatRunState?: "done" | "incomplete" | "error";
   webchatCompletionReason?:
-    | "settled"
-    | "forced_cancel"
-    | "timeout"
-    | "error"
-    | null;
+    "settled" | "forced_cancel" | "timeout" | "error" | null;
   webchatChatUrl?: string;
   webchatChatId?: string;
   reasoningSummary?: string;

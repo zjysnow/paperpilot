@@ -6,10 +6,7 @@ export type MinerUZipFile = {
 };
 
 export type MinerUZipInspectionFailureReason =
-  | "not_zip"
-  | "zip_extract_failed"
-  | "md_missing"
-  | "md_empty";
+  "not_zip" | "zip_extract_failed" | "md_missing" | "md_empty";
 
 type MinerUZipInspectionBase = {
   byteLength: number;
@@ -31,8 +28,7 @@ export type MinerUZipInspectionFailure = MinerUZipInspectionBase & {
 };
 
 export type MinerUZipInspectionResult =
-  | MinerUZipInspectionSuccess
-  | MinerUZipInspectionFailure;
+  MinerUZipInspectionSuccess | MinerUZipInspectionFailure;
 
 function hasZipSignature(bytes: Uint8Array): boolean {
   if (bytes.length < 4) return false;

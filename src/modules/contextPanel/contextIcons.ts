@@ -62,7 +62,11 @@ export function createSelectedTextSourceIcon(
     const icon = createElement(
       ownerDoc,
       "span",
-      ["paperpilotcontext-glyph-icon", "paperpilotcontext-icon-note-edit", className]
+      [
+        "paperpilotcontext-glyph-icon",
+        "paperpilotcontext-icon-note-edit",
+        className,
+      ]
         .filter(Boolean)
         .join(" "),
       { textContent: NOTE_EDIT_PENCIL_ICON },

@@ -22,8 +22,7 @@ function getFormDataCtor(): typeof FormData | undefined {
   const fromGlobal = (globalThis as { FormData?: typeof FormData }).FormData;
   if (typeof fromGlobal === "function") return fromGlobal;
   const fromToolkit = ztoolkit.getGlobal("FormData") as
-    | typeof FormData
-    | undefined;
+    typeof FormData | undefined;
   return typeof fromToolkit === "function" ? fromToolkit : undefined;
 }
 

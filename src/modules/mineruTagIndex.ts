@@ -78,7 +78,7 @@ export function buildMineruTagIndex(
     for (const name of visibleTags) {
       let info = index.get(name);
       if (!info) {
-        let color: string | null = null;
+        let color: string | null;
         try {
           color = options.getColor?.(name) || null;
         } catch {

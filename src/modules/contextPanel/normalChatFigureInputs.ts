@@ -3,6 +3,10 @@ import type { AdvancedModelParams, PaperContextRef } from "./types";
 import { parseDocumentReferences } from "../../shared/documentReferences";
 import { resolveProviderCapabilities } from "../../providers";
 import { readAttachmentBytes } from "./attachmentStorage";
+import { PdfService } from "../../agent/services/pdfService";
+import { ZoteroGateway } from "../../agent/services/zoteroGateway";
+import { PdfPageService } from "../../agent/services/pdfPageService";
+import { PdfFigureExtractionService } from "../../agent/services/pdfFigureExtractionService";
 
 export type NormalChatFigureInputs = {
   images: string[];
@@ -64,7 +68,6 @@ export async function resolveNormalChatFigureInputs(params: {
   }
 
   try {
-
     const pdfService = new PdfService();
     const zoteroGateway = new ZoteroGateway();
     const pageService = new PdfPageService(pdfService, zoteroGateway);

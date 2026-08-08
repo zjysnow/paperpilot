@@ -198,8 +198,8 @@ function getPdfChildAttachments(item: Zotero.Item): Zotero.Item[] {
   if (!item?.isRegularItem?.()) return out;
   const attachments = item.getAttachments();
   for (const attachmentId of attachments) {
-    const attachment = Zotero.Items.get(attachmentId);
-    if (isPdfContextAttachment(attachment)) {
+    const attachment = Zotero.Items.get(attachmentId) || null;
+    if (attachment && isPdfContextAttachment(attachment)) {
       out.push(attachment);
     }
   }
@@ -440,8 +440,8 @@ function buildIndexedCollection(
 async function buildPaperSearchLibraryIndex(
   libraryID: number,
 ): Promise<PaperSearchLibraryIndex> {
-  let items: Zotero.Item[] = [];
-  let collections: Zotero.Collection[] = [];
+  let items: Zotero.Item[];
+  let collections: Zotero.Collection[];
   try {
     items = await Zotero.Items.getAll(libraryID, true, false, false);
     collections = Zotero.Collections.getByLibrary(libraryID, true) || [];
@@ -1056,7 +1056,7 @@ function buildIndexedItemCandidate(
   // All file attachments
   const allAtts: Zotero.Item[] = [];
   for (const attachmentId of item.getAttachments()) {
-    const att = Zotero.Items.get(attachmentId);
+    const att = Zotero.Items.get(attachmentId) || null;
     if (att && att.isAttachment?.() && !isMineruSyncPackageAttachment(att)) {
       allAtts.push(att);
     }
@@ -1065,7 +1065,7 @@ function buildIndexedItemCandidate(
   const noteAttachments: IndexedPaperAttachment[] = [];
   const noteIds: number[] = (item as any).getNotes?.() || [];
   for (const noteId of noteIds) {
-    const noteItem = Zotero.Items.get(noteId as number);
+    const noteItem = Zotero.Items.get(noteId as number) || null;
     if (!noteItem || !(noteItem as any).isNote?.()) continue;
     const noteTitle =
       normalizeText(
@@ -1120,8 +1120,8 @@ function buildIndexedItemCandidate(
 async function buildAllItemsLibraryIndex(
   libraryID: number,
 ): Promise<AllItemsLibraryIndex> {
-  let items: Zotero.Item[] = [];
-  let collections: Zotero.Collection[] = [];
+  let items: Zotero.Item[];
+  let collections: Zotero.Collection[];
   try {
     const allItems: Zotero.Item[] = await Zotero.Items.getAll(
       libraryID,

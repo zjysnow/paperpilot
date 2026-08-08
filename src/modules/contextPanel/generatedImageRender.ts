@@ -17,8 +17,7 @@ import {
 function openGeneratedImageFileUrl(fileUrl: string): boolean {
   try {
     const launch = (Zotero as any).launchURL as
-      | ((url: string) => void)
-      | undefined;
+      ((url: string) => void) | undefined;
     if (typeof launch === "function") {
       launch(fileUrl);
       return true;
@@ -28,8 +27,7 @@ function openGeneratedImageFileUrl(fileUrl: string): boolean {
   }
   try {
     const win = Zotero.getMainWindow?.() as
-      | (Window & { open?: (url?: string, target?: string) => unknown })
-      | null;
+      (Window & { open?: (url?: string, target?: string) => unknown }) | null;
     if (win?.open) {
       win.open(fileUrl, "_blank");
       return true;
@@ -130,8 +128,7 @@ function getGeneratedImagePickerParentWindow(doc: Document): Window | null {
 
 function getZoteroFilePickerConstructor(): GeneratedImageFilePickerConstructor | null {
   const ZoteroFilePicker = (Zotero as any).FilePicker as
-    | GeneratedImageFilePickerConstructor
-    | undefined;
+    GeneratedImageFilePickerConstructor | undefined;
   if (typeof ZoteroFilePicker === "function") return ZoteroFilePicker;
 
   const CU = (globalThis as any).ChromeUtils;

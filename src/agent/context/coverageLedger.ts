@@ -28,11 +28,7 @@ export type AgentCoverageGranularity =
   | "attachment";
 
 export type AgentCoverageLevel =
-  | "listed"
-  | "partial"
-  | "targeted"
-  | "broad"
-  | "complete";
+  "listed" | "partial" | "targeted" | "broad" | "complete";
 
 export type AgentCoverageConfidence = "low" | "medium" | "high";
 

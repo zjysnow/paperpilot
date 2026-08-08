@@ -3,10 +3,7 @@ import type { ChatRuntimeMode } from "./types";
 
 export type SlashActionChatMode = "paper" | "library";
 export type SlashBaseMenuItem =
-  | "upload"
-  | "reference"
-  | "pdfPage"
-  | "pdfMultiplePages";
+  "upload" | "reference" | "pdfPage" | "pdfMultiplePages";
 
 export function resolveSlashActionChatMode(
   displayConversationKind: "global" | "paper" | null | undefined,

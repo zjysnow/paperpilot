@@ -17,11 +17,52 @@ import {
   StoredChatMessage,
 } from "../../utils/chatStore";
 import { conversationRepository } from "../../core/conversations/repository";
-
+import {
+  appendCodexMessage,
+  pruneCodexConversation,
+  updateLatestCodexAssistantMessage,
+  updateLatestCodexUserMessage,
+} from "../../codexAppServer/store";
+import {
+  appendClaudeConversationMessage,
+  buildClaudeScope,
+  captureClaudeSessionInfo,
+  getClaudeBridgeRuntime,
+  updateLatestClaudeConversationAssistantMessage,
+  updateLatestClaudeConversationUserMessage,
+} from "../../claudeCode/runtime";
+import {
+  getClaudeAutoCompactThresholdPercent,
+  isClaudeAutoCompactEnabled,
+  getClaudeReasoningModePref,
+} from "../../claudeCode/prefs";
+import { getCodexProfileSignature } from "../../codexAppServer/constants";
+import {
+  getCodexReasoningModePref,
+  getCodexRuntimeModelPref,
+  isCodexAppServerNativeApprovalsEnabled,
+  isCodexZoteroMcpToolsEnabled,
+} from "../../codexAppServer/prefs";
+import { getEffectiveCodexAppServerBinaryPath } from "../../codexAppServer/binaryPath";
+import { buildCodexAppServerReasoningConfig } from "../../codexAppServer/reasoning";
+import {
+  buildCodexNativeApprovalPendingAction,
+  buildCodexNativeApprovalResponseFromResolution,
+  compactCodexAppServerConversation,
+  isCodexNativeBuiltInApprovalRequest,
+  NO_CODEX_APP_SERVER_THREAD_TO_COMPACT_MESSAGE,
+  resolveCodexNativeApprovalRequest,
+  runCodexAppServerNativeTurn,
+  type CodexNativeApprovalRequest,
+  type CodexNativeConversationScope,
+  type CodexNativeDiagnostics,
+} from "../../codexAppServer/nativeClient";
+import type { CodexNativeSkillContext } from "../../codexAppServer/nativeSkills";
+import { preflightClaudeBridgeLocalPdfCapability } from "../../agent/externalBackendBridge";
+import { validateLocalPdfDocumentBatch } from "../../agent/context/localDocumentBatch";
 
 import { resolveConversationStorageSystem } from "../../shared/conversationStorageRouting";
 import { normalizeForcedSkillIds } from "../../shared/skillIds";
-
 
 import {
   callLLMStream,
@@ -107,6 +148,7 @@ export {
   renderAssistantGeneratedImagesInto,
 } from "./generatedImageRender";
 import { ensureMineruCacheDirForAttachment } from "./mineruSync";
+import { agentRunTraceCache, agentRunTraceLoadingTasks } from "./agentState";
 import type {
   Message,
   ChatRuntimeMode,
@@ -244,7 +286,12 @@ import { buildContextPlanSystemMessages } from "./requestSystemMessages";
 import { getWorkflowTestFinalRequestInterceptor } from "./workflowTestHooks";
 import { resolveSelectedTextAnchors } from "./selectedTextAnchors";
 import { canEditUserPromptTurn } from "./editability";
-
+import { renderAgentTrace, renderPendingActionCard } from "./agentTrace/render";
+import {
+  TOOL_ACTIVITY_VISIBLE_DEDUPE_WINDOW_MS,
+  hasSameToolActivityVisibleIdentity,
+  mergeToolActivityPayload,
+} from "./agentTrace/toolActivityDedupe";
 
 import { renderRenderedMarkdownInto } from "./renderedMarkdown";
 import { toFileUrl } from "../../utils/pathFileUrl";
@@ -280,13 +327,34 @@ import {
   QUOTE_RENDER_OCCURRENCE_PATTERN,
 } from "./quoteRenderPlan";
 import { isQuoteValidationPreempted } from "./quoteValidationActivity";
+import { getWebChatTargetByModelName } from "../../webchat/types";
+import {
+  getAgentApi,
+  getCoreAgentRuntime,
+  initAgentSubsystem,
+} from "../../agent/index";
+import { getAgentRunTrace } from "../../agent/store/traceStore";
+import type {
+  AgentAttachmentResource,
+  AgentAttachmentResourceSummary,
+  AgentConfirmationResolution,
+  AgentEvent,
+  AgentPendingAction,
+  AgentRunEventRecord,
+  AgentRuntimeRequest,
+  AgentToolArtifact,
+} from "../../agent/types";
+import {
+  sendAgentTurn,
+  retryAgentTurn,
+  type AgentEngineDeps,
+} from "./agentMode/agentEngine";
 
 import {
   applyHistoryCompression,
   scheduleLLMSummary,
   clearConversationSummary,
 } from "./conversationSummaryCache";
-
 
 import {
   buildQueuedFollowUpThreadKey,
@@ -570,8 +638,7 @@ function openStoredAttachmentFromMessage(attachment: ChatAttachment): boolean {
 function openFileUrl(fileUrl: string): boolean {
   try {
     const launch = (Zotero as any).launchURL as
-      | ((url: string) => void)
-      | undefined;
+      ((url: string) => void) | undefined;
     if (typeof launch === "function") {
       launch(fileUrl);
       return true;
@@ -581,8 +648,7 @@ function openFileUrl(fileUrl: string): boolean {
   }
   try {
     const win = Zotero.getMainWindow?.() as
-      | (Window & { open?: (url?: string, target?: string) => unknown })
-      | null;
+      (Window & { open?: (url?: string, target?: string) => unknown }) | null;
     if (win?.open) {
       win.open(fileUrl, "_blank");
       return true;
@@ -1226,7 +1292,9 @@ function getUserBubbleElement(wrapper: HTMLElement): HTMLDivElement | null {
 }
 
 export function syncUserContextAlignmentWidths(body: Element): void {
-  const chatBox = body.querySelector("#paperpilotchat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector(
+    "#paperpilotchat-box",
+  ) as HTMLDivElement | null;
   if (!chatBox) return;
   const wrappers = Array.from(
     chatBox.querySelectorAll(
@@ -1241,7 +1309,10 @@ export function syncUserContextAlignmentWidths(body: Element): void {
     }
     const bubbleWidth = Math.round(bubble.getBoundingClientRect().width);
     if (bubbleWidth > 0) {
-      wrapper.style.setProperty("--paperpilotuser-bubble-width", `${bubbleWidth}px`);
+      wrapper.style.setProperty(
+        "--paperpilotuser-bubble-width",
+        `${bubbleWidth}px`,
+      );
     } else {
       wrapper.style.removeProperty("--paperpilotuser-bubble-width");
     }
@@ -2130,20 +2201,30 @@ export type PanelRequestUI = {
 
 function getPanelRequestUI(body: Element): PanelRequestUI {
   return {
-    inputBox: body.querySelector("#paperpilotinput") as HTMLTextAreaElement | null,
+    inputBox: body.querySelector(
+      "#paperpilotinput",
+    ) as HTMLTextAreaElement | null,
     chatBox: body.querySelector("#paperpilotchat-box") as HTMLDivElement | null,
     sendBtn: body.querySelector("#paperpilotsend") as HTMLButtonElement | null,
-    cancelBtn: body.querySelector("#paperpilotcancel") as HTMLButtonElement | null,
+    cancelBtn: body.querySelector(
+      "#paperpilotcancel",
+    ) as HTMLButtonElement | null,
     status: body.querySelector("#paperpilotstatus") as HTMLElement | null,
-    tokenUsageEl: body.querySelector("#paperpilottoken-usage") as HTMLElement | null,
+    tokenUsageEl: body.querySelector(
+      "#paperpilottoken-usage",
+    ) as HTMLElement | null,
   };
 }
 
 function syncInlineActionCardAttr(body: Element): void {
-  const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
+  const panelRoot = body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLElement | null;
   if (!panelRoot) return;
   const hasCard = Boolean(
-    body.querySelector(".paperpilotaction-inline-card, .paperpilotaction-progress-card"),
+    body.querySelector(
+      ".paperpilotaction-inline-card, .paperpilotaction-progress-card",
+    ),
   );
   if (hasCard) {
     panelRoot.dataset.hasActionCard = "true";
@@ -2188,7 +2269,7 @@ function closeNativeMcpActionCard(body: Element, requestId?: string): void {
   const ui = getPanelRequestUI(body);
   const chatBox = ui.chatBox;
   if (!chatBox) return;
-  let card: Element | null = null;
+  let card: Element | null;
   if (requestId) {
     card =
       findNativeMcpActionCard(chatBox, requestId) ||
@@ -2248,6 +2329,7 @@ function showNativeMcpActionCard(
         `Zotero review card UI could not register native confirmation: ${
           error instanceof Error ? error.message : String(error)
         }`,
+        { cause: error },
       );
     }
 
@@ -2265,7 +2347,8 @@ function showNativeMcpActionCard(
     }
     ui.chatBox.querySelector(".paperpilotaction-inline-card")?.remove();
     const wrapper = ownerDoc.createElement("div");
-    wrapper.className = "paperpilotaction-inline-card paperpilotaction-inline-card-review";
+    wrapper.className =
+      "paperpilotaction-inline-card paperpilotaction-inline-card-review";
     wrapper.dataset.requestId = requestId;
     wrapper.appendChild(
       renderPendingActionCard(ownerDoc, { requestId, action }),
@@ -2444,7 +2527,9 @@ function getPanelBodyConversationKey(
   body: Element,
   fallbackItem?: Zotero.Item | null,
 ): number | null {
-  const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
+  const panelRoot = body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLElement | null;
   const displayedKey = Number(panelRoot?.dataset.itemId || 0);
   if (Number.isFinite(displayedKey) && displayedKey > 0) {
     return displayedKey;
@@ -2576,7 +2661,9 @@ function restoreRequestUIIdle(
   // Guard: only restore UI if the panel is still showing this conversation.
   // If the user switched away, the panel rebuild (onAsyncRender) will handle
   // the correct idle/busy state for the new conversation.
-  const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
+  const panelRoot = body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLElement | null;
   if (panelRoot) {
     const displayedKey = Number(panelRoot.dataset.itemId || 0);
     if (displayedKey > 0 && displayedKey !== conversationKey) return;
@@ -2833,11 +2920,7 @@ export type EffectiveRequestConfig = {
   apiBase: string;
   apiKey: string;
   authMode:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat";
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -2862,11 +2945,7 @@ function supportsImageInputs(config: EffectiveRequestConfig): boolean {
 function isCodexAppServerConversationRequest(params: {
   item: Zotero.Item;
   authMode?:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat";
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
   providerProtocol?: ProviderProtocol;
   modelProviderLabel?: string;
 }): boolean {
@@ -2876,11 +2955,7 @@ function isCodexAppServerConversationRequest(params: {
 function resolveEffectiveConversationSystem(params: {
   item: Zotero.Item;
   authMode?:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat";
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
   providerProtocol?: ProviderProtocol;
   modelProviderLabel?: string;
 }): ConversationSystem {
@@ -2896,11 +2971,7 @@ function resolveEffectiveRequestConfig(params: {
   apiBase?: string;
   apiKey?: string;
   authMode?:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat";
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -3492,7 +3563,7 @@ function resolveQuoteSourceContextItem(
   const contextItemId = Math.floor(Number(paper.contextItemId || 0));
   if (!Number.isFinite(contextItemId) || contextItemId <= 0) return null;
   try {
-    const item = Zotero.Items.get(contextItemId);
+    const item = Zotero.Items.get(contextItemId) || null;
     return item || null;
   } catch (error) {
     ztoolkit.log("LLM: unable to resolve quote source context item", {
@@ -3941,8 +4012,7 @@ function getOrBuildCachedQuoteSourceIndex(
       quoteSourceIndexCacheBytes > MAX_QUOTE_SOURCE_INDEX_BYTES
     ) {
       const oldestKey = quoteSourceIndexCache.keys().next().value as
-        | string
-        | undefined;
+        string | undefined;
       if (!oldestKey) break;
       const oldest = quoteSourceIndexCache.get(oldestKey);
       quoteSourceIndexCache.delete(oldestKey);
@@ -4000,8 +4070,7 @@ function cacheQuoteValidationDecision(
     quoteValidationDecisionCacheBytes > MAX_QUOTE_VALIDATION_DECISION_BYTES
   ) {
     const oldestKey = quoteValidationDecisionCache.keys().next().value as
-      | string
-      | undefined;
+      string | undefined;
     if (!oldestKey) break;
     const oldest = quoteValidationDecisionCache.get(oldestKey);
     quoteValidationDecisionCache.delete(oldestKey);
@@ -6006,11 +6075,7 @@ export type EditLatestTurnMarker = {
 };
 
 export type EditLatestTurnResult =
-  | "ok"
-  | "missing"
-  | "stale"
-  | "persist-failed"
-  | "retry-failed";
+  "ok" | "missing" | "stale" | "persist-failed" | "retry-failed";
 
 function normalizeEditableAttachments(
   attachments?: ChatAttachment[],
@@ -6830,11 +6895,7 @@ export async function retryLatestAssistantResponse(
   apiBase?: string,
   apiKey?: string,
   authMode?:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat",
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat",
   providerProtocol?: ProviderProtocol,
   modelEntryId?: string,
   modelProviderLabel?: string,
@@ -7062,9 +7123,9 @@ export async function retryLatestAssistantResponse(
     );
     setStatusSafely("Cancelled", "ready");
   };
-  let retryScreenshotImages = screenshotImages;
-  let requestFileAttachments: ChatFileAttachment[] = [];
-  let retryPdfUploadSystemMessages: string[] = [];
+  let retryScreenshotImages: typeof screenshotImages;
+  let requestFileAttachments: ChatFileAttachment[];
+  let retryPdfUploadSystemMessages: string[];
   try {
     const retryModelInputs = await resolveRetryModelInputs({
       userMessage: retryPair.userMessage,
@@ -7517,11 +7578,7 @@ export async function editUserTurnAndRetry(opts: {
   apiBase?: string;
   apiKey?: string;
   authMode?:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat";
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -7908,7 +7965,7 @@ async function enrichPaperContextsWithMineruCache(
     let mineruCacheDir: string | undefined;
     try {
       mineruCacheDir = await ensureMineruCacheDirForAttachment(
-        Zotero.Items.get(paper.contextItemId),
+        Zotero.Items.get(paper.contextItemId) || null,
       );
     } catch {
       /* ignore */
@@ -8233,11 +8290,7 @@ async function buildAgentRuntimeRequest(
               ? "max"
               : "xhigh"
             : params.effectiveRequestConfig.reasoning.level) as
-            | "low"
-            | "medium"
-            | "high"
-            | "xhigh"
-            | "max")
+            "low" | "medium" | "high" | "xhigh" | "max")
         : undefined,
     advanced: params.effectiveRequestConfig.advanced,
     history: params.history,
@@ -8439,11 +8492,7 @@ async function retryLatestAgentResponse(
   apiBase?: string,
   apiKey?: string,
   authMode?:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat",
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat",
   providerProtocol?: ProviderProtocol,
   modelEntryId?: string,
   modelProviderLabel?: string,
@@ -8486,11 +8535,7 @@ async function sendAgentQuestion(opts: {
   apiBase?: string;
   apiKey?: string;
   authMode?:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat";
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -8630,7 +8675,9 @@ export async function sendQuestion(
     return;
   }
   const ui = getPanelRequestUI(body);
-  const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
+  const panelRoot = body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLElement | null;
   if (
     panelRoot &&
     (opts.providerProtocol === "web_sync" || opts.authMode === "webchat")
@@ -9656,7 +9703,9 @@ function buildInlineEditWidget(
   // The real input <textarea>
   const inputBoxEl =
     (body.querySelector("#paperpilotinput") as HTMLTextAreaElement | null) ??
-    (inputSectionEl?.querySelector("#paperpilotinput") as HTMLTextAreaElement | null);
+    (inputSectionEl?.querySelector(
+      "#paperpilotinput",
+    ) as HTMLTextAreaElement | null);
 
   // On first entry: save draft and pre-fill with the user message
   if (isFirstEntry) {
@@ -9827,7 +9876,9 @@ export function refreshChat(
   item?: Zotero.Item | null,
   options: RefreshChatOptions = {},
 ) {
-  const chatBox = body.querySelector("#paperpilotchat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector(
+    "#paperpilotchat-box",
+  ) as HTMLDivElement | null;
   if (!chatBox) return;
   const doc = body.ownerDocument!;
   setPromptMenuTarget(null);
@@ -9856,7 +9907,9 @@ export function refreshChat(
   const tokenUsageEl = body.querySelector(
     "#paperpilottoken-usage",
   ) as HTMLElement | null;
-  const panelRoot = body.querySelector("#paperpilot-main") as HTMLDivElement | null;
+  const panelRoot = body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLDivElement | null;
   const isGlobalConversation =
     isGlobalPortalItem(item) ||
     panelRoot?.dataset.conversationKind === "global";
@@ -10275,7 +10328,11 @@ export function refreshChat(
         tagsBar.type = "button";
         tagsBar.className = "paperpilotuser-papers-bar paperpilotuser-tags-bar";
 
-        const tagsIcon = createContextIcon(doc, "tag", "paperpilotuser-papers-icon");
+        const tagsIcon = createContextIcon(
+          doc,
+          "tag",
+          "paperpilotuser-papers-icon",
+        );
         const tagsLabel = doc.createElement("span") as HTMLSpanElement;
         tagsLabel.className = "paperpilotuser-papers-label";
         tagsLabel.textContent =
@@ -10290,10 +10347,12 @@ export function refreshChat(
           "paperpilotuser-papers-expanded paperpilotuser-tags-expanded";
         tagsExpanded = tagsExpandedEl;
         const tagsList = doc.createElement("div") as HTMLDivElement;
-        tagsList.className = "paperpilotuser-papers-list paperpilotuser-tags-list";
+        tagsList.className =
+          "paperpilotuser-papers-list paperpilotuser-tags-list";
         for (const tagContext of selectedTagContexts) {
           const tagItem = doc.createElement("div") as HTMLDivElement;
-          tagItem.className = "paperpilotuser-papers-item paperpilotuser-tags-item";
+          tagItem.className =
+            "paperpilotuser-papers-item paperpilotuser-tags-item";
 
           const tagTitle = doc.createElement("span") as HTMLSpanElement;
           tagTitle.className = "paperpilotuser-papers-item-title";
@@ -10478,7 +10537,11 @@ export function refreshChat(
         filesBar.type = "button";
         filesBar.className = "paperpilotuser-files-bar";
 
-        const filesIcon = createContextIcon(doc, "file", "paperpilotuser-files-icon");
+        const filesIcon = createContextIcon(
+          doc,
+          "file",
+          "paperpilotuser-files-icon",
+        );
 
         const filesLabel = doc.createElement("span") as HTMLSpanElement;
         filesLabel.className = "paperpilotuser-files-label";
@@ -10892,7 +10955,8 @@ export function refreshChat(
 
         if (!hasAnswerText && msg.streaming && isClaudeStreamingConversation) {
           const roseLoader = doc.createElement("span") as HTMLSpanElement;
-          roseLoader.className = "paperpilotrose-loader paperpilotrose-loader-inline";
+          roseLoader.className =
+            "paperpilotrose-loader paperpilotrose-loader-inline";
           mountClaudeRoseThreeLoader(
             roseLoader,
             msg.waitingAnimationStartedAt || msg.timestamp || Date.now(),
@@ -11216,8 +11280,7 @@ export function refreshChat(
             if (scraped.length > 0) {
               const refreshed: Message[] = scraped.map((m) => ({
                 role: (m.kind === "user" ? "user" : "assistant") as
-                  | "user"
-                  | "assistant",
+                  "user" | "assistant",
                 text: m.text || "",
                 timestamp: Date.now(),
                 modelName:
@@ -11342,7 +11405,9 @@ export function refreshConversationPanels(
   const conversationKey = getConversationKey(primaryItem);
   const refreshedPanels = new Set<Element>();
   const refreshOne = (body: Element, item: Zotero.Item) => {
-    const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
+    const panelRoot = body.querySelector(
+      "#paperpilot-main",
+    ) as HTMLElement | null;
     const displayedKey = Number(panelRoot?.dataset.itemId || 0);
     if (
       Number.isFinite(displayedKey) &&

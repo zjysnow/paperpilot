@@ -74,7 +74,6 @@ import { collectReaderSelectionDocuments } from "./readerSelection";
 import { getReaderContextPanelForTab } from "./readerPopupPanelRouting";
 import type { ConversationSystem } from "../../shared/types";
 
-
 import {
   removeLastUsedUpstreamConversationMode,
   removeLastUsedUpstreamGlobalConversationKey,
@@ -597,7 +596,11 @@ async function startNewPanelConversation(
   assertWorkflowTestEnabled();
   const panel = getPanel(panelId);
   const before = await getDiagnostics(panelId);
-  dispatchWorkflowClick(panel.body, "#paperpilothistory-new", "New chat button");
+  dispatchWorkflowClick(
+    panel.body,
+    "#paperpilothistory-new",
+    "New chat button",
+  );
   return waitForPanelConversationChange({
     panelId,
     previousConversationKey: before.conversationKey,
@@ -654,7 +657,9 @@ async function exercisePanelDraftStateRefresh(
 ): Promise<WorkflowTestDraftRefreshDiagnostics> {
   assertWorkflowTestEnabled();
   const panel = getPanel(panelId);
-  const panelRoot = panel.body.querySelector("#paperpilot-main") as HTMLElement | null;
+  const panelRoot = panel.body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLElement | null;
   const input = panel.body.querySelector(
     "#paperpilotinput",
   ) as HTMLTextAreaElement | null;
@@ -696,8 +701,8 @@ async function seedPanelStoredUserMessage(
     timestamp: Date.now(),
   };
   const conversationSystem =
-    (panel.body.querySelector("#paperpilot-main") as HTMLElement | null)?.dataset
-      .conversationSystem || "upstream";
+    (panel.body.querySelector("#paperpilot-main") as HTMLElement | null)
+      ?.dataset.conversationSystem || "upstream";
   await appendWorkflowStoredMessage(
     conversationSystem === "codex" || conversationSystem === "claude_code"
       ? conversationSystem
@@ -784,7 +789,9 @@ async function measurePanelRuntimeGeometry(
 ): Promise<WorkflowTestRuntimeGeometry> {
   assertWorkflowTestEnabled();
   const panel = getPanel(panelId);
-  const panelRoot = panel.body.querySelector("#paperpilot-main") as HTMLElement | null;
+  const panelRoot = panel.body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLElement | null;
   const header = panel.body.querySelector(
     ".paperpilotheader-top",
   ) as HTMLElement | null;
@@ -812,9 +819,14 @@ async function measurePanelRuntimeGeometry(
   }
 
   const previousWidth = panel.body.style.width;
-  const previousScale = panelRoot.style.getPropertyValue("--paperpilotfont-scale");
+  const previousScale = panelRoot.style.getPropertyValue(
+    "--paperpilotfont-scale",
+  );
   panel.body.style.width = `${input.width}px`;
-  panelRoot.style.setProperty("--paperpilotfont-scale", String(input.fontScale));
+  panelRoot.style.setProperty(
+    "--paperpilotfont-scale",
+    String(input.fontScale),
+  );
   await Zotero.Promise.delay(50);
   try {
     const containerRect = header.getBoundingClientRect();
@@ -1047,7 +1059,9 @@ async function exerciseTargetedQuoteRefresh(
   });
 
   const wrappersAfter = Array.from(
-    chatBox.querySelectorAll(".paperpilotmessage-wrapper[data-message-timestamp]"),
+    chatBox.querySelectorAll(
+      ".paperpilotmessage-wrapper[data-message-timestamp]",
+    ),
   ) as HTMLElement[];
   let unchangedWrapperCount = 0;
   let replacedWrapperCount = 0;
@@ -1074,8 +1088,8 @@ async function exerciseTargetedQuoteRefresh(
         '.paperpilotquote-card[data-quote-status="not-source"]',
       ).length || 0,
     targetStrongBodyCount:
-      targetWrapper?.querySelectorAll(".paperpilotquote-card-body strong").length ||
-      0,
+      targetWrapper?.querySelectorAll(".paperpilotquote-card-body strong")
+        .length || 0,
   };
 }
 
@@ -1142,7 +1156,9 @@ async function waitForStandaloneReady(): Promise<Document> {
     const paperTab = doc?.querySelector(
       ".paperpilotstandalone-tab[data-tab='paper']",
     );
-    const panelRoot = doc?.querySelector(".paperpilotstandalone-content #paperpilot-main");
+    const panelRoot = doc?.querySelector(
+      ".paperpilotstandalone-content #paperpilot-main",
+    );
     if (doc && root && paperTab && panelRoot) {
       return doc;
     }
@@ -1452,8 +1468,8 @@ async function seedStandaloneUserMessage(
     timestamp: Date.now(),
   };
   const conversationSystem =
-    (contentArea.querySelector("#paperpilot-main") as HTMLElement | null)?.dataset
-      .conversationSystem || "upstream";
+    (contentArea.querySelector("#paperpilot-main") as HTMLElement | null)
+      ?.dataset.conversationSystem || "upstream";
   await appendWorkflowStoredMessage(
     conversationSystem === "codex" || conversationSystem === "claude_code"
       ? conversationSystem
@@ -1535,7 +1551,9 @@ async function getDiagnostics(
 ): Promise<WorkflowTestDiagnostics> {
   const panel = panelId ? panels.get(panelId) : undefined;
   const body = panel?.body;
-  const panelRoot = body?.querySelector("#paperpilot-main") as HTMLElement | null;
+  const panelRoot = body?.querySelector(
+    "#paperpilot-main",
+  ) as HTMLElement | null;
   const mountedItem = body
     ? activeContextPanels.get(body)?.() || panel?.item
     : panel?.item;
@@ -1545,7 +1563,9 @@ async function getDiagnostics(
   const historyToggleBtn = body?.querySelector(
     "#paperpilothistory-toggle",
   ) as HTMLElement | null;
-  const chatBox = body?.querySelector("#paperpilotchat-box") as HTMLElement | null;
+  const chatBox = body?.querySelector(
+    "#paperpilotchat-box",
+  ) as HTMLElement | null;
   return {
     panelId,
     activeItemId: parsePositiveInt(mountedItem?.id),
@@ -1577,8 +1597,8 @@ async function getDiagnostics(
       body?.querySelector("#paperpilotinput") as HTMLTextAreaElement | null
     )?.value,
     statusText:
-      (body?.querySelector("#paperpilotstatus") as HTMLElement | null)?.textContent ||
-      undefined,
+      (body?.querySelector("#paperpilotstatus") as HTMLElement | null)
+        ?.textContent || undefined,
     messageText: chatBox?.textContent?.trim() || undefined,
     lastSend,
     lastFinalRequest,
@@ -1789,7 +1809,9 @@ async function waitForFinalRequest(
   const startedAt = Date.now();
   while (!lastFinalRequest) {
     if (Date.now() - startedAt > 15_000) {
-      const status = body.querySelector("#paperpilotstatus")?.textContent?.trim();
+      const status = body
+        .querySelector("#paperpilotstatus")
+        ?.textContent?.trim();
       throw new Error(
         `Timed out waiting for final workflow model request; status=${status || "<empty>"}`,
       );

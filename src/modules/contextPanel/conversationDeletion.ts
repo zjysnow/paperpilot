@@ -26,6 +26,10 @@ import {
 } from "./prefHelpers";
 import { clearOwnerAttachmentRefs } from "../../utils/attachmentRefStore";
 import { removeConversationAttachmentFiles } from "./attachmentStorage";
+import {
+  clearAgentConversationState,
+  clearDeletedAgentConversationState,
+} from "./agentConversationCleanup";
 
 import { resolveConversationRefForKey } from "../../shared/conversationRef";
 import {
@@ -194,11 +198,11 @@ function buildOperations(
     },
     clearOwnerAttachmentRefs,
     removeConversationAttachmentFiles,
+    archiveCodexThread: async () => {},
     invalidateClaudeConversation: async (conversationKey, target) => {
       if (!deps.getCoreAgentRuntime) {
         return;
       }
-
     },
     clearRememberedSelection,
     ...deps.operations,
@@ -286,7 +290,6 @@ async function runStep(
 function clearRememberedSelection(target: ConversationDeletionTarget): void {
   const conversationKey = target.conversationKey;
   if (target.kind === "global") {
-
     if (
       Math.floor(
         Number(activeGlobalConversationByLibrary.get(target.libraryID) || 0),

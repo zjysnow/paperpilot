@@ -14,11 +14,7 @@ export type PdfPaperModelInputProfile = {
   apiBase?: string;
   apiKey?: string;
   authMode?:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat";
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
   providerProtocol?: ProviderProtocol;
   inputMode?: ModelInputMode;
 } | null;

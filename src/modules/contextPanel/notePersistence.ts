@@ -174,7 +174,7 @@ export async function createFinalizedZoteroNote(
 ): Promise<FinalizedNotePersistenceResult> {
   const queue = createNotifierQueueHandle();
   const warnings: string[] = [];
-  let noteId = 0;
+  let noteId: number;
   let finalHtml = params.initialHtml;
   let primaryError: unknown;
   let result: FinalizedNotePersistenceResult | undefined;

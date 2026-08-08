@@ -277,8 +277,9 @@ export function attachAssistantSelectionPopup(
     if (target && selectionPopup.contains(target)) return;
     const targetEl = target as Element | null;
     selectionDragStartBubble =
-      (targetEl?.closest(".paperpilotbubble.assistant") as HTMLElement | null) ||
-      null;
+      (targetEl?.closest(
+        ".paperpilotbubble.assistant",
+      ) as HTMLElement | null) || null;
     hideSelectionPopup();
   };
   const onChatScrollHide = () => hideSelectionPopup();

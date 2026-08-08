@@ -320,7 +320,7 @@ export const completeMetadataAction: AgentAction<
     ctx.onProgress({
       type: "step_start",
       step: "Applying metadata updates",
-      index: ++step,
+      index: step + 1,
       total: STEPS,
     });
 
@@ -430,8 +430,7 @@ async function readMetadataEntries(
 
   return targets.map((target) => {
     const itemEntry = readResults[String(target.itemId)] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     return {
       itemId: target.itemId,
       title:

@@ -1,4 +1,3 @@
-
 import { t } from "../../../../utils/i18n";
 import { resolveDisplayConversationKind } from "../../portalScope";
 import { resolveSlashActionChatMode } from "../../slashMenuBehavior";
@@ -56,7 +55,9 @@ export function renderSkillsInSlashMenu(
   context: ActionCommandSlashMenuContext,
   query = "",
 ): void {
-  const list = context.slashMenu?.querySelector(".paperpilotaction-picker-list");
+  const list = context.slashMenu?.querySelector(
+    ".paperpilotaction-picker-list",
+  );
   if (!list) return;
   const ownerDoc = context.body.ownerDocument;
   if (!ownerDoc) return;
@@ -127,7 +128,9 @@ export function renderAgentActionsInSlashMenu(
 ): void {
   context.clearAgentSlashItems();
   const ownerDoc = context.body.ownerDocument;
-  const list = context.slashMenu?.querySelector(".paperpilotaction-picker-list");
+  const list = context.slashMenu?.querySelector(
+    ".paperpilotaction-picker-list",
+  );
   if (!ownerDoc || !list) return;
   const firstBase = list.firstChild;
   const mkAgentEl = (tag: string, className: string): HTMLElement => {
@@ -137,7 +140,7 @@ export function renderAgentActionsInSlashMenu(
     return element;
   };
   if (context.isClaudeConversationSystem()) {
-    let commands: ClaudeSlashMenuItem[] = [];
+    let commands: ClaudeSlashMenuItem[];
     try {
       commands = getAgentApi().listSlashCommands?.() || [];
     } catch {
@@ -206,7 +209,7 @@ export function renderAgentActionsInSlashMenu(
   const chatMode = resolveSlashActionChatMode(
     resolveDisplayConversationKind(context.getItem()),
   );
-  let allActions: SlashMenuActionItem[] = [];
+  let allActions: SlashMenuActionItem[];
   try {
     allActions = getAgentApi().listActions(chatMode);
   } catch {
@@ -312,3 +315,7 @@ export function renderAgentActionsInSlashMenu(
     list.insertBefore(button, baseLabel);
   });
 }
+import { getAgentApi, initAgentSubsystem } from "../../../../agent";
+import { getAllSkills } from "../../../../agent/skills";
+import type { AgentSkill } from "../../../../agent/skills/skillLoader";
+import { refreshClaudeSlashCommands } from "../../../../claudeCode/runtime";

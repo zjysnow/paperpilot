@@ -51,9 +51,7 @@ export type PendingHistoryDeletion = {
 };
 
 export type PaperHistoryNavigationDecision =
-  | "load-in-place"
-  | "select-target-paper"
-  | "missing-target-paper";
+  "load-in-place" | "select-target-paper" | "missing-target-paper";
 
 export type HistoryPaperPaneSelector = {
   selectItems?: (

@@ -17,8 +17,8 @@ export function createClaudeGlobalPortalItem(
       ? Math.floor(conversationKey)
       : 1;
   const portalItem: ClaudeGlobalPortalItem = {
-    __llmClaudeGlobalPortalItem: true,
-    __llmClaudeConversationKind: "global",
+    __paperpilotClaudeGlobalPortalItem: true,
+    __paperpilotClaudeConversationKind: "global",
     id: normalizedConversationKey,
     libraryID: normalizedLibraryID,
     parentID: undefined,
@@ -52,9 +52,9 @@ export function createClaudePaperPortalItem(
       ? Math.floor(conversationKey)
       : Math.max(1, basePaperItemID);
   const portalItem: ClaudePaperPortalItem = {
-    __llmClaudePaperPortalItem: true,
-    __llmClaudeConversationKind: "paper",
-    __llmClaudePaperPortalBaseItemID: basePaperItemID,
+    __paperpilotClaudePaperPortalItem: true,
+    __paperpilotClaudeConversationKind: "paper",
+    __paperpilotClaudePaperPortalBaseItemID: basePaperItemID,
     id: normalizedConversationKey,
     libraryID: normalizedLibraryID,
     parentID: undefined,
@@ -93,8 +93,8 @@ export function isClaudeGlobalPortalItem(
   return Boolean(
     item &&
     typeof item === "object" &&
-    (item as Partial<ClaudeGlobalPortalItem>).__llmClaudeGlobalPortalItem ===
-      true,
+    (item as Partial<ClaudeGlobalPortalItem>)
+      .__paperpilotClaudeGlobalPortalItem === true,
   );
 }
 
@@ -104,8 +104,8 @@ export function isClaudePaperPortalItem(
   return Boolean(
     item &&
     typeof item === "object" &&
-    (item as Partial<ClaudePaperPortalItem>).__llmClaudePaperPortalItem ===
-      true,
+    (item as Partial<ClaudePaperPortalItem>)
+      .__paperpilotClaudePaperPortalItem === true,
   );
 }
 
@@ -117,7 +117,7 @@ export function isClaudePortalItem(
 
 export function getClaudePaperPortalBaseItemID(item: unknown): number | null {
   if (!isClaudePaperPortalItem(item)) return null;
-  const value = Number(item.__llmClaudePaperPortalBaseItemID);
+  const value = Number(item.__paperpilotClaudePaperPortalBaseItemID);
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
 }
 

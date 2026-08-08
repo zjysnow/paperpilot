@@ -14,10 +14,7 @@ import { normalizeSelectedText, setStatus } from "./textUtils";
 import type { PaperContextRef } from "./types";
 
 export type IncludeReaderSelectedTextOutcome =
-  | "added"
-  | "no-selection"
-  | "not-added"
-  | "invalid-target";
+  "added" | "no-selection" | "not-added" | "invalid-target";
 
 export type IncludeReaderSelectedTextResult = {
   outcome: IncludeReaderSelectedTextOutcome;
@@ -113,7 +110,9 @@ export async function includeReaderSelectedText(
   }
 
   const selectedText = normalizeSelectedText(input.selectedText || "");
-  const status = input.body.querySelector("#paperpilotstatus") as HTMLElement | null;
+  const status = input.body.querySelector(
+    "#paperpilotstatus",
+  ) as HTMLElement | null;
   if (!selectedText) {
     if (status) {
       setStatus(status, t("Select text in the reader first"), "warning");

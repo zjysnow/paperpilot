@@ -226,7 +226,7 @@ export async function listClaudeProjectSkillEntries(): Promise<
   };
 
   const walkSkillDirs = async (dirPath: string): Promise<void> => {
-    let children: string[] = [];
+    let children: string[];
     try {
       children = (await io.getChildren?.(dirPath)) || [];
     } catch {

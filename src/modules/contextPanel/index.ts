@@ -117,7 +117,6 @@ import {
   shouldRefreshContextSourceWithoutPanelRebuild,
 } from "./panelContextLifecycle";
 
-
 export { openStandaloneChat } from "./standaloneWindow";
 import {
   isStandaloneWindowActive,
@@ -298,7 +297,9 @@ export function registerReaderContextPanel() {
         return;
       }
       try {
-        const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
+        const panelRoot = body.querySelector(
+          "#paperpilot-main",
+        ) as HTMLElement | null;
         // Treat missing panel root as needing a full render — the body may
         // belong to a tab that onAsyncRender never fired for.
         // Also treat an uninitialized shell as incomplete.  Zotero can fire a
@@ -510,7 +511,9 @@ export function registerReaderContextPanel() {
       } else if (!syncAlreadyRendered) {
         persistPendingChatScrollRestoreFromBody(body);
         buildUI(body, resolvedItem);
-        const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
+        const panelRoot = body.querySelector(
+          "#paperpilot-main",
+        ) as HTMLElement | null;
         writePanelContextDataset(panelRoot, item || resolvedItem);
         activeContextPanelRawItems.set(body, item || null);
       }
@@ -903,8 +906,7 @@ function getReaderSelectionTrackingHandler(): ReaderTextSelectionPopupHandler {
 
 export function registerReaderSelectionTracking() {
   const readerAPI = Zotero.Reader as
-    | ReaderSelectionTrackingReader<ReaderTextSelectionPopupHandler>
-    | undefined;
+    ReaderSelectionTrackingReader<ReaderTextSelectionPopupHandler> | undefined;
   if (!readerAPI || typeof readerAPI.registerEventListener !== "function") {
     return;
   }
@@ -932,8 +934,7 @@ export function registerReaderSelectionTracking() {
 
 export function unregisterReaderSelectionTracking() {
   const readerAPI = Zotero.Reader as
-    | ReaderSelectionTrackingReader<ReaderTextSelectionPopupHandler>
-    | undefined;
+    ReaderSelectionTrackingReader<ReaderTextSelectionPopupHandler> | undefined;
   if (readerSelectionTrackingLifecycle) {
     readerSelectionTrackingLifecycle.dispose();
   } else if (readerAPI) {
@@ -1169,7 +1170,8 @@ function refreshTrackedNoteEditingSelection(
     const activeEl = win.document.activeElement;
     if (
       activeEl &&
-      (activeEl.id === "paperpilot-main" || activeEl.closest?.("#paperpilot-main"))
+      (activeEl.id === "paperpilot-main" ||
+        activeEl.closest?.("#paperpilot-main"))
     ) {
       return;
     }

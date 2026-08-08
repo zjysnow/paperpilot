@@ -16,11 +16,7 @@ import {
 } from "../shared";
 
 type SearchLiteratureOnlineMode =
-  | "recommendations"
-  | "references"
-  | "citations"
-  | "search"
-  | "metadata";
+  "recommendations" | "references" | "citations" | "search" | "metadata";
 
 type SearchLiteratureOnlineWorkflow = "answer" | "review";
 

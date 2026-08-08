@@ -182,7 +182,8 @@ function findBestVisibleChatAnchor(
   } | null = null;
   const seenQuoteCandidates = new Set<Element>();
   for (const candidate of quoteCandidates) {
-    const quoteCard = closestElement(candidate, ".paperpilotquote-card") || candidate;
+    const quoteCard =
+      closestElement(candidate, ".paperpilotquote-card") || candidate;
     if (seenQuoteCandidates.has(quoteCard)) continue;
     seenQuoteCandidates.add(quoteCard);
     const anchor = buildQuoteAnchor(candidate, viewport);
@@ -195,7 +196,10 @@ function findBestVisibleChatAnchor(
   if (bestQuote) return bestQuote.anchor;
 
   let bestMessage: { anchor: ChatScrollAnchor; score: number } | null = null;
-  for (const candidate of queryElements(chatBox, ".paperpilotmessage-wrapper")) {
+  for (const candidate of queryElements(
+    chatBox,
+    ".paperpilotmessage-wrapper",
+  )) {
     const anchor = buildMessageAnchor(candidate, viewport);
     if (!anchor) continue;
     const score = scoreVisibleAnchor(candidate, viewport);
@@ -399,7 +403,9 @@ export function persistChatScrollSnapshotFromBody(body: Element): void {
     Number(root?.dataset?.itemId || 0),
   );
   if (!conversationKey) return;
-  const chatBox = body.querySelector("#paperpilotchat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector(
+    "#paperpilotchat-box",
+  ) as HTMLDivElement | null;
   if (!chatBox || !chatBox.childElementCount) return;
   persistChatScrollSnapshotForConversationKey(conversationKey, chatBox);
 }
@@ -410,7 +416,9 @@ export function persistPendingChatScrollRestoreFromBody(body: Element): void {
     Number(root?.dataset?.itemId || 0),
   );
   if (!conversationKey) return;
-  const chatBox = body.querySelector("#paperpilotchat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector(
+    "#paperpilotchat-box",
+  ) as HTMLDivElement | null;
   if (!chatBox || !chatBox.childElementCount) return;
   persistPendingChatScrollRestoreForConversationKey(conversationKey, chatBox);
 }
@@ -424,7 +432,9 @@ export function persistPendingChatScrollRestoreForElement(
     Number(root?.dataset?.itemId || 0),
   );
   if (!conversationKey) return;
-  const chatBox = body.querySelector("#paperpilotchat-box") as HTMLDivElement | null;
+  const chatBox = body.querySelector(
+    "#paperpilotchat-box",
+  ) as HTMLDivElement | null;
   if (!chatBox || !chatBox.childElementCount) return;
   persistPendingChatScrollRestoreForConversationKey(
     conversationKey,

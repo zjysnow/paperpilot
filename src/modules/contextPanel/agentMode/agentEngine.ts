@@ -80,8 +80,7 @@ function applyResolvedClaudeEffortDisplay(
   if (event.type !== "provider_event") return;
   if (event.providerType !== "runtime_config") return;
   const applyResolvedEffort = (body as any).__llmApplyResolvedClaudeEffort as
-    | ((effort: unknown) => void)
-    | undefined;
+    ((effort: unknown) => void) | undefined;
   if (typeof applyResolvedEffort !== "function") return;
   applyResolvedEffort(event.payload?.resolvedEffort);
 }
@@ -856,7 +855,7 @@ function closeInlineConfirmationCard(
 ): void {
   const chatBox = ui.chatBox;
   if (!chatBox) return;
-  let card: Element | null = null;
+  let card: Element | null;
   if (requestId) {
     card =
       (
@@ -906,11 +905,7 @@ type EffectiveRequestConfigShape = {
   apiBase: string;
   apiKey: string;
   authMode:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat";
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
   providerProtocol?:
     | "codex_responses"
     | "responses_api"

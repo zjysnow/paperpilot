@@ -1,5 +1,5 @@
 import { config } from "../../package.json";
-import { FluentMessageId } from "../../typings/i10n";
+type FluentMessageId = string;
 
 export { initLocale, getString, getLocaleID };
 

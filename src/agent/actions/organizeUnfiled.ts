@@ -281,8 +281,7 @@ export const organizeUnfiledAction: AgentAction<
 
       const mutateContent = mutateResult.content as Record<string, unknown>;
       const resultObj = mutateContent.result as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const movedCount =
         mutateResult.ok && resultObj ? Number(resultObj.movedCount || 0) : 0;
       const mutateError = readToolResultError(mutateResult);
@@ -436,9 +435,7 @@ function normalizeUnfiledItems(raw: unknown[]): UnfiledItem[] {
     const record = entry as Record<string, unknown>;
     if (typeof record.itemId !== "number") continue;
     const metadata = record.metadata as
-      | { fields?: Record<string, string> }
-      | null
-      | undefined;
+      { fields?: Record<string, string> } | null | undefined;
     const fields = metadata?.fields || {};
     const title =
       (typeof record.title === "string" && record.title) ||

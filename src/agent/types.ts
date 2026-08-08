@@ -485,9 +485,7 @@ export type AgentModelStep =
     };
 
 export type ExhaustiveReadBackend =
-  | "request_provider"
-  | "codex_responses"
-  | "unavailable";
+  "request_provider" | "codex_responses" | "unavailable";
 
 export type AgentRuntimeRequest = AgentRequest & {
   item?: Zotero.Item | null;
@@ -510,17 +508,10 @@ export type AgentRuntimeRequest = AgentRequest & {
 };
 
 export type AgentAttachmentReadableVia =
-  | "read_attachment"
-  | "paper_read"
-  | "unsupported";
+  "read_attachment" | "paper_read" | "unsupported";
 
 export type AgentAttachmentType =
-  | "pdf"
-  | "markdown"
-  | "html"
-  | "txt"
-  | "docx"
-  | "unsupported";
+  "pdf" | "markdown" | "html" | "txt" | "docx" | "unsupported";
 
 export type AgentAttachmentResource = {
   lifecycleState: "available";
@@ -631,8 +622,7 @@ export type AgentToolContext = {
 };
 
 export type AgentToolInputValidation<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: string };
+  { ok: true; value: T } | { ok: false; error: string };
 
 export type AgentToolGuidance = {
   matches: (request: AgentRuntimeRequest) => boolean;
@@ -647,8 +637,7 @@ export type AgentToolPresentationSummaryInput = {
 };
 
 export type AgentToolPresentationSummary =
-  | string
-  | ((input: AgentToolPresentationSummaryInput) => string | null);
+  string | ((input: AgentToolPresentationSummaryInput) => string | null);
 
 /**
  * A single result card rendered below a tool's success row in the agent trace.

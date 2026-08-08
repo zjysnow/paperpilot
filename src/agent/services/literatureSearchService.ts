@@ -4,11 +4,7 @@ import type { EditableArticleMetadataPatch } from "./zoteroGateway";
 import type { ZoteroGateway } from "./zoteroGateway";
 
 type SearchMode =
-  | "recommendations"
-  | "references"
-  | "citations"
-  | "search"
-  | "metadata";
+  "recommendations" | "references" | "citations" | "search" | "metadata";
 
 type SearchSource = "openalex" | "arxiv" | "europepmc";
 
@@ -178,6 +174,7 @@ async function zoteroFetchJson(url: string): Promise<unknown> {
     );
     throw new Error(
       `JSON parse failed: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     );
   }
 }
@@ -246,9 +243,7 @@ function normalizeOpenAlexWork(raw: unknown): OnlinePaperResult | null {
   const citationCount =
     typeof work.cited_by_count === "number" ? work.cited_by_count : undefined;
   const openAccess = work.open_access as
-    | Record<string, unknown>
-    | null
-    | undefined;
+    Record<string, unknown> | null | undefined;
   const openAccessUrl = normalizeString(openAccess?.oa_url) || undefined;
   const openAlexId = normalizeString(work.id) || undefined;
 
@@ -394,6 +389,7 @@ async function fetchArxivSearch(
   } catch (parseError) {
     throw new Error(
       `Failed to parse arXiv XML response: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+      { cause: parseError },
     );
   }
   const entries = doc.querySelectorAll("entry");
@@ -471,6 +467,7 @@ async function fetchEuropePmcSearch(
   } catch (error) {
     throw new Error(
       `Europe PMC API request failed: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     );
   }
   const body = raw as {
@@ -528,8 +525,7 @@ async function fetchEuropePmcSearch(
       const urlList =
         (
           item.fullTextUrlList as
-            | { fullTextUrl?: Array<{ url: string }> }
-            | undefined
+            { fullTextUrl?: Array<{ url: string }> } | undefined
         )?.fullTextUrl ?? [];
       const openAccessUrl =
         urlList[0]?.url || (doi ? `https://doi.org/${doi}` : undefined);
@@ -1174,7 +1170,7 @@ export class LiteratureSearchService {
     }
 
     const openAlexId = normalizeString(work.id) || null;
-    let results: OnlinePaperResult[] = [];
+    let results: OnlinePaperResult[];
     const warnings: string[] = [];
 
     if (mode === "recommendations") {

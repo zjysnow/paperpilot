@@ -227,7 +227,7 @@ function buildRawDiffLines(before: string, after: string): RawDiffLine[] {
   let oldLineNumber = 1;
   let newLineNumber = 1;
 
-  for (let index = 0; index < ops.length; ) {
+  for (let index = 0; index < ops.length;) {
     const current = ops[index];
     if (current?.kind === "context") {
       rows.push({

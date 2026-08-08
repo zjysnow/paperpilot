@@ -59,11 +59,7 @@ type RuntimeManifest = {
 };
 
 export type PdfFigureRuntimePlatformKey =
-  | "macos-arm64"
-  | "macos-x64"
-  | "linux-arm64"
-  | "linux-x64"
-  | "windows-x64";
+  "macos-arm64" | "macos-x64" | "linux-arm64" | "linux-x64" | "windows-x64";
 
 export type PdfFigureExtractionRuntime = {
   source: "managed";
@@ -428,7 +424,9 @@ async function downloadRuntimePackageBytes(url: string): Promise<Uint8Array> {
       throw new Error(`Zotero.HTTP ${xhr.status || "unknown"}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(fetchError ? `${fetchError}; ${message}` : message);
+      throw new Error(fetchError ? `${fetchError}; ${message}` : message, {
+        cause: error,
+      });
     }
   }
   throw new Error(fetchError || "No downloader is available");

@@ -99,9 +99,7 @@ type SortKey = "cached" | "title" | "firstCreator" | "year" | "dateAdded";
 type SortDir = "asc" | "desc";
 type ResizableColumnKey = "firstCreator" | "year" | "dateAdded";
 type ResizeBoundary =
-  | "title|firstCreator"
-  | "firstCreator|year"
-  | "year|dateAdded";
+  "title|firstCreator" | "firstCreator|year" | "year|dateAdded";
 type ResizeHandlePlacement = {
   boundary: ResizeBoundary;
   side: "left" | "right";
@@ -1480,7 +1478,7 @@ export async function registerMineruManagerScript(
     const onMouseMove = (moveEvent: MouseEvent) => {
       moveEvent.preventDefault();
       const rawDelta = moveEvent.clientX - startX;
-      let appliedDelta = rawDelta;
+      let appliedDelta: typeof rawDelta;
 
       if (boundary === "title|firstCreator") {
         const minDelta = Math.min(0, MIN_COLUMN_WIDTHS.title - startTitleWidth);
@@ -2243,12 +2241,12 @@ export async function registerMineruManagerScript(
   ): Promise<number> {
     let count = 0;
     for (const id of ids) {
-      const pdfItem = Zotero.Items.get(id);
+      const pdfItem = Zotero.Items.get(id) || null;
       if (!pdfItem) continue;
       const parentId = Number(pdfItem.parentID);
       const parentItem =
         Number.isFinite(parentId) && parentId > 0
-          ? Zotero.Items.get(Math.floor(parentId))
+          ? Zotero.Items.get(Math.floor(parentId)) || null
           : null;
       const eligibility = await getMineruParseEligibility(parentItem, pdfItem, {
         filenameMatcher,

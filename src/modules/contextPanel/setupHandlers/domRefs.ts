@@ -91,19 +91,25 @@ export type PanelDomRefs = {
 
 export function getPanelDomRefs(body: Element): PanelDomRefs {
   return {
-    inputBox: body.querySelector("#paperpilotinput") as HTMLTextAreaElement | null,
+    inputBox: body.querySelector(
+      "#paperpilotinput",
+    ) as HTMLTextAreaElement | null,
     inputSection: body.querySelector(
       ".paperpilotinput-section",
     ) as HTMLDivElement | null,
     sendBtn: body.querySelector("#paperpilotsend") as HTMLButtonElement | null,
-    cancelBtn: body.querySelector("#paperpilotcancel") as HTMLButtonElement | null,
+    cancelBtn: body.querySelector(
+      "#paperpilotcancel",
+    ) as HTMLButtonElement | null,
     modelBtn: body.querySelector(
       "#paperpilotmodel-toggle",
     ) as HTMLButtonElement | null,
     modelSlot: body.querySelector(
       "#paperpilotmodel-dropdown",
     ) as HTMLDivElement | null,
-    modelMenu: body.querySelector("#paperpilotmodel-menu") as HTMLDivElement | null,
+    modelMenu: body.querySelector(
+      "#paperpilotmodel-menu",
+    ) as HTMLDivElement | null,
     reasoningBtn: body.querySelector(
       "#paperpilotreasoning-toggle",
     ) as HTMLButtonElement | null,
@@ -116,23 +122,33 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     reasoningMenu: body.querySelector(
       "#paperpilotreasoning-menu",
     ) as HTMLDivElement | null,
-    actionsRow: body.querySelector(".paperpilotactions") as HTMLDivElement | null,
+    actionsRow: body.querySelector(
+      ".paperpilotactions",
+    ) as HTMLDivElement | null,
     actionsLeft: body.querySelector(
       ".paperpilotactions-left",
     ) as HTMLDivElement | null,
     actionsRight: body.querySelector(
       ".paperpilotactions-right",
     ) as HTMLDivElement | null,
-    popoutBtn: body.querySelector("#paperpilotpopout") as HTMLButtonElement | null,
+    popoutBtn: body.querySelector(
+      "#paperpilotpopout",
+    ) as HTMLButtonElement | null,
     settingsBtn: body.querySelector(
       "#paperpilotsettings",
     ) as HTMLButtonElement | null,
-    exportBtn: body.querySelector("#paperpilotexport") as HTMLButtonElement | null,
-    clearBtn: body.querySelector("#paperpilotclear") as HTMLButtonElement | null,
+    exportBtn: body.querySelector(
+      "#paperpilotexport",
+    ) as HTMLButtonElement | null,
+    clearBtn: body.querySelector(
+      "#paperpilotclear",
+    ) as HTMLButtonElement | null,
     titleStatic: body.querySelector(
       "#paperpilottitle-static",
     ) as HTMLDivElement | null,
-    historyBar: body.querySelector("#paperpilothistory-bar") as HTMLDivElement | null,
+    historyBar: body.querySelector(
+      "#paperpilothistory-bar",
+    ) as HTMLDivElement | null,
     historyNewBtn: body.querySelector(
       "#paperpilothistory-new",
     ) as HTMLButtonElement | null,
@@ -151,7 +167,9 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     historyModeIndicator: body.querySelector(
       "#paperpilothistory-toggle",
     ) as HTMLButtonElement | null,
-    modeCapsule: body.querySelector("#paperpilotmode-capsule") as HTMLElement | null,
+    modeCapsule: body.querySelector(
+      "#paperpilotmode-capsule",
+    ) as HTMLElement | null,
     modeChipBtn: body.querySelector(
       "#paperpilotmode-chip",
     ) as HTMLButtonElement | null,
@@ -173,7 +191,9 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     historyUndoBtn: body.querySelector(
       "#paperpilothistory-undo-btn",
     ) as HTMLButtonElement | null,
-    topToast: body.querySelector("#paperpilottop-toast") as HTMLDivElement | null,
+    topToast: body.querySelector(
+      "#paperpilottop-toast",
+    ) as HTMLDivElement | null,
     runtimeSystemControls: body.querySelector(
       "#paperpilotruntime-system-controls",
     ) as HTMLDivElement | null,
@@ -195,7 +215,9 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     uploadInput: body.querySelector(
       "#paperpilotupload-input",
     ) as HTMLInputElement | null,
-    slashMenu: body.querySelector("#paperpilotslash-menu") as HTMLDivElement | null,
+    slashMenu: body.querySelector(
+      "#paperpilotslash-menu",
+    ) as HTMLDivElement | null,
     slashUploadOption: body.querySelector(
       "#paperpilotslash-upload-option",
     ) as HTMLButtonElement | null,
@@ -274,7 +296,9 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     shortcutMenu: body.querySelector(
       "#paperpilotshortcut-menu",
     ) as HTMLDivElement | null,
-    commandRow: body.querySelector("#paperpilotcommand-row") as HTMLDivElement | null,
+    commandRow: body.querySelector(
+      "#paperpilotcommand-row",
+    ) as HTMLDivElement | null,
     commandRowBadge: body.querySelector(
       "#paperpilotcommand-row-badge",
     ) as HTMLSpanElement | null,
@@ -296,14 +320,18 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     responseMenuDeleteBtn: body.querySelector(
       "#paperpilotresponse-menu-delete",
     ) as HTMLButtonElement | null,
-    promptMenu: body.querySelector("#paperpilotprompt-menu") as HTMLDivElement | null,
+    promptMenu: body.querySelector(
+      "#paperpilotprompt-menu",
+    ) as HTMLDivElement | null,
     promptMenuForkBtn: body.querySelector(
       "#paperpilotprompt-menu-fork",
     ) as HTMLButtonElement | null,
     promptMenuDeleteBtn: body.querySelector(
       "#paperpilotprompt-menu-delete",
     ) as HTMLButtonElement | null,
-    exportMenu: body.querySelector("#paperpilotexport-menu") as HTMLDivElement | null,
+    exportMenu: body.querySelector(
+      "#paperpilotexport-menu",
+    ) as HTMLDivElement | null,
     exportMenuCopyBtn: body.querySelector(
       "#paperpilotexport-copy",
     ) as HTMLButtonElement | null,
@@ -314,7 +342,9 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
       "#paperpilotretry-model-menu",
     ) as HTMLDivElement | null,
     status: body.querySelector("#paperpilotstatus") as HTMLElement | null,
-    tokenUsageEl: body.querySelector("#paperpilottoken-usage") as HTMLElement | null,
+    tokenUsageEl: body.querySelector(
+      "#paperpilottoken-usage",
+    ) as HTMLElement | null,
     chatBox: body.querySelector("#paperpilotchat-box") as HTMLDivElement | null,
     panelRoot: body.querySelector("#paperpilot-main") as HTMLDivElement | null,
   };

@@ -372,7 +372,10 @@ export function createActionLayoutController(
       modelBtn.title = modelHint;
 
       if (reasoningBtn) {
-        reasoningBtn.classList.toggle("paperpilotreasoning-btn-collapsed", false);
+        reasoningBtn.classList.toggle(
+          "paperpilotreasoning-btn-collapsed",
+          false,
+        );
         reasoningSlot?.classList.toggle(
           "paperpilotreasoning-dropdown-collapsed",
           false,
@@ -404,7 +407,10 @@ export function createActionLayoutController(
       setSendButtonLabel(state.send);
 
       const modelCollapsed = state.model === "icon";
-      modelBtn.classList.toggle("paperpilotmodel-btn-collapsed", modelCollapsed);
+      modelBtn.classList.toggle(
+        "paperpilotmodel-btn-collapsed",
+        modelCollapsed,
+      );
       modelSlot?.classList.toggle(
         "paperpilotmodel-dropdown-collapsed",
         modelCollapsed,

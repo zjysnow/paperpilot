@@ -342,8 +342,7 @@ export const autoTagAction: AgentAction<AutoTagInput, AutoTagOutput> = {
 
       const mutateContent = mutateResult.content as Record<string, unknown>;
       const resultObj = mutateContent.result as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const taggedCount =
         mutateResult.ok && resultObj ? Number(resultObj.updatedCount || 0) : 0;
       const mutateError = readToolResultError(mutateResult);

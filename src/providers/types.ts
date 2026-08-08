@@ -3,11 +3,7 @@ import type { ModelInputMode } from "../shared/types";
 export type PdfSupport = "native" | "local_path" | "upload" | "vision" | "none";
 
 export type ProviderTier =
-  | "native"
-  | "server_upload"
-  | "third_party"
-  | "copilot"
-  | "codex";
+  "native" | "server_upload" | "third_party" | "copilot" | "codex";
 
 export type ProviderCapabilities = {
   tier: ProviderTier;
@@ -27,10 +23,7 @@ export type ProviderParams = {
 };
 
 export type ProviderPromptCacheKind =
-  | "none"
-  | "automatic_prefix"
-  | "explicit_blocks"
-  | "opaque";
+  "none" | "automatic_prefix" | "explicit_blocks" | "opaque";
 
 export type ProviderPromptCacheProvider =
   | "openai"

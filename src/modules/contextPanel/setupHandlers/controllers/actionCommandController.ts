@@ -530,8 +530,10 @@ export function createActionCommandController(
     clearAgentSlashItems();
     setBaseSlashItemsVisible(true);
     if (slashMenu) {
-      Array.from(slashMenu.querySelectorAll(".paperpilotaction-picker-item")).forEach(
-        (el) => (el as HTMLButtonElement).removeAttribute("aria-selected"),
+      Array.from(
+        slashMenu.querySelectorAll(".paperpilotaction-picker-item"),
+      ).forEach((el) =>
+        (el as HTMLButtonElement).removeAttribute("aria-selected"),
       );
     }
     setFloatingMenuOpen(slashMenu, SLASH_MENU_OPEN_CLASS, false);
@@ -1055,7 +1057,7 @@ export function createActionCommandController(
       };
     }
 
-    let syntheticText = "";
+    let syntheticText: string;
     if (choice.scope === "collection" && choice.collectionId) {
       const collection = params.collectionCandidates.find(
         (entry) => Math.floor(entry.collectionId) === choice.collectionId,
@@ -1127,7 +1129,12 @@ export function createActionCommandController(
       chatBox.querySelector(".paperpilotaction-inline-card")?.remove();
       const wrapper = ownerDoc.createElement("div");
       wrapper.className = "paperpilotaction-inline-card";
-      const form = createElement(ownerDoc, "div", "paperpilotaction-launch-form", {});
+      const form = createElement(
+        ownerDoc,
+        "div",
+        "paperpilotaction-launch-form",
+        {},
+      );
       form.appendChild(
         createElement(ownerDoc, "div", "paperpilotaction-launch-form-header", {
           textContent: formatActionLabel(actionName),
@@ -1511,7 +1518,7 @@ export function createActionCommandController(
       await deps.getDoSend()?.();
       return;
     }
-    let allActions: ActionPickerItem[] = [];
+    let allActions: ActionPickerItem[];
     try {
       await initAgentSubsystem();
       allActions = getAgentApi().listActions();

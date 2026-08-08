@@ -1,11 +1,5 @@
 export type BlockStreamFlushReason =
-  | "boundary"
-  | "timer"
-  | "hard-cap"
-  | "event"
-  | "final"
-  | "cancel"
-  | "error";
+  "boundary" | "timer" | "hard-cap" | "event" | "final" | "cancel" | "error";
 
 export type BlockStreamCoalescer = {
   pushText: (delta: string) => void;

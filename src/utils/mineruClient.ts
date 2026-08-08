@@ -117,8 +117,7 @@ function getAbortControllerCtor(): typeof AbortController | undefined {
     (globalThis as { AbortController?: typeof AbortController })
       .AbortController ??
     (ztoolkit.getGlobal("AbortController") as
-      | typeof AbortController
-      | undefined)
+      typeof AbortController | undefined)
   );
 }
 
@@ -846,7 +845,7 @@ async function fetchWithTimeout(
     });
   } catch (error) {
     if (signal?.aborted) throw new MineruCancelledError();
-    if (timedOut) throw new Error(timeoutMessage);
+    if (timedOut) throw new Error(timeoutMessage, { cause: error });
     throw error;
   } finally {
     if (timer !== null) clearTimeout(timer);
@@ -1391,8 +1390,7 @@ async function httpPutBinary(
       (globalThis as { AbortController?: typeof AbortController })
         .AbortController ??
       (ztoolkit.getGlobal("AbortController") as
-        | typeof AbortController
-        | undefined);
+        typeof AbortController | undefined);
     let fetchSignal: AbortSignal | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     if (AbortCtrl) {
@@ -1797,8 +1795,7 @@ export async function testMineruConnection(apiKey: string): Promise<void> {
       (globalThis as { AbortController?: typeof AbortController })
         .AbortController ??
       (ztoolkit.getGlobal("AbortController") as
-        | typeof AbortController
-        | undefined);
+        typeof AbortController | undefined);
     let signal: AbortSignal | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     if (AbortCtrl) {

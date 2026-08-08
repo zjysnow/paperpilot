@@ -168,9 +168,7 @@ type NativeThreadResolution = {
 };
 
 type NativeContextPlacement =
-  | "developer-instructions"
-  | "latest-user-prefix"
-  | "both-for-legacy-fallback";
+  "developer-instructions" | "latest-user-prefix" | "both-for-legacy-fallback";
 
 export type CodexNativeDiagnostics = {
   threadId: string;
@@ -2361,7 +2359,7 @@ export async function runCodexAppServerNativeTurn(params: {
               params.onMcpToolActivity?.(redactedEvent);
             },
           );
-          let text = "";
+          let text: string;
           const streamRedactor = new LocalDocumentPathStreamRedactor(
             params.scope.conversationKey,
           );
@@ -2614,7 +2612,7 @@ export async function runCodexAppServerNativeTurn(params: {
             ).Zotero?.debug?.(
               "Codex app-server native: Zotero MCP preflight failed safely",
             );
-            throw new Error(mcpWarning);
+            throw new Error(mcpWarning, { cause: error });
           }
         }
         const thread: NativeThreadResolution = rawPdfMode
@@ -2738,7 +2736,7 @@ export async function runCodexAppServerNativeTurn(params: {
     const rawMessage = error instanceof Error ? error.message : String(error);
     const redactedMessage = redactTerminalText(rawMessage);
     if (error instanceof Error && redactedMessage === rawMessage) throw error;
-    throw new Error(redactedMessage);
+    throw new Error(redactedMessage, { cause: error });
   } finally {
     pathLease.release();
   }

@@ -404,8 +404,7 @@ export const auditLibraryAction: AgentAction<
       if (saveResult.ok) {
         const saveContent = saveResult.content as Record<string, unknown>;
         const resultObj = saveContent.result as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         noteId =
           typeof resultObj?.noteId === "number" ? resultObj.noteId : undefined;
       }
@@ -597,8 +596,7 @@ async function fetchCanonicalPatchForRecord(
   const results = Array.isArray(metaContent.results) ? metaContent.results : [];
   const externalMeta = results[0] as Record<string, unknown> | undefined;
   const sourcePatch = externalMeta?.patch as
-    | EditableArticleMetadataPatch
-    | undefined;
+    EditableArticleMetadataPatch | undefined;
   if (!sourcePatch || Object.keys(sourcePatch).length === 0) return null;
   return buildSupportedPatch(record, sourcePatch, ctx);
 }

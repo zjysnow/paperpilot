@@ -136,7 +136,7 @@ export class RetrievalService {
       }),
     });
     const queryCacheKey = buildRetrievalQueryPlanCacheKey(queryPlan);
-    let embeddingsAvailable = false;
+    let embeddingsAvailable: boolean;
     try {
       embeddingsAvailable = checkEmbeddingAvailability();
     } catch {

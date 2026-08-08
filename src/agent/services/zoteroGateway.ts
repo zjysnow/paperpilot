@@ -109,11 +109,7 @@ export type LibraryItemTargetAttachment = {
   contentType: string;
   /** For PDF attachments: Zotero full-text indexing state. Omitted for non-PDFs. */
   indexingState?:
-    | "indexed"
-    | "partial"
-    | "unindexed"
-    | "queued"
-    | "unavailable";
+    "indexed" | "partial" | "unindexed" | "queued" | "unavailable";
   /** If MinerU has parsed this PDF, the cache directory path containing markdown + images. */
   mineruCacheDir?: string;
 };
@@ -1604,7 +1600,7 @@ export class ZoteroGateway {
       const topIds: number[] = [];
       const seen = new Set<number>();
       for (const id of rawIds) {
-        const item = Zotero.Items.get(id);
+        const item = Zotero.Items.get(id) || null;
         if (item && !item.parentID && !item.isAnnotation?.() && !seen.has(id)) {
           seen.add(id);
           topIds.push(id);
@@ -1794,7 +1790,7 @@ export class ZoteroGateway {
       const resolvedIds: number[] = [];
       const seen = new Set<number>();
       for (const id of rawIds) {
-        const item = Zotero.Items.get(id);
+        const item = Zotero.Items.get(id) || null;
         if (!item) continue;
         const topId = (item.parentID as number | false | undefined) || id;
         if (allowedItemIds && !allowedItemIds.has(topId)) continue;
@@ -1940,7 +1936,7 @@ export class ZoteroGateway {
         `Item ${item.id}`;
       for (const noteId of noteIds) {
         if (results.length >= params.limit) break;
-        const noteItem = Zotero.Items.get(noteId);
+        const noteItem = Zotero.Items.get(noteId) || null;
         if (!noteItem?.isNote?.()) continue;
         const html = noteItem.getNote?.() || "";
         const text = normalizeNoteSourceText(html);
@@ -2327,7 +2323,7 @@ export class ZoteroGateway {
       const results: PaperNoteRecord[] = [];
       for (const noteId of noteIds) {
         if (results.length >= limit) break;
-        const noteItem = Zotero.Items.get(noteId);
+        const noteItem = Zotero.Items.get(noteId) || null;
         if (!noteItem?.isNote?.()) continue;
         const html = noteItem.getNote?.() || "";
         const text = normalizeNoteSourceText(html);
@@ -2374,7 +2370,7 @@ export class ZoteroGateway {
           ).getAnnotations?.() || [];
         for (const annotationId of annotationIds) {
           if (results.length >= limit) break;
-          const annotation = Zotero.Items.get(annotationId);
+          const annotation = Zotero.Items.get(annotationId) || null;
           if (!annotation?.isAnnotation?.()) continue;
           const ann = annotation as unknown as {
             annotationText?: string;

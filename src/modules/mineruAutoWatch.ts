@@ -36,8 +36,7 @@ type QueueEntry = {
 };
 
 type QueueValidationResult =
-  | { item: Zotero.Item }
-  | { item: null; reason: string; retryable: boolean };
+  { item: Zotero.Item } | { item: null; reason: string; retryable: boolean };
 
 type ProgressListener = (status: AutoWatchStatus) => void;
 
@@ -73,8 +72,7 @@ const readinessRetryTimers = new Map<
 function getAbortControllerCtor(): (new () => AbortController) | null {
   return (
     (ztoolkit.getGlobal("AbortController") as
-      | (new () => AbortController)
-      | undefined) ||
+      (new () => AbortController) | undefined) ||
     (
       globalThis as typeof globalThis & {
         AbortController?: new () => AbortController;
@@ -131,7 +129,7 @@ function getPdfAttachments(item: Zotero.Item): Zotero.Item[] {
   const out: Zotero.Item[] = [];
   if (!item?.isRegularItem?.()) return out;
   for (const attId of item.getAttachments()) {
-    const att = Zotero.Items.get(attId);
+    const att = Zotero.Items.get(attId) || null;
     if (
       att?.isAttachment?.() &&
       att.attachmentContentType === "application/pdf"
@@ -154,7 +152,7 @@ function normalizeNotifierId(id: string | number): number | null {
 }
 
 function validateQueueItem(entry: QueueEntry): QueueValidationResult {
-  const item = Zotero.Items.get(entry.attachmentId);
+  const item = Zotero.Items.get(entry.attachmentId) || null;
   if (!item) {
     return {
       item: null,
@@ -182,7 +180,7 @@ function validateQueueItem(entry: QueueEntry): QueueValidationResult {
   }
 
   if (normalizedItemParentId) {
-    const parentItem = Zotero.Items.get(normalizedItemParentId);
+    const parentItem = Zotero.Items.get(normalizedItemParentId) || null;
     if (!parentItem) {
       return {
         item: null,
@@ -328,7 +326,7 @@ function getRemovedItemIdsForCleanup(
 ): number[] {
   if (event !== "remove") return itemIds;
   return itemIds.filter((itemId) => {
-    const liveItem = Zotero.Items.get(itemId);
+    const liveItem = Zotero.Items.get(itemId) || null;
     return (
       !liveItem ||
       Boolean((liveItem as unknown as { deleted?: boolean }).deleted)
@@ -581,7 +579,9 @@ async function enqueuePdfIfEligible(
 ): Promise<void> {
   if (event === "modify" && !shouldConsiderModifiedPdf(pdf.id)) return;
 
-  const parentItem = parentItemId ? Zotero.Items.get(parentItemId) : null;
+  const parentItem = parentItemId
+    ? Zotero.Items.get(parentItemId) || null
+    : null;
   const eligibility = await getMineruParseEligibility(parentItem, pdf, {
     filenameMatcher,
   });
@@ -638,7 +638,7 @@ async function handleItemNotification(
   const filenameMatcher = buildMineruFilenameMatcher();
 
   for (const itemId of itemIds) {
-    const item = Zotero.Items.get(itemId);
+    const item = Zotero.Items.get(itemId) || null;
     if (!item) continue;
 
     ztoolkit.log(
@@ -653,7 +653,9 @@ async function handleItemNotification(
         await enqueuePdfIfEligible(pdf, title, item.id, event, filenameMatcher);
       }
     } else if (isPdfAttachment(item)) {
-      const parentItem = item.parentID ? Zotero.Items.get(item.parentID) : null;
+      const parentItem = item.parentID
+        ? Zotero.Items.get(item.parentID) || null
+        : null;
       const title =
         parentItem?.getField?.("title") ||
         item.getField?.("title") ||

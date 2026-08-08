@@ -86,9 +86,7 @@ export type CodexAppServerAgentMessageDeltaEvent = {
 };
 
 export type CodexAppServerInjectItemsSupport =
-  | "unknown"
-  | "supported"
-  | "unsupported";
+  "unknown" | "supported" | "unsupported";
 
 export type CodexAppServerProcessOptions = {
   codexPath?: string;
@@ -211,6 +209,7 @@ export class CodexAppServerProcess {
     } catch (err) {
       throw new Error(
         `Failed to spawn codex app-server (command: ${command} ${args.join(" ")}): ${err instanceof Error ? err.message : JSON.stringify(err)}`,
+        { cause: err },
       );
     }
 
@@ -375,8 +374,7 @@ export class CodexAppServerProcess {
           return;
         }
         const handler = handlers.values().next().value as
-          | RequestHandler
-          | undefined;
+          RequestHandler | undefined;
         if (!handler) return;
         Promise.resolve()
           .then(() => handler(msg.params, id))

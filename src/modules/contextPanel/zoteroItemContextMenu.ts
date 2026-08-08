@@ -10,9 +10,7 @@ type AfterItemsAsDefaultContextAdded = (
   items: Zotero.Item[],
 ) => Promise<void> | void;
 type PrepareItemsAsDefaultContextTarget = () =>
-  | Promise<boolean | void>
-  | boolean
-  | void;
+  Promise<boolean | void> | boolean | void;
 
 type ContextSurfaceKind = "embedded" | "standalone";
 

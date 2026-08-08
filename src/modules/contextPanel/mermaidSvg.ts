@@ -169,8 +169,7 @@ function getUnsafeStyleElementReason(svg: string): string | null {
 }
 
 export type MermaidSvgSanitizationResult =
-  | { ok: true; svg: string }
-  | { ok: false; reason: string };
+  { ok: true; svg: string } | { ok: false; reason: string };
 
 export function sanitizeRenderedMermaidSvgWithReason(
   svg: string,

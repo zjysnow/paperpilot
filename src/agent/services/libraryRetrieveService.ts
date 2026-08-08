@@ -48,11 +48,7 @@ import type { PdfService } from "./pdfService";
 export type LibraryRetrieveDepth = "pool" | "metadata" | "evidence" | "verify";
 export type LibraryRetrieveIntent = "enumerate" | "verify" | "summarize";
 export type LibraryRetrieveMethod =
-  | "metadata"
-  | "abstract"
-  | "exact"
-  | "fts"
-  | "semantic";
+  "metadata" | "abstract" | "exact" | "fts" | "semantic";
 
 export type LibraryRetrieveScopeInput = {
   libraryID?: number;
@@ -96,26 +92,13 @@ export type LibraryRetrieveQueryState =
   | "evidence_used";
 
 export type LibraryRetrieveSourceKind =
-  | "metadata"
-  | "abstract"
-  | "pdf_text"
-  | "mineru"
-  | "note"
-  | "attachment";
+  "metadata" | "abstract" | "pdf_text" | "mineru" | "note" | "attachment";
 
 export type LibraryRetrieveMatchMethod =
-  | "metadata"
-  | "exact"
-  | "fts"
-  | "bm25"
-  | "semantic";
+  "metadata" | "exact" | "fts" | "bm25" | "semantic";
 
 export type LibraryRetrieveMatchBasis =
-  | "metadata"
-  | "abstract"
-  | "indexed_text"
-  | "chunk_text"
-  | "semantic";
+  "metadata" | "abstract" | "indexed_text" | "chunk_text" | "semantic";
 
 export type LibraryRetrievePaperMatchStatus =
   | "strong"

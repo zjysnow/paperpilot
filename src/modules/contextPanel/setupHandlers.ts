@@ -307,8 +307,14 @@ import {
   type PaperScopedActionProfile,
 } from "./paperScopeCommand";
 import { getAgentApi, initAgentSubsystem } from "../../agent/index";
+import type { ActionRequestContext } from "../../agent/actions";
 import { clearAllAgentToolCaches } from "../../agent/tools";
 import { isCodexAppServerModeEnabled } from "../../codexAppServer/prefs";
+import type {
+  AgentPendingAction,
+  AgentConfirmationResolution,
+} from "../../agent/types";
+import { renderPendingActionCard } from "./agentTrace/render";
 
 import {
   createGlobalPortalItem,
@@ -446,14 +452,49 @@ import {
 
 import { renderShortcuts } from "./shortcuts";
 import { loadConversationHistoryScope } from "./historyLoader";
-import { retainClaudeRuntimeForBody } from "../../claudeCode/runtimeRetention";
 import {
-  touchClaudeConversationTitle,
-} from "../../claudeCode/store";
+  buildClaudeScope,
+  getClaudeRuntimeModelEntries,
+  getSelectedClaudeRuntimeEntry,
+  listClaudeEfforts,
+  refreshClaudeSlashCommands,
+} from "../../claudeCode/runtime";
 import {
-  touchCodexConversationTitle,
-} from "../../codexAppServer/store";
-
+  getClaudeReasoningModePref,
+  getConversationSystemPref,
+  setClaudeReasoningModePref,
+  setClaudeRuntimeModelPref,
+  setConversationSystemPref,
+} from "../../claudeCode/prefs";
+import {
+  getCodexReasoningModePref,
+  getCodexRuntimeModelPref,
+  setCodexRuntimeModelPref,
+  setCodexReasoningModePref,
+} from "../../codexAppServer/prefs";
+import {
+  buildCodexRuntimeModelEntries,
+  getCodexAppServerReasoningChoices,
+  loadCodexAppServerModelCatalog,
+  resolveCodexAppServerReasoningSelection,
+  type CodexAppServerModelCatalogEntry,
+} from "../../codexAppServer/modelCatalog";
+import { getConfiguredCodexAppServerBinaryPath } from "../../codexAppServer/binaryPath";
+import {
+  activeClaudeGlobalConversationByLibrary,
+  buildClaudeLibraryStateKey,
+} from "../../claudeCode/state";
+import {
+  activeCodexGlobalConversationByLibrary,
+  buildCodexLibraryStateKey,
+} from "../../codexAppServer/state";
+import {
+  retainClaudeRuntimeForBody,
+  releaseClaudeRuntimeForBody,
+} from "../../claudeCode/runtimeRetention";
+import { touchClaudeConversationTitle } from "../../claudeCode/store";
+import { touchCodexConversationTitle } from "../../codexAppServer/store";
+import { getWebChatTargetByModelName } from "../../webchat/types";
 
 import { resolveConversationStorageSystem } from "../../shared/conversationStorageRouting";
 import { validateConversationScope } from "../../shared/conversationRegistry";
@@ -485,9 +526,7 @@ export type SetupHandlersHooks = {
   onContextPreviewRendered?: (metrics: ContextPreviewRenderMetrics) => void;
   onWebChatModeChanged?: (isWebChat: boolean) => void;
   prepareItemsAsDefaultContextTarget?: () =>
-    | Promise<boolean | void>
-    | boolean
-    | void;
+    Promise<boolean | void> | boolean | void;
   /** Called by standalone to clear force-new-chat intent before loading a session. */
   clearWebChatNewChatIntent?: () => void;
   /** Called by standalone to resolve the currently selected model consistently. */
@@ -688,15 +727,13 @@ export function setupHandlers(
   // Disconnect previous ResizeObservers to prevent accumulation across
   // successive setupHandlers calls (each call creates fresh observers).
   const prevObservers = (body as any).__paperpilotResizeObservers as
-    | ResizeObserver[]
-    | undefined;
+    ResizeObserver[] | undefined;
   if (prevObservers) {
     for (const obs of prevObservers) obs.disconnect();
     delete (body as any).__paperpilotResizeObservers;
   }
   const prevResizeSchedulers = (body as any).__paperpilotResizeSchedulers as
-    | Array<{ cancel?: () => void }>
-    | undefined;
+    Array<{ cancel?: () => void }> | undefined;
   if (prevResizeSchedulers) {
     for (const scheduler of prevResizeSchedulers) scheduler.cancel?.();
     delete (body as any).__paperpilotResizeSchedulers;
@@ -805,7 +842,30 @@ export function setupHandlers(
   panelRoot.dataset.conversationSystem = currentConversationSystem;
   syncQueuedFollowUpRegistration();
 
-  
+  let codexModelCatalogStatus: "idle" | "loading" | "ready" | "error" = "idle";
+  let codexModelCatalogError = "";
+  let codexModelCatalogModels: CodexAppServerModelCatalogEntry[] = [];
+  let codexModelCatalogInFlight: Promise<void> | null = null;
+  let codexModelCatalogPath = "";
+  const resolveCurrentCodexReasoningSelection = () =>
+    resolveCodexAppServerReasoningSelection({
+      mode: getCodexReasoningModePref(),
+      choices: getCodexAppServerReasoningChoices({
+        models: codexModelCatalogModels,
+        selectedModel: getCodexRuntimeModelPref(),
+      }),
+      catalogReady: codexModelCatalogStatus === "ready",
+    });
+  const getCodexReasoningChoices = () =>
+    resolveCurrentCodexReasoningSelection().choices;
+  const reconcileSelectedCodexReasoningMode = () => {
+    const currentMode = getCodexReasoningModePref();
+    const reconciledMode = resolveCurrentCodexReasoningSelection().mode;
+    if (codexModelCatalogStatus === "ready" && reconciledMode !== currentMode) {
+      setCodexReasoningModePref(reconciledMode);
+    }
+    return reconciledMode;
+  };
   const refreshOpenCodexModelMenu = () => {
     updateModelButton();
     updateReasoningButton();
@@ -821,7 +881,56 @@ export function setupHandlers(
     }
     positionFloatingMenu(body, modelMenu, modelBtn);
   };
-
+  const ensureCodexModelCatalogLoaded = (): Promise<void> => {
+    if (!isCodexConversationSystem()) return Promise.resolve();
+    const codexPath = getConfiguredCodexAppServerBinaryPath();
+    if (
+      codexModelCatalogStatus === "ready" &&
+      codexPath === codexModelCatalogPath
+    ) {
+      return Promise.resolve();
+    }
+    if (codexModelCatalogInFlight) return codexModelCatalogInFlight;
+    codexModelCatalogStatus = "loading";
+    codexModelCatalogError = "";
+    codexModelCatalogPath = codexPath;
+    refreshOpenCodexModelMenu();
+    codexModelCatalogInFlight = loadCodexAppServerModelCatalog({ codexPath })
+      .then((catalog) => {
+        codexModelCatalogModels = catalog.models;
+        codexModelCatalogStatus = "ready";
+        codexModelCatalogError = "";
+        reconcileSelectedCodexReasoningMode();
+      })
+      .catch((error: unknown) => {
+        codexModelCatalogModels = [];
+        codexModelCatalogStatus = "error";
+        codexModelCatalogError =
+          error instanceof Error ? error.message : String(error);
+        ztoolkit.log("Codex app-server: failed to load model catalog", error);
+      })
+      .finally(() => {
+        codexModelCatalogInFlight = null;
+        refreshOpenCodexModelMenu();
+      });
+    return codexModelCatalogInFlight;
+  };
+  const getCodexRuntimeModelEntries = (): RuntimeModelEntry[] => {
+    const model = getCodexRuntimeModelPref();
+    return buildCodexRuntimeModelEntries({
+      models: codexModelCatalogModels,
+      selectedModel: model,
+      codexPath: getConfiguredCodexAppServerBinaryPath(),
+    });
+  };
+  const getSelectedCodexRuntimeEntry = (): RuntimeModelEntry => {
+    const selectedModel = getCodexRuntimeModelPref().toLowerCase();
+    const entries = getCodexRuntimeModelEntries();
+    return (
+      entries.find((entry) => entry.model.toLowerCase() === selectedModel) ||
+      entries[0]!
+    );
+  };
 
   const getCurrentLibraryID = (): number => {
     const fromItem =
@@ -910,8 +1019,6 @@ export function setupHandlers(
   const updateRuntimeSystemToggles = () => {
     syncRuntimeSystemControls(panelRuntimeSystemControls, {
       activeSystem: getConversationSystem(),
-      codexEnabled: isCodexModeAvailable(),
-      claudeEnabled: isClaudeModeAvailable(),
       hidden: isWebChatModeActive(),
       busy: runtimeSystemSwitchInFlight,
     });
@@ -966,7 +1073,7 @@ export function setupHandlers(
   ) => Promise<boolean> = async () => false;
   let switchPaperConversation: (
     nextConversationKey?: number,
-  ) => Promise<boolean | void> = async () => {};
+  ) => Promise<boolean | void>;
   let createAndSwitchGlobalConversation: (
     forceFresh?: boolean,
   ) => Promise<boolean | void> = async () => {};
@@ -1044,16 +1151,16 @@ export function setupHandlers(
         return;
       }
       const nextConversationKey = (() => {
-                const lockedKey = getLockedGlobalConversationKey(libraryID);
-                if (lockedKey !== null) return lockedKey;
-                const activeKey = Number(
-                  activeGlobalConversationByLibrary.get(libraryID) || 0,
-                );
-                if (!isUpstreamGlobalConversationKey(activeKey)) return 0;
-                return activeKey === GLOBAL_CONVERSATION_KEY_BASE
-                  ? buildDefaultUpstreamGlobalConversationKey(libraryID)
-                  : Math.floor(activeKey);
-              })();
+        const lockedKey = getLockedGlobalConversationKey(libraryID);
+        if (lockedKey !== null) return lockedKey;
+        const activeKey = Number(
+          activeGlobalConversationByLibrary.get(libraryID) || 0,
+        );
+        if (!isUpstreamGlobalConversationKey(activeKey)) return 0;
+        return activeKey === GLOBAL_CONVERSATION_KEY_BASE
+          ? buildDefaultUpstreamGlobalConversationKey(libraryID)
+          : Math.floor(activeKey);
+      })();
       if (nextConversationKey > 0) {
         await switchGlobalConversation(nextConversationKey);
       } else {
@@ -1340,14 +1447,12 @@ export function setupHandlers(
       updateRuntimeModeButton();
     };
 
-
     try {
       agentObserverId = (Zotero as any).Prefs.registerObserver(
         agentPrefKey,
         onAgentPrefChange,
         true,
       );
-
     } catch {
       // Zotero.Prefs.registerObserver not available – no live sync
     }
@@ -1565,11 +1670,11 @@ export function setupHandlers(
       uploadBtn.setAttribute("aria-expanded", "false");
     }
   };
-  let openModelMenu = () => {};
+  let openModelMenu: () => void;
   let closeModelMenu = () => {
     setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
   };
-  let openReasoningMenu = () => {};
+  let openReasoningMenu: () => void;
   let closeReasoningMenu = () => {
     setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
   };
@@ -2460,7 +2565,9 @@ export function setupHandlers(
     if (paperChipMenu) {
       paperChipMenu.style.display = "none";
     }
-    paperChipMenuAnchor?.classList.remove("paperpilotpaper-context-chip-menu-open");
+    paperChipMenuAnchor?.classList.remove(
+      "paperpilotpaper-context-chip-menu-open",
+    );
     paperChipMenuAnchor = null;
     paperChipMenuTarget = null;
     paperChipMenuSticky = false;
@@ -2584,10 +2691,15 @@ export function setupHandlers(
       "div",
       "paperpilotpaper-picker-group-title-line",
     );
-    const title = createElement(ownerDoc, "span", "paperpilotpaper-picker-title", {
-      textContent: options?.title || paperContext.title,
-      title: options?.title || paperContext.title,
-    });
+    const title = createElement(
+      ownerDoc,
+      "span",
+      "paperpilotpaper-picker-title",
+      {
+        textContent: options?.title || paperContext.title,
+        title: options?.title || paperContext.title,
+      },
+    );
     titleLine.appendChild(title);
     const mode = options?.contentSourceMode;
     const badgeText =
@@ -2606,10 +2718,15 @@ export function setupHandlers(
                   ? "DOCX"
                   : null);
     if (badgeText) {
-      const badge = createElement(ownerDoc, "span", "paperpilotpaper-picker-badge", {
-        textContent: badgeText,
-        title: options?.mineruActionTitle,
-      });
+      const badge = createElement(
+        ownerDoc,
+        "span",
+        "paperpilotpaper-picker-badge",
+        {
+          textContent: badgeText,
+          title: options?.mineruActionTitle,
+        },
+      );
       titleLine.appendChild(badge);
     }
     rowMain.appendChild(titleLine);
@@ -3141,7 +3258,9 @@ export function setupHandlers(
     if (!menu) return;
     clearPaperChipMenuHideTimer();
     if (paperChipMenuAnchor && paperChipMenuAnchor !== chip) {
-      paperChipMenuAnchor.classList.remove("paperpilotpaper-context-chip-menu-open");
+      paperChipMenuAnchor.classList.remove(
+        "paperpilotpaper-context-chip-menu-open",
+      );
     }
     paperChipMenuAnchor = chip;
     chip.classList.add("paperpilotpaper-context-chip-menu-open");
@@ -3280,8 +3399,7 @@ export function setupHandlers(
       }
     }
     const pane = Zotero.getActiveZoteroPane?.() as
-      | _ZoteroTypes.ZoteroPane
-      | undefined;
+      _ZoteroTypes.ZoteroPane | undefined;
     if (pane) {
       if (typeof pane.selectItems === "function") {
         const selectItems = pane.selectItems as (
@@ -3636,13 +3754,27 @@ export function setupHandlers(
       "div",
       "paperpilotimage-preview-header paperpilotselected-context-header paperpilottag-chip-header",
     );
-    const chipLabel = createElement(ownerDoc, "span", "paperpilottag-chip-label", {
-      title: `Tag: ${ref.name}`,
-    });
-    const chipIcon = createContextIcon(ownerDoc, "tag", "paperpilottag-chip-icon");
-    const chipTitle = createElement(ownerDoc, "span", "paperpilottag-chip-title", {
-      textContent: ref.name,
-    });
+    const chipLabel = createElement(
+      ownerDoc,
+      "span",
+      "paperpilottag-chip-label",
+      {
+        title: `Tag: ${ref.name}`,
+      },
+    );
+    const chipIcon = createContextIcon(
+      ownerDoc,
+      "tag",
+      "paperpilottag-chip-icon",
+    );
+    const chipTitle = createElement(
+      ownerDoc,
+      "span",
+      "paperpilottag-chip-title",
+      {
+        textContent: ref.name,
+      },
+    );
     chipLabel.append(chipIcon, chipTitle);
     const removeBtn = createElement(
       ownerDoc,
@@ -3812,15 +3944,29 @@ export function setupHandlers(
       const pinned = isPinnedFile(pinnedFileKeys, itemId, attachment);
       row.classList.toggle("paperpilotfile-context-item-pinned", pinned);
       row.dataset.pinned = pinned ? "true" : "false";
-      const type = createElement(ownerDoc, "span", "paperpilotfile-context-type", {
-        textContent: getAttachmentTypeLabel(attachment),
-        title: attachment.mimeType || attachment.category || "file",
-      });
-      const info = createElement(ownerDoc, "div", "paperpilotfile-context-text");
-      const name = createElement(ownerDoc, "span", "paperpilotfile-context-name", {
-        textContent: attachment.name,
-        title: attachment.name,
-      });
+      const type = createElement(
+        ownerDoc,
+        "span",
+        "paperpilotfile-context-type",
+        {
+          textContent: getAttachmentTypeLabel(attachment),
+          title: attachment.mimeType || attachment.category || "file",
+        },
+      );
+      const info = createElement(
+        ownerDoc,
+        "div",
+        "paperpilotfile-context-text",
+      );
+      const name = createElement(
+        ownerDoc,
+        "span",
+        "paperpilotfile-context-name",
+        {
+          textContent: attachment.name,
+          title: attachment.name,
+        },
+      );
       const meta = createElement(
         ownerDoc,
         "span",
@@ -3953,7 +4099,11 @@ export function setupHandlers(
 
       previewStrip.innerHTML = "";
       for (const [index, imageUrl] of selectedImages.entries()) {
-        const thumbItem = createElement(ownerDoc, "div", "paperpilotpreview-item");
+        const thumbItem = createElement(
+          ownerDoc,
+          "div",
+          "paperpilotpreview-item",
+        );
         thumbItem.dataset.imageContextIndex = `${index}`;
         const pinned = isPinnedImage(pinnedImageKeys, item.id, imageUrl);
         thumbItem.classList.toggle("paperpilotpreview-item-pinned", pinned);
@@ -4259,6 +4409,7 @@ export function setupHandlers(
     historyLifecycleController.refreshGlobalHistoryHeader;
   switchGlobalConversation =
     historyLifecycleController.switchGlobalConversation;
+  // eslint-disable-next-line prefer-const
   switchPaperConversation = historyLifecycleController.switchPaperConversation;
   createAndSwitchGlobalConversation =
     historyLifecycleController.createAndSwitchGlobalConversation;
@@ -4786,16 +4937,43 @@ export function setupHandlers(
     }
   };
 
-
-
   const getClaudeReasoningDisplayScopeKey = () => {
     const { selectedEntryId, currentModel } = getSelectedModelInfo();
     return `${selectedEntryId || "claude-runtime"}::${currentModel}`;
   };
 
-
-
-
+  type ClaudeReasoningDisplayMode =
+    "auto" | "low" | "medium" | "high" | "xhigh" | "max";
+  let claudeReasoningDisplayOverride: {
+    mode: ClaudeReasoningDisplayMode;
+    modelKey: string;
+  } | null = null;
+  const getClaudeReasoningDisplayMode = (): ClaudeReasoningDisplayMode => {
+    if (claudeReasoningDisplayOverride) {
+      if (
+        claudeReasoningDisplayOverride.modelKey ===
+        getClaudeReasoningDisplayScopeKey()
+      ) {
+        return claudeReasoningDisplayOverride.mode;
+      }
+      claudeReasoningDisplayOverride = null;
+    }
+    return getClaudeReasoningModePref();
+  };
+  const getClaudeReasoningDisplayLabel = (
+    mode: ClaudeReasoningDisplayMode,
+  ): string => {
+    if (mode === "auto") return "Auto";
+    if (mode === "xhigh") return "XHigh";
+    if (mode === "max") return "Max";
+    if (mode === "high") return "High";
+    if (mode === "medium") return "Medium";
+    if (mode === "low") return "Low";
+    return "Auto";
+  };
+  const clearClaudeReasoningDisplayOverride = () => {
+    claudeReasoningDisplayOverride = null;
+  };
 
   const getReasoningState = () => {
     if (!item) {
@@ -4961,6 +5139,31 @@ export function setupHandlers(
     const key = getConversationKey(item);
     return webChatIsolatedConversationKeys.has(key) && chatHistory.has(key);
   };
+  let webchatConnectionTimer: ReturnType<typeof setInterval> | null = null;
+  const startWebChatConnectionCheck = (dot: HTMLElement) => {
+    stopWebChatConnectionCheck();
+    const check = async () => {
+      try {
+        const { getRelayBaseUrl } = await import("../../webchat/relayServer");
+        const host = getRelayBaseUrl();
+        const { testConnection } = await import("../../webchat/client");
+        const alive = await testConnection(host);
+        dot.className = alive
+          ? "llm-webchat-dot llm-webchat-dot-connected"
+          : "llm-webchat-dot llm-webchat-dot-disconnected";
+      } catch {
+        dot.className = "llm-webchat-dot llm-webchat-dot-disconnected";
+      }
+    };
+    void check();
+    webchatConnectionTimer = setInterval(check, 5000);
+  };
+  const stopWebChatConnectionCheck = () => {
+    if (webchatConnectionTimer !== null) {
+      clearInterval(webchatConnectionTimer);
+      webchatConnectionTimer = null;
+    }
+  };
 
   // Expose webchat intent clearing via hooks so standalone can call it
   // when loading a conversation from its own sidebar/popup.
@@ -4971,7 +5174,6 @@ export function setupHandlers(
     hooks.getCurrentModelName = () =>
       getSelectedModelInfo().currentModel || null;
   }
-
 
   updateReasoningButton = () => {
     if (!item || !reasoningBtn) return;
@@ -5088,7 +5290,6 @@ export function setupHandlers(
       t("Reasoning level"),
       "paperpilotreasoning-menu-section",
     );
-
 
     if (!enabledLevels.length) {
       const offOption = createElement(
@@ -5253,7 +5454,101 @@ export function setupHandlers(
   const { warmUpWebChatHistory } = webChatHistoryController;
   renderWebChatHistoryMenu = webChatHistoryController.renderWebChatHistoryMenu;
 
+  const applyWebChatModeUI = () => {
+    let isWebChat: boolean;
+    try {
+      const { selectedEntry } = getSelectedModelInfo();
+      isWebChat = selectedEntry?.authMode === "webchat";
+    } catch {
+      try {
+        const lastId = getLastUsedModelEntryId();
+        const entry = lastId ? getModelEntryById(lastId) : null;
+        isWebChat = entry?.authMode === "webchat";
+      } catch {
+        return;
+      }
+    }
 
+    panelRoot.dataset.webchatMode = isWebChat ? "true" : "false";
+    syncQueuedFollowUpRegistration();
+    if (modeChipBtn) {
+      if (isWebChat) {
+        let webchatChipLabel = "chatgpt";
+        let webchatChipTitle = "WebChat Sync";
+        try {
+          const { currentModel } = getSelectedModelInfo();
+          const entry = getWebChatTargetByModelName(currentModel || "");
+          if (entry) {
+            webchatChipLabel = entry.displayName;
+            webchatChipTitle = `${entry.label} Web Sync (${entry.modelName})`;
+          }
+        } catch {
+          // Keep the generic webchat label when model metadata is unavailable.
+        }
+        let dot = modeChipBtn.querySelector(
+          ".llm-webchat-dot",
+        ) as HTMLElement | null;
+        if (!dot) {
+          dot = (modeChipBtn.ownerDocument as Document).createElement("span");
+          dot.className = "llm-webchat-dot llm-webchat-dot-disconnected";
+        }
+        modeChipBtn.textContent = "";
+        modeChipBtn.appendChild(dot);
+        modeChipBtn.appendChild(
+          (modeChipBtn.ownerDocument as Document).createTextNode(
+            ` ${webchatChipLabel}`,
+          ),
+        );
+        modeChipBtn.title = webchatChipTitle;
+        modeChipBtn.disabled = true;
+        modeChipBtn.setAttribute("aria-disabled", "true");
+        modeChipBtn.dataset.webchatStatic = "true";
+        modeChipBtn.style.cursor = "default";
+        startWebChatConnectionCheck(dot);
+      } else {
+        const oldDot = modeChipBtn.querySelector(".llm-webchat-dot");
+        if (oldDot) {
+          oldDot.remove();
+          const chipLabel = isGlobalMode() ? "Library chat" : "Paper chat";
+          modeChipBtn.textContent = chipLabel;
+          modeChipBtn.title = isGlobalMode()
+            ? "Switch to paper chat"
+            : "Switch to library chat";
+        }
+        stopWebChatConnectionCheck();
+        modeChipBtn.disabled = false;
+        modeChipBtn.removeAttribute("aria-disabled");
+        delete modeChipBtn.dataset.webchatStatic;
+        modeChipBtn.style.cursor = "";
+      }
+    }
+    if (modelBtn) {
+      modelBtn.disabled = isWebChat;
+      modelBtn.style.opacity = isWebChat ? "0.5" : "";
+      modelBtn.style.cursor = isWebChat ? "default" : "";
+      modelBtn.style.pointerEvents = isWebChat ? "none" : "";
+    }
+    if (isWebChat && !hasExistingWebChatSessionForCurrentItem()) {
+      void warmUpWebChatHistory();
+    }
+    if (clearBtn) {
+      if (isWebChat) {
+        clearBtn.textContent = "Exit";
+        clearBtn.disabled = false;
+        clearBtn.style.opacity = "";
+        clearBtn.title = "Exit webchat and return to previous model";
+      } else {
+        clearBtn.textContent = "Clear";
+        clearBtn.title = "";
+      }
+    }
+    if (uploadBtn) uploadBtn.style.display = isWebChat ? "none" : "";
+    if (isWebChat) updatePaperPreviewPreservingScroll();
+    updateRuntimeModeButton();
+    updateRuntimeSystemToggles();
+    hooks?.onWebChatModeChanged?.(isWebChat);
+    syncRequestUiForCurrentConversation();
+  };
 
   // Initialize model and preview state.  Keep panel-state DOM refresh queued
   // until setup-local helpers are ready, then flush once.
@@ -5261,7 +5556,21 @@ export function setupHandlers(
   syncModelFromPrefs();
   flushResponsiveLayoutSyncNow();
   // Set active_target before applyWebChatModeUI so sidebar filters by the correct site
-
+  try {
+    if (isWebChatMode()) {
+      const coldEntry = getWebChatTargetByModelName(
+        getSelectedModelInfo().currentModel || "",
+      );
+      if (coldEntry?.id) {
+        const { relaySetActiveTarget } =
+          require("../../webchat/relayServer") as typeof import("../../webchat/relayServer");
+        relaySetActiveTarget(coldEntry.id);
+      }
+    }
+  } catch {
+    // Webchat may not be initialized during the first panel render.
+  }
+  applyWebChatModeUI();
   resetComposePreviewUI();
   flushPanelStateRefreshNow();
 
@@ -5332,7 +5641,7 @@ export function setupHandlers(
 
   function getSelectedProfile() {
     if (!item) return null;
-      
+
     return getSelectedModelEntryForItem(item.id);
   }
 
@@ -5979,13 +6288,12 @@ export function setupHandlers(
       loadedConversationKeys.add(conversationKey);
     },
     invalidateConversationSession: async (conversationKey) => {
+      if (!item) return;
 
       const libraryID = Number(item.libraryID || 0);
       const currentKind = resolveDisplayConversationKind(item);
       const baseItem = resolveConversationBaseItem(item);
       if (!Number.isFinite(libraryID) || libraryID <= 0 || !currentKind) return;
-
-
     },
     clearStoredConversation: (conversationKey) =>
       clearStoredConversation(conversationKey),
@@ -6055,10 +6363,9 @@ export function setupHandlers(
       // The original plugin agent keeps text/MinerU behavior; Claude Code can
       // explicitly receive raw PDF paths.
       const isAgent = getCurrentRuntimeMode() === "agent";
-      const pdfModePapers =
-        isAgent
-          ? []
-          : getEffectivePdfModePaperContexts(currentItem, allPaperContexts);
+      const pdfModePapers = isAgent
+        ? []
+        : getEffectivePdfModePaperContexts(currentItem, allPaperContexts);
       const pdfModeKeys = new Set(
         pdfModePapers.map((p) => `${p.itemId}:${p.contextItemId}`),
       );
@@ -6535,6 +6842,7 @@ export function setupHandlers(
     },
   });
 
+  // eslint-disable-next-line prefer-const
   openModelMenu = () => {
     if (!modelMenu || !modelBtn) return;
     if ((modelBtn as HTMLButtonElement).disabled) return;
@@ -6561,6 +6869,7 @@ export function setupHandlers(
     setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
   };
 
+  // eslint-disable-next-line prefer-const
   openReasoningMenu = () => {
     if (!reasoningMenu || !reasoningBtn) return;
     closeSlashMenu();
@@ -6733,7 +7042,7 @@ export function setupHandlers(
   }): boolean => {
     const cancelledReviewRequestIds = cancelVisiblePendingConfirmationCards(
       chatBox || body,
-      (_requestId, _resolution) => {},
+      (_requestId, _resolution) => true,
     );
     if (
       options?.requireVisibleReviewCard &&
@@ -6776,7 +7085,9 @@ export function setupHandlers(
         }
       }
     }
-    body.querySelectorAll(".paperpilottyping").forEach((el: Element) => el.remove());
+    body
+      .querySelectorAll(".paperpilottyping")
+      .forEach((el: Element) => el.remove());
     // Re-enable UI for the cancelled conversation
     if (inputBox) inputBox.disabled = false;
     if (sendBtn) {

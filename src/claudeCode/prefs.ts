@@ -170,9 +170,7 @@ export function getClaudeCustomInstructionPref(): string {
 }
 
 export function getClaudeConfigSourcePref():
-  | "default"
-  | "user-only"
-  | "zotero-only" {
+  "default" | "user-only" | "zotero-only" {
   const raw = getStringPref("agentClaudeConfigSource").trim().toLowerCase();
   if (raw === "user-level" || raw === "user-only") return "user-only";
   if (raw === "zotero-specific" || raw === "zotero-only") return "zotero-only";

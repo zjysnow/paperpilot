@@ -7,6 +7,7 @@ import {
   readAttachmentBytes,
 } from "../../attachmentStorage";
 import type { ChatAttachment, PaperContextRef } from "../../types";
+import { renderAllPdfPages } from "../../../../agent/services/pdfPageService";
 
 type PdfPaperAttachmentResolverDeps = {
   logError?: (message: string, ...args: unknown[]) => void;
@@ -15,7 +16,7 @@ type PdfPaperAttachmentResolverDeps = {
 async function resolvePdfAttachmentFilePath(
   contextItemId: number,
 ): Promise<string | null> {
-  const attachment = Zotero.Items.get(contextItemId);
+  const attachment = Zotero.Items.get(contextItemId) || null;
   if (
     !attachment?.isAttachment?.() ||
     attachment.attachmentContentType !== "application/pdf"

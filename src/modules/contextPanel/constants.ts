@@ -196,10 +196,7 @@ export const STOPWORDS = new Set([
 ]);
 
 export type ModelProfileKey =
-  | "primary"
-  | "secondary"
-  | "tertiary"
-  | "quaternary";
+  "primary" | "secondary" | "tertiary" | "quaternary";
 
 export const MODEL_PROFILE_ORDER: ModelProfileKey[] = [
   "primary",

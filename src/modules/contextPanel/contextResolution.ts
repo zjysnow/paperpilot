@@ -156,9 +156,7 @@ function getZoteroTabsStateWithSource(): {
   let activePaneWindow: any = null;
   try {
     const activePane = Zotero.getActiveZoteroPane?.() as
-      | { document?: Document }
-      | null
-      | undefined;
+      { document?: Document } | null | undefined;
     activePaneWindow = activePane?.document?.defaultView || null;
   } catch (_error) {
     void _error;
@@ -299,7 +297,7 @@ export function getActiveContextAttachmentFromTabs(): Zotero.Item | null {
   const data = activeTab.data || {};
   const candidateIDs = collectCandidateItemIDsFromObject(data);
   for (const itemId of candidateIDs) {
-    const item = Zotero.Items.get(itemId);
+    const item = Zotero.Items.get(itemId) || null;
     if (isSupportedContextAttachment(item)) return item;
   }
 
@@ -311,7 +309,7 @@ export function getActiveContextAttachmentFromTabs(): Zotero.Item | null {
   ).Reader?.getByTabID?.(selectedId);
   const readerItemId = parseItemID(reader?._item?.id ?? reader?.itemID);
   if (readerItemId !== null) {
-    const readerItem = Zotero.Items.get(readerItemId);
+    const readerItem = Zotero.Items.get(readerItemId) || null;
     if (isSupportedContextAttachment(readerItem)) return readerItem;
   }
 
@@ -403,7 +401,7 @@ function getFirstPdfChildAttachment(
   if (!item || item.isAttachment()) return null;
   const attachments = item.getAttachments();
   for (const attachmentId of attachments) {
-    const attachment = Zotero.Items.get(attachmentId);
+    const attachment = Zotero.Items.get(attachmentId) || null;
     if (isPdfContextAttachment(attachment)) {
       return attachment;
     }
@@ -783,7 +781,7 @@ export function getItemSelectionCacheKeys(
     try {
       const attachments = item.getAttachments();
       for (const attId of attachments) {
-        const att = Zotero.Items.get(attId);
+        const att = Zotero.Items.get(attId) || null;
         if (isSupportedContextAttachment(att)) {
           keys.add(att.id);
         }
@@ -1399,7 +1397,8 @@ export function createNoteContextChip(
   noteChip.classList.toggle("collapsed", !options.expanded);
 
   const noteHeader = ownerDoc.createElement("div");
-  noteHeader.className = "paperpilotimage-preview-header paperpilotselected-context-header";
+  noteHeader.className =
+    "paperpilotimage-preview-header paperpilotselected-context-header";
 
   const noteMeta = ownerDoc.createElement("button");
   noteMeta.type = "button";
@@ -1411,7 +1410,11 @@ export function createNoteContextChip(
     noteMeta.dataset.contextIndex = `${options.removableIndex}`;
     noteChip.dataset.contextIndex = `${options.removableIndex}`;
   }
-  const noteIcon = createContextIcon(ownerDoc, "note", "paperpilotnote-context-icon");
+  const noteIcon = createContextIcon(
+    ownerDoc,
+    "note",
+    "paperpilotnote-context-icon",
+  );
   const noteLabel = ownerDoc.createElement("span");
   noteLabel.className = "paperpilotnote-context-label";
   noteLabel.textContent = noteLabelText;
@@ -1421,7 +1424,8 @@ export function createNoteContextChip(
   if (options.removableIndex !== undefined) {
     const noteClear = ownerDoc.createElement("button");
     noteClear.type = "button";
-    noteClear.className = "paperpilotremove-img-btn paperpilotselected-context-clear";
+    noteClear.className =
+      "paperpilotremove-img-btn paperpilotselected-context-clear";
     noteClear.dataset.contextIndex = `${options.removableIndex}`;
     noteClear.textContent = "×";
     noteClear.title = `Clear ${noteLabelText}`;
@@ -1435,7 +1439,8 @@ export function createNoteContextChip(
   noteExpanded.hidden = false;
   noteExpanded.style.display = "flex";
   const noteBody = ownerDoc.createElement("div");
-  noteBody.className = "paperpilotselected-context-text paperpilotnote-context-text";
+  noteBody.className =
+    "paperpilotselected-context-text paperpilotnote-context-text";
   noteBody.textContent = snapshot.text || "Empty note";
   noteExpanded.appendChild(noteBody);
 
@@ -1484,7 +1489,9 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
   if (!previewList) return;
 
   const selectedContexts = getSelectedTextContextEntries(itemId);
-  const panelRoot = body.querySelector("#paperpilot-main") as HTMLDivElement | null;
+  const panelRoot = body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLDivElement | null;
   // Show the active-note chip whenever the panel is in note-editing mode,
   // regardless of whether the user has selected any text in the editor.
   const showActiveNoteChip = Boolean(panelRoot?.dataset.noteId);
@@ -1635,7 +1642,8 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
 
     const previewMeta = ownerDoc.createElement("button");
     previewMeta.type = "button";
-    previewMeta.className = "paperpilotimage-preview-meta paperpilotselected-context-meta";
+    previewMeta.className =
+      "paperpilotimage-preview-meta paperpilotselected-context-meta";
     previewMeta.dataset.contextIndex = `${index}`;
     previewMeta.dataset.contextSource = selectedSource;
     previewMeta.classList.toggle(
@@ -1694,7 +1702,8 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
     if (selectedSource !== "note-edit") {
       const previewClear = ownerDoc.createElement("button");
       previewClear.type = "button";
-      previewClear.className = "paperpilotremove-img-btn paperpilotselected-context-clear";
+      previewClear.className =
+        "paperpilotremove-img-btn paperpilotselected-context-clear";
       previewClear.dataset.contextIndex = `${index}`;
       previewClear.textContent = "×";
       previewClear.title = "Clear selected context";
@@ -1732,7 +1741,9 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
 }
 
 export function refreshActiveNoteChipPreview(body: Element): void {
-  const panelRoot = body.querySelector("#paperpilot-main") as HTMLDivElement | null;
+  const panelRoot = body.querySelector(
+    "#paperpilot-main",
+  ) as HTMLDivElement | null;
   const previewList = body.querySelector(
     "#paperpilotselected-context-list",
   ) as HTMLDivElement | null;

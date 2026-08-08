@@ -22,11 +22,7 @@ import {
 } from "./tools/write/mutateLibraryShared";
 
 type SearchLiteratureOnlineMode =
-  | "recommendations"
-  | "references"
-  | "citations"
-  | "search"
-  | "metadata";
+  "recommendations" | "references" | "citations" | "search" | "metadata";
 
 type SearchLiteratureOnlineSource = "openalex" | "arxiv" | "europepmc";
 type SearchLiteratureOnlineWorkflow = "answer" | "review";
@@ -392,8 +388,7 @@ function prepareSearchReview(
   }
   const content = result.content as Record<string, unknown>;
   const mode = readString(content.mode) as
-    | SearchLiteratureOnlineMode
-    | undefined;
+    SearchLiteratureOnlineMode | undefined;
   const results = Array.isArray(content.results) ? content.results : [];
   if (!mode || results.length === 0) {
     return null;
@@ -551,12 +546,10 @@ function normalizeSearchReviewArgs(args: unknown): SearchReviewArgs {
   const paperContext = validateMetadataPaperContext(record.paperContext);
   return {
     workflow: readString(record.workflow) as
-      | SearchLiteratureOnlineWorkflow
-      | undefined,
+      SearchLiteratureOnlineWorkflow | undefined,
     mode: readString(record.mode) as SearchLiteratureOnlineMode | undefined,
     source: readString(record.source) as
-      | SearchLiteratureOnlineSource
-      | undefined,
+      SearchLiteratureOnlineSource | undefined,
     limit: readPositiveInt(record.limit),
     libraryID: readPositiveInt(record.libraryID),
     itemId: readPositiveInt(record.itemId),
@@ -1057,8 +1050,7 @@ export function resolveSearchLiteratureReview(
             context.request.userText,
           source:
             (readString(data.nextSource) as
-              | SearchLiteratureOnlineSource
-              | undefined) ||
+              SearchLiteratureOnlineSource | undefined) ||
             normalizedArgs.source ||
             "openalex",
           limit: Math.min(

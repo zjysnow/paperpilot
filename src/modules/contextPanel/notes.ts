@@ -195,9 +195,7 @@ async function renderRawNoteHtmlForSave(
 export function resolveParentItemForNoteTarget(
   item: Zotero.Item,
 ): Zotero.Item | null {
-  if (
-    isGlobalPortalItem(item)
-  ) {
+  if (isGlobalPortalItem(item)) {
     return null;
   }
   if (isPaperPortalItem(item)) {

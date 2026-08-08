@@ -29,11 +29,7 @@ export type AgentSkill = {
 };
 
 export type SkillContextKind =
-  | "any"
-  | "single-paper"
-  | "paper-set"
-  | "library-corpus"
-  | "note";
+  "any" | "single-paper" | "paper-set" | "library-corpus" | "note";
 
 export type SkillActivationMode = "auto" | "manual" | "both";
 

@@ -48,12 +48,7 @@ import { detectExplicitFullReadIntent } from "../../../modules/contextPanel/retr
 import { createCodexAppServerExhaustiveReaderSession } from "../../../codexAppServer/exhaustiveReader";
 
 type PaperReadMode =
-  | "overview"
-  | "targeted"
-  | "full"
-  | "figures"
-  | "visual"
-  | "capture";
+  "overview" | "targeted" | "full" | "figures" | "visual" | "capture";
 
 type PaperReadInput = {
   mode: PaperReadMode;
@@ -371,7 +366,7 @@ async function buildMineruVisualRedirect(params: {
   ) {
     return null;
   }
-  let targets: NonNullable<PdfTarget["paperContext"]>[] = [];
+  let targets: NonNullable<PdfTarget["paperContext"]>[];
   try {
     targets = resolveDefaultTargets(
       params.input.target,
@@ -999,8 +994,7 @@ export function createPaperReadTool(
           }
           if (mode === "full") {
             const receipt = c?.coverageReceipt as
-              | { processedChunks?: number; totalChunks?: number }
-              | undefined;
+              { processedChunks?: number; totalChunks?: number } | undefined;
             return `Read ${receipt?.processedChunks || 0}/${receipt?.totalChunks || 0} full-text chunks`;
           }
           if (mode === "overview" && results?.length) {

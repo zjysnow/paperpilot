@@ -234,7 +234,9 @@ export async function renderShortcuts(
 
     const prompt = updated.prompt.trim();
     if (!prompt) {
-      const status = body.querySelector("#paperpilotstatus") as HTMLElement | null;
+      const status = body.querySelector(
+        "#paperpilotstatus",
+      ) as HTMLElement | null;
       if (status) setStatus(status, "Shortcut prompt cannot be empty", "error");
       return;
     }
@@ -248,7 +250,9 @@ export async function renderShortcuts(
       visibleBuiltinCount + currentCustomShortcuts.length >=
       MAX_EDITABLE_SHORTCUTS
     ) {
-      const status = body.querySelector("#paperpilotstatus") as HTMLElement | null;
+      const status = body.querySelector(
+        "#paperpilotstatus",
+      ) as HTMLElement | null;
       if (status) {
         setStatus(
           status,
@@ -430,7 +434,9 @@ export async function renderShortcuts(
     const inputBox = body.querySelector(
       "#paperpilotinput",
     ) as HTMLTextAreaElement | null;
-    const sendBtn = body.querySelector("#paperpilotsend") as HTMLButtonElement | null;
+    const sendBtn = body.querySelector(
+      "#paperpilotsend",
+    ) as HTMLButtonElement | null;
     if (!inputBox || !sendBtn) return;
     inputBox.value = nextPrompt;
     sendBtn.click();
@@ -547,7 +553,9 @@ export async function renderShortcuts(
       draggingButton.classList.remove("paperpilotshortcut-dragging");
       draggingButton = null;
     }
-    const highlighted = container.querySelectorAll(".paperpilotshortcut-drop-target");
+    const highlighted = container.querySelectorAll(
+      ".paperpilotshortcut-drop-target",
+    );
     highlighted.forEach((el: Element) =>
       (el as HTMLElement).classList.remove("paperpilotshortcut-drop-target"),
     );
@@ -577,7 +585,9 @@ export async function renderShortcuts(
       }
       const nextPrompt = updated.prompt.trim();
       if (!nextPrompt) {
-        const status = body.querySelector("#paperpilotstatus") as HTMLElement | null;
+        const status = body.querySelector(
+          "#paperpilotstatus",
+        ) as HTMLElement | null;
         if (status)
           setStatus(status, "Shortcut prompt cannot be empty", "error");
         menu.style.display = "none";

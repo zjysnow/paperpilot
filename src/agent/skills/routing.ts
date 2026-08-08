@@ -217,15 +217,13 @@ function resolveNaturalLanguageSkillId(
   if (!phraseTokens.length) return undefined;
 
   const scored = skills
-    .map(
-      (skill): SkillCandidateScore => ({
-        skill,
-        score: Math.max(
-          scoreIdAliasMatch(skill, phraseTokens),
-          scoreDescriptionMatch(skill, phraseTokens),
-        ),
-      }),
-    )
+    .map((skill): SkillCandidateScore => ({
+      skill,
+      score: Math.max(
+        scoreIdAliasMatch(skill, phraseTokens),
+        scoreDescriptionMatch(skill, phraseTokens),
+      ),
+    }))
     .filter((candidate) => candidate.score > 0)
     .sort((a, b) => b.score - a.score);
 

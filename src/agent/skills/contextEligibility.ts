@@ -26,8 +26,7 @@ export type SkillRequestContext = {
 };
 
 export type SkillContextEligibility =
-  | { eligible: true }
-  | { eligible: false; reason: string };
+  { eligible: true } | { eligible: false; reason: string };
 
 const CORPUS_TARGET_PATTERN =
   /\b(?:this|the|current|selected)\s+(?:collection|tag)\b|\bmy\s+library\b|\b(?:whole|entire)\s+library\b|\ball\s+(?:papers?|items?|articles?|studies)\b|\b(?:literature|lit)\s+review\b|\breview\s+of\s+(?:the\s+)?literature\b|\b(?:synthesi[sz]e|survey)\b.*\b(?:papers?|articles?|studies|findings?|research|literature|collection|tag|library)\b|\b(?:these|selected)\s+(?:papers?|articles?|studies)\b/i;

@@ -575,7 +575,7 @@ export const libraryStatisticsAction: AgentAction<
           let itemAnnotationCount = 0;
 
           for (const attId of attachmentIds) {
-            const att = Zotero.Items.get(attId);
+            const att = Zotero.Items.get(attId) || null;
             if (!att?.isAttachment?.()) continue;
             const contentType = normalizeText(att.attachmentContentType);
             if (contentType !== "application/pdf") continue;
@@ -587,7 +587,7 @@ export const libraryStatisticsAction: AgentAction<
                 }
               ).getAnnotations?.(false) || [];
             for (const annId of annotationIds) {
-              const ann = Zotero.Items.get(annId);
+              const ann = Zotero.Items.get(annId) || null;
               if (!ann?.isAnnotation?.()) continue;
               const annType =
                 normalizeText(
@@ -633,7 +633,7 @@ export const libraryStatisticsAction: AgentAction<
     ctx.onProgress({
       type: "step_start",
       step: "Compiling results",
-      index: ++step,
+      index: step + 1,
       total: STEPS,
     });
 

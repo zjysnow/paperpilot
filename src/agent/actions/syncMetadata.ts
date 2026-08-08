@@ -199,8 +199,7 @@ export const syncMetadataAction: AgentAction<
       // The patch is built at the source (literatureSearchService) — just read it.
       // Only fill in fields that are currently empty in Zotero.
       const sourcePatch = externalMeta.patch as
-        | EditableArticleMetadataPatch
-        | undefined;
+        EditableArticleMetadataPatch | undefined;
       if (!sourcePatch || Object.keys(sourcePatch).length === 0) continue;
 
       const patch: EditableArticleMetadataPatch = {};
@@ -251,7 +250,7 @@ export const syncMetadataAction: AgentAction<
     ctx.onProgress({
       type: "step_start",
       step: "Applying metadata updates",
-      index: ++step,
+      index: step + 1,
       total: STEPS,
     });
 

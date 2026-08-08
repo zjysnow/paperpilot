@@ -1,4 +1,8 @@
-
+import {
+  type ActionProgressEvent,
+  type ActionRequestContext,
+} from "../../../../agent/actions";
+import { getAgentApi } from "../../../../agent";
 import type { ModelProviderAuthMode } from "../../../../utils/modelProviders";
 import type { ProviderProtocol } from "../../../../utils/providerProtocol";
 import {

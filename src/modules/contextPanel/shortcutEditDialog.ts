@@ -65,7 +65,11 @@ export function showShortcutEditDialog(
       "paperpilotshortcut-edit-form",
     ) as HTMLFormElement;
 
-    const labelField = createElement(doc, "div", "paperpilotshortcut-edit-field");
+    const labelField = createElement(
+      doc,
+      "div",
+      "paperpilotshortcut-edit-field",
+    );
     const label = createElement(doc, "label", "paperpilotshortcut-edit-label", {
       htmlFor: labelInputId,
       textContent: options.labelText,
@@ -83,11 +87,20 @@ export function showShortcutEditDialog(
     labelInput.setAttribute("autocomplete", "off");
     labelField.append(label, labelInput);
 
-    const promptField = createElement(doc, "div", "paperpilotshortcut-edit-field");
-    const promptLabel = createElement(doc, "label", "paperpilotshortcut-edit-label", {
-      htmlFor: promptInputId,
-      textContent: options.promptText,
-    });
+    const promptField = createElement(
+      doc,
+      "div",
+      "paperpilotshortcut-edit-field",
+    );
+    const promptLabel = createElement(
+      doc,
+      "label",
+      "paperpilotshortcut-edit-label",
+      {
+        htmlFor: promptInputId,
+        textContent: options.promptText,
+      },
+    );
     const promptInput = createElement(
       doc,
       "textarea",

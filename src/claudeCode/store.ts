@@ -2227,8 +2227,7 @@ async function listClaudeConversations(params: {
         ]
       : [libraryID, ...(limit ? [limit] : [])];
   const rows = (await Zotero.DB.queryAsync(sql, queryParams)) as
-    | ClaudeConversationRow[]
-    | undefined;
+    ClaudeConversationRow[] | undefined;
   if (!rows?.length) return [];
   const summaries = rows
     .map((row) => toClaudeConversationSummary(row))

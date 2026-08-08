@@ -1,6 +1,5 @@
 import type { ConversationSystem } from "../../shared/types";
 
-
 import {
   activeConversationModeByLibrary,
   activeGlobalConversationByLibrary,
@@ -104,7 +103,6 @@ export function primeHistoryNavigationMode(
   const mode: HistoryNavigationMode =
     params.mode === "global" ? "global" : "paper";
   const restoreCallbacks: Array<() => void> = [];
-
 
   const modeSnapshot = snapshotMapEntry(
     activeConversationModeByLibrary,

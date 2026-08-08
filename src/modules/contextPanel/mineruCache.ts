@@ -24,8 +24,7 @@ export type MineruCacheFile = {
   data: Uint8Array;
 };
 
-export const MINERU_SOURCE_PROVENANCE_KIND =
-  "paperpilot/mineru-cache-source";
+export const MINERU_SOURCE_PROVENANCE_KIND = "paperpilot/mineru-cache-source";
 export const MINERU_SOURCE_PROVENANCE_VERSION = 2;
 
 export type MineruSourceOrigin = "parsed" | "restored";
@@ -1234,6 +1233,7 @@ export async function writeMineruCacheFiles(
       throw new Error(
         `Failed to write MinerU cache file "${file.relativePath}" from ` +
           `"${file.originalRelativePath}": ${formatCacheWriteError(error)}`,
+        { cause: error },
       );
     }
   }
@@ -1246,6 +1246,7 @@ export async function writeMineruCacheFiles(
       `Failed to write MinerU cache file "full.md": ${formatCacheWriteError(
         error,
       )}`,
+      { cause: error },
     );
   }
 

@@ -1,17 +1,9 @@
 export type PaperScopedActionTargetMode =
-  | "single"
-  | "multi"
-  | "single_or_multi";
+  "single" | "multi" | "single_or_multi";
 export type PaperScopedActionAllowedScope =
-  | "current"
-  | "selection"
-  | "collection"
-  | "tag"
-  | "all";
+  "current" | "selection" | "collection" | "tag" | "all";
 export type PaperScopedActionDefaultEmptyInput =
-  | "current"
-  | "selection_or_prompt"
-  | "prompt";
+  "current" | "selection_or_prompt" | "prompt";
 export type PaperScopedActionPaperRequirement = "bibliographic" | "pdf_backed";
 
 export type PaperScopedActionInput = {

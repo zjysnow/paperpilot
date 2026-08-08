@@ -153,13 +153,17 @@ export function isPaperPortalItem(item: unknown): item is PaperPortalItem {
 
 export function getPaperPortalBaseItemID(item: unknown): number | null {
   if (!isPaperPortalItem(item)) return null;
-  const normalized = normalizePositiveInt(item.__paperpilotPaperPortalBaseItemID);
+  const normalized = normalizePositiveInt(
+    item.__paperpilotPaperPortalBaseItemID,
+  );
   return normalized || null;
 }
 
 export function getPaperPortalSessionVersion(item: unknown): number | null {
   if (!isPaperPortalItem(item)) return null;
-  const normalized = normalizePositiveInt(item.__paperpilotPaperPortalSessionVersion);
+  const normalized = normalizePositiveInt(
+    item.__paperpilotPaperPortalSessionVersion,
+  );
   return normalized || null;
 }
 
@@ -196,9 +200,7 @@ export function resolveDisplayConversationKind(
     return noteSession.conversationKind;
   }
   if (!item) return null;
-  return isGlobalPortalItem(item)
-    ? "global"
-    : "paper";
+  return isGlobalPortalItem(item) ? "global" : "paper";
 }
 
 // Show shortcuts only on real paper-chat sessions. Hide for library/global,
@@ -217,9 +219,7 @@ export function resolveConversationBaseItem(
   targetItem: Zotero.Item | null | undefined,
 ): Zotero.Item | null {
   if (!targetItem) return null;
-  if (
-    isGlobalPortalItem(targetItem)
-  ) {
+  if (isGlobalPortalItem(targetItem)) {
     return null;
   }
   if (isPaperPortalItem(targetItem)) {
@@ -250,9 +250,7 @@ export function resolvePaperChatSourceItem(
   targetItem: Zotero.Item | null | undefined,
 ): Zotero.Item | null {
   if (!targetItem) return null;
-  if (
-    isGlobalPortalItem(targetItem)
-  ) {
+  if (isGlobalPortalItem(targetItem)) {
     return null;
   }
   if (isPaperPortalItem(targetItem)) {
@@ -293,7 +291,7 @@ export function resolvePreferredConversationSystem(params: {
   const preferred = params.preferredSystem || "upstream";
   if (resolveActiveNoteSession(params.item)) {
     return resolvePreferredNoteFocusSystem({
-      preferredSystem: preferred
+      preferredSystem: preferred,
     });
   }
   const itemSystem = resolveConversationSystemForItem(params.item);
@@ -372,8 +370,8 @@ function resolvePaperConversationKeyForBaseItem(
     activePaperConversationByPaper.get(
       buildPaperStateKey(libraryID, paperItemID),
     ) ||
-    getLastUsedPaperConversationKey(libraryID, paperItemID) ||
-    paperItemID,
+      getLastUsedPaperConversationKey(libraryID, paperItemID) ||
+      paperItemID,
   );
   return Number.isFinite(rememberedPaperKey) && rememberedPaperKey > 0
     ? Math.floor(rememberedPaperKey)
@@ -437,9 +435,7 @@ export function resolveInitialPanelItemState(
     item = basePaperItem;
   }
 
-  if (
-    isPaperPortalItem(item)
-  ) {
+  if (isPaperPortalItem(item)) {
     return { item, basePaperItem };
   }
 

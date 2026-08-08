@@ -1,7 +1,5 @@
 export type LocalPathRevealMethod =
-  | "components-reveal"
-  | "zotero-file-reveal"
-  | "zotero-launch-file";
+  "components-reveal" | "zotero-file-reveal" | "zotero-launch-file";
 
 type LocalPathFile = {
   initWithPath?: (path: string) => void;

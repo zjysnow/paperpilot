@@ -32,7 +32,6 @@ type ConversationStoreReadiness = {
   codexStoreReady: boolean;
 };
 
-
 function getStartupPrefKey(key: string): string {
   return `${config.prefsPrefix}.${key}`;
 }
@@ -76,7 +75,6 @@ function runDeferredStartupTask(
     }
   })();
 }
-
 
 async function initializeConversationStoresForStartup(): Promise<ConversationStoreReadiness> {
   const readiness: ConversationStoreReadiness = {
@@ -140,8 +138,6 @@ function scheduleConversationIntegrityAudit(): void {
   });
 }
 
-
-
 function scheduleAttachmentMaintenance(): void {
   runDeferredStartupTask("attachment reference maintenance", async () => {
     const {
@@ -155,8 +151,6 @@ function scheduleAttachmentMaintenance(): void {
     await collectAndDeleteUnreferencedBlobs(ATTACHMENT_GC_MIN_AGE_MS);
   });
 }
-
-
 
 function scheduleMineruAutoWatchRegistration(): void {
   runDeferredStartupTask("MinerU auto-watch", async () => {
@@ -237,8 +231,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
     getSelectedItems: () => {
       try {
         const pane = Zotero.getActiveZoteroPane?.() as
-          | { getSelectedItems?: () => Zotero.Item[] }
-          | undefined;
+          { getSelectedItems?: () => Zotero.Item[] } | undefined;
         const activeItems = pane?.getSelectedItems?.();
         if (Array.isArray(activeItems)) return activeItems;
       } catch {
@@ -274,8 +267,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
       let initialItem: Zotero.Item | null = null;
       try {
         const pane = Zotero.getActiveZoteroPane?.() as
-          | { getSelectedItems?: () => Zotero.Item[] }
-          | undefined;
+          { getSelectedItems?: () => Zotero.Item[] } | undefined;
         initialItem = pane?.getSelectedItems?.()?.[0] || null;
       } catch {
         void 0;

@@ -327,15 +327,13 @@ export function parseStandaloneCitationLabel(
   const wrappedMatch = normalized.match(/^\((.+)\)$/);
   if (wrappedMatch) {
     const inner = wrappedMatch[1].trim();
-    let parenDepth = 0;
+    const parenDepth = 0;
     let isValidSingleGroup = true;
     for (const ch of inner) {
       if (ch === "(") {
-        parenDepth += 1;
         isValidSingleGroup = false;
         break;
       } else if (ch === ")") {
-        parenDepth -= 1;
         isValidSingleGroup = false;
         break;
       }

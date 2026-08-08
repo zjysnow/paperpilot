@@ -8,8 +8,7 @@ export async function copyTextToClipboard(
   if (!safeText) return;
 
   const win = body.ownerDocument?.defaultView as
-    | (Window & { navigator?: Navigator })
-    | undefined;
+    (Window & { navigator?: Navigator }) | undefined;
   if (win?.navigator?.clipboard?.writeText) {
     try {
       await win.navigator.clipboard.writeText(safeText);
@@ -31,8 +30,7 @@ export async function copyTextToClipboard(
     const svc = helper?.classes?.[
       "@mozilla.org/widget/clipboardhelper;1"
     ]?.getService(helper.interfaces.nsIClipboardHelper) as
-      | { copyString: (value: string) => void }
-      | undefined;
+      { copyString: (value: string) => void } | undefined;
     if (svc) svc.copyString(safeText);
   } catch (err) {
     ztoolkit.log("Clipboard fallback copy failed:", err);

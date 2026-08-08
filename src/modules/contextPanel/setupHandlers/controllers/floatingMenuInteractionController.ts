@@ -163,7 +163,9 @@ export function attachFloatingMenuInteractionController(
     if (!paperPicker || paperPicker.style.display === "none") return;
     const target = event.target as Node | null;
     if (target && paperPicker.contains(target)) return;
-    const inputBox = body.querySelector("#paperpilotinput") as HTMLElement | null;
+    const inputBox = body.querySelector(
+      "#paperpilotinput",
+    ) as HTMLElement | null;
     if (target && inputBox?.contains(target)) return;
     deps.closePaperPicker();
   };
@@ -262,7 +264,9 @@ export function attachFloatingMenuInteractionController(
       if (copyBtn) {
         event.preventDefault();
         event.stopPropagation();
-        const copyable = copyBtn.closest(".paperpilotcopyable") as HTMLElement | null;
+        const copyable = copyBtn.closest(
+          ".paperpilotcopyable",
+        ) as HTMLElement | null;
         const source = copyable?.dataset.llmCopySource || "";
         if (source) {
           copyable?.setAttribute("data-copy-feedback", "copied");
@@ -353,7 +357,9 @@ export function attachFloatingMenuInteractionController(
       ) as HTMLDivElement[];
       const target = event.target as Node | null;
       const retryButtonTarget = deps.isElementNode(target)
-        ? (target.closest(".paperpilotretry-latest") as HTMLButtonElement | null)
+        ? (target.closest(
+            ".paperpilotretry-latest",
+          ) as HTMLButtonElement | null)
         : null;
       const retryModelMenus = Array.from(
         panelDoc.querySelectorAll("#paperpilotretry-model-menu"),

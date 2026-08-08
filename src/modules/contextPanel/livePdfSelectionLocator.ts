@@ -36,10 +36,7 @@ export type LivePdfSelectionLocateStatus =
   | "unavailable";
 
 export type LivePdfSelectionLocateConfidence =
-  | "high"
-  | "medium"
-  | "low"
-  | "none";
+  "high" | "medium" | "low" | "none";
 
 export type LivePdfSelectionLocateResult = {
   status: LivePdfSelectionLocateStatus;
@@ -1118,9 +1115,7 @@ function extractRenderedPageTexts(reader: any): {
 // search with zero async I/O).
 
 export type PageTextCacheCoverage =
-  | "full-pdfworker"
-  | "full-viewer"
-  | "partial-dom";
+  "full-pdfworker" | "full-viewer" | "partial-dom";
 
 export interface CachedPageTextIndex {
   pages: LivePdfPageText[];

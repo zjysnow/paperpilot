@@ -4,11 +4,7 @@ export type RuntimeModeResolutionInput = {
   cachedMode?: ChatRuntimeMode | null;
   isRuntimeConversationSystem?: boolean;
   runtimeConversationSystem?:
-    | "upstream"
-    | "claude_code"
-    | "codex"
-    | string
-    | null;
+    "upstream" | "claude_code" | "codex" | string | null;
   isWebChat?: boolean;
   agentModeEnabled?: boolean;
   displayConversationKind?: "global" | "paper" | null;

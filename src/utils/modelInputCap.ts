@@ -40,8 +40,7 @@ export type InputCapMessage = {
 };
 
 export type ContextEstimateMessageContent =
-  | string
-  | (TextPart | ImagePart | FilePart)[];
+  string | (TextPart | ImagePart | FilePart)[];
 
 export type ContextEstimateMessage = {
   role: string;

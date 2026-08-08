@@ -814,10 +814,7 @@ let currentLocale: string = "auto";
  */
 export function initI18n(): void {
   try {
-    const pref = Zotero.Prefs.get(
-      "extensions.zotero.paperpilot.locale",
-      true,
-    );
+    const pref = Zotero.Prefs.get("extensions.zotero.paperpilot.locale", true);
     currentLocale = typeof pref === "string" ? pref : "auto";
   } catch {
     currentLocale = "auto";

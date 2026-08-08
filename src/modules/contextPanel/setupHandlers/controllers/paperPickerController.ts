@@ -88,13 +88,7 @@ type PaperPickerRenderOptions = {
   skipActiveScroll?: boolean;
 };
 type PickerIconName =
-  | "paper"
-  | "pdf"
-  | "note"
-  | "image"
-  | "file"
-  | "collection"
-  | "tag";
+  "paper" | "pdf" | "note" | "image" | "file" | "collection" | "tag";
 type PaperPickerFolderScope = ReferenceSelectorFolderScope;
 type PaperPickerPanelKey = ReferenceSelectorPanelKey;
 export type PaperPickerTagIndexItem = ReferenceSelectorTagIndexItem;
@@ -507,7 +501,10 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
 
   const getRenderedPaperPickerReferenceRowHost = (): HTMLElement | null => {
     const root = paperPickerList?.children[0] as HTMLElement | undefined;
-    return findPaperPickerDescendantByClass(root, "paperpilotpaper-picker-row-host");
+    return findPaperPickerDescendantByClass(
+      root,
+      "paperpilotpaper-picker-row-host",
+    );
   };
 
   const findPaperPickerParentRowIndex = (index: number): number => {
@@ -1400,7 +1397,10 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       chip.classList.add("paperpilotpaper-picker-tag-chip-colored");
     }
     chip.classList.toggle("paperpilotpaper-picker-tag-chip-selected", selected);
-    chip.classList.toggle("paperpilotpaper-picker-tag-chip-unavailable", !available);
+    chip.classList.toggle(
+      "paperpilotpaper-picker-tag-chip-unavailable",
+      !available,
+    );
     chip.disabled = !available;
     chip.addEventListener("mousedown", (event: Event) => {
       event.preventDefault();
@@ -1622,7 +1622,11 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     });
     menuWrap.appendChild(menuButton);
     if (referenceSelectorState.tagFilterMenuOpen) {
-      const menu = createElement(ownerDoc, "div", "paperpilotpaper-picker-tag-menu");
+      const menu = createElement(
+        ownerDoc,
+        "div",
+        "paperpilotpaper-picker-tag-menu",
+      );
       const addCheckboxRow = (
         label: string,
         checked: boolean,
@@ -1728,14 +1732,22 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       return header;
     };
 
-    const rowHost = createElement(ownerDoc, "div", "paperpilotpaper-picker-row-host");
+    const rowHost = createElement(
+      ownerDoc,
+      "div",
+      "paperpilotpaper-picker-row-host",
+    );
     const renderedOptions: HTMLElement[] = [];
     const referencesCollapsed =
       referenceSelectorState.mode === "browse" &&
       isPaperPickerPanelCollapsed("references");
     const shouldRenderReferenceRows = !referencesCollapsed;
     if (referenceSelectorState.mode === "browse") {
-      const shell = createElement(ownerDoc, "div", "paperpilotpaper-picker-shell");
+      const shell = createElement(
+        ownerDoc,
+        "div",
+        "paperpilotpaper-picker-shell",
+      );
       const main = createElement(
         ownerDoc,
         "div",
@@ -1812,10 +1824,15 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       const parts = [firstCreator, year]
         .map((part) => (part || "").trim())
         .filter(Boolean);
-      return createElement(ownerDoc, "div", "paperpilotpaper-picker-row-meta-line", {
-        textContent: parts.join(", "),
-        title: parts.join(", "),
-      });
+      return createElement(
+        ownerDoc,
+        "div",
+        "paperpilotpaper-picker-row-meta-line",
+        {
+          textContent: parts.join(", "),
+          title: parts.join(", "),
+        },
+      );
     };
 
     if (shouldRenderReferenceRows && !referenceSelectorState.rows.length) {
@@ -1875,7 +1892,10 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
               selectedNoteContextItemIds,
             );
             rowSelected = isReferenceSelectorSelected(rowSelectionState);
-            option.classList.toggle("paperpilotpaper-picker-selected", rowSelected);
+            option.classList.toggle(
+              "paperpilotpaper-picker-selected",
+              rowSelected,
+            );
           }
         }
 
@@ -1934,7 +1954,10 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
           const isTagSelected = item
             ? isPaperPickerTagContextSelected(tagRef)
             : false;
-          option.classList.toggle("paperpilotpaper-picker-selected", isTagSelected);
+          option.classList.toggle(
+            "paperpilotpaper-picker-selected",
+            isTagSelected,
+          );
           const rowMain = createElement(
             ownerDoc,
             "div",

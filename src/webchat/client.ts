@@ -313,8 +313,7 @@ export async function pollForResponse(
   seq: number,
   onAnswerSnapshot: (text: string, snapshot: WebChatAnswerSnapshot) => void,
   onThinkingSnapshot:
-    | ((text: string, snapshot: WebChatThinkingSnapshot) => void)
-    | undefined,
+    ((text: string, snapshot: WebChatThinkingSnapshot) => void) | undefined,
   signal: AbortSignal | undefined,
 ): Promise<WebChatPollResult> {
   let lastAnswerText = "";

@@ -571,7 +571,8 @@
   opacity: 1;
 }
 
-[data-standalone="true"] .paperpilotmode-chip[data-webchat-static="true"]:hover {
+[data-standalone="true"]
+  .paperpilotmode-chip[data-webchat-static="true"]:hover {
   background: var(--fill-quinary);
   border-color: var(--stroke-secondary);
 }
@@ -1544,7 +1545,8 @@
 }
 
 .paperpilotstandalone-search-item:hover .paperpilotstandalone-search-delete,
-.paperpilotstandalone-search-item:focus-within .paperpilotstandalone-search-delete {
+.paperpilotstandalone-search-item:focus-within
+  .paperpilotstandalone-search-delete {
   display: flex;
 }
 
@@ -1934,7 +1936,8 @@
 
 .paperpilotstandalone-sidebar-resizer:hover::before,
 .paperpilotstandalone-sidebar-resizer:focus-visible::before,
-.paperpilotstandalone-sidebar-resizing .paperpilotstandalone-sidebar-resizer::before {
+.paperpilotstandalone-sidebar-resizing
+  .paperpilotstandalone-sidebar-resizer::before {
   background: var(--stroke-primary, var(--fill-secondary, #7a7a7a));
 }
 
@@ -2339,7 +2342,8 @@
    the messages flex-column with the card and the card shrinks to whatever
    space is left. Attribute toggled by setupHandlers (JS-based rather than
    :has() to stay compatible across Gecko versions). */
-[data-has-action-card="true"][data-start-page-active="true"] .paperpilotstart-page {
+[data-has-action-card="true"][data-start-page-active="true"]
+  .paperpilotstart-page {
   display: none;
 }
 
@@ -4010,19 +4014,23 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
-.paperpilotmessage-wrapper.user.paperpilotuser-context-aligned .paperpilotuser-selected-text,
+.paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
+  .paperpilotuser-selected-text,
 .paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
   .paperpilotuser-selected-text-expanded,
 .paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
   .paperpilotuser-screenshots-expanded,
-.paperpilotmessage-wrapper.user.paperpilotuser-context-aligned .paperpilotuser-files-expanded,
-.paperpilotmessage-wrapper.user.paperpilotuser-context-aligned .paperpilotuser-papers-expanded {
+.paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
+  .paperpilotuser-files-expanded,
+.paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
+  .paperpilotuser-papers-expanded {
   width: var(--paperpilotuser-bubble-width, min(95%, 620px));
   max-width: var(--paperpilotuser-bubble-width, min(95%, 620px));
   box-sizing: border-box;
 }
 
-.paperpilotmessage-wrapper.user.paperpilotuser-context-aligned .paperpilotuser-context-badges {
+.paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
+  .paperpilotuser-context-badges {
   width: var(--paperpilotuser-bubble-width, min(95%, 620px));
   max-width: var(--paperpilotuser-bubble-width, min(95%, 620px));
   box-sizing: border-box;
@@ -4434,7 +4442,9 @@
 .paperpilotagent-activity {
   --paperpilotagent-surface-bg: rgba(0, 0, 0, 0.15);
   --paperpilotagent-surface-padding: 10px 12px;
-  --paperpilotagent-activity-spacing: calc(10px * var(--paperpilotfont-scale, 1));
+  --paperpilotagent-activity-spacing: calc(
+    10px * var(--paperpilotfont-scale, 1)
+  );
   margin-block: var(--paperpilotagent-activity-spacing);
   display: flex;
   flex-direction: column;
@@ -4478,7 +4488,8 @@
   transition: transform 120ms ease;
 }
 
-.paperpilotagent-activity-details[open] > .paperpilotagent-activity-summary::after {
+.paperpilotagent-activity-details[open]
+  > .paperpilotagent-activity-summary::after {
   transform: rotate(90deg);
 }
 
@@ -5069,9 +5080,12 @@ label.paperpilotsearch-results-item:hover {
   color: var(--fill-tertiary);
 }
 
-.paperpilotagent-hitl-card[data-paged-review="true"] .paperpilotagent-hitl-header,
-.paperpilotagent-hitl-card[data-paged-review="true"] .paperpilotagent-hitl-title,
-.paperpilotagent-hitl-card[data-paged-review="true"] .paperpilotagent-hitl-description {
+.paperpilotagent-hitl-card[data-paged-review="true"]
+  .paperpilotagent-hitl-header,
+.paperpilotagent-hitl-card[data-paged-review="true"]
+  .paperpilotagent-hitl-title,
+.paperpilotagent-hitl-card[data-paged-review="true"]
+  .paperpilotagent-hitl-description {
   padding-right: 38px;
 }
 
@@ -5514,7 +5528,8 @@ label.paperpilotsearch-results-item:hover {
 }
 
 .paperpilotagent-hitl-diff-line-remove .paperpilotagent-hitl-diff-marker,
-.paperpilotagent-hitl-diff-line-remove .paperpilotagent-hitl-diff-segment-remove {
+.paperpilotagent-hitl-diff-line-remove
+  .paperpilotagent-hitl-diff-segment-remove {
   color: var(--paperpilotagent-hitl-diff-remove-text);
 }
 
@@ -5963,7 +5978,8 @@ label.paperpilotsearch-results-item:hover {
   flex: 0 0 auto;
 }
 
-.paperpilotsearch-select-all-checkbox:disabled + .paperpilotsearch-select-all-text {
+.paperpilotsearch-select-all-checkbox:disabled
+  + .paperpilotsearch-select-all-text {
   opacity: 0.55;
 }
 
@@ -6251,8 +6267,12 @@ label.paperpilotsearch-results-item:hover {
   box-shadow: 0 1px 4px color-mix(in srgb, #000 16%, transparent);
 }
 
-.paperpilotrendered-markdown .paperpilotcopyable:hover > .paperpilotrender-copy-btn,
-.paperpilotrendered-markdown .paperpilotcopyable:focus-within > .paperpilotrender-copy-btn {
+.paperpilotrendered-markdown
+  .paperpilotcopyable:hover
+  > .paperpilotrender-copy-btn,
+.paperpilotrendered-markdown
+  .paperpilotcopyable:focus-within
+  > .paperpilotrender-copy-btn {
   opacity: 1;
   transform: translateY(0);
 }
@@ -6281,7 +6301,9 @@ label.paperpilotsearch-results-item:hover {
   outline-offset: 1px;
 }
 
-.paperpilotrendered-markdown .paperpilotcopyable-inline > .paperpilotrender-copy-btn {
+.paperpilotrendered-markdown
+  .paperpilotcopyable-inline
+  > .paperpilotrender-copy-btn {
   top: -10px;
   right: -10px;
   min-width: 24px;
@@ -6290,7 +6312,9 @@ label.paperpilotsearch-results-item:hover {
   font-size: 9px;
 }
 
-.paperpilotrendered-markdown .paperpilotcopyable-code > .paperpilotrender-copy-btn {
+.paperpilotrendered-markdown
+  .paperpilotcopyable-code
+  > .paperpilotrender-copy-btn {
   top: 5px;
   right: 14px;
   min-width: 24px;
@@ -6310,7 +6334,9 @@ label.paperpilotsearch-results-item:hover {
   backdrop-filter: none;
 }
 
-.paperpilotrendered-markdown .paperpilotcopyable-code > .paperpilotrender-copy-btn:hover {
+.paperpilotrendered-markdown
+  .paperpilotcopyable-code
+  > .paperpilotrender-copy-btn:hover {
   background: transparent;
   color: var(--paperpilotcodeblock-copy-hover);
 }
@@ -6444,8 +6470,10 @@ label.paperpilotsearch-results-item:hover {
 
 .paperpilotrendered-markdown .paperpilotcodeblock-source-toggle:hover,
 .paperpilotrendered-markdown .paperpilotcodeblock-wrap-toggle:hover,
-.paperpilotrendered-markdown .paperpilotcodeblock-source-toggle[aria-expanded="true"],
-.paperpilotrendered-markdown .paperpilotcodeblock-wrap-toggle[aria-pressed="true"] {
+.paperpilotrendered-markdown
+  .paperpilotcodeblock-source-toggle[aria-expanded="true"],
+.paperpilotrendered-markdown
+  .paperpilotcodeblock-wrap-toggle[aria-pressed="true"] {
   background: color-mix(in srgb, var(--fill-quinary) 75%, transparent);
   color: var(--paperpilotcodeblock-copy-hover);
 }
@@ -6475,7 +6503,9 @@ label.paperpilotsearch-results-item:hover {
   cursor: pointer;
 }
 
-.paperpilotrendered-markdown .paperpilotcodeblock-header > .paperpilotrender-code-copy-btn {
+.paperpilotrendered-markdown
+  .paperpilotcodeblock-header
+  > .paperpilotrender-code-copy-btn {
   position: static;
   top: auto;
   right: auto;
@@ -6502,7 +6532,9 @@ label.paperpilotsearch-results-item:hover {
   backdrop-filter: none;
 }
 
-.paperpilotrendered-markdown .paperpilotcodeblock-header > .paperpilotrender-code-copy-btn:hover {
+.paperpilotrendered-markdown
+  .paperpilotcodeblock-header
+  > .paperpilotrender-code-copy-btn:hover {
   background: color-mix(in srgb, var(--fill-quinary) 75%, transparent);
   color: var(--paperpilotcodeblock-copy-hover);
 }
@@ -6523,7 +6555,8 @@ label.paperpilotsearch-results-item:hover {
   -webkit-mask-size: contain;
 }
 
-.paperpilotrendered-markdown .paperpilotcodeblock-figure-copy:hover:not(:disabled),
+.paperpilotrendered-markdown
+  .paperpilotcodeblock-figure-copy:hover:not(:disabled),
 .paperpilotrendered-markdown .paperpilotcodeblock-figure-copy:focus-visible {
   background: color-mix(in srgb, var(--fill-quinary) 75%, transparent);
   color: var(--paperpilotcodeblock-copy-hover);
@@ -6686,7 +6719,8 @@ label.paperpilotsearch-results-item:hover {
   color: var(--fill-secondary, #4b5563);
 }
 
-.paperpilotrendered-markdown .paperpilotmermaid-preview[data-mermaid-state="rendered"] {
+.paperpilotrendered-markdown
+  .paperpilotmermaid-preview[data-mermaid-state="rendered"] {
   display: block;
   max-height: none;
   padding: 0;
@@ -6956,7 +6990,8 @@ label.paperpilotsearch-results-item:hover {
   line-height: 1.4;
 }
 
-.paperpilotrendered-markdown .paperpilotmermaid-preview[data-mermaid-state="error"] {
+.paperpilotrendered-markdown
+  .paperpilotmermaid-preview[data-mermaid-state="error"] {
   justify-content: flex-start;
   min-height: 0;
   background: #fff7ed;
@@ -7002,8 +7037,10 @@ label.paperpilotsearch-results-item:hover {
   cursor: default;
 }
 
-.paperpilotquote-card[data-quote-status="not-source"] .paperpilotquote-card-content,
-.paperpilotquote-card[data-quote-status="unverified"] .paperpilotquote-card-content {
+.paperpilotquote-card[data-quote-status="not-source"]
+  .paperpilotquote-card-content,
+.paperpilotquote-card[data-quote-status="unverified"]
+  .paperpilotquote-card-content {
   padding-bottom: 8px;
 }
 
@@ -7058,10 +7095,14 @@ label.paperpilotsearch-results-item:hover {
   display: none;
 }
 
-.paperpilotquote-card[data-quote-status="not-source"] .paperpilotquote-card-preview,
-.paperpilotquote-card[data-quote-status="not-source"] .paperpilotquote-card-body,
-.paperpilotquote-card[data-quote-status="unverified"] .paperpilotquote-card-preview,
-.paperpilotquote-card[data-quote-status="unverified"] .paperpilotquote-card-body {
+.paperpilotquote-card[data-quote-status="not-source"]
+  .paperpilotquote-card-preview,
+.paperpilotquote-card[data-quote-status="not-source"]
+  .paperpilotquote-card-body,
+.paperpilotquote-card[data-quote-status="unverified"]
+  .paperpilotquote-card-preview,
+.paperpilotquote-card[data-quote-status="unverified"]
+  .paperpilotquote-card-body {
   font-style: normal;
 }
 
@@ -7261,7 +7302,11 @@ label.paperpilotsearch-results-item:hover {
   -webkit-overflow-scrolling: touch;
 }
 
-.paperpilotrendered-markdown .math-display > .katex-display > .katex > .katex-html {
+.paperpilotrendered-markdown
+  .math-display
+  > .katex-display
+  > .katex
+  > .katex-html {
   box-sizing: border-box;
   min-width: 100%;
   padding-right: 3.25em;
@@ -7385,7 +7430,8 @@ label.paperpilotsearch-results-item:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: var(--paperpilotcontext-preview-row-gap) var(--paperpilotcontext-preview-column-gap);
+  gap: var(--paperpilotcontext-preview-row-gap)
+    var(--paperpilotcontext-preview-column-gap);
   width: 100%;
   container-type: inline-size;
   position: relative;
@@ -7446,7 +7492,9 @@ label.paperpilotsearch-results-item:hover {
   font-weight: 700;
 }
 
-#paperpilotruntime-mode-toggle.paperpilotruntime-mode-static:hover:not(:disabled) {
+#paperpilotruntime-mode-toggle.paperpilotruntime-mode-static:hover:not(
+    :disabled
+  ) {
   border-color: var(--stroke-secondary);
   color: #d77757;
 }
@@ -7461,7 +7509,8 @@ label.paperpilotsearch-results-item:hover {
   color: var(--fill-primary, #0d0d0d);
 }
 
-#paperpilotruntime-mode-toggle.paperpilotruntime-mode-static .paperpilotagent-toggle-label {
+#paperpilotruntime-mode-toggle.paperpilotruntime-mode-static
+  .paperpilotagent-toggle-label {
   font-weight: 700;
 }
 
@@ -7470,7 +7519,9 @@ label.paperpilotsearch-results-item:hover {
 }
 
 .paperpilotcontext-previews > #paperpilotruntime-mode-toggle,
-.paperpilotcontext-previews > #paperpilotselected-context-list > .paperpilotselected-context,
+.paperpilotcontext-previews
+  > #paperpilotselected-context-list
+  > .paperpilotselected-context,
 .paperpilotcontext-previews > .paperpilotimage-preview,
 .paperpilotcontext-previews > #paperpilotfile-context-preview,
 .paperpilotcontext-previews > #paperpilotpaper-context-preview {
@@ -8265,7 +8316,8 @@ label.paperpilotsearch-results-item:hover {
   transition: opacity 0.15s ease;
 }
 
-.paperpilotpaper-picker-collection-row:hover .paperpilotpaper-picker-collection-add-btn,
+.paperpilotpaper-picker-collection-row:hover
+  .paperpilotpaper-picker-collection-add-btn,
 .paperpilotpaper-picker-collection-row.paperpilotpaper-picker-selected
   .paperpilotpaper-picker-collection-add-btn,
 .paperpilotpaper-picker-item[aria-selected="true"]
@@ -8361,7 +8413,8 @@ label.paperpilotsearch-results-item:hover {
   color: #f59e0b;
 }
 
-.paperpilotpaper-chip-menu-row-mineru-processing .paperpilotpaper-picker-badge::before {
+.paperpilotpaper-chip-menu-row-mineru-processing
+  .paperpilotpaper-picker-badge::before {
   content: "";
   width: 8px;
   height: 8px;
@@ -8377,7 +8430,8 @@ label.paperpilotsearch-results-item:hover {
   color: #ef4444;
 }
 
-.paperpilotpaper-chip-menu-row-mineru-failed .paperpilotpaper-picker-badge::before {
+.paperpilotpaper-chip-menu-row-mineru-failed
+  .paperpilotpaper-picker-badge::before {
   content: "";
   flex: 0 0 auto;
   display: inline-block;
@@ -8391,7 +8445,8 @@ label.paperpilotsearch-results-item:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .paperpilotpaper-chip-menu-row-mineru-processing .paperpilotpaper-picker-badge::before {
+  .paperpilotpaper-chip-menu-row-mineru-processing
+    .paperpilotpaper-picker-badge::before {
     animation: none;
   }
 }
@@ -8567,7 +8622,9 @@ label.paperpilotsearch-results-item:hover {
   align-items: center;
   column-gap: 5px;
   padding: 4px 5px;
-  padding-left: calc(5px + var(--paperpilotpaper-picker-sidebar-depth, 0) * 14px);
+  padding-left: calc(
+    5px + var(--paperpilotpaper-picker-sidebar-depth, 0) * 14px
+  );
   border-radius: 6px;
   color: var(--fill-secondary);
   cursor: pointer;
@@ -9270,7 +9327,8 @@ label.paperpilotsearch-results-item:hover {
   max-width: 100%;
 }
 
-.paperpilotselected-context.paperpilotselected-context-pinned .paperpilotselected-context-header {
+.paperpilotselected-context.paperpilotselected-context-pinned
+  .paperpilotselected-context-header {
   border: 1px solid var(--paperpilotpin-border-color);
   border-radius: 8px;
   background: var(--paperpilotpin-bg);
@@ -9957,7 +10015,8 @@ label.paperpilotsearch-results-item:hover {
   align-items: stretch;
 }
 
-.paperpilotmessage-wrapper.paperpilotcompact-marker-wrapper .paperpilotmessage-meta {
+.paperpilotmessage-wrapper.paperpilotcompact-marker-wrapper
+  .paperpilotmessage-meta {
   display: none;
 }
 
@@ -10198,7 +10257,9 @@ label.paperpilotsearch-results-item:hover {
   gap: 6px;
 }
 
-.paperpilotmodel-btn.paperpilotmodel-btn-wrap-2line:not(.paperpilotmodel-btn-collapsed) {
+.paperpilotmodel-btn.paperpilotmodel-btn-wrap-2line:not(
+    .paperpilotmodel-btn-collapsed
+  ) {
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -10207,7 +10268,8 @@ label.paperpilotsearch-results-item:hover {
   text-overflow: clip;
 }
 
-.paperpilotaction-slot.paperpilotmodel-dropdown > .paperpilotmodel-btn.paperpilotmodel-btn-collapsed {
+.paperpilotaction-slot.paperpilotmodel-dropdown
+  > .paperpilotmodel-btn.paperpilotmodel-btn-collapsed {
   width: var(--paperpilotaction-dropdown-icon-width);
   min-width: var(--paperpilotaction-dropdown-icon-width);
   max-width: var(--paperpilotaction-dropdown-icon-width);
@@ -10627,17 +10689,25 @@ label.paperpilotsearch-results-item:hover {
   gap: 6px;
 }
 
-#paperpilot-main[data-paperpilotaction-layout-mode="half"] .paperpilotuser-files-list,
-#paperpilot-main[data-paperpilotaction-layout-mode="half"] .paperpilotfile-context-list,
-#paperpilot-main[data-paperpilotaction-layout-mode="half"] .paperpilotpaper-context-list,
-#paperpilot-main[data-paperpilotaction-layout-mode="half"] .paperpilotuser-papers-list {
+#paperpilot-main[data-paperpilotaction-layout-mode="half"]
+  .paperpilotuser-files-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="half"]
+  .paperpilotfile-context-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="half"]
+  .paperpilotpaper-context-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="half"]
+  .paperpilotuser-papers-list {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-#paperpilot-main[data-paperpilotaction-layout-mode="full"] .paperpilotuser-files-list,
-#paperpilot-main[data-paperpilotaction-layout-mode="full"] .paperpilotfile-context-list,
-#paperpilot-main[data-paperpilotaction-layout-mode="full"] .paperpilotpaper-context-list,
-#paperpilot-main[data-paperpilotaction-layout-mode="full"] .paperpilotuser-papers-list {
+#paperpilot-main[data-paperpilotaction-layout-mode="full"]
+  .paperpilotuser-files-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="full"]
+  .paperpilotfile-context-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="full"]
+  .paperpilotpaper-context-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="full"]
+  .paperpilotuser-papers-list {
   grid-template-columns: repeat(
     auto-fit,
     minmax(var(--paperpilotfile-card-min-width), 1fr)

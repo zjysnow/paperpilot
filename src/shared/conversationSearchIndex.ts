@@ -54,11 +54,7 @@ export type ConversationSearchIndexMatch = {
 };
 
 export type ConversationSearchIndexStatus =
-  | "ready"
-  | "empty"
-  | "stale"
-  | "truncated"
-  | "unavailable";
+  "ready" | "empty" | "stale" | "truncated" | "unavailable";
 
 export type ConversationSearchIndexResult = {
   matches: ConversationSearchIndexMatch[];

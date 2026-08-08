@@ -523,7 +523,10 @@ export function attachComposePreviewInteractionController(
       setPaperModeOverride(item.id, paperContext, nextMode as any);
       const nextIsFullText = isPaperContextFullTextMode(nextMode as any);
       paperChip.dataset.fullText = nextIsFullText ? "true" : "false";
-      paperChip.classList.toggle("paperpilotpaper-context-chip-full", nextIsFullText);
+      paperChip.classList.toggle(
+        "paperpilotpaper-context-chip-full",
+        nextIsFullText,
+      );
       if (contentSource === "pdf") {
         paperChip.classList.add("paperpilotpaper-context-chip-pdf");
       }
@@ -640,8 +643,7 @@ export function attachComposePreviewInteractionController(
         return;
       }
       const readerApi = Zotero.Reader as
-        | { open?: (itemID: number) => Promise<unknown> }
-        | undefined;
+        { open?: (itemID: number) => Promise<unknown> } | undefined;
       if (typeof readerApi?.open === "function") {
         await readerApi.open(paperContext.contextItemId);
       } else {

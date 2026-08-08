@@ -41,11 +41,7 @@ export function getRelayBaseUrl(): string {
 
 interface PendingCommand {
   type:
-    | "NEW_CHAT"
-    | "LOAD_CHAT"
-    | "DELETE_CHAT"
-    | "SCRAPE_HISTORY"
-    | "ENSURE_TAB";
+    "NEW_CHAT" | "LOAD_CHAT" | "DELETE_CHAT" | "SCRAPE_HISTORY" | "ENSURE_TAB";
   chatUrl?: string;
   chatId?: string;
   target?: string;
@@ -79,18 +75,10 @@ export type RelayQueryPhase =
   | "error";
 
 export type RelayRunState =
-  | "submitted"
-  | "active"
-  | "settling"
-  | "done"
-  | "incomplete"
-  | "error";
+  "submitted" | "active" | "settling" | "done" | "incomplete" | "error";
 
 export type RelayCompletionReason =
-  | "settled"
-  | "forced_cancel"
-  | "timeout"
-  | "error";
+  "settled" | "forced_cancel" | "timeout" | "error";
 
 export type RelayTurnStatus =
   | "navigating"
@@ -208,10 +196,7 @@ interface ExtensionStatus {
 }
 
 export type RelayHistorySyncStatus =
-  | "ok"
-  | "empty"
-  | "invalid_source"
-  | "timeout";
+  "ok" | "empty" | "invalid_source" | "timeout";
 
 export type RelayHistorySyncSource = "network" | "dom" | null;
 
@@ -587,8 +572,7 @@ type EndpointOptions = {
 };
 
 type EndpointResponse =
-  | number
-  | [number, string | Record<string, string>, string?];
+  number | [number, string | Record<string, string>, string?];
 
 function jsonReply(
   data: Record<string, unknown>,

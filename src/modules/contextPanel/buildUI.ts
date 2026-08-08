@@ -88,7 +88,9 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   }
 
   // Main container
-  const container = createElement(doc, "div", "paperpilotpanel", { id: "paperpilot-main" });
+  const container = createElement(doc, "div", "paperpilotpanel", {
+    id: "paperpilot-main",
+  });
   container.dataset.itemId =
     conversationItemId > 0 ? `${conversationItemId}` : "";
   container.dataset.libraryId = hasItem && item ? `${item.libraryID}` : "";
@@ -145,11 +147,16 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   historyNewBtn.style.display = "";
 
   // History toggle button (clock icon)
-  const historyToggle = createElement(doc, "button", "paperpilothistory-toggle", {
-    id: "paperpilothistory-toggle",
-    type: "button",
-    title: t("Conversation history"),
-  });
+  const historyToggle = createElement(
+    doc,
+    "button",
+    "paperpilothistory-toggle",
+    {
+      id: "paperpilothistory-toggle",
+      type: "button",
+      title: t("Conversation history"),
+    },
+  );
   historyToggle.setAttribute("aria-label", t("Conversation history"));
   historyToggle.setAttribute("aria-haspopup", "menu");
   historyToggle.setAttribute("aria-expanded", "false");
@@ -255,12 +262,17 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     },
   );
   exportBtn.setAttribute("aria-label", t("Export"));
-  const clearBtn = createElement(doc, "button", "paperpilotbtn-icon paperpilotclear-btn", {
-    id: "paperpilotclear",
-    type: "button",
-    textContent: t("Clear"),
-    title: t("Clear"),
-  });
+  const clearBtn = createElement(
+    doc,
+    "button",
+    "paperpilotbtn-icon paperpilotclear-btn",
+    {
+      id: "paperpilotclear",
+      type: "button",
+      textContent: t("Clear"),
+      title: t("Clear"),
+    },
+  );
   clearBtn.dataset.compact = "true";
   clearBtn.setAttribute("aria-label", t("Clear"));
   headerActions.append(popoutBtn, settingsBtn, exportBtn, clearBtn);
@@ -272,9 +284,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   historyMenu.style.display = "none";
   header.appendChild(historyMenu);
 
-  const historyRowMenu = createElement(doc, "div", "paperpilothistory-row-menu", {
-    id: "paperpilothistory-row-menu",
-  });
+  const historyRowMenu = createElement(
+    doc,
+    "div",
+    "paperpilothistory-row-menu",
+    {
+      id: "paperpilothistory-row-menu",
+    },
+  );
   historyRowMenu.style.display = "none";
   const historyRowRenameBtn = createElement(
     doc,
@@ -294,16 +311,26 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     id: "paperpilothistory-undo",
   });
   historyUndo.style.display = "none";
-  const historyUndoText = createElement(doc, "span", "paperpilothistory-undo-text", {
-    id: "paperpilothistory-undo-text",
-    textContent: "",
-  });
-  const historyUndoBtn = createElement(doc, "button", "paperpilothistory-undo-btn", {
-    id: "paperpilothistory-undo-btn",
-    type: "button",
-    textContent: t("Undo"),
-    title: t("Restore deleted conversation"),
-  });
+  const historyUndoText = createElement(
+    doc,
+    "span",
+    "paperpilothistory-undo-text",
+    {
+      id: "paperpilothistory-undo-text",
+      textContent: "",
+    },
+  );
+  const historyUndoBtn = createElement(
+    doc,
+    "button",
+    "paperpilothistory-undo-btn",
+    {
+      id: "paperpilothistory-undo-btn",
+      type: "button",
+      textContent: t("Undo"),
+      title: t("Restore deleted conversation"),
+    },
+  );
   historyUndo.append(historyUndoText, historyUndoBtn);
   header.appendChild(historyUndo);
 
@@ -350,31 +377,56 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     id: "paperpilotshortcut-menu",
   });
   shortcutMenu.style.display = "none";
-  const menuEditBtn = createElement(doc, "button", "paperpilotshortcut-menu-item", {
-    id: "paperpilotshortcut-menu-edit",
-    type: "button",
-    textContent: t("Edit"),
-  });
-  const menuDeleteBtn = createElement(doc, "button", "paperpilotshortcut-menu-item", {
-    id: "paperpilotshortcut-menu-delete",
-    type: "button",
-    textContent: t("Delete"),
-  });
-  const menuAddBtn = createElement(doc, "button", "paperpilotshortcut-menu-item", {
-    id: "paperpilotshortcut-menu-add",
-    type: "button",
-    textContent: t("Add"),
-  });
-  const menuMoveBtn = createElement(doc, "button", "paperpilotshortcut-menu-item", {
-    id: "paperpilotshortcut-menu-move",
-    type: "button",
-    textContent: t("Move"),
-  });
-  const menuResetBtn = createElement(doc, "button", "paperpilotshortcut-menu-item", {
-    id: "paperpilotshortcut-menu-reset",
-    type: "button",
-    textContent: t("Reset"),
-  });
+  const menuEditBtn = createElement(
+    doc,
+    "button",
+    "paperpilotshortcut-menu-item",
+    {
+      id: "paperpilotshortcut-menu-edit",
+      type: "button",
+      textContent: t("Edit"),
+    },
+  );
+  const menuDeleteBtn = createElement(
+    doc,
+    "button",
+    "paperpilotshortcut-menu-item",
+    {
+      id: "paperpilotshortcut-menu-delete",
+      type: "button",
+      textContent: t("Delete"),
+    },
+  );
+  const menuAddBtn = createElement(
+    doc,
+    "button",
+    "paperpilotshortcut-menu-item",
+    {
+      id: "paperpilotshortcut-menu-add",
+      type: "button",
+      textContent: t("Add"),
+    },
+  );
+  const menuMoveBtn = createElement(
+    doc,
+    "button",
+    "paperpilotshortcut-menu-item",
+    {
+      id: "paperpilotshortcut-menu-move",
+      type: "button",
+      textContent: t("Move"),
+    },
+  );
+  const menuResetBtn = createElement(
+    doc,
+    "button",
+    "paperpilotshortcut-menu-item",
+    {
+      id: "paperpilotshortcut-menu-reset",
+      type: "button",
+      textContent: t("Reset"),
+    },
+  );
   shortcutMenu.append(
     menuEditBtn,
     menuDeleteBtn,
@@ -506,7 +558,12 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     },
   );
   slashMenu.style.display = "none";
-  const slashList = createElement(doc, "div", "paperpilotaction-picker-list", {});
+  const slashList = createElement(
+    doc,
+    "div",
+    "paperpilotaction-picker-list",
+    {},
+  );
   const makeSlashItem = (id: string, title: string, desc: string) => {
     const btn = createElement(doc, "button", "paperpilotaction-picker-item", {
       id,
@@ -514,9 +571,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
       title: desc,
     });
     btn.setAttribute("data-slash-base-item", "true");
-    const titleEl = createElement(doc, "span", "paperpilotaction-picker-title", {
-      textContent: title,
-    });
+    const titleEl = createElement(
+      doc,
+      "span",
+      "paperpilotaction-picker-title",
+      {
+        textContent: title,
+      },
+    );
     btn.append(titleEl);
     return btn;
   };
@@ -563,9 +625,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
 
   // Input section
   const inputSection = createElement(doc, "div", "paperpilotinput-section");
-  const contextPreviews = createElement(doc, "div", "paperpilotcontext-previews", {
-    id: "paperpilotcontext-previews",
-  });
+  const contextPreviews = createElement(
+    doc,
+    "div",
+    "paperpilotcontext-previews",
+    {
+      id: "paperpilotcontext-previews",
+    },
+  );
   const runtimeModeBtn = createElement(
     doc,
     "button",
@@ -606,9 +673,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   selectedContextList.style.display = "none";
   contextPreviews.appendChild(selectedContextList);
 
-  const paperPreview = createElement(doc, "div", "paperpilotpaper-context-inline", {
-    id: "paperpilotpaper-context-preview",
-  });
+  const paperPreview = createElement(
+    doc,
+    "div",
+    "paperpilotpaper-context-inline",
+    {
+      id: "paperpilotpaper-context-preview",
+    },
+  );
   paperPreview.style.display = "none";
   const paperPreviewList = createElement(
     doc,
@@ -646,12 +718,17 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
       id: "paperpilotimage-preview-header",
     },
   );
-  const removeImgBtn = createElement(doc, "button", "paperpilotremove-img-btn", {
-    id: "paperpilotremove-img",
-    type: "button",
-    textContent: "×",
-    title: t("Clear selected screenshots"),
-  });
+  const removeImgBtn = createElement(
+    doc,
+    "button",
+    "paperpilotremove-img-btn",
+    {
+      id: "paperpilotremove-img",
+      type: "button",
+      textContent: "×",
+      title: t("Clear selected screenshots"),
+    },
+  );
   removeImgBtn.setAttribute("aria-label", t("Clear selected screenshots"));
   imagePreviewHeader.append(imagePreviewMeta, removeImgBtn);
 
@@ -663,9 +740,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
       id: "paperpilotimage-preview-expanded",
     },
   );
-  const previewStrip = createElement(doc, "div", "paperpilotimage-preview-strip", {
-    id: "paperpilotimage-preview-strip",
-  });
+  const previewStrip = createElement(
+    doc,
+    "div",
+    "paperpilotimage-preview-strip",
+    {
+      id: "paperpilotimage-preview-strip",
+    },
+  );
   const previewLargeWrap = createElement(
     doc,
     "div",
@@ -712,12 +794,17 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
       id: "paperpilotfile-context-header",
     },
   );
-  const filePreviewClear = createElement(doc, "button", "paperpilotremove-img-btn", {
-    id: "paperpilotfile-context-clear",
-    type: "button",
-    textContent: "×",
-    title: t("Clear uploaded files"),
-  });
+  const filePreviewClear = createElement(
+    doc,
+    "button",
+    "paperpilotremove-img-btn",
+    {
+      id: "paperpilotfile-context-clear",
+      type: "button",
+      textContent: "×",
+      title: t("Clear uploaded files"),
+    },
+  );
   filePreviewHeader.append(filePreviewMeta, filePreviewClear);
   const filePreviewExpanded = createElement(
     doc,
@@ -727,9 +814,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
       id: "paperpilotfile-context-expanded",
     },
   );
-  const filePreviewList = createElement(doc, "div", "paperpilotfile-context-list", {
-    id: "paperpilotfile-context-list",
-  });
+  const filePreviewList = createElement(
+    doc,
+    "div",
+    "paperpilotfile-context-list",
+    {
+      id: "paperpilotfile-context-list",
+    },
+  );
   filePreviewExpanded.append(filePreviewList);
   filePreview.append(filePreviewHeader, filePreviewExpanded);
   contextPreviews.appendChild(filePreview);
@@ -738,9 +830,14 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     id: "paperpilotpaper-picker",
   });
   paperPicker.style.display = "none";
-  const paperPickerList = createElement(doc, "div", "paperpilotpaper-picker-list", {
-    id: "paperpilotpaper-picker-list",
-  });
+  const paperPickerList = createElement(
+    doc,
+    "div",
+    "paperpilotpaper-picker-list",
+    {
+      id: "paperpilotpaper-picker-list",
+    },
+  );
   paperPickerList.setAttribute("role", "listbox");
   paperPicker.appendChild(paperPickerList);
   inputSection.appendChild(paperPicker);
@@ -756,17 +853,27 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     id: "paperpilotaction-picker",
   });
   actionPicker.style.display = "none";
-  const actionPickerList = createElement(doc, "div", "paperpilotaction-picker-list", {
-    id: "paperpilotaction-picker-list",
-  });
+  const actionPickerList = createElement(
+    doc,
+    "div",
+    "paperpilotaction-picker-list",
+    {
+      id: "paperpilotaction-picker-list",
+    },
+  );
   actionPickerList.setAttribute("role", "listbox");
   actionPicker.appendChild(actionPickerList);
   composeArea.appendChild(actionPicker);
   composeArea.appendChild(slashMenu);
 
-  const actionHitlPanel = createElement(doc, "div", "paperpilotaction-hitl-panel", {
-    id: "paperpilotaction-hitl-panel",
-  });
+  const actionHitlPanel = createElement(
+    doc,
+    "div",
+    "paperpilotaction-hitl-panel",
+    {
+      id: "paperpilotaction-hitl-panel",
+    },
+  );
   actionHitlPanel.style.display = "none";
   composeArea.appendChild(actionHitlPanel);
 

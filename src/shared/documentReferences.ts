@@ -100,8 +100,7 @@ export function extractDocumentReferenceEvidence(
     return evidence ? [evidence] : [];
   }
   const mentioned = normalized.matchAll(REFERENCE_PATTERN).next().value as
-    | RegExpMatchArray
-    | undefined;
+    RegExpMatchArray | undefined;
   if (!mentioned) return [];
   const evidence = evidenceFromMatch(mentioned, "low", "body-text-mention");
   return evidence ? [evidence] : [];

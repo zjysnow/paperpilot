@@ -38,9 +38,7 @@ export type ActionLLMConfig = {
  *   response body so an external agent can handle it.
  */
 export type ActionConfirmationMode =
-  | "native_ui"
-  | "auto_approve"
-  | "mcp_response";
+  "native_ui" | "auto_approve" | "mcp_response";
 
 export type ActionProgressEvent =
   | { type: "step_start"; step: string; index: number; total: number }
@@ -98,8 +96,7 @@ export type ActionExecutionContext = {
 };
 
 export type ActionResult<TOutput = unknown> =
-  | { ok: true; output: TOutput }
-  | { ok: false; error: string };
+  { ok: true; output: TOutput } | { ok: false; error: string };
 
 export interface AgentAction<TInput = unknown, TOutput = unknown> {
   name: string;

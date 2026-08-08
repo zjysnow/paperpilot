@@ -111,11 +111,7 @@ export interface Message {
   interrupted?: boolean;
   webchatRunState?: "done" | "incomplete" | "error";
   webchatCompletionReason?:
-    | "settled"
-    | "forced_cancel"
-    | "timeout"
-    | "error"
-    | null;
+    "settled" | "forced_cancel" | "timeout" | "error" | null;
   webchatChatUrl?: string;
   webchatChatId?: string;
   compactMarker?: boolean;
@@ -437,11 +433,7 @@ export type SendQuestionOptions = {
   apiBase?: string;
   apiKey?: string;
   authMode?:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat";
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
   providerProtocol?: import("../../utils/providerProtocol").ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -522,11 +514,7 @@ export type EditRetryOptions = {
   apiBase?: string;
   apiKey?: string;
   authMode?:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat";
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
   providerProtocol?: import("../../utils/providerProtocol").ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;

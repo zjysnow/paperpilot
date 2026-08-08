@@ -235,8 +235,7 @@ async function getTableColumns(tableName: string): Promise<Set<string>> {
   const db = getZoteroDb();
   if (!db?.queryAsync) return new Set();
   const rows = (await db.queryAsync(`PRAGMA table_info(${tableName})`)) as
-    | Array<{ name?: unknown }>
-    | undefined;
+    Array<{ name?: unknown }> | undefined;
   return new Set(
     (rows || [])
       .map((row) => (typeof row.name === "string" ? row.name : ""))

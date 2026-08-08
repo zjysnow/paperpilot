@@ -13,9 +13,7 @@ import {
 import { buildCodexLibraryStateKey, buildCodexPaperStateKey } from "./state";
 
 export type CodexNativeSkillRoutingMode =
-  | "hybrid"
-  | "deterministic"
-  | "classifier";
+  "hybrid" | "deterministic" | "classifier";
 export type CodexNativeSkillMode = "native" | "legacy" | "off";
 export type CodexAppServerApprovalsReviewer = "user" | "auto_review";
 

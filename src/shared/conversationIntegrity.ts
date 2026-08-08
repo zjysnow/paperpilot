@@ -178,8 +178,7 @@ async function countRows(
   params: unknown[] = [],
 ): Promise<number> {
   const rows = (await db.queryAsync?.(sql, params)) as
-    | Array<{ rowCount?: unknown }>
-    | undefined;
+    Array<{ rowCount?: unknown }> | undefined;
   const rowCount = Number(rows?.[0]?.rowCount);
   return Number.isFinite(rowCount) ? Math.max(0, Math.floor(rowCount)) : 0;
 }

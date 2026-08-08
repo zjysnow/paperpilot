@@ -960,7 +960,7 @@ async function collectPackageAttachmentCandidates(
   const parentItem = getParentItem(sourceAttachment);
   if (parentItem?.getAttachments) {
     for (const attachmentId of parentItem.getAttachments()) {
-      const item = Zotero.Items.get(attachmentId);
+      const item = Zotero.Items.get(attachmentId) || null;
       if (
         item?.isAttachment?.() &&
         !(item as unknown as { deleted?: boolean }).deleted
@@ -1128,7 +1128,7 @@ export async function getMineruAvailabilityForAttachmentId(
   attachmentId: number,
   options: MineruAvailabilityOptions = {},
 ): Promise<MineruAvailability> {
-  const item = Zotero.Items.get(attachmentId);
+  const item = Zotero.Items.get(attachmentId) || null;
   if (!item) {
     return {
       status: "missing",
@@ -1289,7 +1289,7 @@ export async function publishMineruCachePackageForAttachment(
   }
 
   try {
-    const sourceAttachment = Zotero.Items.get(attachmentId);
+    const sourceAttachment = Zotero.Items.get(attachmentId) || null;
     if (!sourceAttachment) return { status: "not_found", attachmentId };
     if (!isPdfAttachment(sourceAttachment)) {
       return { status: "not_pdf", attachmentId };
@@ -1617,7 +1617,7 @@ async function deleteMatchingPackageAttachmentsInParent(params: {
 
   for (const attachmentId of params.parentItem.getAttachments()) {
     if (attachmentId === params.sourceAttachmentId) continue;
-    const item = Zotero.Items.get(attachmentId);
+    const item = Zotero.Items.get(attachmentId) || null;
     const deleted = await deleteMatchingPackageAttachment(
       item,
       params.sourceAttachmentKey,
@@ -1666,7 +1666,7 @@ export async function deleteMineruCacheArtifactsForAttachment(
     };
   }
 
-  const liveItem = Zotero.Items.get(normalizedAttachmentId);
+  const liveItem = Zotero.Items.get(normalizedAttachmentId) || null;
   if (!liveItem) {
     return cleanupMineruArtifactsForRemovedAttachment(normalizedAttachmentId);
   }
@@ -1719,7 +1719,7 @@ export async function deleteMineruCacheArtifactsForAttachment(
 
   if (packageAttachmentId !== null) {
     const deleted = await deleteMatchingPackageAttachment(
-      Zotero.Items.get(packageAttachmentId),
+      Zotero.Items.get(packageAttachmentId) || null,
       sourceAttachmentKey,
       seenPackageIds,
     );
@@ -1760,7 +1760,7 @@ export async function cleanupMineruArtifactsForRemovedAttachment(
     };
   }
 
-  const liveItem = Zotero.Items.get(normalizedAttachmentId);
+  const liveItem = Zotero.Items.get(normalizedAttachmentId) || null;
   if (liveItem) {
     if (!liveItem.isAttachment?.()) {
       return {
@@ -1844,7 +1844,7 @@ export async function cleanupMineruArtifactsForRemovedAttachment(
 
   if (packageAttachmentId !== null) {
     const deleted = await deleteMatchingPackageAttachment(
-      Zotero.Items.get(packageAttachmentId),
+      Zotero.Items.get(packageAttachmentId) || null,
       sourceAttachmentKey,
       seenPackageIds,
     );
@@ -1900,7 +1900,7 @@ async function getAllLibraryPdfAttachments(): Promise<Zotero.Item[]> {
   for (const item of allItems) {
     if (item?.isRegularItem?.()) {
       for (const attachmentId of item.getAttachments?.() || []) {
-        addPdf(Zotero.Items.get(attachmentId));
+        addPdf(Zotero.Items.get(attachmentId) || null);
       }
     } else {
       addPdf(item);
@@ -1968,7 +1968,7 @@ async function cleanupOrphanSyncedMineruPackages(
     if ((item as unknown as { deleted?: boolean }).deleted) continue;
     if (!isMineruSyncPackageAttachment(item)) continue;
 
-    let metadata: MineruSyncMetadata | null = null;
+    let metadata: MineruSyncMetadata | null;
     try {
       const bytes = await readAttachmentFileBytes(item);
       metadata = bytes ? readMineruSyncMetadataFromPackageBytes(bytes) : null;

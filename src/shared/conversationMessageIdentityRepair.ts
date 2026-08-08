@@ -8,9 +8,7 @@ import type { ConversationSystem } from "./types";
 type QueryAsync = (sql: string, params?: unknown[]) => Promise<unknown>;
 
 export type ConversationMessageIdentityRepairStatus =
-  | "unchanged"
-  | "repaired"
-  | "refused";
+  "unchanged" | "repaired" | "refused";
 
 export type ConversationMessageIdentityRepairResult = {
   status: ConversationMessageIdentityRepairStatus;

@@ -6,12 +6,7 @@
 export type SelectedTextSource = "pdf" | "model" | "note" | "note-edit";
 
 export type ChatAttachmentCategory =
-  | "image"
-  | "pdf"
-  | "markdown"
-  | "code"
-  | "text"
-  | "file";
+  "image" | "pdf" | "markdown" | "code" | "text" | "file";
 
 export type ChatAttachment = {
   id: string;
@@ -34,13 +29,7 @@ export type GeneratedChatImage = {
 };
 
 export type PaperContentSourceMode =
-  | "text"
-  | "mineru"
-  | "pdf"
-  | "markdown"
-  | "html"
-  | "txt"
-  | "docx";
+  "text" | "mineru" | "pdf" | "markdown" | "html" | "txt" | "docx";
 
 export type ModelInputMode = "text_only" | "vision_allowed";
 

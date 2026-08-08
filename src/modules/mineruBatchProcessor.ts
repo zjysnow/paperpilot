@@ -84,8 +84,7 @@ let currentAbort: AbortController | null = null;
 function getAbortControllerCtor(): (new () => AbortController) | null {
   return (
     (ztoolkit.getGlobal("AbortController") as
-      | (new () => AbortController)
-      | undefined) ||
+      (new () => AbortController) | undefined) ||
     (
       globalThis as typeof globalThis & {
         AbortController?: new () => AbortController;
@@ -116,7 +115,7 @@ function getPdfAttachments(item: Zotero.Item): Zotero.Item[] {
   const out: Zotero.Item[] = [];
   if (!item?.isRegularItem?.()) return out;
   for (const attId of item.getAttachments()) {
-    const att = Zotero.Items.get(attId);
+    const att = Zotero.Items.get(attId) || null;
     if (
       att?.isAttachment?.() &&
       att.attachmentContentType === "application/pdf"
@@ -136,7 +135,7 @@ function isPdfAttachment(item: Zotero.Item | null | undefined): boolean {
 function getParentItemForPdf(pdfAtt: Zotero.Item): Zotero.Item | null {
   const parentId = Number(pdfAtt.parentID);
   if (!Number.isFinite(parentId) || parentId <= 0) return null;
-  const parentItem = Zotero.Items.get(Math.floor(parentId));
+  const parentItem = Zotero.Items.get(Math.floor(parentId)) || null;
   return parentItem?.isRegularItem?.() ? parentItem : null;
 }
 
@@ -330,7 +329,7 @@ async function processNext(): Promise<void> {
   currentAbort = abort;
 
   try {
-    const pdfItem = Zotero.Items.get(entry.attachmentId);
+    const pdfItem = Zotero.Items.get(entry.attachmentId) || null;
     if (!pdfItem) {
       ztoolkit.log(
         `MinerU batch: item ${entry.attachmentId} not found, skipping`,
@@ -495,10 +494,10 @@ export async function processSelectedItems(
   const filenameMatcher =
     options.filenameMatcher || buildMineruFilenameMatcher();
   for (const attId of attachmentIds) {
-    const pdfItem = Zotero.Items.get(attId);
+    const pdfItem = Zotero.Items.get(attId) || null;
     if (!pdfItem) continue;
     const parentId = pdfItem.parentID;
-    const parentItem = parentId ? Zotero.Items.get(parentId) : null;
+    const parentItem = parentId ? Zotero.Items.get(parentId) || null : null;
     const eligibility = await getMineruParseEligibility(parentItem, pdfItem, {
       filenameMatcher,
     });

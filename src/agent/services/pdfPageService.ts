@@ -286,8 +286,7 @@ function getPdfRenderWindow(canvasDoc: Document, reader: any): Window | null {
 
 function getWindowConstructors(windowObject: Window | null | undefined) {
   const unwrapped = unwrapWrappedJsObject(windowObject || null) as
-    | (Window & WindowConstructors)
-    | null;
+    (Window & WindowConstructors) | null;
   return {
     Object: unwrapped?.Object,
     Array: unwrapped?.Array,

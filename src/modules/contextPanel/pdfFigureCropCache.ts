@@ -54,16 +54,10 @@ export type PdfFigureCropCache = {
 };
 
 export type PdfFigureCropFreshnessReason =
-  | "missing"
-  | "invalid"
-  | "version"
-  | "algorithm"
-  | "manifest"
-  | "attachment";
+  "missing" | "invalid" | "version" | "algorithm" | "manifest" | "attachment";
 
 export type PdfFigureCropFreshness =
-  | { ok: true }
-  | { ok: false; reason: PdfFigureCropFreshnessReason };
+  { ok: true } | { ok: false; reason: PdfFigureCropFreshnessReason };
 
 type PdfFigureCropFingerprintInput = Pick<
   PaperContextRef,

@@ -184,8 +184,7 @@ async function executeCommand(params: {
         })();
 
         let raceResult:
-          | { stdout: string; stderr: string; exitCode: number }
-          | "timeout";
+          { stdout: string; stderr: string; exitCode: number } | "timeout";
         try {
           raceResult = await Promise.race([resultPromise, timeoutPromise]);
         } finally {

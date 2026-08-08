@@ -16,7 +16,8 @@ import {
 type TranslateFn = (label: string) => string;
 
 export const HISTORY_SEARCH_POPUP_ITEM_TAG = "div";
-export const HISTORY_SEARCH_POPUP_DELETE_CLASS = "paperpilotstandalone-search-delete";
+export const HISTORY_SEARCH_POPUP_DELETE_CLASS =
+  "paperpilotstandalone-search-delete";
 export const HISTORY_SEARCH_POPUP_THEME_DARK_CLASS =
   "paperpilothistory-search-theme-dark";
 export const HISTORY_SEARCH_POPUP_THEME_LIGHT_CLASS =
@@ -170,15 +171,28 @@ export function createHistorySearchPopupController(
   const translate: TranslateFn = deps.translate || ((label) => label);
   const log = deps.log || (() => undefined);
 
-  const overlay = createElement(doc, "div", "paperpilotstandalone-search-overlay");
+  const overlay = createElement(
+    doc,
+    "div",
+    "paperpilotstandalone-search-overlay",
+  );
   overlay.style.display = "none";
 
   const popup = createElement(doc, "div", "paperpilotstandalone-search-popup");
-  const header = createElement(doc, "div", "paperpilotstandalone-search-header");
-  const input = createElement(doc, "input", "paperpilotstandalone-search-input", {
-    type: "text",
-    placeholder: translate("Search history"),
-  }) as HTMLInputElement;
+  const header = createElement(
+    doc,
+    "div",
+    "paperpilotstandalone-search-header",
+  );
+  const input = createElement(
+    doc,
+    "input",
+    "paperpilotstandalone-search-input",
+    {
+      type: "text",
+      placeholder: translate("Search history"),
+    },
+  ) as HTMLInputElement;
   input.setAttribute("autocomplete", "off");
   input.setAttribute("spellcheck", "false");
   input.setAttribute("aria-label", translate("Search history"));
@@ -193,7 +207,11 @@ export function createHistorySearchPopupController(
       title: translate("Close"),
     },
   ) as HTMLButtonElement;
-  const results = createElement(doc, "div", "paperpilotstandalone-search-results");
+  const results = createElement(
+    doc,
+    "div",
+    "paperpilotstandalone-search-results",
+  );
 
   header.append(input, closeButton);
   popup.append(header, results);
@@ -281,11 +299,16 @@ export function createHistorySearchPopupController(
     );
 
     if (!entries.length) {
-      const empty = createElement(doc, "div", "paperpilotstandalone-search-empty", {
-        textContent: query
-          ? translate("No matching history")
-          : translate("No conversations yet"),
-      });
+      const empty = createElement(
+        doc,
+        "div",
+        "paperpilotstandalone-search-empty",
+        {
+          textContent: query
+            ? translate("No matching history")
+            : translate("No conversations yet"),
+        },
+      );
       results.appendChild(empty);
       return;
     }
@@ -317,12 +340,20 @@ export function createHistorySearchPopupController(
           "div",
           "paperpilotstandalone-search-text",
         );
-        const label = createElement(doc, "span", "paperpilotstandalone-search-label");
+        const label = createElement(
+          doc,
+          "span",
+          "paperpilotstandalone-search-label",
+        );
         label.dataset.labelType = getHistoryEntryLabelType(entry);
         const labelText = resolveLabel(entry);
         label.textContent = labelText;
 
-        const title = createElement(doc, "span", "paperpilotstandalone-search-title");
+        const title = createElement(
+          doc,
+          "span",
+          "paperpilotstandalone-search-title",
+        );
         const displayTitle = entry.title || translate("Untitled chat");
         const searchResult = searchResultsByKey.get(entry.conversationKey);
         if (searchResult?.titleRanges.length) {
@@ -362,9 +393,14 @@ export function createHistorySearchPopupController(
         const metaText = timestamp
           ? `${scopeLabel} \u00B7 ${timestamp}`
           : scopeLabel;
-        const meta = createElement(doc, "div", "paperpilotstandalone-search-meta", {
-          textContent: metaText,
-        });
+        const meta = createElement(
+          doc,
+          "div",
+          "paperpilotstandalone-search-meta",
+          {
+            textContent: metaText,
+          },
+        );
         item.appendChild(meta);
 
         if (searchResult?.previewText) {

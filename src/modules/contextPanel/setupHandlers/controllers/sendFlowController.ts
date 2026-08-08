@@ -47,11 +47,7 @@ type SelectedProfile = {
   apiKey: string;
   providerLabel: string;
   authMode?:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat";
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
   providerProtocol?: ProviderProtocol;
 };
 

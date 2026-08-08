@@ -138,7 +138,8 @@ export function unregisterReaderSelectionTrackingListener<THandler>(
   );
   const hadMarker =
     readerAPI.__paperpilotSelectionTracking?.pluginID === pluginID &&
-    readerAPI.__paperpilotSelectionTracking.type === READER_TEXT_SELECTION_POPUP_EVENT;
+    readerAPI.__paperpilotSelectionTracking.type ===
+      READER_TEXT_SELECTION_POPUP_EVENT;
   if (hadMarker) {
     delete readerAPI.__paperpilotSelectionTracking;
   }

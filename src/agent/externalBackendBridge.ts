@@ -325,12 +325,7 @@ type BridgeTagContext = {
 };
 
 type BridgeScopeType =
-  | "paper"
-  | "open"
-  | "folder"
-  | "tag"
-  | "tagset"
-  | "custom";
+  "paper" | "open" | "folder" | "tag" | "tagset" | "custom";
 
 export type BridgeScopeSnapshot = {
   scopeType: BridgeScopeType;
@@ -717,7 +712,7 @@ function resolvePaperScopeFromRequest(
       ? Math.floor(request.activeItemId)
       : undefined;
   if (fromActiveItem && fromActiveItem > 0) {
-    const item = Zotero.Items.get(fromActiveItem);
+    const item = Zotero.Items.get(fromActiveItem) || null;
     if (item?.isAttachment?.() && item.parentID) {
       paperItemId = Math.floor(item.parentID);
     } else if (item?.isRegularItem?.()) {
@@ -753,7 +748,7 @@ function resolvePaperScopeFromRequest(
     return null;
   }
 
-  const titleItem = Zotero.Items.get(paperItemId);
+  const titleItem = Zotero.Items.get(paperItemId) || null;
   const scopeLabel =
     titleItem?.isRegularItem?.() && typeof titleItem.getField === "function"
       ? String(titleItem.getField("title") || "").trim() || undefined
@@ -1612,7 +1607,7 @@ async function buildBridgeRuntimeRequest(
       attachmentId: number,
     ): Promise<string | undefined> => {
       if (attachmentId <= 0) return undefined;
-      const attachment = Zotero.Items.get(attachmentId);
+      const attachment = Zotero.Items.get(attachmentId) || null;
       if (!attachment?.isAttachment?.()) return undefined;
       const asyncPath = await (
         attachment as unknown as {
@@ -1671,11 +1666,11 @@ async function buildBridgeRuntimeRequest(
         if (direct) return direct;
       }
       if (normalizedFallbackItemId > 0) {
-        const parentItem = Zotero.Items.get(normalizedFallbackItemId);
+        const parentItem = Zotero.Items.get(normalizedFallbackItemId) || null;
         if (parentItem?.isRegularItem?.()) {
           const attachmentIds = parentItem.getAttachments?.() || [];
           const scoredAttachments = attachmentIds
-            .map((attachmentId) => Zotero.Items.get(attachmentId))
+            .map((attachmentId) => Zotero.Items.get(attachmentId) || null)
             .filter((attachment): attachment is Zotero.Item =>
               Boolean(attachment?.isAttachment?.()),
             )
@@ -2021,6 +2016,7 @@ async function fetchExternalCommands(
   } catch (error) {
     throw new Error(
       formatBridgeUserError(error, baseUrl, "Failed to load Claude commands"),
+      { cause: error },
     );
   }
 }
@@ -2150,6 +2146,7 @@ export async function fetchExternalBridgeSessionInfo(params: {
     } catch (error) {
       throw new Error(
         formatBridgeUserError(error, baseUrl, "Failed to fetch session info"),
+        { cause: error },
       );
     }
   };
@@ -2391,7 +2388,7 @@ export function createExternalBackendBridgeRuntime(options: {
           message,
           error,
         );
-        throw new Error(message);
+        throw new Error(message, { cause: error });
       } finally {
         slashCommandsRefreshInFlight = null;
       }
@@ -2965,7 +2962,7 @@ export function createExternalBackendBridgeRuntime(options: {
           ) {
             ztoolkit.log("LLM Agent: External bridge unavailable", message);
           }
-          throw new Error(message);
+          throw new Error(message, { cause: error });
         } finally {
           unregisterMcpToolActivity();
           clearMcpConfirmationHandler();

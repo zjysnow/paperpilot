@@ -2603,8 +2603,7 @@ async function listCodexConversations(params: {
         ]
       : [libraryID, ...(limit ? [limit] : [])];
   const rows = (await Zotero.DB.queryAsync(sql, queryParams)) as
-    | CodexConversationRow[]
-    | undefined;
+    CodexConversationRow[] | undefined;
   if (!rows?.length) return [];
   const summaries = rows
     .map((row) => toCodexConversationSummary(row))

@@ -71,6 +71,7 @@ import {
   webChatIsolatedConversationKeys,
 } from "./state";
 import { loadAllConversationHistory } from "./historyLoader";
+import { releaseClaudeRuntimeForBody } from "../../claudeCode/runtimeRetention";
 import {
   formatGlobalHistoryTimestamp,
   GLOBAL_HISTORY_UNDO_WINDOW_MS,
@@ -102,7 +103,6 @@ import {
   resolveRuntimeSystemToggleTarget,
   syncRuntimeSystemControls,
 } from "./runtimeSystemControls";
-
 
 import { showStandaloneConfirmationDialog } from "./standaloneConfirmationDialog";
 import { showConversationRenameDialog } from "./conversationRenameDialog";
@@ -222,7 +222,8 @@ function renderStandalonePlaceholdersInEmbeddedPanels(
   const seenBodies = new Set<Element>();
   const mainWindows = Zotero.getMainWindows?.() || [];
   for (const win of mainWindows) {
-    const panelRoots = win?.document?.querySelectorAll?.("#paperpilot-main") || [];
+    const panelRoots =
+      win?.document?.querySelectorAll?.("#paperpilot-main") || [];
     for (const panelRoot of panelRoots) {
       const body = (panelRoot as Element).parentElement;
       if (
@@ -308,10 +309,15 @@ export function renderStandalonePlaceholder(body: Element): void {
   });
   msg.style.cssText = "font-size:13px;";
 
-  const focusBtn = createElement(doc, "button", "paperpilotbtn paperpilotbtn-primary", {
-    textContent: t("Focus Window"),
-    type: "button",
-  });
+  const focusBtn = createElement(
+    doc,
+    "button",
+    "paperpilotbtn paperpilotbtn-primary",
+    {
+      textContent: t("Focus Window"),
+      type: "button",
+    },
+  );
   focusBtn.style.cssText =
     "display:flex;align-items:center;justify-content:center;" +
     "padding:6px 16px;border-radius:6px;cursor:pointer;font-size:12px;" +
@@ -413,11 +419,9 @@ export function openStandaloneChat(options?: {
         preferredSystem: options.initialConversationSystem,
       })
     : null;
-  const preferredConversationSystem =
-    explicitConversationSystem;
-  const initialRuntimeMode =options?.initialRuntimeMode === "chat"
-        ? "chat"
-        : null;
+  const preferredConversationSystem = explicitConversationSystem;
+  const initialRuntimeMode =
+    options?.initialRuntimeMode === "chat" ? "chat" : null;
   const sourceItemSystem = resolveConversationSystemForItem(sourceItem);
   const sourceItemForResolution =
     explicitConversationSystem &&
@@ -468,21 +472,24 @@ export function openStandaloneChat(options?: {
       : initialDisplayConversationKind === "paper" && initialBasePaperItem
         ? "paper"
         : initialBasePaperItem
-            ? "paper"
-            : "open";
+          ? "paper"
+          : "open";
   const lockedKey = getLockedGlobalConversationKey(libraryID);
   const sourceClaudeGlobalKey =
     resolvedSourceState.item &&
-    (resolvedSourceState.item as any).__paperpilotClaudeGlobalPortalItem === true
+    (resolvedSourceState.item as any).__paperpilotClaudeGlobalPortalItem ===
+      true
       ? Number(resolvedSourceState.item.id || 0)
-      : sourceItem && (sourceItem as any).__paperpilotClaudeGlobalPortalItem === true
+      : sourceItem &&
+          (sourceItem as any).__paperpilotClaudeGlobalPortalItem === true
         ? Number(sourceItem.id || 0)
         : 0;
   const sourceCodexGlobalKey =
     resolvedSourceState.item &&
     (resolvedSourceState.item as any).__paperpilotCodexGlobalPortalItem === true
       ? Number(resolvedSourceState.item.id || 0)
-      : sourceItem && (sourceItem as any).__paperpilotCodexGlobalPortalItem === true
+      : sourceItem &&
+          (sourceItem as any).__paperpilotCodexGlobalPortalItem === true
         ? Number(sourceItem.id || 0)
         : 0;
   const sourceUpstreamGlobalKey = isGlobalPortalItem(resolvedSourceState.item)
@@ -493,13 +500,14 @@ export function openStandaloneChat(options?: {
   const rememberedUpstreamGlobalKey =
     activeGlobalConversationByLibrary.get(libraryID) ??
     getLastUsedUpstreamGlobalConversationKey(libraryID);
-  const conversationKey = sourceUpstreamGlobalKey > 0
-        ? sourceUpstreamGlobalKey
-        : (lockedKey ??
-          (rememberedUpstreamGlobalKey === GLOBAL_CONVERSATION_KEY_BASE
-            ? buildDefaultUpstreamGlobalConversationKey(libraryID)
-            : rememberedUpstreamGlobalKey) ??
-          buildDefaultUpstreamGlobalConversationKey(libraryID));
+  const conversationKey =
+    sourceUpstreamGlobalKey > 0
+      ? sourceUpstreamGlobalKey
+      : (lockedKey ??
+        (rememberedUpstreamGlobalKey === GLOBAL_CONVERSATION_KEY_BASE
+          ? buildDefaultUpstreamGlobalConversationKey(libraryID)
+          : rememberedUpstreamGlobalKey) ??
+        buildDefaultUpstreamGlobalConversationKey(libraryID));
   const globalPortalItem = createGlobalPortalItem(libraryID, conversationKey);
   const initialPaperItem =
     initialMode === "paper"
@@ -727,8 +735,7 @@ export function openStandaloneChat(options?: {
       // Access MutationObserver from the main window — it's not a global in the
       // standalone window's Gecko execution context.
       const MO = (mainWin as any).MutationObserver as
-        | typeof MutationObserver
-        | undefined;
+        typeof MutationObserver | undefined;
       if (MO && mainDocEl) {
         themeObserver = new MO(() => syncZoteroVarsToStandalone());
         themeObserver.observe(mainDocEl, {
@@ -883,7 +890,8 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      iconSkill.className = "paperpilotstandalone-icon-btn paperpilotstandalone-icon-skill";
+      iconSkill.className =
+        "paperpilotstandalone-icon-btn paperpilotstandalone-icon-skill";
       iconSkill.type = "button";
       iconSkill.title = t("Skills");
 
@@ -915,7 +923,8 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "button",
       ) as HTMLButtonElement;
-      iconClear.className = "paperpilotstandalone-icon-btn paperpilotstandalone-icon-clear";
+      iconClear.className =
+        "paperpilotstandalone-icon-btn paperpilotstandalone-icon-clear";
       iconClear.type = "button";
       iconClear.title = t("Clear");
 
@@ -1064,7 +1073,8 @@ export function openStandaloneChat(options?: {
         HTML_NS,
         "div",
       ) as HTMLDivElement;
-      contentTitleBarSpacer.className = "paperpilotstandalone-content-title-actions";
+      contentTitleBarSpacer.className =
+        "paperpilotstandalone-content-title-actions";
       contentTitleBar.append(contentTitleText, contentTitleBarSpacer);
 
       const contentArea = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
@@ -1341,7 +1351,6 @@ export function openStandaloneChat(options?: {
         scheduleStandaloneSidebarRender();
       };
 
-
       // -----------------------------------------------------------------------
       // Mount chat UI into contentArea
       // -----------------------------------------------------------------------
@@ -1367,16 +1376,16 @@ export function openStandaloneChat(options?: {
       }): Zotero.Item | null => {
         if (params.mode === "open") {
           return createGlobalPortalItem(
-                  getCurrentLibraryScopeID(),
-                  params.conversationKey,
-                );
+            getCurrentLibraryScopeID(),
+            params.conversationKey,
+          );
         }
         if (!params.paperItem) return null;
         return createPaperPortalItem(
-                params.paperItem,
-                params.conversationKey,
-                params.sessionVersion || 1,
-              );
+          params.paperItem,
+          params.conversationKey,
+          params.sessionVersion || 1,
+        );
       };
 
       const scheduleStandaloneSidebarRender = () => {
@@ -1827,8 +1836,7 @@ export function openStandaloneChat(options?: {
             paperItemID: paperItem.id,
             getPane: () =>
               Zotero.getActiveZoteroPane?.() as
-                | HistoryPaperPaneSelector
-                | undefined,
+                HistoryPaperPaneSelector | undefined,
           });
         } catch (err) {
           ztoolkit.log("LLM: Failed to select standalone history paper", {
@@ -2895,7 +2903,11 @@ export function openStandaloneChat(options?: {
           if (!newKey) return;
           await touchStandaloneEmptyDraftActivity(newKey, "paper");
           if (switchSeq !== systemSwitchSeq) return;
-          const freshItem = createPaperPortalItem(paperItem, newKey, sessionVersion || 1);
+          const freshItem = createPaperPortalItem(
+            paperItem,
+            newKey,
+            sessionVersion || 1,
+          );
           activeConversationKey = newKey;
           currentPaperItem = paperItem;
           mountChatPanel(freshItem as Zotero.Item, currentRawContextItem);
@@ -3214,7 +3226,10 @@ export function openStandaloneChat(options?: {
         "itemId=" + (initialMountedItem?.id ?? "null"),
         "convKey=" + getConversationKey(initialMountedItem),
       );
-      mountChatPanel(initialMountedItem, currentRawContextItem);
+      mountChatPanel(
+        initialMountedItem || globalPortalItem,
+        currentRawContextItem,
+      );
       ztoolkit.log(
         "LLM: standalone renderSidebar start",
         "mode=" + standaloneMode,

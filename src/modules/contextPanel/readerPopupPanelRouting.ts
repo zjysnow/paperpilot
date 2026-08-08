@@ -100,7 +100,9 @@ function getStandalonePanelTarget(
 ): ReaderPopupPanelTarget | null {
   if (!body.isConnected) return null;
   const root = (
-    body.matches?.("#paperpilot-main") ? body : body.querySelector?.("#paperpilot-main")
+    body.matches?.("#paperpilot-main")
+      ? body
+      : body.querySelector?.("#paperpilot-main")
   ) as HTMLDivElement | null;
   if (!root || root.getAttribute("data-standalone") !== "true") return null;
   return {

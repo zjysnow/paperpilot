@@ -11,18 +11,10 @@ import type {
 } from "./zoteroGateway";
 
 export type QueryLibraryEntity =
-  | "items"
-  | "collections"
-  | "notes"
-  | "tags"
-  | "libraries";
+  "items" | "collections" | "notes" | "tags" | "libraries";
 export type QueryLibraryMode = "search" | "list" | "related" | "duplicates";
 export type QueryLibraryInclude =
-  | "metadata"
-  | "attachments"
-  | "tags"
-  | "collections"
-  | "abstract";
+  "metadata" | "attachments" | "tags" | "collections" | "abstract";
 
 export type QueryLibraryFilters = {
   unfiled?: boolean;

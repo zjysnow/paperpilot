@@ -31,8 +31,7 @@ export type MineruFilenameMatcher = {
 };
 
 type MineruFilenamePatternRule =
-  | { kind: "substring"; value: string }
-  | { kind: "regex"; value: RegExp };
+  { kind: "substring"; value: string } | { kind: "regex"; value: RegExp };
 
 export const MINERU_LOCAL_BACKENDS: readonly MineruLocalBackend[] = [
   "pipeline",

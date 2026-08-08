@@ -283,7 +283,7 @@ export async function listAgentRunEvents(
     const seq = Number(row.seq);
     const createdAt = Number(row.createdAt);
     if (!Number.isFinite(seq) || !Number.isFinite(createdAt)) continue;
-    let payload: AgentEvent | null = null;
+    let payload: AgentEvent | null;
     try {
       payload = JSON.parse(String(row.payloadJson || "")) as AgentEvent;
     } catch (_error) {
