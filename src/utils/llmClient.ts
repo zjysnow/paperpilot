@@ -888,6 +888,9 @@ type CopilotModelEntry = {
 };
 
 function isCopilotModelUsable(m: CopilotModelEntry): boolean {
+  // "auto" entries delegate model selection to Copilot and are not models.
+  if (typeof m.id === "string" && /^auto(?:-|$)/i.test(m.id.trim()))
+    return false;
   // Exclude non-chat models (e.g. embeddings)
   if (m.capabilities?.type && m.capabilities.type !== "chat") return false;
   // Exclude models with disabled policy
