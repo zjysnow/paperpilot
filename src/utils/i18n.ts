@@ -27,6 +27,23 @@ const zhCN: Record<string, string> = {
   "Standalone note": "独立笔记",
   "Library chat": "文献库对话",
   "Paper chat": "论文对话",
+  "Workspace Directory": "工作区目录",
+  "Workspace Directory Path": "工作区目录路径",
+  "VS Code Executable Path": "VS Code 执行文件路径",
+  "Optional path to VS Code or VS Code Insiders; the platform default is used when empty":
+    "可选的 VS Code 或 VS Code Insiders 路径；留空时使用系统默认路径",
+  "Open workspace in VS Code": "在 VS Code 中打开工作区",
+  "Configure a Workspace Directory first": "请先配置工作区目录",
+  "Open a paper to create a workspace": "请先打开一篇论文以创建工作区",
+  "Workspace folder name": "工作区文件夹名称",
+  "Create workspace": "创建工作区",
+  "Workspace folder name contains invalid characters":
+    "工作区文件夹名称包含无效字符",
+  "File I/O is not available": "文件 I/O 不可用",
+  "Opened workspace in VS Code": "已在 VS Code 中打开工作区",
+  "Failed to open workspace": "打开工作区失败",
+  "Workspace opening is only available in paper chat":
+    "仅论文对话支持打开工作区",
   Orphan: "孤立对话",
   "Switch to paper chat": "切换到论文对话",
   "Switch to library chat": "切换到文献库对话",

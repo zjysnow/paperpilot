@@ -248,6 +248,19 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   );
   settingsBtn.setAttribute("aria-label", t("Open plugin settings"));
   settingsBtn.dataset.preferencesPaneId = PREFERENCES_PANE_ID;
+  const workspaceBtn = createElement(
+    doc,
+    "button",
+    "paperpilotbtn-icon paperpilotworkspace-btn",
+    {
+      id: "paperpilotworkspace",
+      type: "button",
+      title: t("Open workspace in VS Code"),
+    },
+  );
+  workspaceBtn.setAttribute("aria-label", t("Open workspace in VS Code"));
+  workspaceBtn.disabled =
+    !item || resolveDisplayConversationKind(item) === "global";
   const exportBtn = createElement(
     doc,
     "button",
@@ -273,7 +286,13 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   );
   clearBtn.dataset.compact = "true";
   clearBtn.setAttribute("aria-label", t("Clear"));
-  headerActions.append(popoutBtn, settingsBtn, exportBtn, clearBtn);
+  headerActions.append(
+    popoutBtn,
+    settingsBtn,
+    workspaceBtn,
+    exportBtn,
+    clearBtn,
+  );
   headerTop.appendChild(headerActions);
   header.appendChild(headerTop);
   const historyMenu = createElement(doc, "div", "paperpilothistory-menu", {

@@ -1027,6 +1027,37 @@
   padding: 0;
 }
 
+.paperpilotworkspace-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  font-size: 0;
+  line-height: 0;
+  padding: 0;
+}
+
+.paperpilotworkspace-btn::before {
+  content: "";
+  display: block;
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask-image: url("icons/vscode.svg");
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-image: url("icons/vscode.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  pointer-events: none;
+}
+
 .paperpilotexport-btn::before {
   content: "";
   display: block;

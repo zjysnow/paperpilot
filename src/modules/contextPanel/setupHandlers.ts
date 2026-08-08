@@ -109,6 +109,7 @@ import {
   getAttachmentTypeLabel,
 } from "./textUtils";
 import { positionMenuAtPointer } from "./menuPositioning";
+import { openWorkspaceInVSCode } from "./openWorkspaceController";
 import { resolveSelectedTextAnchors } from "./selectedTextAnchors";
 import {
   getAvailableModelEntries,
@@ -493,6 +494,7 @@ export function setupHandlers(
     actionsLeft,
     popoutBtn,
     settingsBtn,
+    workspaceBtn,
     exportBtn,
     clearBtn,
     titleStatic,
@@ -1235,6 +1237,14 @@ export function setupHandlers(
     if (modeCapsule) {
       modeCapsule.dataset.mode = mode || "";
     }
+    if (workspaceBtn) {
+      workspaceBtn.disabled = !item || mode !== "paper";
+      workspaceBtn.title =
+        mode === "paper"
+          ? t("Open workspace in VS Code")
+          : t("Workspace opening is only available in paper chat");
+      workspaceBtn.setAttribute("aria-label", workspaceBtn.title);
+    }
     if (modeChipBtn) {
       // [webchat] Don't overwrite — applyWebChatModeUI manages the chip in webchat mode
       if (!modeChipBtn.querySelector(".paperpilotwebchat-dot")) {
@@ -1617,6 +1627,16 @@ export function setupHandlers(
     logError: (message, error) => {
       ztoolkit.log(message, error);
     },
+  });
+  workspaceBtn?.addEventListener("click", () => {
+    if (isGlobalMode()) return;
+    void openWorkspaceInVSCode({
+      doc: panelDoc,
+      item,
+      setStatus: (message, level) => {
+        if (status) setStatus(status, message, level);
+      },
+    });
   });
 
   // Clicking non-interactive panel area gives keyboard focus to the panel.

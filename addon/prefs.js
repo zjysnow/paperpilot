@@ -56,6 +56,8 @@ pref("obsidianTargetFolder", "Zotero Notes");
 pref("obsidianAttachmentsFolder", "assets");
 pref("obsidianNoteTemplate", "");
 pref("notesDirectoryNickname", "");
+pref("workspaceDirectory", "");
+pref("vscodeExecutablePath", "");
 pref("locale", "auto");
 pref("mineruMode", "cloud");
 pref("mineruCloudModel", "vlm");

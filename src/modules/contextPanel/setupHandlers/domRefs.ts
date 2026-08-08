@@ -15,6 +15,7 @@ export type PanelDomRefs = {
   actionsRight: HTMLDivElement | null;
   popoutBtn: HTMLButtonElement | null;
   settingsBtn: HTMLButtonElement | null;
+  workspaceBtn: HTMLButtonElement | null;
   exportBtn: HTMLButtonElement | null;
   clearBtn: HTMLButtonElement | null;
   titleStatic: HTMLDivElement | null;
@@ -133,6 +134,9 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     ) as HTMLButtonElement | null,
     settingsBtn: body.querySelector(
       "#paperpilotsettings",
+    ) as HTMLButtonElement | null,
+    workspaceBtn: body.querySelector(
+      "#paperpilotworkspace",
     ) as HTMLButtonElement | null,
     exportBtn: body.querySelector(
       "#paperpilotexport",

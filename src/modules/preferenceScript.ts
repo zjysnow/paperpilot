@@ -132,6 +132,12 @@ import {
   setNotesDirectoryNickname,
 } from "../utils/notesDirectoryConfig";
 import {
+  getWorkspaceDirectory,
+  setWorkspaceDirectory,
+  getVSCodeExecutablePath,
+  setVSCodeExecutablePath,
+} from "../utils/workspaceDirectoryConfig";
+import {
   testMineruConnection,
   testMineruLocalConnection,
 } from "../utils/mineruClient";
@@ -2180,6 +2186,25 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
   // ── Notes Directory settings ─────────────────────────────────────
   {
+    const workspaceDirectoryInput = doc.querySelector(
+      `#${config.addonRef}-workspace-directory`,
+    ) as HTMLInputElement | null;
+    if (workspaceDirectoryInput) {
+      workspaceDirectoryInput.value = getWorkspaceDirectory();
+      workspaceDirectoryInput.addEventListener("input", () => {
+        setWorkspaceDirectory(workspaceDirectoryInput.value);
+      });
+    }
+    const vscodeExecutablePathInput = doc.querySelector(
+      `#${config.addonRef}-vscode-executable-path`,
+    ) as HTMLInputElement | null;
+    if (vscodeExecutablePathInput) {
+      vscodeExecutablePathInput.value = getVSCodeExecutablePath();
+      vscodeExecutablePathInput.addEventListener("input", () => {
+        setVSCodeExecutablePath(vscodeExecutablePathInput.value);
+      });
+    }
+
     const notesDirNicknameInput = doc.querySelector(
       `#${config.addonRef}-notes-dir-nickname`,
     ) as HTMLInputElement | null;
