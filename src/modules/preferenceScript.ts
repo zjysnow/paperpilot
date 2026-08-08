@@ -22,6 +22,7 @@ import {
   createEmptyProviderGroup,
   createProviderModelEntry,
   getModelProviderGroups,
+  getProviderDisplayName,
   migrateApiBaseForAuthModeChange,
   setModelProviderGroups,
   type ModelProviderAuthMode,
@@ -43,12 +44,12 @@ import {
 } from "../utils/providerProtocol";
 import { runProviderConnectionTest } from "../utils/providerConnectionTest";
 import { requiresProviderApiKey } from "../utils/providerAuth";
-import { fetchOllamaModelNames } from "../utils/ollama";
 import {
   startCopilotDeviceFlow,
   pollCopilotDeviceAuth,
   resolveCopilotAccessToken,
   fetchCopilotModelList,
+  fetchOpenAICompatibleModelList,
   callEmbeddings,
 } from "../utils/llmClient";
 import { resetEmbeddingFailedFlags } from "./contextPanel/pdfContext";
@@ -203,7 +204,8 @@ function getProviderProfile(index: number): ProviderProfile {
 
 function normalizeProviderPresetId(value: unknown): ProviderPresetId {
   if (typeof value !== "string") return "customized";
-  return value === "ollama" || value === "customized"
+  if (value === "ollama") return "local_openai_compatible";
+  return value === "local_openai_compatible" || value === "customized"
     ? (value as ProviderPresetId)
     : "customized";
 }
@@ -687,8 +689,6 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   // Mutable reference so input listeners inside rerender can update the
   // "Add Provider" button state without triggering a full rerender.
   let syncAddProviderBtn: () => void = () => undefined;
-  let ollamaSyncStarted = false;
-
   // ── Render ────────────────────────────────────────────────────────
 
   const rerender = () => {
@@ -730,23 +730,31 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       const profile = getProviderProfile(groupIndex);
       group.authMode = normalizeAuthMode(group.authMode);
       group.models = ensureModels(group, profile);
-      const isOllamaGroup =
+      const isLocalProviderGroup =
+        groupIndex === 0 &&
         group.authMode === "api_key" &&
-        detectProviderPreset(group.apiBase) === "ollama";
+        (normalizeProviderPresetId(group.presetIdOverride) ===
+          "local_openai_compatible" ||
+          detectProviderPreset(group.apiBase) === "local_openai_compatible");
 
       const card = el(doc, "div", CARD_STYLE);
 
       // Card header: label + remove button
       const cardHeader = el(doc, "div", CARD_HEADER_STYLE);
       cardHeader.append(
-        el(doc, "span", "font-weight: 700; font-size: 13px;", profile.label),
+        el(
+          doc,
+          "span",
+          "font-weight: 700; font-size: 13px;",
+          getProviderDisplayName(group, groupIndex + 1),
+        ),
       );
       const removeProvBtn = iconBtn(doc, "×", t("Remove provider"));
-      removeProvBtn.disabled = isOllamaGroup;
-      removeProvBtn.title = isOllamaGroup
-        ? t("Ollama provider cannot be removed")
+      removeProvBtn.disabled = isLocalProviderGroup;
+      removeProvBtn.title = isLocalProviderGroup
+        ? t("Local provider cannot be removed")
         : t("Remove provider");
-      if (!isOllamaGroup) {
+      if (!isLocalProviderGroup) {
         removeProvBtn.addEventListener("click", () => {
           groups.splice(groupIndex, 1);
           persistGroups(groups);
@@ -757,6 +765,46 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
       // Card body
       const cardBody = el(doc, "div", CARD_BODY_STYLE);
+
+      // ── Provider name ─────────────────────────────────────────────
+      const providerNameWrap = el(
+        doc,
+        "div",
+        "display: flex; flex-direction: column;",
+      );
+      const providerNameLabel = el(
+        doc,
+        "label",
+        LABEL_STYLE,
+        t("Provider name"),
+      );
+      const providerNameInput = el(
+        doc,
+        "input",
+        INPUT_STYLE,
+      ) as HTMLInputElement;
+      providerNameInput.id = `${config.addonRef}-provider-name-${group.id}`;
+      providerNameLabel.setAttribute("for", providerNameInput.id);
+      providerNameInput.type = "text";
+      providerNameInput.placeholder = getProviderDisplayName(
+        { ...group, providerName: undefined },
+        groupIndex + 1,
+      );
+      providerNameInput.value = group.providerName || "";
+      providerNameInput.addEventListener("input", () => {
+        group.providerName = providerNameInput.value.trim() || undefined;
+        persistGroups(groups);
+        cardHeader.querySelector("span")!.textContent = getProviderDisplayName(
+          group,
+          groupIndex + 1,
+        );
+      });
+      providerNameWrap.append(
+        providerNameLabel,
+        providerNameInput,
+        el(doc, "span", HELPER_STYLE, t("Optional; shown in model selection.")),
+      );
+      cardBody.appendChild(providerNameWrap);
 
       // ── Auth mode ────────────────────────────────────────────────
       const authModeWrap = el(
@@ -817,18 +865,19 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       const detectedPresetId =
         group.authMode === "copilot_auth"
           ? "customized"
-          : (group.presetIdOverride ?? detectProviderPreset(group.apiBase));
+          : normalizeProviderPresetId(
+              group.presetIdOverride ?? detectProviderPreset(group.apiBase),
+            );
       const selectedPresetId: ProviderPresetId =
-        detectedPresetId === "ollama" ? "ollama" : "customized";
+        detectedPresetId === "local_openai_compatible"
+          ? "local_openai_compatible"
+          : "customized";
       const selectedPreset =
         selectedPresetId === "customized"
           ? null
           : getProviderPreset(selectedPresetId);
-      const isOllamaPreset = selectedPresetId === "ollama";
-      if (isOllamaPreset && group.apiKey) {
-        group.apiKey = "";
-        setModelProviderGroups(groups);
-      }
+      const isLocalProviderPreset =
+        selectedPresetId === "local_openai_compatible";
       const isCustomizedPreset =
         group.authMode !== "copilot_auth" && selectedPresetId === "customized";
       group.providerProtocol = resolveSelectedProtocol(group, selectedPresetId);
@@ -855,7 +904,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         providerPresetLabel.setAttribute("for", providerPresetSelect.id);
 
         for (const preset of PROVIDER_PRESETS) {
-          if (preset.id !== "ollama") continue;
+          if (preset.id !== "local_openai_compatible") continue;
           const option = el(doc, "option") as HTMLOptionElement;
           option.value = preset.id;
           option.textContent = preset.label;
@@ -879,7 +928,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
             group.apiBase = getProviderPreset(nextPresetId).defaultApiBase;
             group.providerProtocol =
               getProviderPreset(nextPresetId).defaultProtocol;
-            if (nextPresetId === "ollama") {
+            if (nextPresetId === "local_openai_compatible") {
               group.apiKey = "";
             }
           }
@@ -916,7 +965,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           : selectedPreset?.defaultApiBase || "https://api.openai.com/v1";
       apiUrlInput.value = group.apiBase;
       apiUrlInput.readOnly =
-        group.authMode !== "copilot_auth" && !isCustomizedPreset;
+        group.authMode !== "copilot_auth" &&
+        !isCustomizedPreset &&
+        !isLocalProviderPreset;
       apiUrlInput.style.opacity = apiUrlInput.readOnly ? "0.85" : "1";
       apiUrlInput.style.cursor = apiUrlInput.readOnly ? "default" : "text";
       apiUrlInput.style.pointerEvents = apiUrlInput.readOnly ? "none" : "auto";
@@ -925,6 +976,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         : "";
       apiUrlInput.addEventListener("input", () => {
         group.apiBase = apiUrlInput.value;
+        if (isLocalProviderPreset) {
+          group.presetIdOverride = "local_openai_compatible";
+        }
         persistGroups(groups);
         syncAddProviderBtn();
       });
@@ -957,10 +1011,12 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         syncAddProviderBtn();
       });
       apiKeyWrap.append(apiKeyLabel, apiKeyInput);
-      if (group.authMode === "copilot_auth" || isOllamaPreset) {
+      if (group.authMode === "copilot_auth") {
         apiKeyWrap.style.display = "none";
       }
 
+      let copilotFetchModelsRow: HTMLElement | null = null;
+      let localFetchModelsRow: HTMLElement | null = null;
       // ── Copilot Login ────────────────────────────────────────────
       const copilotLoginWrap = el(
         doc,
@@ -1267,14 +1323,14 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           }
         });
 
-        const fetchModelsRow = el(
+        copilotFetchModelsRow = el(
           doc,
           "div",
           "display: flex; gap: 8px; align-items: center;",
         );
-        fetchModelsRow.append(fetchModelsBtn, fetchModelsStatus);
+        copilotFetchModelsRow.append(fetchModelsBtn, fetchModelsStatus);
 
-        copilotLoginWrap.append(copilotBtnRow, copilotStatus, fetchModelsRow);
+        copilotLoginWrap.append(copilotBtnRow, copilotStatus);
       }
 
       // ── Models list ──────────────────────────────────────────────
@@ -1283,6 +1339,62 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         "div",
         "display: flex; flex-direction: column; gap: 6px;",
       );
+
+      if (isLocalProviderPreset) {
+        const fetchModelsBtn = el(
+          doc,
+          "button",
+          OUTLINE_BTN_STYLE + " font-size: 11px; padding: 3px 10px;",
+          t("Fetch available models"),
+        ) as HTMLButtonElement;
+        fetchModelsBtn.type = "button";
+        const fetchModelsStatus = el(doc, "span", HELPER_STYLE, "");
+        fetchModelsBtn.addEventListener("click", async () => {
+          fetchModelsBtn.disabled = true;
+          fetchModelsStatus.textContent = t("Fetching models…");
+          fetchModelsStatus.style.color = "var(--fill-secondary, #888)";
+          try {
+            const modelNames = await fetchOpenAICompatibleModelList({
+              apiBase: group.apiBase,
+              apiKey: group.apiKey,
+            });
+            if (!modelNames.length) {
+              fetchModelsStatus.textContent = t("No models found");
+              fetchModelsStatus.style.color = "red";
+              return;
+            }
+            const existingModels = new Map(
+              group.models.map((model) => [
+                model.model.trim().toLowerCase(),
+                model,
+              ]),
+            );
+            group.models = modelNames.map(
+              (name) =>
+                existingModels.get(name.toLowerCase()) ||
+                createProviderModelEntry(name),
+            );
+            persistGroups(groups);
+            fetchModelsStatus.textContent = t("Synced %n models").replace(
+              "%n",
+              String(modelNames.length),
+            );
+            fetchModelsStatus.style.color = "green";
+            setTimeout(() => rerender(), 300);
+          } catch (error) {
+            fetchModelsStatus.textContent = `✗ ${(error as Error).message}`;
+            fetchModelsStatus.style.color = "red";
+          } finally {
+            fetchModelsBtn.disabled = false;
+          }
+        });
+        localFetchModelsRow = el(
+          doc,
+          "div",
+          "display: flex; gap: 8px; align-items: center;",
+        );
+        localFetchModelsRow.append(fetchModelsBtn, fetchModelsStatus);
+      }
 
       const modelsHeaderRow = el(
         doc,
@@ -1298,6 +1410,11 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
       modelsHeaderRow.appendChild(addModelBtn);
       modelsWrap.appendChild(modelsHeaderRow);
+      if (localFetchModelsRow) {
+        modelsWrap.appendChild(localFetchModelsRow);
+      } else if (copilotFetchModelsRow) {
+        modelsWrap.appendChild(copilotFetchModelsRow);
+      }
 
       const syncAddModelBtn = () => {
         const canAdd = !hasEmptyModel(group);
@@ -1357,7 +1474,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
         mainRow.append(modelInput, testBtn, advGearBtn);
 
-        if (!isOllamaGroup && group.models.length > 1) {
+        if (group.models.length > 1) {
           const removeModelBtn = iconBtn(doc, "×", t("Remove model"));
           removeModelBtn.addEventListener("click", () => {
             group.models = group.models.filter((e) => e.id !== modelEntry.id);
@@ -1738,55 +1855,6 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   };
 
   rerender();
-  void (async () => {
-    if (ollamaSyncStarted) return;
-    ollamaSyncStarted = true;
-    const ollamaGroup = groups.find(
-      (group) =>
-        group.authMode === "api_key" &&
-        detectProviderPreset(group.apiBase) === "ollama",
-    );
-    if (!ollamaGroup) return;
-    try {
-      const fetchFn = ztoolkit.getGlobal("fetch") as typeof fetch;
-      const discoveredNames = await fetchOllamaModelNames(
-        fetchFn,
-        ollamaGroup.apiBase,
-      );
-      if (!discoveredNames.length) return;
-
-      const existingByName = new Map(
-        ollamaGroup.models.map((model) => [
-          model.model.trim().toLowerCase(),
-          model,
-        ]),
-      );
-      const names = [
-        ...discoveredNames,
-        ...ollamaGroup.models
-          .map((model) => model.model.trim())
-          .filter(
-            (model, index, models) =>
-              model &&
-              !discoveredNames.some(
-                (name) => name.toLowerCase() === model.toLowerCase(),
-              ) &&
-              models.indexOf(model) === index,
-          ),
-      ];
-      ollamaGroup.models = names.map((name) => {
-        const existing = existingByName.get(name.toLowerCase());
-        return existing || createProviderModelEntry(name);
-      });
-      persistGroups(groups);
-      rerender();
-    } catch (error) {
-      ztoolkit.log(
-        `Ollama model discovery failed: ${(error as Error).message}`,
-      );
-    }
-  })();
-
   // ── Global settings ────────────────────────────────────────────
 
   if (systemPromptInput) {

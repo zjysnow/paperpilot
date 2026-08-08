@@ -10,6 +10,7 @@ export const API_ENDPOINT = "/v1/chat/completions";
 export const RESPONSES_ENDPOINT = "/v1/responses";
 export const EMBEDDINGS_ENDPOINT = "/v1/embeddings";
 export const FILES_ENDPOINT = "/v1/files";
+export const MODELS_ENDPOINT = "/v1/models";
 
 // =============================================================================
 // Functions

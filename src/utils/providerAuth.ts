@@ -5,5 +5,8 @@ export function requiresProviderApiKey(params: {
   authMode: ModelProviderAuthMode;
   presetId: ProviderPresetId;
 }): boolean {
-  return params.authMode !== "copilot_auth" && params.presetId !== "ollama";
+  return (
+    params.authMode !== "copilot_auth" &&
+    params.presetId !== "local_openai_compatible"
+  );
 }

@@ -24,27 +24,28 @@ local-first model and agent architecture.
 
 The Preferences page intentionally keeps the provider list small:
 
-- **Ollama**: the recommended local provider.
-- **Customized**: any compatible OpenAI, Ollama, or local gateway endpoint.
+- **Local OpenAI-Compatible**: a configurable local provider for Ollama,
+  llama.cpp, MLX-LM, Unsloth, and other compatible servers.
+- **Customized**: any compatible OpenAI or gateway endpoint.
 
 The provider implementation also supports the protocols needed by compatible
-chat and Responses API endpoints. API keys are optional for local Ollama
-servers.
+chat and Responses API endpoints. API keys are optional for local servers.
 
-### Ollama
+### Local OpenAI-Compatible
 
 Start Ollama and configure the following in `Preferences -> paperpilot`:
 
 | Setting  | Value                            |
 | -------- | -------------------------------- |
-| Provider | `Ollama`                         |
+| Provider | `Local OpenAI-Compatible`        |
 | API URL  | `http://127.0.0.1:11434/v1`      |
 | API key  | Empty                            |
 | Model    | Any installed tool-capable model |
 
-For the protocol used by `ollama launch copilot`, select the `Responses API`
-protocol. Paper Pilot calls Ollama's local `/v1/responses` endpoint directly;
-it does not start or attach to a separate Copilot CLI process.
+The API URL is editable. The default remains Ollama's
+`http://127.0.0.1:11434/v1`; replace it with the `/v1` URL exposed by another
+local server. Select `Responses API` only when that server implements
+`/v1/responses`; otherwise use `OpenAI-Compatible Chat`.
 
 ## Agent Mode
 
@@ -56,7 +57,7 @@ Agent Mode is the local orchestration layer around the configured model. It:
 4. Shows confirmation cards for actions that need user approval.
 5. Executes approved actions and continues the turn until the task is complete.
 
-Agent Mode can use Ollama or another model exposed through Customized. The
+Agent Mode can use the local provider or another model exposed through Customized. The
 model must support tool calling for the full agent workflow; models without
 tool-calling support can still be used for ordinary chat.
 
@@ -80,7 +81,7 @@ text-only chat.
 2. In Zotero, open `Tools -> Add-ons`, select the gear menu, and choose
    **Install Add-on From File**.
 3. Select the `.xpi` file and restart Zotero.
-4. Open `Preferences -> paperpilot`, configure Ollama or Customized, and click
+4. Open `Preferences -> paperpilot`, configure a local or Customized provider, and click
    **Test Connection**.
 5. Open a PDF and click the Paper Pilot icon in the reader toolbar.
 
@@ -103,7 +104,7 @@ npm run start
 
 ## Project status
 
-Paper Pilot is an actively customized project. The local Agent, Skills, Ollama,
+Paper Pilot is an actively customized project. The local Agent, Skills, and local
 provider transport, standalone-window, and PDF workflows may evolve
 independently from upstream llm-for-zotero.
 

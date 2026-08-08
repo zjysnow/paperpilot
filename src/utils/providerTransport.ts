@@ -226,18 +226,6 @@ function isCopilotHost(apiBase: string): boolean {
   return Boolean(parsed && parsed.hostname.includes("githubcopilot.com"));
 }
 
-function isOllamaHost(apiBase: string): boolean {
-  const parsed = parseApiBase(apiBase);
-  return Boolean(
-    parsed &&
-    (parsed.hostname === "127.0.0.1" ||
-      parsed.hostname === "localhost" ||
-      parsed.hostname === "[::1]") &&
-    parsed.pathname.startsWith("/v1") &&
-    parsed.port === "11434",
-  );
-}
-
 export function resolveProviderTransportEndpoint(params: {
   protocol: ProviderProtocol;
   apiBase: string;
@@ -283,9 +271,6 @@ export function buildProviderTransportHeaders(params: {
     params.protocol === "responses_api" ||
     params.protocol === "openai_chat_compat"
   ) {
-    if (params.apiBase && isOllamaHost(params.apiBase)) {
-      return { "Content-Type": "application/json" };
-    }
     if (params.authMode === "copilot_auth") {
       return {
         "Content-Type": "application/json",

@@ -47,6 +47,7 @@ export type {
 import {
   EMBEDDINGS_ENDPOINT,
   FILES_ENDPOINT,
+  MODELS_ENDPOINT,
   resolveEndpoint,
   usesMaxCompletionTokens,
 } from "./apiHelpers";
@@ -927,6 +928,37 @@ export type CopilotModelInfo = {
   name: string;
   protocol?: ProviderProtocol;
 };
+
+export async function fetchOpenAICompatibleModelList(params: {
+  apiBase: string;
+  apiKey?: string;
+  signal?: AbortSignal;
+}): Promise<string[]> {
+  const response = await getFetch()(
+    resolveEndpoint(params.apiBase, MODELS_ENDPOINT),
+    {
+      method: "GET",
+      headers: buildProviderTransportHeaders({
+        protocol: "openai_chat_compat",
+        apiKey: params.apiKey || "",
+        apiBase: params.apiBase,
+      }),
+      signal: params.signal,
+    },
+  );
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Model list fetch failed: ${response.status} ${response.statusText} - ${errorText}`,
+    );
+  }
+  const payload = (await response.json()) as {
+    data?: Array<{ id?: unknown }>;
+  };
+  return (payload.data || [])
+    .map((model) => (typeof model.id === "string" ? model.id.trim() : ""))
+    .filter((id, index, ids) => id && ids.indexOf(id) === index);
+}
 
 export async function fetchCopilotModelList(params: {
   githubToken: string;
@@ -3428,7 +3460,7 @@ export async function callEmbeddings(input: string[]): Promise<number[][]> {
     .toString()
     .trim();
 
-  // Custom providers (local/ollama) may not need an API key
+  // Local/custom providers may not need an API key
   if (!apiKey && embeddingProvider !== "custom") {
     throw new Error(
       `Embedding provider "${embeddingProvider}" requires an API key. ` +

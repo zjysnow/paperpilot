@@ -5,16 +5,19 @@ import {
   providerSupportsResponsesEndpoint,
 } from "../src/utils/providerPresets";
 
-describe("Ollama provider preset", function () {
+describe("local OpenAI-compatible provider preset", function () {
   it("provides an OpenAI-compatible default", function () {
     assert.equal(
-      getProviderPreset("ollama").defaultApiBase,
+      getProviderPreset("local_openai_compatible").defaultApiBase,
       "http://127.0.0.1:11434/v1",
     );
   });
 
-  it("detects Ollama by loopback port", function () {
-    assert.equal(detectProviderPreset("http://localhost:11434/v1"), "ollama");
+  it("detects the default local server by loopback port", function () {
+    assert.equal(
+      detectProviderPreset("http://localhost:11434/v1"),
+      "local_openai_compatible",
+    );
   });
 
   it("does not classify cloud or unrelated local ports as a local runtime", function () {

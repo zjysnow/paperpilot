@@ -498,6 +498,10 @@ const zhCN: Record<string, string> = {
   "Switch to Customized to edit the URL manually.":
     '切换到"自定义"以手动编辑 URL。',
   Provider: "服务商",
+  "Provider name": "服务商名称",
+  "Optional; shown in model selection.": "可选；会显示在模型选择器中。",
+  "Local OpenAI-Compatible": "本地 OpenAI 兼容服务",
+  "Local provider cannot be removed": "本地服务商不可移除",
   Customized: "自定义",
   Protocol: "协议",
   "API protocol override": "API 协议覆盖",

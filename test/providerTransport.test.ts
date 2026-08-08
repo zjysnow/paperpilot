@@ -5,7 +5,7 @@ import {
 } from "../src/utils/providerTransport";
 
 describe("local provider transport", function () {
-  it("uses chat completions for Ollama", function () {
+  it("uses chat completions for the local OpenAI-compatible protocol", function () {
     const apiBase = "http://127.0.0.1:11434/v1";
     assert.equal(
       resolveProviderTransportEndpoint({
@@ -17,7 +17,7 @@ describe("local provider transport", function () {
     );
   });
 
-  it("uses the Responses endpoint for the Ollama Copilot protocol", function () {
+  it("uses the Responses endpoint for the local Responses protocol", function () {
     const apiBase = "http://127.0.0.1:11434/v1";
     assert.equal(
       resolveProviderTransportEndpoint({
@@ -40,14 +40,17 @@ describe("local provider transport", function () {
     );
   });
 
-  it("never sends an authorization header to Ollama", function () {
+  it("sends an authorization header when a local server provides a key", function () {
     assert.deepEqual(
       buildProviderTransportHeaders({
         protocol: "openai_chat_compat",
         apiKey: "stale-online-key",
         apiBase: "http://localhost:11434/v1",
       }),
-      { "Content-Type": "application/json" },
+      {
+        "Content-Type": "application/json",
+        Authorization: "Bearer stale-online-key",
+      },
     );
   });
 

@@ -42,6 +42,8 @@ export type ModelProviderGroup = {
   authMode: ModelProviderAuthMode;
   providerProtocol: ProviderProtocol;
   models: ModelProviderModel[];
+  /** Optional user-facing name shown in provider cards and model menus. */
+  providerName?: string;
   /** When "customized", UI shows Customized and allows editing URL; when undefined, preset is derived from apiBase. */
   presetIdOverride?: ProviderPresetId;
 };
@@ -239,6 +241,7 @@ function normalizeGroup(group: unknown): ModelProviderGroup | null {
     providerProtocol?: unknown;
     models?: unknown;
     presetIdOverride?: unknown;
+    providerName?: unknown;
   };
 
   const authMode = normalizeProviderAuthMode(rawGroup.authMode);
@@ -263,14 +266,18 @@ function normalizeGroup(group: unknown): ModelProviderGroup | null {
       apiBase,
     }),
     models,
+    providerName: normalizeString(rawGroup.providerName) || undefined,
     presetIdOverride: normalizePresetIdOverride(rawGroup.presetIdOverride),
   };
 }
 function normalizePresetIdOverride(
   value: unknown,
 ): ProviderPresetId | undefined {
-  if (value !== "customized") return undefined;
-  return "customized";
+  if (value === "ollama") return "local_openai_compatible";
+  if (value === "customized" || value === "local_openai_compatible") {
+    return value;
+  }
+  return undefined;
 }
 
 function normalizeGroupModel(
@@ -585,6 +592,7 @@ export function createEmptyProviderGroup(): ModelProviderGroup {
     authMode: "api_key",
     providerProtocol: "openai_chat_compat",
     models: [],
+    providerName: undefined,
   };
 }
 
@@ -607,18 +615,7 @@ export function getRuntimeModelEntries(): RuntimeModelEntry[] {
 
   for (const [groupIndex, group] of groups.entries()) {
     const authMode = normalizeProviderAuthMode(group.authMode);
-    const baseProviderLabel = deriveProviderLabel(
-      group.apiBase,
-      groupIndex + 1,
-    );
-    const providerLabel =
-      authMode === "codex_auth"
-        ? `${baseProviderLabel} (codex auth, legacy)`
-        : authMode === "codex_app_server"
-          ? `${baseProviderLabel} (app server)`
-          : authMode === "copilot_auth"
-            ? `${baseProviderLabel} (copilot auth)`
-            : baseProviderLabel;
+    const providerLabel = getProviderDisplayName(group, groupIndex + 1);
     const normalizedCounts = new Map<string, number>();
     for (const modelEntry of group.models) {
       const modelName = modelEntry.model.trim();
@@ -654,6 +651,26 @@ export function getRuntimeModelEntries(): RuntimeModelEntry[] {
   }
 
   return entries;
+}
+
+export function getProviderDisplayName(
+  group: ModelProviderGroup,
+  providerIndex?: number,
+): string {
+  const customName = group.providerName?.trim();
+  if (customName) return customName;
+
+  const baseProviderLabel = deriveProviderLabel(group.apiBase, providerIndex);
+  switch (normalizeProviderAuthMode(group.authMode)) {
+    case "codex_auth":
+      return `${baseProviderLabel} (codex auth, legacy)`;
+    case "codex_app_server":
+      return `${baseProviderLabel} (app server)`;
+    case "copilot_auth":
+      return `${baseProviderLabel} (copilot auth)`;
+    default:
+      return baseProviderLabel;
+  }
 }
 
 export function getModelEntryById(

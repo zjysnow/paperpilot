@@ -12,7 +12,7 @@ export type SupportedProviderPresetId =
   | "kimi"
   | "mimo"
   | "copilot"
-  | "ollama";
+  | "local_openai_compatible";
 
 export type ProviderPresetId = SupportedProviderPresetId | "customized";
 
@@ -298,13 +298,13 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     supportsEmbeddings: false,
   },
   {
-    id: "ollama",
-    label: "Ollama",
+    id: "local_openai_compatible",
+    label: "Local OpenAI-Compatible",
     defaultApiBase: "http://127.0.0.1:11434/v1",
     defaultProtocol: "openai_chat_compat",
     supportedProtocols: ["openai_chat_compat", "responses_api"],
     helperText:
-      "Uses Ollama's local OpenAI-compatible API. API key is not required. Responses API is compatible with Ollama's Copilot CLI setup.",
+      "Uses a local OpenAI-compatible API. The API URL and API key can be configured for Ollama, llama.cpp, MLX-LM, Unsloth, or another local server.",
     matches: makeLocalHostPortMatcher(["11434"]),
     supportsResponsesEndpoint: true,
     supportsEmbeddings: true,
