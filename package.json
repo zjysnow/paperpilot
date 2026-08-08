@@ -1,7 +1,7 @@
 {
   "name": "Paper Pilot",
   "type": "module",
-  "version": "3.8.31",
+  "version": "0.0.1",
   "description": "AI research agent rooted in your Zotero library",
   "config": {
     "addonName": "paperpilot",
@@ -14,7 +14,7 @@
     "type": "git",
     "url": "git+https://github.com/zjysnow/paperpilot.git"
   },
-  "author": "Yile Wang",
+  "author": "Albert Zou",
   "bugs": {
     "url": "https://github.com/zjysnow/paperpilot/issues"
   },
