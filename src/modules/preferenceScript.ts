@@ -2287,42 +2287,10 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         models: { value: string; label: string; pricing: string }[];
       }
     > = {
-      openai: {
-        apiBase: "https://api.openai.com/v1",
-        defaultModel: "text-embedding-3-small",
-        models: [
-          {
-            value: "text-embedding-3-small",
-            label: "text-embedding-3-small",
-            pricing: "$0.02 / 1M tokens",
-          },
-          {
-            value: "text-embedding-3-large",
-            label: "text-embedding-3-large",
-            pricing: "$0.13 / 1M tokens",
-          },
-          {
-            value: "text-embedding-ada-002",
-            label: "text-embedding-ada-002 (legacy)",
-            pricing: "$0.10 / 1M tokens",
-          },
-        ],
-      },
-      gemini: {
-        apiBase: "https://generativelanguage.googleapis.com/v1beta/openai",
-        defaultModel: "gemini-embedding-001",
-        models: [
-          {
-            value: "gemini-embedding-001",
-            label: "gemini-embedding-001",
-            pricing: "Free tier available · $0.15 / 1M tokens",
-          },
-          {
-            value: "text-embedding-004",
-            label: "text-embedding-004",
-            pricing: "$0.10 / 1M tokens",
-          },
-        ],
+      local_openai_compatible: {
+        apiBase: "http://127.0.0.1:11434/v1",
+        defaultModel: "",
+        models: [],
       },
     };
 
@@ -2347,20 +2315,25 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     // values to a concrete provider on first open.
     const resolveEmbeddingProvider = (): string => {
       const stored = readEmbPref("embeddingProvider");
-      if (stored === "openai" || stored === "gemini" || stored === "custom") {
+      if (stored === "local_openai_compatible" || stored === "custom") {
+        if (
+          stored === "local_openai_compatible" &&
+          !readEmbPref("embeddingApiBase")
+        ) {
+          writeEmbPref(
+            "embeddingApiBase",
+            EMBEDDING_PRESETS.local_openai_compatible.apiBase,
+          );
+        }
         return stored;
       }
-      if (stored === "ollama") {
-        writeEmbPref("embeddingProvider", "custom");
-        return "custom";
-      }
-      // "main", empty, or unset → default to "gemini" (free tier available)
-      writeEmbPref("embeddingProvider", "gemini");
-      writeEmbPref("embeddingApiBase", EMBEDDING_PRESETS.gemini.apiBase);
-      if (!readEmbPref("embeddingModel")) {
-        writeEmbPref("embeddingModel", EMBEDDING_PRESETS.gemini.defaultModel);
-      }
-      return "gemini";
+      // Legacy or unset values use the local OpenAI-compatible endpoint.
+      writeEmbPref("embeddingProvider", "local_openai_compatible");
+      writeEmbPref(
+        "embeddingApiBase",
+        EMBEDDING_PRESETS.local_openai_compatible.apiBase,
+      );
+      return "local_openai_compatible";
     };
 
     // Toggle visibility (same pattern as MinerU)
@@ -2390,6 +2363,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       const provider = resolveEmbeddingProvider();
       const preset = EMBEDDING_PRESETS[provider];
       const isCustom = provider === "custom";
+      const isLocal = provider === "local_openai_compatible";
 
       const card = el(doc, "div", CARD_STYLE);
 
@@ -2421,8 +2395,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         INPUT_STYLE,
       ) as HTMLSelectElement;
       const providerOptions: [string, string][] = [
-        ["openai", "OpenAI"],
-        ["gemini", "Google"],
+        ["local_openai_compatible", "Local OpenAI-Compatible"],
         ["custom", t("Customized")],
       ];
       for (const [val, label] of providerOptions) {
@@ -2453,8 +2426,8 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       providerWrap.appendChild(providerSelect);
       cardBody.appendChild(providerWrap);
 
-      // Custom mode: show API URL + API Key fields
-      if (isCustom) {
+      // Local and custom modes allow configuring the API URL.
+      if (isLocal || isCustom) {
         const apiBaseWrap = el(
           doc,
           "div",
@@ -2470,7 +2443,10 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         });
         apiBaseWrap.appendChild(apiBaseInput);
         cardBody.appendChild(apiBaseWrap);
+      }
 
+      // Custom mode also stores its API key directly in the embedding settings.
+      if (isCustom) {
         const apiKeyWrap = el(
           doc,
           "div",
@@ -2489,12 +2465,12 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         cardBody.appendChild(apiKeyWrap);
       }
 
-      // OpenAI / Google: API key status hint (auto-reuse from provider groups)
-      if (!isCustom) {
+      // Local servers may optionally use an API key; reuse one if configured.
+      if (isLocal) {
         const autoKey = findProviderApiKey(provider);
         const explicitKey = readEmbPref("embeddingApiKey");
         if (autoKey || explicitKey) {
-          const providerLabel = provider === "openai" ? "OpenAI" : "Google";
+          const providerLabel = "Local OpenAI-Compatible";
           const hint =
             autoKey && !explicitKey
               ? t("Using API key from your %provider% provider").replace(
@@ -2529,7 +2505,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
             doc.defaultView?.setTimeout(() => renderEmbeddingCard(), 0);
           });
           apiKeyWrap.appendChild(apiKeyInput);
-          const providerLabel = provider === "openai" ? "OpenAI" : "Google";
+          const providerLabel = "Local OpenAI-Compatible";
           apiKeyWrap.appendChild(
             el(
               doc,
@@ -2574,7 +2550,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           : "";
       };
 
-      if (preset) {
+      if (preset && !isLocal) {
         // Dropdown for known providers
         const modelSelect = el(
           doc,
@@ -2610,14 +2586,14 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         modelRow.appendChild(modelSelect);
         updatePricingHint(currentModel);
       } else {
-        // Text input for custom mode
+        // Text input for local and custom providers
         const modelInput = el(
           doc,
           "input",
           INLINE_INPUT_STYLE,
         ) as HTMLInputElement;
         modelInput.type = "text";
-        modelInput.placeholder = "text-embedding-3-small";
+        modelInput.placeholder = "Embedding model";
         modelInput.value = readEmbPref("embeddingModel");
         modelInput.addEventListener("change", () => {
           writeEmbPref("embeddingModel", modelInput.value.trim());
@@ -2638,7 +2614,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       modelWrap.appendChild(modelRow);
 
       // Pricing hint (only for preset providers)
-      if (preset) {
+      if (preset && !isLocal) {
         modelWrap.appendChild(pricingHint);
       }
 

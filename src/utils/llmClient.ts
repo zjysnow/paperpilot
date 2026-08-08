@@ -3414,7 +3414,12 @@ export function checkEmbeddingAvailability(): boolean {
   if (!embeddingApiBase) return false;
 
   // Custom/local providers may not need a key
-  if (embeddingProvider === "custom") return true;
+  if (
+    embeddingProvider === "custom" ||
+    embeddingProvider === "local_openai_compatible"
+  ) {
+    return true;
+  }
   return Boolean(resolveSeparateEmbeddingApiKey(embeddingProvider));
 }
 
@@ -3431,7 +3436,12 @@ export function getEmbeddingUnavailableReason(): string | null {
   }
 
   // Custom/local providers may not need a key
-  if (embeddingProvider === "custom") return null;
+  if (
+    embeddingProvider === "custom" ||
+    embeddingProvider === "local_openai_compatible"
+  ) {
+    return null;
+  }
   if (resolveSeparateEmbeddingApiKey(embeddingProvider)) return null;
   return `No API key found for your ${embeddingProvider} embedding provider. Add a key in Settings → Customization → Semantic Search.`;
 }
@@ -3464,7 +3474,11 @@ export async function callEmbeddings(input: string[]): Promise<number[][]> {
     .trim();
 
   // Local/custom providers may not need an API key
-  if (!apiKey && embeddingProvider !== "custom") {
+  if (
+    !apiKey &&
+    embeddingProvider !== "custom" &&
+    embeddingProvider !== "local_openai_compatible"
+  ) {
     throw new Error(
       `Embedding provider "${embeddingProvider}" requires an API key. ` +
         "Set it in Settings → Customization → Semantic Search.",
