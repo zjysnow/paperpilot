@@ -46,6 +46,8 @@ import {
   runCodexAppServerConnectionTest,
 } from "../utils/providerConnectionTest";
 import { normalizeAgentPermissionMode } from "../shared/agentPermissionMode";
+import { requiresProviderApiKey } from "../utils/providerAuth";
+import { fetchOllamaModelNames } from "../utils/ollama";
 import {
   startCopilotDeviceFlow,
   pollCopilotDeviceAuth,
@@ -145,7 +147,6 @@ import {
 } from "./contextPanel/mineruSync";
 import { getRuntimePlatformInfo } from "../utils/runtimePlatform";
 
-
 type PrefKey = "systemPrompt";
 
 const pref = (key: PrefKey) => `${config.prefsPrefix}.${key}`;
@@ -187,7 +188,9 @@ const COPILOT_API_HELPER_TEXT =
   "GitHub Copilot uses device-based login. Click Login to authenticate via GitHub.";
 const DEFAULT_COPILOT_API_BASE = "https://api.githubcopilot.com";
 const MAX_PROVIDER_COUNT = 10;
-const INITIAL_PROVIDER_COUNT = 4;
+const INITIAL_PROVIDER_COUNT = 1;
+const DEFAULT_OLLAMA_API_BASE = "http://127.0.0.1:11434/v1";
+const DEFAULT_OLLAMA_MODEL = "llama3.2";
 const DEFAULT_CODEX_API_BASE =
   "https://chatgpt.com/backend-api/codex/responses";
 
@@ -833,12 +836,26 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     const result = [...parsed];
     while (result.length < INITIAL_PROVIDER_COUNT)
       result.push(createEmptyProviderGroup());
+    const defaultGroup = result[0];
+    if (defaultGroup) {
+      defaultGroup.apiBase = DEFAULT_OLLAMA_API_BASE;
+      defaultGroup.providerProtocol = "openai_chat_compat";
+      defaultGroup.models = [
+        createProviderModelEntry(
+          DEFAULT_OLLAMA_MODEL,
+          undefined,
+          "openai_chat_compat",
+        ),
+      ];
+      setModelProviderGroups(result);
+    }
     return result;
   })();
 
   // Mutable reference so input listeners inside rerender can update the
   // "Add Provider" button state without triggering a full rerender.
   let syncAddProviderBtn: () => void = () => undefined;
+  let ollamaSyncStarted = false;
 
   // ── Render ────────────────────────────────────────────────────────
 
@@ -881,6 +898,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       const profile = getProviderProfile(groupIndex);
       group.authMode = normalizeAuthMode(group.authMode);
       group.models = ensureModels(group, profile);
+      const isOllamaGroup =
+        group.authMode === "api_key" &&
+        detectProviderPreset(group.apiBase) === "ollama";
 
       const card = el(doc, "div", CARD_STYLE);
 
@@ -890,11 +910,17 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         el(doc, "span", "font-weight: 700; font-size: 13px;", profile.label),
       );
       const removeProvBtn = iconBtn(doc, "×", t("Remove provider"));
-      removeProvBtn.addEventListener("click", () => {
-        groups.splice(groupIndex, 1);
-        persistGroups(groups);
-        rerender();
-      });
+      removeProvBtn.disabled = isOllamaGroup;
+      removeProvBtn.title = isOllamaGroup
+        ? t("Ollama provider cannot be removed")
+        : t("Remove provider");
+      if (!isOllamaGroup) {
+        removeProvBtn.addEventListener("click", () => {
+          groups.splice(groupIndex, 1);
+          persistGroups(groups);
+          rerender();
+        });
+      }
       cardHeader.appendChild(removeProvBtn);
 
       // Card body
@@ -967,9 +993,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         setTimeout(() => rerender(), 0);
       });
       const authModeHelperText =
-        group.authMode === "copilot_auth"
-            ? t(COPILOT_API_HELPER_TEXT)
-            : "";
+        group.authMode === "copilot_auth" ? t(COPILOT_API_HELPER_TEXT) : "";
       authModeWrap.append(
         authModeLabel,
         authModeSelect,
@@ -984,9 +1008,13 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         selectedPresetId === "customized"
           ? null
           : getProviderPreset(selectedPresetId);
+      const isOllamaPreset = selectedPresetId === "ollama";
+      if (isOllamaPreset && group.apiKey) {
+        group.apiKey = "";
+        setModelProviderGroups(groups);
+      }
       const isCustomizedPreset =
-        group.authMode !== "copilot_auth" &&
-        selectedPresetId === "customized";
+        group.authMode !== "copilot_auth" && selectedPresetId === "customized";
       group.providerProtocol = resolveSelectedProtocol(group, selectedPresetId);
 
       // ── Provider preset ─────────────────────────────────────────
@@ -995,9 +1023,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         "div",
         "display: flex; flex-direction: column;",
       );
-      if (
-        group.authMode !== "copilot_auth"
-      ) {
+      if (group.authMode !== "copilot_auth") {
         const providerPresetLabel = el(
           doc,
           "label",
@@ -1038,6 +1064,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
             group.apiBase = getProviderPreset(nextPresetId).defaultApiBase;
             group.providerProtocol =
               getProviderPreset(nextPresetId).defaultProtocol;
+            if (nextPresetId === "ollama") {
+              group.apiKey = "";
+            }
           }
           persistGroups(groups);
           // Defer rerender so the browser can close the dropdown before we replace the DOM
@@ -1072,8 +1101,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           : selectedPreset?.defaultApiBase || "https://api.openai.com/v1";
       apiUrlInput.value = group.apiBase;
       apiUrlInput.readOnly =
-        group.authMode !== "copilot_auth" &&
-        !isCustomizedPreset;
+        group.authMode !== "copilot_auth" && !isCustomizedPreset;
       apiUrlInput.style.opacity = apiUrlInput.readOnly ? "0.85" : "1";
       apiUrlInput.style.cursor = apiUrlInput.readOnly ? "default" : "text";
       apiUrlInput.style.pointerEvents = apiUrlInput.readOnly ? "none" : "auto";
@@ -1114,9 +1142,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         syncAddProviderBtn();
       });
       apiKeyWrap.append(apiKeyLabel, apiKeyInput);
-      if (
-        group.authMode === "copilot_auth"
-      ) {
+      if (group.authMode === "copilot_auth" || isOllamaPreset) {
         apiKeyWrap.style.display = "none";
       }
 
@@ -1145,8 +1171,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
         const AbortControllerCtor =
           (ztoolkit.getGlobal("AbortController") as
-            | (new () => AbortController)
-            | undefined) ||
+            (new () => AbortController) | undefined) ||
           (
             globalThis as typeof globalThis & {
               AbortController?: new () => AbortController;
@@ -1517,7 +1542,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
         mainRow.append(modelInput, testBtn, advGearBtn);
 
-        if (group.models.length > 1) {
+        if (!isOllamaGroup && group.models.length > 1) {
           const removeModelBtn = iconBtn(doc, "×", t("Remove model"));
           removeModelBtn.addEventListener("click", () => {
             group.models = group.models.filter((e) => e.id !== modelEntry.id);
@@ -1774,10 +1799,10 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
             const apiKey =
               authMode === "copilot_auth"
-                  ? await resolveCopilotAccessToken({
-                      githubToken: group.apiKey.trim(),
-                    })
-                  : group.apiKey.trim();
+                ? await resolveCopilotAccessToken({
+                    githubToken: group.apiKey.trim(),
+                  })
+                : group.apiKey.trim();
             const modelName = (
               modelEntry.model ||
               profile.defaultModel ||
@@ -1790,11 +1815,17 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
             );
 
             if (!apiBase) throw new Error(t("API URL is required"));
-            if (!apiKey) {
+            if (
+              !apiKey &&
+              requiresProviderApiKey({
+                authMode,
+                presetId: selectedPresetId,
+              })
+            ) {
               throw new Error(
                 authMode === "copilot_auth"
-                    ? t("Copilot token missing. Click Login first.")
-                    : t("API Key is required"),
+                  ? t("Copilot token missing. Click Login first.")
+                  : t("API Key is required"),
               );
             }
 
@@ -1892,6 +1923,54 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   };
 
   rerender();
+  void (async () => {
+    if (ollamaSyncStarted) return;
+    ollamaSyncStarted = true;
+    const ollamaGroup = groups.find(
+      (group) =>
+        group.authMode === "api_key" &&
+        detectProviderPreset(group.apiBase) === "ollama",
+    );
+    if (!ollamaGroup) return;
+    try {
+      const fetchFn = ztoolkit.getGlobal("fetch") as typeof fetch;
+      const discoveredNames = await fetchOllamaModelNames(
+        fetchFn,
+        ollamaGroup.apiBase,
+      );
+      if (!discoveredNames.length) return;
+
+      const existingByName = new Map(
+        ollamaGroup.models.map((model) => [
+          model.model.trim().toLowerCase(),
+          model,
+        ]),
+      );
+      const names = [
+        ...discoveredNames,
+        ...ollamaGroup.models
+          .map((model) => model.model.trim())
+          .filter(
+            (model, index, models) =>
+              model &&
+              !discoveredNames.some(
+                (name) => name.toLowerCase() === model.toLowerCase(),
+              ) &&
+              models.indexOf(model) === index,
+          ),
+      ];
+      ollamaGroup.models = names.map((name) => {
+        const existing = existingByName.get(name.toLowerCase());
+        return existing || createProviderModelEntry(name);
+      });
+      persistGroups(groups);
+      rerender();
+    } catch (error) {
+      ztoolkit.log(
+        `Ollama model discovery failed: ${(error as Error).message}`,
+      );
+    }
+  })();
 
   // ── Global settings ────────────────────────────────────────────
 
@@ -2202,8 +2281,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       const svc = helper?.classes?.[
         "@mozilla.org/widget/clipboardhelper;1"
       ]?.getService?.(helper?.interfaces?.nsIClipboardHelper) as
-        | { copyString?: (v: string) => void }
-        | undefined;
+        { copyString?: (v: string) => void } | undefined;
       svc?.copyString?.(value);
     } catch {
       /* ignore */
@@ -2294,7 +2372,6 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     }
   };
 
-
   // ── Notes Directory settings ─────────────────────────────────────
   {
     const notesDirNicknameInput = doc.querySelector(
@@ -2368,7 +2445,10 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           if (!exists) {
             throw new Error(`Directory not found: ${fullPath}`);
           }
-          const testFile = joinLocalPath(fullPath, ".paperpilotfor-zotero-test");
+          const testFile = joinLocalPath(
+            fullPath,
+            ".paperpilotfor-zotero-test",
+          );
           const bytes = new TextEncoder().encode("test");
           await IOUtils.write(testFile, bytes);
           await IOUtils.remove(testFile);

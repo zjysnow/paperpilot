@@ -460,8 +460,7 @@ function getOSFile(): OSFileLike | undefined {
   const fromGlobal = (globalThis as { OS?: { File?: OSFileLike } }).OS?.File;
   if (fromGlobal?.read) return fromGlobal;
   const toolkitOS = ztoolkit.getGlobal("OS") as
-    | { File?: OSFileLike }
-    | undefined;
+    { File?: OSFileLike } | undefined;
   const fromToolkit = toolkitOS?.File;
   return fromToolkit?.read ? fromToolkit : undefined;
 }
@@ -511,8 +510,7 @@ function getZoteroFile(): ZoteroFileLike | undefined {
     return fromGlobal;
   }
   const toolkitZotero = ztoolkit.getGlobal("Zotero") as
-    | { File?: ZoteroFileLike }
-    | undefined;
+    { File?: ZoteroFileLike } | undefined;
   const fromToolkit = toolkitZotero?.File;
   if (fromToolkit?.getContentsAsync || fromToolkit?.getBinaryContentsAsync) {
     return fromToolkit;
@@ -2671,9 +2669,7 @@ function stripTemperature(payload: Record<string, unknown>) {
 }
 
 type TemperaturePolicy =
-  | { mode: "default" }
-  | { mode: "omit" }
-  | { mode: "fixed"; value: number };
+  { mode: "default" } | { mode: "omit" } | { mode: "fixed"; value: number };
 
 const temperaturePolicyCache = new Map<string, TemperaturePolicy>();
 
@@ -3121,8 +3117,12 @@ async function callNativeProtocol(params: {
     onUsage,
   } = params;
   const isStreaming = Boolean(onDelta);
-  const url = resolveGeminiNativeEndpoint({ apiBase, model, stream: isStreaming });
-  const headers = buildProviderTransportHeaders({ protocol, apiKey });
+  const url = resolveGeminiNativeEndpoint({
+    apiBase,
+    model,
+    stream: isStreaming,
+  });
+  const headers = buildProviderTransportHeaders({ protocol, apiKey, apiBase });
   const pdfParts: Array<{ base64: string }> = [];
   if (
     (protocol === "anthropic_messages" || protocol === "gemini_native") &&
@@ -3295,6 +3295,7 @@ export async function callLLM(params: ChatParams): Promise<string> {
   const requestHeaders = buildProviderTransportHeaders({
     protocol: providerProtocol,
     apiKey: auth.token,
+    apiBase,
     authMode,
   });
   const buildPayload = createChatPayloadBuilder({
@@ -3430,6 +3431,7 @@ export async function callLLMStream(
   const requestHeaders = buildProviderTransportHeaders({
     protocol: providerProtocol,
     apiKey: auth.token,
+    apiBase,
     authMode,
   });
   const buildPayload = createChatPayloadBuilder({

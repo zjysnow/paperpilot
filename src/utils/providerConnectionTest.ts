@@ -9,7 +9,16 @@ import {
   buildProviderTransportHeaders,
   resolveProviderTransportEndpoint,
 } from "./providerTransport";
-
+import { createAgentModelAdapter } from "../agent/model/factory";
+import type { AgentRuntimeRequest } from "../agent/types";
+import {
+  destroyCachedCodexAppServerProcess,
+  extractCodexAppServerThreadId,
+  extractCodexAppServerTurnId,
+  getOrCreateCodexAppServerProcess,
+  resolveCodexAppServerBinaryPath,
+  waitForCodexAppServerTurnCompletion,
+} from "./codexAppServerProcess";
 
 function extractTextFromCodexSSE(raw: string): string {
   const lines = raw.split(/\r?\n/);
@@ -198,8 +207,6 @@ function extractConnectionReply(params: {
   return extractGeminiText(params.jsonData) || "OK";
 }
 
-
-
 export function getProviderConnectionCapabilityLabel(params: {
   protocol: ProviderProtocol;
   authMode: ModelProviderAuthMode;
@@ -207,9 +214,89 @@ export function getProviderConnectionCapabilityLabel(params: {
   apiKey: string;
   modelName: string;
 }): string {
-  return "low"; // maybe "low" | "medium" | "high" | "xhigh" | "max";
+  const request: AgentRuntimeRequest = {
+    conversationKey: 0,
+    mode: "agent",
+    userText: "test",
+    model: params.modelName,
+    apiBase: params.apiBase,
+    apiKey: params.apiKey,
+    authMode: params.authMode,
+    providerProtocol: params.protocol,
+  };
+  const capabilities =
+    createAgentModelAdapter(request).getCapabilities(request);
+  return describeAgentCapabilityClass(
+    getAgentCapabilityClass({
+      toolCalls: capabilities.toolCalls,
+      fileInputs: capabilities.fileInputs,
+    }),
+  );
 }
 
+export async function runCodexAppServerConnectionTest(params: {
+  modelName: string;
+  codexPath?: string;
+}): Promise<{ reply: string; capabilityLabel: string }> {
+  const processKey = `codex_app_server_connection_test_${Date.now()}_${Math.random()
+    .toString(16)
+    .slice(2)}`;
+  const processOptions = {
+    codexPath: resolveCodexAppServerBinaryPath(params.codexPath),
+  };
+  const proc = await getOrCreateCodexAppServerProcess(
+    processKey,
+    processOptions,
+  );
+  try {
+    const reply = await proc.runTurnExclusive(async () => {
+      const threadResp = await proc.sendRequest("thread/start", {
+        model: params.modelName || undefined,
+        ephemeral: true,
+        approvalPolicy: "never",
+      });
+      const threadId = extractCodexAppServerThreadId(threadResp);
+      if (!threadId) {
+        throw new Error("Codex app-server did not return a thread ID");
+      }
+
+      const turnResp = await proc.sendRequest("turn/start", {
+        threadId,
+        input: [{ type: "text", text: "Say OK" }],
+      });
+      const turnId = extractCodexAppServerTurnId(turnResp);
+      if (!turnId) {
+        throw new Error("Codex app-server did not return a turn ID");
+      }
+
+      return waitForCodexAppServerTurnCompletion({
+        proc,
+        turnId,
+        cacheKey: processKey,
+        processOptions,
+      });
+    });
+
+    const request = {
+      conversationKey: 0,
+      mode: "agent" as const,
+      userText: "",
+      authMode: "codex_app_server" as const,
+      model: params.modelName,
+    } as AgentRuntimeRequest;
+    const capabilities =
+      createAgentModelAdapter(request).getCapabilities(request);
+    const capabilityLabel = describeAgentCapabilityClass(
+      getAgentCapabilityClass({
+        toolCalls: capabilities.toolCalls,
+        fileInputs: capabilities.fileInputs,
+      }),
+    );
+    return { reply: reply.trim() || "OK", capabilityLabel };
+  } finally {
+    destroyCachedCodexAppServerProcess(processKey, undefined, processOptions);
+  }
+}
 
 export async function runProviderConnectionTest(params: {
   fetchFn: typeof fetch;
@@ -235,6 +322,7 @@ export async function runProviderConnectionTest(params: {
     headers: buildProviderTransportHeaders({
       protocol: params.protocol,
       apiKey: params.apiKey,
+      apiBase: params.apiBase,
       authMode: params.authMode,
     }),
     body: JSON.stringify(body),

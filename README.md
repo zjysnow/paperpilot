@@ -134,6 +134,11 @@ multimodal model for figures and a text model for summaries. The conversation
 panel also supports model-specific reasoning levels and hyperparameters such as
 `temperature` and `max_tokens_output`.
 
+**Ollama** is available from the **Provider** selector at
+`127.0.0.1:11434`. It uses the OpenAI-compatible chat completions endpoint and
+does not require an API key. Select **Customized** when using another Ollama
+address or port.
+
 <a id="features"></a>
 
 ## Demos

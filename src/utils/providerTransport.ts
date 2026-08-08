@@ -13,6 +13,7 @@ type ParsedApiBase = {
   origin: string;
   hostname: string;
   pathname: string;
+  port: string;
 };
 
 function trimTrailingSlash(value: string): string {
@@ -28,6 +29,7 @@ function parseApiBase(apiBase: string): ParsedApiBase | null {
       origin: parsed.origin,
       hostname: parsed.hostname.trim().toLowerCase(),
       pathname: parsed.pathname.replace(/\/+$/, "") || "/",
+      port: parsed.port,
     };
   } catch (_error) {
     return null;
@@ -224,6 +226,18 @@ function isCopilotHost(apiBase: string): boolean {
   return Boolean(parsed && parsed.hostname.includes("githubcopilot.com"));
 }
 
+function isOllamaHost(apiBase: string): boolean {
+  const parsed = parseApiBase(apiBase);
+  return Boolean(
+    parsed &&
+    (parsed.hostname === "127.0.0.1" ||
+      parsed.hostname === "localhost" ||
+      parsed.hostname === "[::1]") &&
+    parsed.pathname.startsWith("/v1") &&
+    parsed.port === "11434",
+  );
+}
+
 export function resolveProviderTransportEndpoint(params: {
   protocol: ProviderProtocol;
   apiBase: string;
@@ -231,9 +245,7 @@ export function resolveProviderTransportEndpoint(params: {
   stream?: boolean;
   authMode?: ModelProviderAuthMode;
 }): string {
-  if (
-    params.protocol === "responses_api"
-  ) {
+  if (params.protocol === "responses_api") {
     // Copilot uses /responses (no /v1 prefix)
     if (params.authMode === "copilot_auth" || isCopilotHost(params.apiBase)) {
       const base = trimTrailingSlash(params.apiBase);
@@ -261,16 +273,19 @@ export function resolveProviderTransportEndpoint(params: {
   });
 }
 
-
 export function buildProviderTransportHeaders(params: {
   protocol: ProviderProtocol;
   apiKey: string;
+  apiBase?: string;
   authMode?: ModelProviderAuthMode;
 }): Record<string, string> {
   if (
     params.protocol === "responses_api" ||
     params.protocol === "openai_chat_compat"
   ) {
+    if (params.apiBase && isOllamaHost(params.apiBase)) {
+      return { "Content-Type": "application/json" };
+    }
     if (params.authMode === "copilot_auth") {
       return {
         "Content-Type": "application/json",

@@ -11,7 +11,8 @@ export type SupportedProviderPresetId =
   | "qwen"
   | "kimi"
   | "mimo"
-  | "copilot";
+  | "copilot"
+  | "ollama";
 
 export type ProviderPresetId = SupportedProviderPresetId | "customized";
 
@@ -45,6 +46,7 @@ const CUSTOMIZED_API_KEY_PROTOCOL_OPTIONS: ProviderProtocol[] = [
 type ParsedApiBase = {
   hostname: string;
   pathname: string;
+  port: string;
 };
 
 function normalizeApiBase(apiBase: string): string {
@@ -59,6 +61,7 @@ function parseApiBase(apiBase: string): ParsedApiBase | null {
     return {
       hostname: parsed.hostname.trim().toLowerCase(),
       pathname: parsed.pathname.replace(/\/+$/, "") || "/",
+      port: parsed.port,
     };
   } catch (_err) {
     return null;
@@ -79,6 +82,20 @@ function makeHostAndPathMatcher(hosts: string[], paths: string[]) {
     const parsed = parseApiBase(apiBase);
     if (!parsed) return false;
     return isHost(parsed, hosts) && matchesPaths(parsed.pathname, paths);
+  };
+}
+
+function makeLocalHostPortMatcher(ports: string[]) {
+  return (apiBase: string) => {
+    const parsed = parseApiBase(apiBase);
+    return Boolean(
+      parsed &&
+      (parsed.hostname === "127.0.0.1" ||
+        parsed.hostname === "localhost" ||
+        parsed.hostname === "[::1]") &&
+      ports.includes(parsed.port) &&
+      matchesPaths(parsed.pathname, OPENAI_PATHS),
+    );
   };
 }
 
@@ -279,6 +296,18 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
       "Uses GitHub Copilot via device login. Requires an active Copilot subscription.",
     matches: makeHostAndPathMatcher(["api.githubcopilot.com"], COPILOT_PATHS),
     supportsEmbeddings: false,
+  },
+  {
+    id: "ollama",
+    label: "Ollama",
+    defaultApiBase: "http://127.0.0.1:11434/v1",
+    defaultProtocol: "openai_chat_compat",
+    supportedProtocols: ["openai_chat_compat"],
+    helperText:
+      "Uses Ollama's local OpenAI-compatible API. API key is not required.",
+    matches: makeLocalHostPortMatcher(["11434"]),
+    supportsEmbeddings: true,
+    defaultEmbeddingModel: "nomic-embed-text",
   },
 ];
 
