@@ -686,6 +686,45 @@
           </html:span>
         </html:div>
 
+        <html:div
+          style="
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 12px;
+            border: 1px solid var(--stroke-secondary, #c8c8c8);
+            border-radius: 8px;
+            background: color-mix(
+              in srgb,
+              Field 92%,
+              var(--color-accent, #2563eb) 8%
+            );
+          "
+        >
+          <html:button
+            id="__addonRef__-open-skill-management"
+            type="button"
+            style="
+              align-self: flex-start;
+              padding: 6px 12px;
+              font-size: 12px;
+              font-weight: 600;
+            "
+          >
+            Manage Skills
+          </html:button>
+          <html:span
+            style="
+              font-size: 11px;
+              color: var(--fill-secondary, #888);
+              line-height: 1.5;
+            "
+          >
+            Open the standalone chat's skill manager to create, edit, restore,
+            or delete agent skills.
+          </html:span>
+        </html:div>
+
         <html:div style="display: none" data-runtime-config="codex-app-server">
           <html:div
             style="

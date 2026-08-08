@@ -88,6 +88,7 @@ import {
   setMessageParagraphSpacingPx,
   setMessageWordSpacingPx,
 } from "./contextPanel/state";
+import { openSkillManagerWindow } from "./skillManagerWindow";
 
 import { joinLocalPath } from "../utils/localPath";
 import {
@@ -655,6 +656,12 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   const enableAgentModeInput = doc.querySelector(
     `#${config.addonRef}-enable-agent-mode`,
   ) as HTMLInputElement | null;
+  const openSkillManagementButton = doc.querySelector(
+    `#${config.addonRef}-open-skill-management`,
+  ) as HTMLButtonElement | null;
+  openSkillManagementButton?.addEventListener("click", () => {
+    openSkillManagerWindow();
+  });
   if (!modelSections) return;
 
   const storedGroupsRaw = Zotero.Prefs.get(

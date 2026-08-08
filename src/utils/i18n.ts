@@ -37,8 +37,7 @@ const zhCN: Record<string, string> = {
   "Clear all": "全部清除",
   "Context cleared": "上下文已清除",
   "No context to clear": "没有可清除的上下文",
-  "Add Items as Context to Paper Pilot":
-    "将条目作为上下文添加到 Paper Pilot",
+  "Add Items as Context to Paper Pilot": "将条目作为上下文添加到 Paper Pilot",
   "No supported default attachment found": "未找到支持的默认附件",
   Rename: "重命名",
   "Rename chat": "重命名对话",
@@ -260,6 +259,9 @@ const zhCN: Record<string, string> = {
   Quaternary: "第四",
 
   // ── MinerU manager ──────────────────────────────────────────────────────
+  "Manage Skills": "管理 Skills",
+  "Open the standalone chat's skill manager to create, edit, restore, or delete agent skills.":
+    "打开独立聊天窗口中的 skill 管理器，以创建、编辑、恢复或删除 agent skills。",
   "My Library": "我的文献库",
   "Unfiled Items": "未分类条目",
   Title: "标题",
