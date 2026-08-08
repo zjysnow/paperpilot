@@ -26,8 +26,6 @@ export const chatHistory = new Map<number, Message[]>();
 export const conversationForkLinks = new Map<number, ConversationForkLink>();
 export const loadedConversationKeys = new Set<number>();
 export const loadingConversationTasks = new Map<number, Promise<void>>();
-export const webChatIsolatedConversationKeys = new Set<number>();
-const webChatForceNewChatConversationKeys = new Set<number>();
 export const selectedModelCache = new Map<number, string>();
 export const selectedReasoningCache = new Map<
   number,
@@ -78,40 +76,6 @@ const abortControllers = new Map<number, AbortController | null>();
 function normalizeConversationKey(value: unknown): number {
   const key = Math.floor(Number(value || 0));
   return Number.isFinite(key) && key > 0 ? key : 0;
-}
-
-export function markWebChatConversationForceNewChat(
-  conversationKey: number,
-): void {
-  const key = normalizeConversationKey(conversationKey);
-  if (!key) return;
-  webChatForceNewChatConversationKeys.add(key);
-}
-
-export function clearWebChatConversationForceNewChat(
-  conversationKey: number,
-): void {
-  const key = normalizeConversationKey(conversationKey);
-  if (!key) return;
-  webChatForceNewChatConversationKeys.delete(key);
-}
-
-export function consumeWebChatConversationForceNewChat(
-  conversationKey: number,
-): boolean {
-  const key = normalizeConversationKey(conversationKey);
-  if (!key) return false;
-  const shouldForce = webChatForceNewChatConversationKeys.has(key);
-  webChatForceNewChatConversationKeys.delete(key);
-  return shouldForce;
-}
-
-export function resetWebChatConversationSessionState(
-  conversationKey: number,
-): void {
-  const key = normalizeConversationKey(conversationKey);
-  if (!key) return;
-  webChatForceNewChatConversationKeys.delete(key);
 }
 
 export function getPendingRequestId(conversationKey: number): number {
@@ -332,12 +296,6 @@ export const draftInputCache = new TTLMap<number, string>(
   24 * 60 * 60 * 1000,
   100,
 );
-// WebChat drafts stay local and isolated from the normal paper-chat composer.
-// They use the same bounded lifetime as other unsent drafts.
-export const webChatDraftInputCache = new TTLMap<number, string>(
-  24 * 60 * 60 * 1000,
-  100,
-);
 export const selectedTextCache = new Map<number, SelectedTextContext[]>();
 export const selectedTextPreviewExpandedCache = new Map<number, number>();
 export const selectedNotePreviewExpandedCache = new Map<number, boolean>();
@@ -430,7 +388,6 @@ export function clearAllState(): void {
   conversationForkLinks.clear();
   loadedConversationKeys.clear();
   loadingConversationTasks.clear();
-  webChatForceNewChatConversationKeys.clear();
   selectedModelCache.clear();
   selectedReasoningCache.clear();
   selectedReasoningProviderCache.clear();
@@ -454,7 +411,6 @@ export function clearAllState(): void {
   activeGlobalConversationByLibrary.clear();
   activeConversationModeByLibrary.clear();
   draftInputCache.clear();
-  webChatDraftInputCache.clear();
   selectedTextCache.clear();
   selectedTextPreviewExpandedCache.clear();
   selectedNotePreviewExpandedCache.clear();
@@ -471,6 +427,5 @@ export function clearAllState(): void {
   abortControllers.clear();
   autoLockedGlobalConversationKeys.clear();
   selectedTagContextCache.clear();
-  webChatIsolatedConversationKeys.clear();
   clearMermaidSvgCache();
 }

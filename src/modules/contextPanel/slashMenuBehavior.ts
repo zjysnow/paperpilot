@@ -21,11 +21,10 @@ export function getBaseSlashMenuItems(
 
 export function shouldRenderDynamicSlashMenu(params: {
   itemPresent?: boolean;
-  isWebChat?: boolean;
   runtimeMode?: ChatRuntimeMode | string | null;
   conversationSystem?: ConversationSystem | string | null;
 }): boolean {
-  if (params.itemPresent === false || params.isWebChat) return false;
+  if (params.itemPresent === false) return false;
   if (params.runtimeMode === "agent") return true;
   return (
     params.conversationSystem === "codex" ||
@@ -35,11 +34,10 @@ export function shouldRenderDynamicSlashMenu(params: {
 
 export function shouldRenderSkillSlashMenu(params: {
   itemPresent?: boolean;
-  isWebChat?: boolean;
   runtimeMode?: ChatRuntimeMode | string | null;
   conversationSystem?: ConversationSystem | string | null;
 }): boolean {
-  if (params.itemPresent === false || params.isWebChat) return false;
+  if (params.itemPresent === false) return false;
   if (params.conversationSystem === "claude_code") return false;
   if (params.runtimeMode === "agent") return true;
   return params.conversationSystem === "codex";

@@ -5,7 +5,6 @@ export type RuntimeModeResolutionInput = {
   isRuntimeConversationSystem?: boolean;
   runtimeConversationSystem?:
     "upstream" | "claude_code" | "codex" | string | null;
-  isWebChat?: boolean;
   agentModeEnabled?: boolean;
   displayConversationKind?: "global" | "paper" | null;
   noteKind?: "standalone" | "item" | string | null;
@@ -44,7 +43,6 @@ export function resolveRuntimeModeForConversation(
   ) {
     return "agent";
   }
-  if (input.isWebChat) return "chat";
   if (!input.agentModeEnabled) return "chat";
   if (input.cachedMode === "agent" || input.cachedMode === "chat") {
     return input.cachedMode;

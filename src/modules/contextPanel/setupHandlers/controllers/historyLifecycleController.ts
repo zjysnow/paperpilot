@@ -28,7 +28,6 @@ import {
   chatHistory,
   conversationForkLinks,
   loadedConversationKeys,
-  webChatIsolatedConversationKeys,
   activeGlobalConversationByLibrary,
   activePaperConversationByPaper,
   inlineEditCleanup,
@@ -197,7 +196,6 @@ export type HistoryLifecycleControllerDeps = {
   isNoteSession: () => boolean;
   isGlobalMode: () => boolean;
   isPaperMode: () => boolean;
-  isWebChatMode: () => boolean;
   getCurrentLibraryID: () => number;
   resolveCurrentPaperBaseItem: () => Zotero.Item | null;
   getManualPaperContextsForItem: (itemId: number, auto: any) => any[];
@@ -232,7 +230,6 @@ export type HistoryLifecycleControllerDeps = {
   clearTransientComposeStateForItem: (itemId: number) => void;
   scheduleAttachmentGc: () => void;
   notifyConversationHistoryChanged: () => void;
-  renderWebChatHistoryMenu: () => Promise<void>;
   closeModelMenu: () => void;
   closeReasoningMenu: () => void;
   closeSlashMenu: () => void;
@@ -241,8 +238,6 @@ export type HistoryLifecycleControllerDeps = {
     selectedEntry: { authMode?: string; entryId?: string } | null;
     currentModel: string;
   };
-  markNextWebChatSendAsNewChat: () => void;
-  primeFreshWebChatPaperChipState: () => void;
   updateImagePreviewPreservingScroll: () => void;
   switchConversationSystem: (
     nextSystem: ConversationSystem,
@@ -286,7 +281,6 @@ export function createHistoryLifecycleController(
         return t(
           "Cannot fork this Codex conversation because it has no native thread",
         );
-      case "webchat":
       case "compact_marker":
       case "unsupported_system":
         return t("Fork is not supported for this conversation type yet");
@@ -340,7 +334,6 @@ export function createHistoryLifecycleController(
   const getConversationSystem = deps.getConversationSystem;
   const isNoteSession = deps.isNoteSession;
   const isGlobalMode = deps.isGlobalMode;
-  const isWebChatMode = deps.isWebChatMode;
   const getCurrentLibraryID = deps.getCurrentLibraryID;
   const resolveCurrentPaperBaseItem = deps.resolveCurrentPaperBaseItem;
   const refreshAutoLoadedPaperContextForCurrentItem =
@@ -387,12 +380,9 @@ export function createHistoryLifecycleController(
   const scheduleAttachmentGc = deps.scheduleAttachmentGc;
   const notifyConversationHistoryChanged =
     deps.notifyConversationHistoryChanged;
-  const renderWebChatHistoryMenu = deps.renderWebChatHistoryMenu;
   const closeModelMenu = deps.closeModelMenu;
   const closeReasoningMenu = deps.closeReasoningMenu;
   const closeSlashMenu = deps.closeSlashMenu;
-  const markNextWebChatSendAsNewChat = deps.markNextWebChatSendAsNewChat;
-  const primeFreshWebChatPaperChipState = deps.primeFreshWebChatPaperChipState;
   const setActiveEditSession = deps.setActiveEditSession;
   const ztoolkit = { log: deps.log };
   const ensureConversationCatalogEntry = async (params: {
@@ -1908,20 +1898,7 @@ export function createHistoryLifecycleController(
     syncConversationIdentity();
     refreshAutoLoadedPaperContextForCurrentItem();
     void renderShortcuts(body, item as Zotero.Item, resolveShortcutMode(item));
-    if (isWebChatMode()) {
-      const hadWebChatSession =
-        webChatIsolatedConversationKeys.has(resolvedConversationKey) &&
-        chatHistory.has(resolvedConversationKey);
-      webChatIsolatedConversationKeys.add(resolvedConversationKey);
-      if (!hadWebChatSession) {
-        chatHistory.set(resolvedConversationKey, []);
-        markNextWebChatSendAsNewChat();
-        primeFreshWebChatPaperChipState();
-      }
-      loadedConversationKeys.add(resolvedConversationKey);
-    } else {
-      await ensureConversationLoaded(item as Zotero.Item);
-    }
+    await ensureConversationLoaded(item as Zotero.Item);
     setActiveEditSession(null);
     inlineEditCleanup?.();
     setInlineEditCleanup(null);
@@ -2190,7 +2167,6 @@ export function createHistoryLifecycleController(
       system: activeSystem,
       assistantTimestamp,
       pendingResponse: isRequestPending(sourceConversationKey),
-      webchatMode: isWebChatMode(),
     });
     if (!initialEligibility.allowed) {
       if (status)
@@ -3131,8 +3107,7 @@ export function createHistoryLifecycleController(
       closeHistoryMenu();
 
       // Reuse an existing blank draft in the active mode, or create one if none
-      // exists. Webchat above is the only mode where "+" always requests a new
-      // remote conversation.
+      // exists.
       void runExplicitNewChatAction(async () => {
         if (isGlobalMode()) {
           await createAndSwitchGlobalConversation(true);
@@ -3185,7 +3160,7 @@ export function createHistoryLifecycleController(
     modeChipBtn.addEventListener("click", (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!item || isNoteSession() || isWebChatMode()) return;
+      if (!item || isNoteSession()) return;
       if (isGlobalMode()) {
         void switchPaperConversation();
         return;
@@ -3227,20 +3202,6 @@ export function createHistoryLifecycleController(
         closePromptMenu();
         closeExportMenu();
         closeHistoryNewMenu();
-
-        // [webchat] Show ChatGPT conversation history
-        if (isWebChatMode()) {
-          if (isHistoryMenuOpen()) {
-            closeHistoryMenu();
-            return;
-          }
-          if (!historyMenu) return;
-          await renderWebChatHistoryMenu();
-          positionMenuBelowButton(body, historyMenu, historyToggleBtn);
-          historyMenu.style.display = "flex";
-          historyToggleBtn.setAttribute("aria-expanded", "true");
-          return;
-        }
 
         await refreshGlobalHistoryHeader();
         if (isHistoryMenuOpen()) {

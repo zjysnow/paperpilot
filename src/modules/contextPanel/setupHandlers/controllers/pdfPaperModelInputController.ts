@@ -13,8 +13,7 @@ export type PdfPaperModelInputProfile = {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
+  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   inputMode?: ModelInputMode;
 } | null;
@@ -103,17 +102,10 @@ export async function resolvePdfModeModelInputs(params: {
   selectedImageCountForBudget: number;
   profile: PdfPaperModelInputProfile;
   currentModelName: string;
-  isWebChat?: boolean;
   useCodexAttachmentPolicy?: boolean;
 }): Promise<PdfPaperModelInputResult> {
-  const {
-    deps,
-    paperContexts,
-    selectedBaseFiles,
-    profile,
-    currentModelName,
-    isWebChat = false,
-  } = params;
+  const { deps, paperContexts, selectedBaseFiles, profile, currentModelName } =
+    params;
   const modelName = (profile?.model || currentModelName || "").trim();
   const selectedPdfFiles = selectedBaseFiles.filter(isPdfAttachment);
   const selectedNonPdfFiles = selectedBaseFiles.filter(
@@ -133,19 +125,18 @@ export async function resolvePdfModeModelInputs(params: {
   const pdfUploadSystemMessages: string[] = [];
   let localDocuments: readonly LocalDocumentResource[] = [];
   const hasProviderProcessedPdfs =
-    paperContexts.length > 0 && !isWebChat && pdfSupport === "native";
+    paperContexts.length > 0 && pdfSupport === "native";
 
   if (
-    !isWebChat &&
-    ((paperContexts.length > 0 &&
+    (paperContexts.length > 0 &&
       pdfSupport !== "native" &&
       pdfSupport !== "local_path") ||
-      (selectedPdfFiles.length > 0 && pdfSupport !== "native"))
+    (selectedPdfFiles.length > 0 && pdfSupport !== "native")
   ) {
     return fail(deps, pdfSupport, FULL_PDF_UNSUPPORTED_MESSAGE);
   }
 
-  if (!isWebChat && pdfSupport === "local_path" && paperContexts.length > 0) {
+  if (pdfSupport === "local_path" && paperContexts.length > 0) {
     try {
       localDocuments = await deps.resolveLocalPdfResources(paperContexts);
     } catch (error) {

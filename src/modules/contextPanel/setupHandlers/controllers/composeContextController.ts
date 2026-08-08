@@ -47,9 +47,8 @@ export function isPaperContextFullTextOnlySourceMode(
 
 export function resolvePaperContextForcedSendMode(
   mode: PaperContentSourceMode | null | undefined,
-  webChatMode: boolean,
 ): PaperContextSendMode | null {
-  if (mode === "pdf" && !webChatMode) return "full-sticky";
+  if (mode === "pdf") return "full-sticky";
   if (isPaperContextFullTextOnlySourceMode(mode)) return "full-sticky";
   return null;
 }

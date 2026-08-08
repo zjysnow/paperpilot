@@ -41,8 +41,7 @@ type SelectedProfile = {
   apiBase: string;
   apiKey: string;
   providerLabel: string;
-  authMode?:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
+  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
 };
 
@@ -179,10 +178,7 @@ type SendFlowControllerDeps = {
   retainClaudeRuntime?: (body: Element, item: Zotero.Item) => Promise<void>;
   retainPinnedImageState: (itemId: number) => void;
   retainPaperState: (itemId: number) => void;
-  consumePaperModeState: (
-    itemId: number,
-    options?: { webchatGreyOut?: boolean },
-  ) => void;
+  consumePaperModeState: (itemId: number) => void;
   retainPinnedFileState: (itemId: number) => void;
   retainPinnedTextState: (conversationKey: number) => void;
   updatePaperPreviewPreservingScroll: () => void;
@@ -199,17 +195,6 @@ type SendFlowControllerDeps = {
   onComposerDraftCleared?: () => void;
   /** Consume forced skill IDs from slash menu selection. Returns the IDs and clears state. */
   consumeForcedSkillIds?: () => string[] | undefined;
-  // [webchat]
-  hasActivePdfFullTextPapers?: (
-    item: Zotero.Item,
-    paperContexts?: any[],
-  ) => boolean;
-  getActiveWebChatPdfPaperContexts?: (
-    item: Zotero.Item,
-    paperContexts?: PaperContextRef[],
-  ) => PaperContextRef[];
-  consumeWebChatForceNewChatIntent?: () => boolean;
-  markWebChatForceNewChatIntent?: () => void;
 };
 
 export function createSendFlowController(deps: SendFlowControllerDeps): {
@@ -285,23 +270,6 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         : [];
       // Resolve PDFs based on model capability. The visible chip/attachment state
       // stays unchanged; these variables are the provider-specific model inputs.
-      const isWebChat = earlyProfile?.authMode === "webchat";
-      const activeWebChatPdfPaperContexts = isWebChat
-        ? (deps.getActiveWebChatPdfPaperContexts?.(
-            item,
-            allSelectedPaperContexts,
-          ) ??
-          (deps.hasActivePdfFullTextPapers?.(item, allSelectedPaperContexts)
-            ? pdfModePaperContexts
-            : []))
-        : [];
-      if (isWebChat && activeWebChatPdfPaperContexts.length > 1) {
-        deps.setStatusMessage?.(
-          "Web chat supports one PDF attachment at a time. Keep one PDF active or start separate chats.",
-          "error",
-        );
-        return;
-      }
       const runtimeMode: ChatRuntimeMode = usesPluginAgentMode
         ? "agent"
         : "chat";
@@ -350,7 +318,6 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
           ? { ...earlyProfile, inputMode: earlyAdvancedParams?.inputMode }
           : null,
         currentModelName: earlyModelName,
-        isWebChat,
       });
       if (!pdfInputs.ok) return;
       const {
@@ -375,16 +342,6 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       }
       const hasImageInputs =
         selectedImages.length > 0 || pdfPageImageDataUrls.length > 0;
-      if (
-        isWebChat &&
-        (selectedCollectionContexts.length || selectedTagContexts.length)
-      ) {
-        deps.setStatusMessage?.(
-          "Web chat does not support Zotero collection or tag context. Remove the scope chip and try again.",
-          "error",
-        );
-        return;
-      }
       const hasPaperComposeState =
         allSelectedPaperContexts.length > 0 ||
         selectedCollectionContexts.length > 0 ||
@@ -454,7 +411,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
               selectedTextContexts: selectedContexts,
               selectedTextPaperContexts,
               resolvedSelectedTextAnchors,
-              includeAnchorContext: isWebChat,
+              includeAnchorContext: false,
               includePaperAttribution: deps.isGlobalMode(),
             },
           )
@@ -615,9 +572,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         }
         deps.retainPinnedImageState(item.id);
         if (hasPaperComposeState) {
-          deps.consumePaperModeState(item.id, {
-            webchatGreyOut: isWebChat,
-          });
+          deps.consumePaperModeState(item.id);
           deps.retainPaperState(item.id);
           deps.updatePaperPreviewPreservingScroll();
         }
@@ -652,15 +607,6 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         deps.updateSelectedTextPreviewPreservingScroll();
       }
 
-      // [webchat] Determine whether to send PDF and/or force a new chat
-      // (isWebChat already computed early from earlyProfile)
-      const webchatForceNewChat = isWebChat
-        ? (deps.consumeWebChatForceNewChatIntent?.() ?? false)
-        : false;
-      const webchatSendPdf = isWebChat
-        ? activeWebChatPdfPaperContexts.length > 0
-        : false;
-
       const consumedForcedSkillIds = deps.consumeForcedSkillIds?.() || [];
       const forcedSkillIds = Array.from(
         new Set([
@@ -682,7 +628,6 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         scope: activeNoteScope,
         snapshot: readNoteSnapshot(item),
       }).activeNoteContext;
-      let webchatSendOutcome: "success" | "failed" | "cancelled" | null = null;
       const sendTask = deps.sendQuestion({
         body: deps.body,
         item,
@@ -731,14 +676,8 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         pdfUploadSystemMessages: pdfUploadSystemMessages.length
           ? pdfUploadSystemMessages
           : undefined,
-        webchatSendPdf,
-        webchatPdfPaperContexts: activeWebChatPdfPaperContexts,
-        webchatForceNewChat,
-        onWebChatSendOutcome: (outcome) => {
-          webchatSendOutcome = outcome;
-        },
       });
-      if (hasPaperComposeState && !isWebChat) {
+      if (hasPaperComposeState) {
         deps.consumePaperModeState(item.id);
         deps.retainPaperState(item.id);
         deps.updatePaperPreviewPreservingScroll();
@@ -752,21 +691,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       try {
         await sendTask;
       } catch (err) {
-        if (isWebChat && webchatForceNewChat) {
-          deps.markWebChatForceNewChatIntent?.();
-        }
         throw err;
-      }
-      if (isWebChat) {
-        const webchatSendSucceeded = webchatSendOutcome === "success";
-        if (webchatSendSucceeded && hasPaperComposeState) {
-          deps.consumePaperModeState(item.id, { webchatGreyOut: true });
-          deps.retainPaperState(item.id);
-          deps.updatePaperPreviewPreservingScroll();
-        }
-        if (!webchatSendSucceeded && webchatForceNewChat) {
-          deps.markWebChatForceNewChatIntent?.();
-        }
       }
       deps.refreshGlobalHistoryHeader();
     } finally {

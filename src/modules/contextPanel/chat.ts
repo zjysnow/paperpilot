@@ -2,7 +2,6 @@ import { renderMarkdownForNote } from "../../utils/markdown";
 import { HTML_NS } from "../../utils/domHelpers";
 import {
   t,
-  getWebChatWelcomeHtml,
   getStandaloneLibraryChatStartPageHtml,
   getPaperChatStartPageHtml,
   getNoteEditingStartPageHtml,
@@ -162,7 +161,6 @@ import {
   conversationForkLinks,
   loadedConversationKeys,
   loadingConversationTasks,
-  webChatIsolatedConversationKeys,
   selectedReasoningCache,
   selectedReasoningProviderCache,
   selectedImageCache,
@@ -310,7 +308,6 @@ import {
   QUOTE_RENDER_OCCURRENCE_PATTERN,
 } from "./quoteRenderPlan";
 import { isQuoteValidationPreempted } from "./quoteValidationActivity";
-import { getWebChatTargetByModelName } from "../../webchat/types";
 import {
   getAgentApi,
   getCoreAgentRuntime,
@@ -377,32 +374,6 @@ function getAbortControllerCtor(): new () => AbortController {
 }
 
 const blockedConversationLoadKeys = new Set<number>();
-
-function isEffectiveWebChatRequest(item: Zotero.Item): boolean {
-  try {
-    const requestConfig = resolveEffectiveRequestConfig({ item });
-    return (
-      requestConfig.authMode === "webchat" ||
-      requestConfig.providerProtocol === "web_sync"
-    );
-  } catch {
-    return false;
-  }
-}
-
-function isolateWebChatConversationKey(
-  conversationKey: number,
-  resetHistory: boolean,
-): void {
-  const key = Math.floor(Number(conversationKey || 0));
-  if (!Number.isFinite(key) || key <= 0) return;
-  webChatIsolatedConversationKeys.add(key);
-  if (resetHistory || !chatHistory.has(key)) {
-    chatHistory.set(key, []);
-  }
-  blockedConversationLoadKeys.delete(key);
-  loadedConversationKeys.add(key);
-}
 
 function normalizeConversationScopeInt(value: unknown): number | null {
   const parsed = Number(value);
@@ -1772,8 +1743,6 @@ function toPanelMessage(message: StoredChatMessage): Message {
     reasoningOpen: isReasoningExpandedByDefault(),
     compactMarker: Boolean((message as StoredChatMessage).compactMarker),
     interrupted: message.interrupted || undefined,
-    webchatRunState: message.webchatRunState,
-    webchatCompletionReason: message.webchatCompletionReason,
     quoteCitations: message.quoteCitations,
   };
 }
@@ -1783,20 +1752,6 @@ export async function ensureConversationLoaded(
 ): Promise<void> {
   const conversationKey = getConversationKey(item);
   const conversationSystem = resolveConversationSystemForItem(item);
-  if (isEffectiveWebChatRequest(item)) {
-    isolateWebChatConversationKey(
-      conversationKey,
-      !webChatIsolatedConversationKeys.has(conversationKey),
-    );
-    conversationForkLinks.delete(conversationKey);
-    return;
-  }
-  if (webChatIsolatedConversationKeys.delete(conversationKey)) {
-    chatHistory.delete(conversationKey);
-    loadedConversationKeys.delete(conversationKey);
-    conversationForkLinks.delete(conversationKey);
-  }
-
   if (loadedConversationKeys.has(conversationKey)) {
     await loadConversationForkLinkCache(conversationKey);
     return;
@@ -1840,14 +1795,6 @@ export async function ensureConversationLoaded(
         PERSISTED_HISTORY_LIMIT,
         conversationSystem,
       );
-      if (
-        webChatIsolatedConversationKeys.has(conversationKey) ||
-        isEffectiveWebChatRequest(item)
-      ) {
-        isolateWebChatConversationKey(conversationKey, false);
-        shouldMarkLoaded = true;
-        return;
-      }
       if (!storedMessagesMatchActivePaper(item, storedMessages)) {
         ztoolkit.log(
           `LLM: Refused to render conversation ${conversationKey} because stored paper contexts do not include the active paper.`,
@@ -2384,17 +2331,9 @@ export async function resolveCodexNativeApprovalWithOptionalReviewCard(params: {
   }
 }
 
-function isPanelWebChatMode(body: Element): boolean {
-  return (
-    (body.querySelector("#paperpilot-main") as HTMLElement | null)?.dataset
-      ?.webchatMode === "true"
-  );
-}
-
 type QueuedInputDrainScope = {
   conversationSystem?: ConversationSystem | string | null;
   conversationKey?: number | null;
-  webChatActive?: boolean;
 };
 
 function normalizeQueuedInputConversationSystem(
@@ -2413,13 +2352,11 @@ function scheduleQueuedInputDrain(
         scope.conversationSystem,
       ),
       conversationKey: scope.conversationKey ?? null,
-      webChatActive: scope.webChatActive === true,
     });
     if (threadKey) {
       scheduleQueuedFollowUpDrainForThread(threadKey);
       return;
     }
-    if (scope.webChatActive) return;
   }
   const threadSchedule = (body as unknown as Record<string, unknown>)[
     SCHEDULE_QUEUED_FOLLOW_UP_THREAD_DRAIN_PROPERTY
@@ -2449,7 +2386,7 @@ function setRequestUIBusy(
     }
     if (ui.cancelBtn) ui.cancelBtn.style.display = "";
     if (ui.inputBox) {
-      ui.inputBox.disabled = isPanelWebChatMode(body);
+      ui.inputBox.disabled = false;
     }
     if (ui.status) setStatus(ui.status, statusText, "sending");
   });
@@ -2852,8 +2789,7 @@ export type EffectiveRequestConfig = {
   model: string;
   apiBase: string;
   apiKey: string;
-  authMode:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
+  authMode: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -2877,8 +2813,7 @@ function supportsImageInputs(config: EffectiveRequestConfig): boolean {
 
 function isCodexAppServerConversationRequest(_params: {
   item: Zotero.Item;
-  authMode?:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
+  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   modelProviderLabel?: string;
 }): boolean {
@@ -2887,8 +2822,7 @@ function isCodexAppServerConversationRequest(_params: {
 
 function resolveEffectiveConversationSystem(params: {
   item: Zotero.Item;
-  authMode?:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
+  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   modelProviderLabel?: string;
 }): ConversationSystem {
@@ -2903,8 +2837,7 @@ function resolveEffectiveRequestConfig(params: {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
+  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -2969,15 +2902,13 @@ function resolveEffectiveRequestConfig(params: {
   const authMode =
     params.authMode ||
     explicitEntry?.authMode ||
-    (fallbackEntry?.authMode === "webchat"
-      ? "webchat"
-      : fallbackEntry?.authMode === "codex_auth"
-        ? "codex_auth"
-        : fallbackEntry?.authMode === "codex_app_server"
-          ? "codex_app_server"
-          : fallbackEntry?.authMode === "copilot_auth"
-            ? "copilot_auth"
-            : "api_key");
+    (fallbackEntry?.authMode === "codex_auth"
+      ? "codex_auth"
+      : fallbackEntry?.authMode === "codex_app_server"
+        ? "codex_app_server"
+        : fallbackEntry?.authMode === "copilot_auth"
+          ? "copilot_auth"
+          : "api_key");
   const providerProtocol =
     params.providerProtocol ||
     explicitEntry?.providerProtocol ||
@@ -4774,8 +4705,6 @@ type AssistantMessageSnapshot = Pick<
   | "reasoningDetails"
   | "reasoningOpen"
   | "interrupted"
-  | "webchatRunState"
-  | "webchatCompletionReason"
   | "quoteCitations"
   | "quoteDisplayOverride"
 >;
@@ -4815,8 +4744,6 @@ function takeAssistantSnapshot(message: Message): AssistantMessageSnapshot {
     reasoningDetails: message.reasoningDetails,
     reasoningOpen: message.reasoningOpen,
     interrupted: message.interrupted,
-    webchatRunState: message.webchatRunState,
-    webchatCompletionReason: message.webchatCompletionReason,
     quoteCitations: message.quoteCitations
       ? message.quoteCitations.map((entry) => ({ ...entry }))
       : undefined,
@@ -4853,8 +4780,6 @@ function restoreAssistantSnapshot(
   message.reasoningDetails = snapshot.reasoningDetails;
   message.reasoningOpen = snapshot.reasoningOpen;
   message.interrupted = snapshot.interrupted;
-  message.webchatRunState = snapshot.webchatRunState;
-  message.webchatCompletionReason = snapshot.webchatCompletionReason;
   message.quoteCitations = snapshot.quoteCitations
     ? snapshot.quoteCitations.map((entry) => ({ ...entry }))
     : undefined;
@@ -4888,8 +4813,6 @@ function finalizeCancelledAssistantMessage(
   message.pendingAgentTraceEvents = undefined;
   message.streaming = false;
   message.interrupted = undefined;
-  message.webchatRunState = undefined;
-  message.webchatCompletionReason = null;
 }
 
 type CodexNativeTraceItemEvent = {
@@ -5781,87 +5704,6 @@ function noteExplicitCodexNativeSkillInvocations(
   }
 }
 
-function applyWebChatAnswerSnapshot(
-  message: Message,
-  text: string,
-  snapshot: {
-    runState?:
-      | "submitted"
-      | "active"
-      | "settling"
-      | "done"
-      | "incomplete"
-      | "error"
-      | null;
-    completionReason?: "settled" | "forced_cancel" | "timeout" | "error" | null;
-    remoteChatUrl?: string | null;
-    remoteChatId?: string | null;
-  },
-): void {
-  message.text = sanitizeText(text || "");
-  message.timestamp = Date.now();
-  // [webchat] Capture chat URL from streaming snapshots so it's available for refresh
-  if (snapshot.remoteChatUrl) message.webchatChatUrl = snapshot.remoteChatUrl;
-  if (snapshot.remoteChatId) message.webchatChatId = snapshot.remoteChatId;
-  if (
-    snapshot.runState === "done" ||
-    snapshot.runState === "incomplete" ||
-    snapshot.runState === "error"
-  ) {
-    message.webchatRunState = snapshot.runState;
-    message.webchatCompletionReason = snapshot.completionReason || null;
-  } else {
-    message.webchatRunState = undefined;
-    message.webchatCompletionReason = null;
-  }
-}
-
-function applyWebChatThinkingSnapshot(
-  message: Message,
-  text: string,
-  snapshot: {
-    runState?:
-      | "submitted"
-      | "active"
-      | "settling"
-      | "done"
-      | "incomplete"
-      | "error"
-      | null;
-    completionReason?: "settled" | "forced_cancel" | "timeout" | "error" | null;
-  },
-): void {
-  const sanitized = sanitizeText(text || "");
-  message.reasoningDetails = sanitized || undefined;
-  message.reasoningOpen = sanitized ? isReasoningExpandedByDefault() : false;
-  if (
-    snapshot.runState === "done" ||
-    snapshot.runState === "incomplete" ||
-    snapshot.runState === "error"
-  ) {
-    message.webchatRunState = snapshot.runState;
-    message.webchatCompletionReason = snapshot.completionReason || null;
-  }
-}
-
-function getWebChatRunStateLabel(message: Message): string | null {
-  if (message.webchatRunState === "incomplete") {
-    switch (message.webchatCompletionReason) {
-      case "forced_cancel":
-        return "Partial only — chat stayed busy and needed a forced stop";
-      case "timeout":
-        return "Partial only — final answer was not verified before timeout";
-      case "error":
-      default:
-        return "Partial only — final answer not verified";
-    }
-  }
-  if (message.webchatRunState === "error") {
-    return "Web sync ended with an error";
-  }
-  return null;
-}
-
 function reconstructRetryPayload(
   userMessage: Message,
   options?: {
@@ -6165,7 +6007,6 @@ async function resolveRetryModelInputs(params: {
     inputMode: params.effectiveRequestConfig.advanced?.inputMode,
   }).pdf;
   if (
-    params.effectiveRequestConfig.providerProtocol !== "web_sync" &&
     pdfSupport !== "native" &&
     (visibleAttachments.some(isPdfChatAttachment) ||
       (modelAttachmentsOverride || []).some(isPdfChatAttachment))
@@ -6794,8 +6635,7 @@ export async function retryLatestAssistantResponse(
   model?: string,
   apiBase?: string,
   apiKey?: string,
-  authMode?:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat",
+  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth",
   providerProtocol?: ProviderProtocol,
   modelEntryId?: string,
   modelProviderLabel?: string,
@@ -6910,9 +6750,7 @@ export async function retryLatestAssistantResponse(
     selectedTagContexts,
   } = reconstructRetryPayload(retryPair.userMessage, {
     resolvedSelectedTextAnchors: retryResolvedSelectedTextAnchors,
-    includeAnchorContext:
-      effectiveRequestConfig.authMode === "webchat" ||
-      effectiveRequestConfig.providerProtocol === "web_sync",
+    includeAnchorContext: false,
   });
   retryPair.userMessage.paperContexts = paperContexts.length
     ? paperContexts
@@ -7430,13 +7268,10 @@ export async function retryLatestAssistantResponse(
     restoreRequestUIIdle(body, conversationKey, thisRequestId);
     setAbortController(conversationKey, null);
     clearPendingRequestIdAndSync(conversationKey, body, item);
-    if (effectiveRequestConfig.providerProtocol !== "web_sync") {
-      scheduleQueuedInputDrain(body, {
-        conversationSystem:
-          resolveConversationSystemForItem(item) || "upstream",
-        conversationKey,
-      });
-    }
+    scheduleQueuedInputDrain(body, {
+      conversationSystem: resolveConversationSystemForItem(item) || "upstream",
+      conversationKey,
+    });
   }
 }
 
@@ -7471,8 +7306,7 @@ export async function editUserTurnAndRetry(opts: {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
+  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -8380,8 +8214,7 @@ async function retryLatestAgentResponse(
   model?: string,
   apiBase?: string,
   apiKey?: string,
-  authMode?:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat",
+  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth",
   providerProtocol?: ProviderProtocol,
   modelEntryId?: string,
   modelProviderLabel?: string,
@@ -8423,8 +8256,7 @@ async function sendAgentQuestion(opts: {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
+  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -8567,13 +8399,6 @@ export async function sendQuestion(
   const panelRoot = body.querySelector(
     "#paperpilot-main",
   ) as HTMLElement | null;
-  if (
-    panelRoot &&
-    (opts.providerProtocol === "web_sync" || opts.authMode === "webchat")
-  ) {
-    panelRoot.dataset.webchatMode = "true";
-  }
-
   // Track this request
   const thisRequestId = nextRequestId();
   const initialConversationKey = getConversationKey(item);
@@ -8682,8 +8507,7 @@ export async function sendQuestion(
     reasoning,
     advanced,
   });
-  const shouldPersistTurn =
-    effectiveRequestConfig.providerProtocol !== "web_sync";
+  const shouldPersistTurn = true;
   const isCodexNativeTurn =
     effectiveConversationSystem === "codex" &&
     effectiveRequestConfig.authMode === "codex_app_server";
@@ -8857,9 +8681,6 @@ export async function sendQuestion(
   ]);
   const normalizedPdfPaperContexts = normalizePaperContexts(
     pdfPaperContexts,
-  ).map((paper) => ({ ...paper, contentSourceMode: "pdf" as const }));
-  const normalizedWebChatPdfPaperContexts = normalizePaperContexts(
-    opts.webchatPdfPaperContexts ?? normalizedPdfPaperContexts,
   ).map((paper) => ({ ...paper, contentSourceMode: "pdf" as const }));
   const pdfModePaperKeys = new Set(
     normalizedPdfPaperContexts.map(
@@ -9055,10 +8876,6 @@ export async function sendQuestion(
         interrupted: assistantMessage.interrupted,
         reasoningSummary: assistantMessage.reasoningSummary,
         reasoningDetails: assistantMessage.reasoningDetails,
-        webchatRunState: assistantMessage.webchatRunState,
-        webchatCompletionReason: assistantMessage.webchatCompletionReason,
-        webchatChatUrl: assistantMessage.webchatChatUrl,
-        webchatChatId: assistantMessage.webchatChatId,
         quoteCitations: assistantMessage.quoteCitations,
         generatedImages: assistantMessage.generatedImages,
         compactMarker: assistantMessage.compactMarker,
@@ -9077,139 +8894,6 @@ export async function sendQuestion(
     await persistAssistantOnce();
     setStatusSafely("Cancelled", "ready");
   };
-
-  // [webchat] Dedicated pipeline — bypass context assembly, send raw PDF + question
-  if (effectiveRequestConfig.providerProtocol === "web_sync") {
-    const webChatQueueRefresh = createQueuedRefresh(() =>
-      refreshAssistantMessageSafely(assistantMessage),
-    );
-    const reportWebChatSendOutcome = (
-      outcome: "success" | "failed" | "cancelled",
-    ) => {
-      opts.onWebChatSendOutcome?.(outcome);
-    };
-    try {
-      // Determine webchat target from the model name (e.g., "chatgpt.com" → "chatgpt", "chat.deepseek.com" → "deepseek")
-      const { getWebChatTargetByModelName } =
-        await import("../../webchat/types");
-      const webchatTargetEntry = getWebChatTargetByModelName(
-        effectiveRequestConfig.model || "",
-      );
-      const webchatTarget = webchatTargetEntry?.id || "chatgpt";
-      const webchatLabel = webchatTargetEntry?.label || "ChatGPT";
-      setStatusSafely(`Sending to ${webchatLabel}…`, "sending");
-      const { sendWebChatQuestion } = await import("../../webchat/pipeline");
-
-      // Note: `question` already includes selected text context via
-      // buildQuestionWithSelectedTextContexts() — no need to prepend again.
-
-      // [webchat] Mode switching disabled — users control thinking mode on chatgpt.com
-      const chatgptMode: string | undefined = undefined;
-
-      // [webchat] Send PDF only when the caller explicitly requests it via chip state.
-      // Always use dynamic port for the embedded relay server
-      const { getRelayBaseUrl } = await import("../../webchat/relayServer");
-      const answer = await sendWebChatQuestion({
-        item,
-        question,
-        host: getRelayBaseUrl(),
-        sendPdf: opts.webchatSendPdf === true,
-        pdfPaperContexts: normalizedWebChatPdfPaperContexts,
-        forceNewChat: opts.webchatForceNewChat === true,
-        images:
-          screenshotImagesForMessage.length > 0
-            ? screenshotImagesForMessage
-            : undefined,
-        chatgptMode,
-        target: webchatTarget,
-        signal: getAbortController(conversationKey)?.signal,
-        onAnswerSnapshot: (text, snapshot) => {
-          applyWebChatAnswerSnapshot(assistantMessage, text, snapshot);
-          webChatQueueRefresh();
-        },
-        onThinkingSnapshot: (text, snapshot) => {
-          applyWebChatThinkingSnapshot(assistantMessage, text, snapshot);
-          webChatQueueRefresh();
-        },
-      });
-
-      if (
-        getCancelledRequestId(conversationKey) >= thisRequestId ||
-        Boolean(getAbortController(conversationKey)?.signal.aborted)
-      ) {
-        await markCancelled();
-        reportWebChatSendOutcome("cancelled");
-        return;
-      }
-
-      assistantMessage.text =
-        sanitizeText(answer.text) || assistantMessage.text || "No response.";
-      assistantMessage.reasoningDetails =
-        sanitizeText(answer.thinking || "") ||
-        assistantMessage.reasoningDetails;
-      assistantMessage.reasoningOpen = assistantMessage.reasoningDetails
-        ? isReasoningExpandedByDefault()
-        : false;
-      assistantMessage.webchatRunState =
-        answer.runState === "incomplete" || answer.runState === "error"
-          ? answer.runState
-          : "done";
-      assistantMessage.webchatCompletionReason =
-        answer.completionReason ||
-        (answer.runState === "done" ? "settled" : null);
-      // [webchat] Persist the ChatGPT conversation URL so refresh can navigate back
-      if (answer.remoteChatUrl)
-        assistantMessage.webchatChatUrl = answer.remoteChatUrl;
-      if (answer.remoteChatId)
-        assistantMessage.webchatChatId = answer.remoteChatId;
-      assistantMessage.streaming = false;
-
-      refreshChatSafely();
-      await persistAssistantOnce();
-      restoreRequestUIIdle(body, conversationKey, thisRequestId);
-      setStatusSafely(
-        answer.runState === "incomplete"
-          ? "Captured partial response — final answer not verified"
-          : "Ready",
-        answer.runState === "incomplete" ? "error" : "ready",
-      );
-      reportWebChatSendOutcome("success");
-    } catch (err) {
-      const isCancelled =
-        getCancelledRequestId(conversationKey) >= thisRequestId ||
-        Boolean(getAbortController(conversationKey)?.signal.aborted) ||
-        (err as { name?: string }).name === "AbortError";
-      if (isCancelled) {
-        await markCancelled();
-        restoreRequestUIIdle(body, conversationKey, thisRequestId);
-        reportWebChatSendOutcome("cancelled");
-        return;
-      }
-      const errMsg = (err as Error).message || "Error";
-      const hasSnapshot = Boolean(
-        sanitizeText(assistantMessage.text || "") ||
-        sanitizeText(assistantMessage.reasoningDetails || ""),
-      );
-      if (hasSnapshot) {
-        assistantMessage.webchatRunState = "incomplete";
-        assistantMessage.webchatCompletionReason = "error";
-      } else {
-        assistantMessage.text = `Error: ${errMsg}`;
-        assistantMessage.webchatRunState = "error";
-        assistantMessage.webchatCompletionReason = "error";
-      }
-      assistantMessage.streaming = false;
-      refreshChatSafely();
-      await persistAssistantOnce();
-      restoreRequestUIIdle(body, conversationKey, thisRequestId);
-      setStatusSafely(errMsg, "error");
-      reportWebChatSendOutcome("failed");
-    } finally {
-      setAbortController(conversationKey, null);
-      clearPendingRequestIdAndSync(conversationKey, body, item);
-    }
-    return;
-  }
 
   try {
     const rawLLMHistory = buildLLMHistoryMessages(historyForLLM);
@@ -9854,32 +9538,19 @@ export function refreshChat(
   }
 
   if (history.length === 0) {
-    // [webchat] Show webchat-specific welcome instead of generic instructions
-    const effectiveRequestConfig = resolveEffectiveRequestConfig({ item });
-    if (effectiveRequestConfig.providerProtocol === "web_sync") {
-      const targetEntry = getWebChatTargetByModelName(
-        effectiveRequestConfig.model || "",
-      );
-      chatBox.innerHTML = getWebChatWelcomeHtml(
-        targetEntry?.label,
-        targetEntry?.modelName,
-      );
+    const isStandalone =
+      panelRoot?.dataset?.standalone === "true" ||
+      (body as HTMLElement).dataset?.standalone === "true";
+    const isNoteEditing = !!resolveActiveNoteSession(item);
+    if (isNoteEditing) {
+      chatBox.innerHTML = getNoteEditingStartPageHtml();
+      if (panelRoot) panelRoot.dataset.startPageActive = "true";
+    } else if (isStandalone && isGlobalConversation) {
+      chatBox.innerHTML = getStandaloneLibraryChatStartPageHtml();
       if (panelRoot) panelRoot.dataset.startPageActive = "true";
     } else {
-      const isStandalone =
-        panelRoot?.dataset?.standalone === "true" ||
-        (body as HTMLElement).dataset?.standalone === "true";
-      const isNoteEditing = !!resolveActiveNoteSession(item);
-      if (isNoteEditing) {
-        chatBox.innerHTML = getNoteEditingStartPageHtml();
-        if (panelRoot) panelRoot.dataset.startPageActive = "true";
-      } else if (isStandalone && isGlobalConversation) {
-        chatBox.innerHTML = getStandaloneLibraryChatStartPageHtml();
-        if (panelRoot) panelRoot.dataset.startPageActive = "true";
-      } else {
-        chatBox.innerHTML = getPaperChatStartPageHtml();
-        if (panelRoot) panelRoot.dataset.startPageActive = "true";
-      }
+      chatBox.innerHTML = getPaperChatStartPageHtml();
+      if (panelRoot) panelRoot.dataset.startPageActive = "true";
     }
     return;
   }
@@ -9904,10 +9575,6 @@ export function refreshChat(
   const latestAssistantIndex = latestRetryPair
     ? latestRetryPair.userIndex + 1
     : -1;
-  // [webchat] Resolve provider protocol once for editability checks
-  const renderProviderProtocol = resolveEffectiveRequestConfig({
-    item,
-  }).providerProtocol;
   const conversationIsIdle = !history.some((m) => m.streaming);
   for (const [index, msg] of history.entries()) {
     if (useTargetedRerender && !targetedMessageWrappers.has(msg)) {
@@ -9920,7 +9587,6 @@ export function refreshChat(
       hasItem: Boolean(item),
       conversationIsIdle,
       assistantPair: assistantPairMsg,
-      providerProtocol: renderProviderProtocol,
     });
     const isInlineEditBubble = Boolean(
       canEditUserPrompt &&
@@ -11057,8 +10723,7 @@ export function refreshChat(
       if (
         index === latestAssistantIndex &&
         msg.text.trim() &&
-        msg.runMode !== "agent" &&
-        renderProviderProtocol !== "web_sync" // [webchat] no retry in webchat mode
+        msg.runMode !== "agent"
       ) {
         appendMessageMetaActionButton({
           body,
@@ -11139,75 +10804,7 @@ export function refreshChat(
       }
     }
 
-    // [webchat] Collect status row data — rendered after meta, below the timestamp
-    let webchatStatusRow: HTMLDivElement | null = null;
-    if (!isUser) {
-      const webchatStateLabel = getWebChatRunStateLabel(msg);
-      if (webchatStateLabel) {
-        webchatStatusRow = doc.createElement("div") as HTMLDivElement;
-        webchatStatusRow.className = "paperpilotmessage-webchat-status-row";
-
-        const status = doc.createElement("span") as HTMLSpanElement;
-        status.className = "paperpilotmessage-webchat-status";
-        status.textContent = webchatStateLabel;
-        webchatStatusRow.appendChild(status);
-
-        // [webchat] Refresh icon — re-scrape current ChatGPT conversation
-        const refreshBtn = doc.createElementNS(
-          HTML_NS,
-          "button",
-        ) as HTMLButtonElement;
-        refreshBtn.className = "paperpilotmessage-webchat-refresh";
-        refreshBtn.textContent = "\u21BB";
-        refreshBtn.title = "Re-fetch this conversation from webchat";
-        refreshBtn.addEventListener("click", async () => {
-          refreshBtn.disabled = true;
-          try {
-            const { refreshCurrentConversation } =
-              await import("../../webchat/client");
-            const { getRelayBaseUrl } =
-              await import("../../webchat/relayServer");
-            const scraped = await refreshCurrentConversation(
-              getRelayBaseUrl(),
-              msg.webchatChatUrl || null,
-              msg.webchatChatId || null,
-            );
-            if (scraped.length > 0) {
-              const refreshed: Message[] = scraped.map((m) => ({
-                role: (m.kind === "user" ? "user" : "assistant") as
-                  "user" | "assistant",
-                text: m.text || "",
-                timestamp: Date.now(),
-                modelName:
-                  m.kind === "bot" ? msg.modelName || "chatgpt.com" : undefined,
-                modelProviderLabel: m.kind === "bot" ? "WebChat" : undefined,
-                reasoningDetails: m.thinking || undefined,
-              }));
-              chatHistory.set(conversationKey, refreshed);
-              refreshChat(body, item);
-            } else {
-              refreshBtn.title =
-                "No messages found — chat site may be on a different page";
-              setTimeout(() => {
-                refreshBtn.title = "Re-fetch this conversation from webchat";
-                refreshBtn.disabled = false;
-              }, 2000);
-            }
-          } catch {
-            refreshBtn.title = "Refresh failed";
-            setTimeout(() => {
-              refreshBtn.title = "Re-fetch this conversation from webchat";
-              refreshBtn.disabled = false;
-            }, 2000);
-          }
-        });
-        webchatStatusRow.appendChild(refreshBtn);
-      }
-    }
-
-    // Interrupted footer — a streamed reply was cut off before completion (e.g.
-    // a connectivity drop); the partial content above is preserved. Distinct
-    // from the webchat status row above.
+    // Interrupted footer — a streamed reply was cut off before completion.
     let interruptedRow: HTMLDivElement | null = null;
     if (!isUser && msg.interrupted) {
       interruptedRow = doc.createElement("div") as HTMLDivElement;
@@ -11224,7 +10821,6 @@ export function refreshChat(
       wrapper.appendChild(bubble);
     }
     wrapper.appendChild(meta);
-    if (webchatStatusRow) wrapper.appendChild(webchatStatusRow);
     if (interruptedRow) wrapper.appendChild(interruptedRow);
     const existingTargetedWrapper = targetedMessageWrappers.get(msg);
     if (useTargetedRerender && existingTargetedWrapper) {

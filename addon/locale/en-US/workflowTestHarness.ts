@@ -678,7 +678,6 @@ async function exercisePanelDraftStateRefresh(
   syncPanelState();
 
   return {
-    webChatMode: panelRoot.dataset.webchatMode === "true",
     inputBeforeRefresh,
     inputAfterRefresh: input.value,
   };

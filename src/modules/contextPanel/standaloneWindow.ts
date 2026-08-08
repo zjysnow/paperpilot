@@ -86,7 +86,6 @@ import {
 } from "./setupHandlers/controllers/historySearchController";
 import { createHistorySearchPopupController } from "./setupHandlers/controllers/historySearchPopupController";
 import { primeHistoryNavigationMode } from "./historyNavigationModeSync";
-import { resolveStandalonePaperTabLabel } from "./standaloneTabLabel";
 import { resolveFreshConversationDraft } from "./freshConversationDraft";
 import { collapseDuplicateReusableConversationDrafts } from "./standaloneConversationResolution";
 import {
@@ -535,7 +534,6 @@ export function openStandaloneChat(options?: {
   let currentBasePaperItem: Zotero.Item | null = initialBasePaperItem;
   let currentRawContextItem: Zotero.Item | null =
     sourceItemForResolution || sourceItem || initialMountedItem;
-  let isInWebChatMode = false;
   let standaloneSidebarRenderQueued = false;
   let standaloneMountGeneration = 0;
   let explicitNewChatInFlight = false;
@@ -803,7 +801,7 @@ export function openStandaloneChat(options?: {
       ) as HTMLButtonElement;
       paperTab.className = "paperpilotstandalone-tab";
       paperTab.type = "button";
-      paperTab.textContent = resolveStandalonePaperTabLabel();
+      paperTab.textContent = t("Paper chat");
       paperTab.dataset.tab = "paper";
 
       const openTab = doc.createElementNS(
@@ -829,7 +827,7 @@ export function openStandaloneChat(options?: {
       const updateStandaloneSystemToggles = () => {
         syncRuntimeSystemControls(standaloneRuntimeSystemControls, {
           activeSystem: currentConversationSystem,
-          hidden: isInWebChatMode,
+          hidden: false,
         });
       };
 
@@ -954,25 +952,7 @@ export function openStandaloneChat(options?: {
       sidebarTitle.className = "paperpilotstandalone-sidebar-title";
       sidebarTitle.textContent = t("History");
 
-      const sidebarHeaderActions = doc.createElementNS(
-        HTML_NS,
-        "div",
-      ) as HTMLDivElement;
-      sidebarHeaderActions.className = "paperpilotstandalone-sidebar-actions";
-
-      const webHistoryRefreshBtn = doc.createElementNS(
-        HTML_NS,
-        "button",
-      ) as HTMLButtonElement;
-      webHistoryRefreshBtn.className = "paperpilotstandalone-sidebar-refresh";
-      webHistoryRefreshBtn.type = "button";
-      webHistoryRefreshBtn.textContent = "\u21BB";
-      webHistoryRefreshBtn.title = t("Refresh web history");
-      webHistoryRefreshBtn.setAttribute("aria-label", t("Refresh web history"));
-      webHistoryRefreshBtn.style.display = "none";
-
-      sidebarHeaderActions.append(webHistoryRefreshBtn);
-      sidebarHeader.append(sidebarTitle, sidebarHeaderActions);
+      sidebarHeader.append(sidebarTitle);
 
       const standaloneHistoryUndo = doc.createElementNS(
         HTML_NS,
@@ -1226,9 +1206,7 @@ export function openStandaloneChat(options?: {
       };
 
       const syncPaperTabLabel = () => {
-        paperTab.textContent = resolveStandalonePaperTabLabel({
-          isWebChat: isInWebChatMode,
-        });
+        paperTab.textContent = t("Paper chat");
       };
 
       const getCurrentLibraryScopeID = (): number => {
@@ -1296,48 +1274,6 @@ export function openStandaloneChat(options?: {
         conversationSystem: entry.system,
         mode: entry.kind === "paper" ? "paper" : "open",
       });
-
-      // -----------------------------------------------------------------------
-      // Webchat mode UI updates for standalone window
-      // -----------------------------------------------------------------------
-      const updateStandaloneWebChatUI = (isWebChat: boolean) => {
-        if (cancelled) return;
-        isInWebChatMode = isWebChat;
-        updateStandaloneSystemToggles();
-
-        // Tab labels
-        if (isWebChat) {
-          syncPaperTabLabel();
-          paperTab.classList.add("active");
-          openTab.classList.remove("active");
-          // Force paper tab active since webchat uses that slot
-          if (standaloneMode !== "paper") {
-            standaloneMode = "paper";
-          }
-        } else {
-          // Restore the paper-slot label, not the currently mounted panel item.
-          syncPaperTabLabel();
-          paperTab.classList.toggle("active", standaloneMode === "paper");
-          openTab.classList.toggle("active", standaloneMode === "open");
-        }
-
-        // Clear/Exit icon — show "Exit" text, hide the trash icon via CSS class
-        iconClear.title = isWebChat
-          ? t("Exit webchat and return to previous model")
-          : t("Clear");
-        iconClear.textContent = isWebChat ? t("Exit") : "";
-        iconClear.classList.toggle("paperpilotstandalone-icon-exit", isWebChat);
-        iconWorkspace.disabled =
-          isWebChat || standaloneMode !== "paper" || !currentBasePaperItem;
-
-        // Keep original paper title — webchat mode is already indicated by tabs/mode chip
-        updateContentTitle();
-        webHistoryRefreshBtn.style.display = isWebChat ? "inline-flex" : "none";
-
-        // Sidebar: populate with webchat history, or restore local history
-        sidebarTitle.textContent = t("History");
-        scheduleStandaloneSidebarRender();
-      };
 
       // -----------------------------------------------------------------------
       // Mount chat UI into contentArea
@@ -1475,18 +1411,12 @@ export function openStandaloneChat(options?: {
             onDefaultContextRendered: scheduleStandaloneInputFit,
             onContextPreviewRendered:
               scheduleStandaloneInputFitAfterContextPreviewRender,
-            onWebChatModeChanged: (isWebChat) => {
-              if (cancelled) return;
-              updateStandaloneWebChatUI(isWebChat);
-            },
             prepareItemsAsDefaultContextTarget: async () => {
               if (cancelled || newWin.closed) return;
               return await createStandaloneOpenConversationForContext();
             },
           };
           setupHandlers(contentArea, mountedItem as any, chatHooks);
-          // Store hooks reference so webchat load handlers can call clearWebChatNewChatIntent
-
           refreshChat(contentArea, mountedItem);
           applyPanelFontScale(llmMain);
           applyPanelFontScale(root);
@@ -1596,8 +1526,6 @@ export function openStandaloneChat(options?: {
 
       const renderSidebar = async () => {
         if (cancelled) return;
-        // In webchat mode, sidebar is managed by renderWebChatSidebar() — skip local rendering
-        if (isInWebChatMode) return;
         ztoolkit.log(
           "LLM: standalone renderSidebar",
           "mode=" + standaloneMode,
@@ -2753,16 +2681,6 @@ export function openStandaloneChat(options?: {
         if (explicitNewChatInFlight) return;
         explicitNewChatInFlight = true;
         try {
-          // [webchat] In webchat mode, delegate to embedded panel's "+" button.
-          // Don't clear sidebar — webchat history stays (conversations live on the web).
-          if (isInWebChatMode) {
-            const embeddedNewBtn = contentArea.querySelector(
-              "#paperpilothistory-new",
-            ) as HTMLElement | null;
-            if (embeddedNewBtn) embeddedNewBtn.click();
-            return;
-          }
-
           if (standaloneMode === "open") {
             const currentLibraryID = getCurrentLibraryScopeID();
             const newKey = await resolveFreshStandaloneGlobalConversation(true);
@@ -3000,7 +2918,7 @@ export function openStandaloneChat(options?: {
         standaloneRuntimeSystemControls.buttons[system].addEventListener(
           "click",
           () => {
-            if (cancelled || newWin.closed || isInWebChatMode) return;
+            if (cancelled || newWin.closed) return;
             void switchConversationSystem(
               resolveRuntimeSystemToggleTarget(
                 currentConversationSystem,
@@ -3022,8 +2940,7 @@ export function openStandaloneChat(options?: {
         }
         paperTab.classList.toggle("active", mode === "paper");
         openTab.classList.toggle("active", mode === "open");
-        iconWorkspace.disabled =
-          isInWebChatMode || mode !== "paper" || !currentBasePaperItem;
+        iconWorkspace.disabled = mode !== "paper" || !currentBasePaperItem;
       };
 
       const showNoPaperChatSourceStatus = () => {
@@ -3082,14 +2999,6 @@ export function openStandaloneChat(options?: {
 
       const switchToMode = async (mode: "open" | "paper") => {
         try {
-          // [webchat] If in webchat mode and user clicks "Library chat", exit webchat first
-          if (isInWebChatMode && mode === "open") {
-            const clearBtnEl = contentArea.querySelector(
-              "#paperpilotclear",
-            ) as HTMLElement | null;
-            if (clearBtnEl) clearBtnEl.click();
-          }
-          if (isInWebChatMode && mode === "paper") return;
           if (mode === standaloneMode) return;
 
           if (mode === "open") {

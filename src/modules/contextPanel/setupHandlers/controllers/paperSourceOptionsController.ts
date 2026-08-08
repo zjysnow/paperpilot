@@ -78,7 +78,6 @@ export function canRevealMineruCacheForSourceOption(
 export type BuildPaperSourceOptionsParams = {
   paperContext: PaperContextRef;
   getItemById: (itemId: number) => Zotero.Item | null | undefined;
-  webChatMode: boolean;
   pdfSupport: PdfSupport;
   isMineruEnabled: boolean;
   getItemStatus: (contextItemId: number) => MineruSourceStatusSnapshot;
@@ -88,12 +87,6 @@ export type BuildPaperSourceOptionsParams = {
   mineruDisabledParsingMessage: string;
   translate?: (text: string) => string;
 };
-
-export function filterPaperSourceOptionsForWebChat<
-  T extends PaperSourceModeOption,
->(sourceOptions: readonly T[]): T[] {
-  return sourceOptions.filter((sourceOption) => sourceOption.mode === "pdf");
-}
 
 export function resolveMineruSourceOptionState(input: {
   hasUsableMineru: boolean;
@@ -308,14 +301,10 @@ function buildPdfAttachmentSourceOptions(params: {
     title: baseContext.title,
     description: `${attachmentTitle} - ${getContextSourceModeHumanLabel("pdf")}`,
     disabledReason:
-      picker.pdfSupport === "native" ||
-      picker.pdfSupport === "local_path" ||
-      picker.webChatMode
+      picker.pdfSupport === "native" || picker.pdfSupport === "local_path"
         ? undefined
         : picker.fullPdfUnsupportedMessage,
   };
-  if (picker.webChatMode) return [pdfOption];
-
   const mineruOptionState = resolveMineruOptionState(baseContext, picker);
   const mineruDisabledReason = shouldDisableMineruParsingAction({
     action: mineruOptionState.action,
@@ -397,9 +386,7 @@ export function buildPaperSourceOptions(
         translate,
       });
     }
-    const fallbackMode = params.webChatMode
-      ? "pdf"
-      : params.paperContext.contentSourceMode || "text";
+    const fallbackMode = params.paperContext.contentSourceMode || "text";
     return [
       {
         mode: fallbackMode,
@@ -459,7 +446,5 @@ export function buildPaperSourceOptions(
       }`,
     });
   }
-  return params.webChatMode
-    ? filterPaperSourceOptionsForWebChat(options)
-    : options;
+  return options;
 }

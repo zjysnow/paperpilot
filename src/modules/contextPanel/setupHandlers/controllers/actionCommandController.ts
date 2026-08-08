@@ -112,7 +112,6 @@ type ActionCommandControllerDeps = {
   persistDraftInputForCurrentConversation: () => void;
   shouldRenderDynamicSlashMenu: () => boolean;
   shouldRenderSkillSlashMenu: () => boolean;
-  isWebChatMode: () => boolean;
   isClaudeConversationSystem: () => boolean;
   getCurrentRuntimeMode: () => string;
   setCurrentRuntimeMode: (mode: "chat" | "agent") => void;
@@ -651,15 +650,6 @@ export function createActionCommandController(
       closeActionPicker();
       return;
     }
-    try {
-      if (deps.isWebChatMode()) {
-        closeActionPicker();
-        closeSlashMenu();
-        return;
-      }
-    } catch {
-      /* keep slash closed if mode cannot be resolved */
-    }
     closeActionPicker();
     const token = deps.getActiveActionToken();
     if (!token) {
@@ -958,17 +948,6 @@ export function createActionCommandController(
           "Could not infer the collection from this description because no model is configured. Select a folder chip or use collection <name>.",
       };
     }
-    if (
-      selectedProfile.authMode === "webchat" ||
-      selectedProfile.providerProtocol === "web_sync"
-    ) {
-      return {
-        kind: "error" as const,
-        error:
-          "Could not infer the collection from this description in WebChat mode. Select a folder chip or use collection <name>.",
-      };
-    }
-
     const eligibleActions = params.actions.filter(
       (action) =>
         actionSupportsCollectionScope(action) || actionSupportsTagScope(action),

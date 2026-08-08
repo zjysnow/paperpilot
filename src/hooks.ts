@@ -297,12 +297,6 @@ function onShutdown(): void {
   closeAllAddonDialogs();
   addon.data.standaloneWindow?.close();
   try {
-    const { unregisterWebChatRelay } = require("./webchat/relayServer");
-    unregisterWebChatRelay();
-  } catch {
-    /* ignore if module not loaded */
-  }
-  try {
     const { pauseBatchProcessing } = require("./modules/mineruBatchProcessor");
     pauseBatchProcessing();
   } catch {

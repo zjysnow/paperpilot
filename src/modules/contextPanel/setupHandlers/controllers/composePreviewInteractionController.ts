@@ -88,7 +88,6 @@ type ComposePreviewInteractionControllerDeps = {
     itemId: number,
     paperContext: PaperContextRef,
   ) => string;
-  isWebChatMode: () => boolean;
   resolveCurrentPaperBaseItem: () => Zotero.Item | null;
   clearSelectedImageState: (itemId: number) => void;
   clearSelectedFileState: (itemId: number) => void;
@@ -504,7 +503,7 @@ export function attachComposePreviewInteractionController(
         );
         return;
       }
-      if (contentSource === "pdf" && !deps.isWebChatMode()) {
+      if (contentSource === "pdf") {
         setStatus(
           t(
             "PDF mode always sends the full file. Switch to Text/MinerU for retrieval mode.",
@@ -527,23 +526,7 @@ export function attachComposePreviewInteractionController(
         "paperpilotpaper-context-chip-full",
         nextIsFullText,
       );
-      if (contentSource === "pdf") {
-        paperChip.classList.add("paperpilotpaper-context-chip-pdf");
-      }
-      paperChip.classList.toggle(
-        "paperpilotpaper-context-chip-webchat-inactive",
-        deps.isWebChatMode() && contentSource === "pdf" && !nextIsFullText,
-      );
       deps.closePaperChipMenu();
-      if (deps.isWebChatMode() && contentSource === "pdf") {
-        setStatus(
-          nextIsFullText
-            ? t("Next query will attach this PDF.")
-            : t("Next query will not attach PDF."),
-          "ready",
-        );
-        return;
-      }
       const sourceTag = contentSource === "mineru" ? ` ${t("(MinerU)")}` : "";
       setStatus(
         nextMode === "full-sticky"

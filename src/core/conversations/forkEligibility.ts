@@ -5,7 +5,6 @@ export type ConversationForkEligibilityReason =
   | "pending_response"
   | "claude_code"
   | "unsupported_system"
-  | "webchat"
   | "compact_marker"
   | "codex_older_turn"
   | "missing_provider_session";
@@ -22,8 +21,6 @@ export type ConversationForkEligibilityMessage = {
   timestamp?: unknown;
   streaming?: unknown;
   compactMarker?: unknown;
-  webchatRunState?: unknown;
-  webchatCompletionReason?: unknown;
 };
 
 function normalizeTimestamp(value: unknown): number {
@@ -45,9 +42,7 @@ export function getLatestCompletedForkableAssistantTimestamp(
       (message) =>
         message.role === "assistant" &&
         !message.streaming &&
-        !message.compactMarker &&
-        !message.webchatRunState &&
-        !message.webchatCompletionReason,
+        !message.compactMarker,
     );
   return normalizeTimestamp(latest?.timestamp);
 }
@@ -58,7 +53,6 @@ export function evaluateConversationForkEligibility(params: {
   assistantMessage?: ConversationForkEligibilityMessage | null;
   history?: readonly ConversationForkEligibilityMessage[] | null;
   pendingResponse?: boolean;
-  webchatMode?: boolean;
   requireProviderSession?: boolean;
   sourceProviderSessionId?: string | null;
 }): ConversationForkEligibility {
@@ -76,7 +70,6 @@ export function evaluateConversationForkEligibility(params: {
   });
 
   if (params.pendingResponse) return blocked("pending_response");
-  if (params.webchatMode) return blocked("webchat");
   if (params.system === "claude_code") return blocked("claude_code");
   if (params.system !== "upstream" && params.system !== "codex") {
     return blocked("unsupported_system");
@@ -93,12 +86,6 @@ export function evaluateConversationForkEligibility(params: {
   }
 
   const assistantMessage = params.assistantMessage || null;
-  if (
-    assistantMessage?.webchatRunState ||
-    assistantMessage?.webchatCompletionReason
-  ) {
-    return blocked("webchat");
-  }
   if (assistantMessage?.compactMarker) return blocked("compact_marker");
 
   if (

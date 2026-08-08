@@ -50,7 +50,6 @@ export type WorkflowTestDuplicatePanelSetupDiagnostics = {
 };
 
 export type WorkflowTestDraftRefreshDiagnostics = {
-  webChatMode: boolean;
   inputBeforeRefresh: string;
   inputAfterRefresh: string;
 };

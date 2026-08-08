@@ -581,7 +581,6 @@ const zhCN: Record<string, string> = {
   "Retry loading Codex models": "重试加载 Codex 模型",
   "Codex did not return any available models.": "Codex 未返回任何可用模型。",
   "Fetch Models": "获取模型",
-  WebChat: "WebChat",
   "Provider A": "服务商 A",
   "Provider B": "服务商 B",
   "Provider C": "服务商 C",
@@ -606,8 +605,6 @@ const zhCN: Record<string, string> = {
     "预设使用 Moonshot 国际版 API。中国大陆可使用 api.moonshot.cn。",
   "Uses GitHub Copilot via device login. Requires an active Copilot subscription.":
     "通过设备登录使用 GitHub Copilot。需要有效的 Copilot 订阅。",
-  'Relay questions to %targets% via the Sync for Zotero browser extension. Download extension: github.com/yilewang/sync-for-zotero → Releases. Unzip, open chrome://extensions, enable Developer Mode, click "Load unpacked", select the extension folder. Keep the corresponding chat tab open while using WebChat mode.':
-    "通过 Sync for Zotero 浏览器扩展将问题转发到 %targets%。下载扩展：github.com/yilewang/sync-for-zotero → Releases。解压后打开 chrome://extensions，启用开发者模式，点击“加载已解压的扩展程序”，选择扩展文件夹。使用 WebChat 模式时保持对应聊天标签页打开。",
 
   // Static preference controls
   "Plugin Font Size": "插件字体大小",
@@ -865,65 +862,6 @@ export function t(en: string): string {
     return zhCN[en] ?? en;
   }
   return en;
-}
-
-/** Returns the WebChat start page HTML. */
-export function getWebChatWelcomeHtml(
-  targetLabel?: string,
-  targetDomain?: string,
-): string {
-  const label = targetLabel || "WebChat";
-  const domain = targetDomain || "the chat site";
-  if (getEffectiveLocale().startsWith("zh")) {
-    return `
-      <div class="paperpilotstart-page paperpilotwebchat-start-page">
-        <div class="paperpilotstart-page-title">Paper Pilot WebChat</div>
-        <div class="paperpilotstart-page-subtitle">通过已打开的 ${label} 浏览器标签页工作</div>
-        <div class="paperpilotstart-page-recommendations">
-          <div class="paperpilotstart-page-rec-title">工作方式</div>
-          <ol class="paperpilotstart-page-rec-list">
-            <li>Zotero 会通过 Sync for Zotero 浏览器扩展，把你的问题发送到已经打开的 <strong>${domain}</strong> 标签页，然后把回答同步回这里。</li>
-          </ol>
-          <div class="paperpilotstart-page-rec-title paperpilotwebchat-warning-title">⚠️⚠️⚠️ 发送前必须确认</div>
-          <ol class="paperpilotstart-page-rec-list">
-            <li>已经安装并启用 <strong>Sync for Zotero</strong> 浏览器扩展。</li>
-            <li>已经在 Chrome 或 Edge 中打开 <strong>${domain}</strong>，并且已经登录。</li>
-            <li>保持 <strong>${domain}</strong> 标签页可见；不要最小化，不要放到另一个显示器。Zotero 模型标签旁的绿点表示已连接。</li>
-          </ol>
-          <div class="paperpilotstart-page-rec-title paperpilotwebchat-rec-title-spaced">怎么提问</div>
-          <ol class="paperpilotstart-page-rec-list">
-            <li>在这里输入问题并点击 <strong>Send</strong>。</li>
-            <li>论文对话中，论文标签高亮表示下一轮会附加当前 PDF；未高亮时只发送提问。发送成功后，标签会自动切换为仅发送提问；之后随时可以右键论文标签重新附加当前 PDF。</li>
-            <li>如果没有反应，请刷新 <strong>${domain}</strong> 标签页，确认扩展已启用，并让 Zotero 和浏览器保持在同一个显示器。</li>
-          </ol>
-        </div>
-      </div>
-    `;
-  }
-  return `
-    <div class="paperpilotstart-page paperpilotwebchat-start-page">
-      <div class="paperpilotstart-page-title">Paper Pilot WebChat</div>
-      <div class="paperpilotstart-page-subtitle">Use your open ${label} browser tab</div>
-      <div class="paperpilotstart-page-recommendations">
-        <div class="paperpilotstart-page-rec-title">How it works</div>
-        <ol class="paperpilotstart-page-rec-list">
-          <li>Zotero sends your question to the already-open <strong>${domain}</strong> tab through the Sync for Zotero browser extension, then streams the answer back here.</li>
-        </ol>
-        <div class="paperpilotstart-page-rec-title paperpilotwebchat-warning-title">⚠️⚠️⚠️ Before sending</div>
-        <ol class="paperpilotstart-page-rec-list">
-          <li>Install and enable the <strong>Sync for Zotero</strong> browser extension.</li>
-          <li>Open <strong>${domain}</strong> in Chrome or Edge, and make sure you are signed in.</li>
-          <li>Keep the <strong>${domain}</strong> tab visible; do not minimize it or put it on another monitor. A green dot in Zotero's model chip means connected.</li>
-        </ol>
-        <div class="paperpilotstart-page-rec-title paperpilotwebchat-rec-title-spaced">Ask from Zotero</div>
-        <ol class="paperpilotstart-page-rec-list">
-          <li>Type your question here and press <strong>Send</strong>.</li>
-          <li>For paper chat, a highlighted paper chip means the current PDF will be attached on the next turn; an unhighlighted chip sends only the prompt. After a successful send, the chip switches to prompt-only mode, and you can right-click it at any time to attach the current PDF again.</li>
-          <li>If nothing happens, reload the <strong>${domain}</strong> tab, confirm the extension is enabled, and keep Zotero and the browser on the same monitor.</li>
-        </ol>
-      </div>
-    </div>
-  `;
 }
 
 export function getWelcomeHtml(): string {

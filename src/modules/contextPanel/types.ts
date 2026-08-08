@@ -103,11 +103,6 @@ export interface Message {
    * normal `text` column, but this flag is not stored across restarts.
    */
   interrupted?: boolean;
-  webchatRunState?: "done" | "incomplete" | "error";
-  webchatCompletionReason?:
-    "settled" | "forced_cancel" | "timeout" | "error" | null;
-  webchatChatUrl?: string;
-  webchatChatId?: string;
   compactMarker?: boolean;
   runtimeMarkerText?: string;
   modelSwitchMarkerText?: string;
@@ -426,8 +421,7 @@ export type SendQuestionOptions = {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
+  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
   providerProtocol?: import("../../utils/providerProtocol").ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -463,14 +457,6 @@ export type SendQuestionOptions = {
   forcedSkillIds?: string[];
   /** System messages injected by provider-side PDF upload (Qwen fileid://, Kimi extracted text). */
   pdfUploadSystemMessages?: string[];
-  /** [webchat] When true, attach the paper PDF to the ChatGPT query. */
-  webchatSendPdf?: boolean;
-  /** [webchat] Exact PDF chips active for the current upload, in UI order. */
-  webchatPdfPaperContexts?: PaperContextRef[];
-  /** [webchat] Ephemeral delivery outcome for send-state bookkeeping. */
-  onWebChatSendOutcome?: (outcome: "success" | "failed" | "cancelled") => void;
-  /** [webchat] When true, send the prompt into a fresh ChatGPT conversation. */
-  webchatForceNewChat?: boolean;
   skipAutoCompact?: boolean;
 };
 
@@ -507,8 +493,7 @@ export type EditRetryOptions = {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
+  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
   providerProtocol?: import("../../utils/providerProtocol").ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;

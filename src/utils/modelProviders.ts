@@ -33,7 +33,7 @@ export type ModelProviderModel = AdvancedModelConfig & {
 };
 
 export type ModelProviderAuthMode =
-  "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat"; // [webchat]
+  "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
 
 export type ModelProviderGroup = {
   id: string;
@@ -323,8 +323,7 @@ function resolveStoredPresetId(group: ModelProviderGroup): ProviderPresetId {
   if (
     group.authMode === "codex_auth" ||
     group.authMode === "codex_app_server" ||
-    group.authMode === "copilot_auth" ||
-    group.authMode === "webchat"
+    group.authMode === "copilot_auth"
   ) {
     return "customized";
   }

@@ -107,11 +107,6 @@ export type StoredChatMessage = {
   modelProviderLabel?: string;
   /** Streamed reply was cut off before completion; partial text kept. */
   interrupted?: boolean;
-  webchatRunState?: "done" | "incomplete" | "error";
-  webchatCompletionReason?:
-    "settled" | "forced_cancel" | "timeout" | "error" | null;
-  webchatChatUrl?: string;
-  webchatChatId?: string;
   reasoningSummary?: string;
   reasoningDetails?: string;
   compactMarker?: boolean;
@@ -173,8 +168,6 @@ const CHAT_MESSAGE_SELECT_COLUMNS_SQL = `id,
             model_entry_id AS modelEntryId,
             model_provider_label AS modelProviderLabel,
             interrupted,
-            webchat_run_state AS webchatRunState,
-            webchat_completion_reason AS webchatCompletionReason,
             reasoning_summary AS reasoningSummary,
             reasoning_details AS reasoningDetails,
             context_tokens AS contextTokens,
@@ -425,8 +418,6 @@ const CHAT_MESSAGE_COPY_COLUMNS = [
   "model_entry_id",
   "model_provider_label",
   "interrupted",
-  "webchat_run_state",
-  "webchat_completion_reason",
   "reasoning_summary",
   "reasoning_details",
   "context_tokens",
@@ -1131,8 +1122,6 @@ export async function initChatStore(): Promise<void> {
         model_entry_id TEXT,
         model_provider_label TEXT,
         interrupted INTEGER,
-        webchat_run_state TEXT,
-        webchat_completion_reason TEXT,
         reasoning_summary TEXT,
         reasoning_details TEXT,
         context_tokens INTEGER,
@@ -1185,24 +1174,6 @@ export async function initChatStore(): Promise<void> {
       await Zotero.DB.queryAsync(
         `ALTER TABLE ${CHAT_MESSAGES_TABLE}
          ADD COLUMN model_provider_label TEXT`,
-      );
-    }
-    const hasWebchatRunStateColumn = Boolean(
-      columns?.some((column) => column?.name === "webchat_run_state"),
-    );
-    if (!hasWebchatRunStateColumn) {
-      await Zotero.DB.queryAsync(
-        `ALTER TABLE ${CHAT_MESSAGES_TABLE}
-         ADD COLUMN webchat_run_state TEXT`,
-      );
-    }
-    const hasWebchatCompletionReasonColumn = Boolean(
-      columns?.some((column) => column?.name === "webchat_completion_reason"),
-    );
-    if (!hasWebchatCompletionReasonColumn) {
-      await Zotero.DB.queryAsync(
-        `ALTER TABLE ${CHAT_MESSAGES_TABLE}
-         ADD COLUMN webchat_completion_reason TEXT`,
       );
     }
     await ensureColumn(
@@ -1592,8 +1563,6 @@ export async function loadConversation(
         modelEntryId?: unknown;
         modelProviderLabel?: unknown;
         interrupted?: unknown;
-        webchatRunState?: unknown;
-        webchatCompletionReason?: unknown;
         reasoningSummary?: unknown;
         reasoningDetails?: unknown;
         contextTokens?: unknown;
@@ -1905,19 +1874,6 @@ export async function loadConversation(
           ? row.modelProviderLabel
           : undefined,
       interrupted: Number(row.interrupted) === 1 ? true : undefined,
-      webchatRunState:
-        row.webchatRunState === "done" ||
-        row.webchatRunState === "incomplete" ||
-        row.webchatRunState === "error"
-          ? row.webchatRunState
-          : undefined,
-      webchatCompletionReason:
-        row.webchatCompletionReason === "settled" ||
-        row.webchatCompletionReason === "forced_cancel" ||
-        row.webchatCompletionReason === "timeout" ||
-        row.webchatCompletionReason === "error"
-          ? row.webchatCompletionReason
-          : undefined,
       reasoningSummary:
         typeof row.reasoningSummary === "string"
           ? row.reasoningSummary
@@ -2015,8 +1971,8 @@ export async function appendMessage(
   await Zotero.DB.executeTransaction(async () => {
     await Zotero.DB.queryAsync(
       `INSERT INTO ${CHAT_MESSAGES_TABLE}
-        (conversation_id, conversation_key, role, text, timestamp, run_mode, agent_run_id, selected_text, selected_text_contexts_json, selected_texts_json, selected_text_sources_json, selected_text_paper_contexts_json, selected_text_note_contexts_json, forced_skill_ids_json, paper_contexts_json, pdf_paper_contexts_json, full_text_paper_contexts_json, citation_paper_contexts_json, quote_citations_json, collection_contexts_json, tag_contexts_json, screenshot_images, attachments_json, model_attachments_json, generated_images_json, model_name, model_entry_id, model_provider_label, interrupted, webchat_run_state, webchat_completion_reason, reasoning_summary, reasoning_details, context_tokens, context_window)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (conversation_id, conversation_key, role, text, timestamp, run_mode, agent_run_id, selected_text, selected_text_contexts_json, selected_texts_json, selected_text_sources_json, selected_text_paper_contexts_json, selected_text_note_contexts_json, forced_skill_ids_json, paper_contexts_json, pdf_paper_contexts_json, full_text_paper_contexts_json, citation_paper_contexts_json, quote_citations_json, collection_contexts_json, tag_contexts_json, screenshot_images, attachments_json, model_attachments_json, generated_images_json, model_name, model_entry_id, model_provider_label, interrupted, reasoning_summary, reasoning_details, context_tokens, context_window)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         conversationID,
         normalizedKey,
@@ -2061,8 +2017,6 @@ export async function appendMessage(
         message.modelEntryId || null,
         message.modelProviderLabel || null,
         message.interrupted ? 1 : null,
-        message.webchatRunState || null,
-        message.webchatCompletionReason || null,
         message.reasoningSummary || null,
         message.reasoningDetails || null,
         Number.isFinite(Number(message.contextTokens))
@@ -2250,8 +2204,6 @@ export async function updateLatestAssistantMessage(
     | "modelEntryId"
     | "modelProviderLabel"
     | "interrupted"
-    | "webchatRunState"
-    | "webchatCompletionReason"
     | "reasoningSummary"
     | "reasoningDetails"
     | "compactMarker"
@@ -2280,8 +2232,6 @@ export async function updateLatestAssistantMessage(
            model_entry_id = ?,
            model_provider_label = ?,
            interrupted = ?,
-           webchat_run_state = ?,
-           webchat_completion_reason = ?,
            reasoning_summary = ?,
            reasoning_details = ?,
            quote_citations_json = ?,
@@ -2304,8 +2254,6 @@ export async function updateLatestAssistantMessage(
         message.modelEntryId || null,
         message.modelProviderLabel || null,
         message.interrupted ? 1 : null,
-        message.webchatRunState || null,
-        message.webchatCompletionReason || null,
         message.reasoningSummary || null,
         message.reasoningDetails || null,
         quoteCitations.length ? JSON.stringify(quoteCitations) : null,

@@ -228,13 +228,12 @@ function getProtocolOptions(
   authMode: ModelProviderAuthMode,
   presetId: ProviderPresetId,
 ): ProviderProtocol[] {
-  if (authMode === "webchat") return ["web_sync"]; // [webchat]
   if (authMode === "codex_auth" || authMode === "codex_app_server")
     return ["codex_responses"];
   if (authMode === "copilot_auth")
     return ["openai_chat_compat", "responses_api"];
   return getProviderPresetProtocolOptions(presetId).filter(
-    (protocol) => protocol !== "codex_responses" && protocol !== "web_sync",
+    (protocol) => protocol !== "codex_responses",
   );
 }
 
@@ -247,11 +246,9 @@ function resolveSelectedProtocol(
     const defaultProtocol =
       group.authMode === "codex_auth" || group.authMode === "codex_app_server"
         ? "codex_responses"
-        : group.authMode === "webchat"
-          ? "web_sync"
-          : group.authMode === "copilot_auth"
-            ? "openai_chat_compat"
-            : getProviderPreset(presetId).defaultProtocol;
+        : group.authMode === "copilot_auth"
+          ? "openai_chat_compat"
+          : getProviderPreset(presetId).defaultProtocol;
     return allowed.includes(defaultProtocol) ? defaultProtocol : allowed[0];
   }
   const fallback =
@@ -854,10 +851,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         );
         if (nextAuthMode === "copilot_auth") {
           group.providerProtocol = "openai_chat_compat";
-        } else if (
-          group.providerProtocol === "codex_responses" ||
-          group.providerProtocol === "web_sync"
-        ) {
+        } else if (group.providerProtocol === "codex_responses") {
           group.providerProtocol =
             selectedPreset?.defaultProtocol || "openai_chat_compat";
         }
@@ -1469,9 +1463,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
             " box-sizing: border-box; background: Field; color: FieldText;",
         ) as HTMLInputElement;
         modelInput.type = "text";
-        if (group.authMode !== "webchat") {
-          modelInput.value = modelEntry.model;
-        }
+        modelInput.value = modelEntry.model;
         modelInput.placeholder =
           modelIndex === 0 ? profile.modelPlaceholder : "";
 

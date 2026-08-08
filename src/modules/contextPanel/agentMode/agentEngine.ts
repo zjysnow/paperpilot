@@ -873,15 +873,13 @@ type EffectiveRequestConfigShape = {
   model: string;
   apiBase: string;
   apiKey: string;
-  authMode:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
+  authMode: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
   providerProtocol?:
     | "codex_responses"
     | "responses_api"
     | "openai_chat_compat"
     | "anthropic_messages"
-    | "gemini_native"
-    | "web_sync";
+    | "gemini_native";
   modelEntryId?: string;
   modelProviderLabel?: string;
   reasoning: LLMReasoningConfig | undefined;
@@ -969,7 +967,6 @@ export type AgentEngineDeps = {
     scope?: {
       conversationSystem?: string | null;
       conversationKey?: number | null;
-      webChatActive?: boolean;
     },
   ) => void;
   createPanelUpdateHelpers: (
@@ -1040,19 +1037,13 @@ export type AgentEngineDeps = {
     model?: string;
     apiBase?: string;
     apiKey?: string;
-    authMode?:
-      | "api_key"
-      | "codex_auth"
-      | "codex_app_server"
-      | "copilot_auth"
-      | "webchat";
+    authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
     providerProtocol?:
       | "codex_responses"
       | "responses_api"
       | "openai_chat_compat"
       | "anthropic_messages"
-      | "gemini_native"
-      | "web_sync";
+      | "gemini_native";
     modelEntryId?: string;
     modelProviderLabel?: string;
     reasoning?: LLMReasoningConfig;
@@ -1194,19 +1185,13 @@ export async function sendAgentTurn(
     model?: string;
     apiBase?: string;
     apiKey?: string;
-    authMode?:
-      | "api_key"
-      | "codex_auth"
-      | "codex_app_server"
-      | "copilot_auth"
-      | "webchat";
+    authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
     providerProtocol?:
       | "codex_responses"
       | "responses_api"
       | "openai_chat_compat"
       | "anthropic_messages"
-      | "gemini_native"
-      | "web_sync";
+      | "gemini_native";
     modelEntryId?: string;
     modelProviderLabel?: string;
     reasoning?: LLMReasoningConfig;
@@ -1449,7 +1434,6 @@ export async function sendAgentTurn(
     deps.scheduleQueuedInputDrain(body, {
       conversationSystem: deps.getConversationSystem(),
       conversationKey,
-      webChatActive: effectiveRequestConfig.providerProtocol === "web_sync",
     });
   const uiRelease = createRequestUiReleaseController({
     deps,
@@ -1739,19 +1723,13 @@ export async function retryAgentTurn(
   apiBase: string | undefined,
   apiKey: string | undefined,
   authMode:
-    | "api_key"
-    | "codex_auth"
-    | "codex_app_server"
-    | "copilot_auth"
-    | "webchat"
-    | undefined,
+    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | undefined,
   providerProtocol:
     | "codex_responses"
     | "responses_api"
     | "openai_chat_compat"
     | "anthropic_messages"
     | "gemini_native"
-    | "web_sync"
     | undefined,
   modelEntryId: string | undefined,
   modelProviderLabel: string | undefined,
@@ -1903,7 +1881,6 @@ export async function retryAgentTurn(
     deps.scheduleQueuedInputDrain(body, {
       conversationSystem: deps.getConversationSystem(),
       conversationKey,
-      webChatActive: effectiveRequestConfig.providerProtocol === "web_sync",
     });
   const uiRelease = createRequestUiReleaseController({
     deps,
