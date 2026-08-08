@@ -188,9 +188,7 @@ export function createActionCommandController(
   let actionPickerItems: ActionPickerItem[] = [];
   let actionPickerActiveIndex = 0;
   let forcedSkillId: string | null = null;
-  let forcedSkillBadge: HTMLElement | null = null;
   let activeCommandAction: ActionPickerItem | null = null;
-  let activeCommandBadge: HTMLElement | null = null;
 
   const setStatus = (message: string, level: StatusLevel) => {
     deps.setStatusMessage?.(message, level);
@@ -1316,13 +1314,11 @@ export function createActionCommandController(
 
   const clearForcedSkill = (): void => {
     forcedSkillId = null;
-    forcedSkillBadge = null;
     clearCommandRowState({ body, inputBox });
   };
 
   const clearCommandChip = (): void => {
     activeCommandAction = null;
-    activeCommandBadge = null;
     clearCommandRowState({ body, inputBox });
   };
 
@@ -1416,7 +1412,7 @@ export function createActionCommandController(
     ) {
       deps.setCurrentRuntimeMode("agent");
     }
-    forcedSkillBadge = activateCommandRowState({
+    activateCommandRowState({
       body,
       inputBox,
       label: `/${skill.id}`,
@@ -1429,7 +1425,7 @@ export function createActionCommandController(
     clearForcedSkill();
     clearCommandChip();
     activeCommandAction = action;
-    activeCommandBadge = activateCommandRowState({
+    activateCommandRowState({
       body,
       inputBox,
       label: `/${action.name}`,

@@ -3,7 +3,6 @@ import type {
   PdfContext,
   ReasoningProviderKind,
   ReasoningLevelSelection,
-  CustomShortcut,
   ChatAttachment,
   SelectedTextContext,
   PaperContextRef,

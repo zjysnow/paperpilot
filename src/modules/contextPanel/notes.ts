@@ -481,46 +481,6 @@ function stripTrailingPluginFooter(text: string): string {
   );
 }
 
-function buildAssistantNoteHtml(
-  contentText: string,
-  modelName: string,
-  paperContexts?: PaperContextRef[],
-  quoteCitations?: QuoteCitation[],
-  generatedImagesHtml = "",
-  queryText = "",
-): string {
-  const query = buildQuoteExpandedMarkdown({
-    markdown: sanitizeText(queryText || "").trim(),
-    quoteCitations,
-  });
-  const response = buildQuoteExpandedMarkdown({
-    markdown: sanitizeText(stripTrailingPluginFooter(contentText || "")).trim(),
-    quoteCitations,
-  });
-  const source = modelName.trim() || "unknown";
-  const timestamp = getCurrentLocalTimestamp();
-  let queryHtml = query ? renderRawNoteHtml(query) : "";
-  let responseHtml = response ? renderRawNoteHtml(response) : "";
-  if (queryHtml) {
-    queryHtml = injectCitationLinksIntoNoteHtml(
-      queryHtml,
-      paperContexts,
-      quoteCitations,
-    );
-  }
-  if (responseHtml) {
-    responseHtml = injectCitationLinksIntoNoteHtml(
-      responseHtml,
-      paperContexts,
-      quoteCitations,
-    );
-  }
-  const queryBlock = queryHtml
-    ? `<p><strong>User query:</strong></p><div>${queryHtml}</div>`
-    : "";
-  return `<p><strong>${escapeNoteHtml(timestamp)}</strong></p>${queryBlock}<p><strong>Model response:</strong> ${escapeNoteHtml(source)}</p><div>${responseHtml}${generatedImagesHtml}</div>${NOTE_FOOTER_HTML}`;
-}
-
 async function buildAssistantNoteHtmlForSave(
   contentText: string,
   modelName: string,

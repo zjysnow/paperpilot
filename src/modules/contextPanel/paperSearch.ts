@@ -101,15 +101,6 @@ type PaperSearchScore = {
 type ZoteroTagLike = string | { tag?: unknown; name?: unknown; type?: unknown };
 
 const DEFAULT_PAPER_SEARCH_LIMIT = 20;
-const MATCH_FIELD_PRIORITY = [
-  "citationKey",
-  "doi",
-  "title",
-  "creator",
-  "venue",
-  "year",
-  "attachmentTitle",
-] as const;
 
 const paperSearchLibraryIndexCache = new Map<number, PaperSearchLibraryIndex>();
 const paperSearchLibraryLoadTasks = new Map<

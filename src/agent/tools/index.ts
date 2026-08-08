@@ -405,10 +405,7 @@ export function createBuiltInToolRegistry(
     deps.pdfService,
     deps.zoteroGateway,
   );
-  const viewPdfPages = createViewPdfPagesTool(
-    deps.pdfPageService,
-    deps.zoteroGateway,
-  );
+  const viewPdfPages = createViewPdfPagesTool(deps.pdfPageService);
   const readAttachment = createReadAttachmentTool(
     deps.zoteroGateway,
     deps.pdfPageService,

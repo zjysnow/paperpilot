@@ -8,12 +8,7 @@
  */
 import type { ChatAttachment, PaperContextRef } from "../../../shared/types";
 import { readAttachmentBytes } from "../../../modules/contextPanel/attachmentStorage";
-import type {
-  AgentModelContentPart,
-  AgentRuntimeRequest,
-  AgentToolContext,
-  AgentToolDefinition,
-} from "../../types";
+import type { AgentModelContentPart, AgentRuntimeRequest } from "../../types";
 import type { ZoteroGateway } from "../../services/zoteroGateway";
 import {
   normalizePositiveInt,

@@ -33,8 +33,6 @@ import {
   buildDefaultClaudeGlobalConversationKey,
   buildDefaultClaudePaperConversationKey,
   getClaudeAllocatedConversationKeyRange,
-  getClaudeGlobalConversationKeyRange,
-  getClaudePaperConversationKeyRange,
 } from "./constants";
 import {
   getLastAllocatedClaudeGlobalConversationKey,

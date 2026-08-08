@@ -13,7 +13,7 @@
  * Users can create, edit, or delete skills by managing:
  *   {Zotero profile runtime root}/.agents/skills/<skill-id>/SKILL.md
  */
-import { matchesSkill, parseSkill } from "./skillLoader";
+import { parseSkill } from "./skillLoader";
 import type { AgentSkill } from "./skillLoader";
 import type { SkillRoutingRequest } from "./contextEligibility";
 import libraryAnalysisRaw from "./library-analysis.md";

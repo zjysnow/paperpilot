@@ -190,7 +190,7 @@ export function createApplyTagsTool(
       );
     },
 
-    createPendingAction(input, context) {
+    createPendingAction(input) {
       if (input.action === "add") {
         const operation = input.operation as ApplyTagsOperation;
         const tagField = buildTagAssignmentField(operation, zoteroGateway);

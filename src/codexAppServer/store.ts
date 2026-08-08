@@ -40,8 +40,6 @@ import {
   buildDefaultCodexGlobalConversationKey,
   buildDefaultCodexPaperConversationKey,
   getCodexAllocatedConversationKeyRange,
-  getCodexGlobalConversationKeyRange,
-  getCodexPaperConversationKeyRange,
 } from "./constants";
 import {
   getLastAllocatedCodexGlobalConversationKey,

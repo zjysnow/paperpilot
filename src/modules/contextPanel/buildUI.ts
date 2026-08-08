@@ -6,7 +6,6 @@ import {
   getScreenshotExpandedLabel,
   SCREENSHOT_COMPACT_LABEL,
   SELECT_TEXT_COMPACT_LABEL,
-  UPLOAD_FILE_EXPANDED_LABEL,
   formatFigureCountLabel,
   formatFileCountLabel,
 } from "./constants";
@@ -71,7 +70,6 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
               ? item.id
               : 0)
       : 0;
-  const hasPaperContext = basePaperItemId > 0;
 
   // Disable CSS scroll anchoring on the Zotero-provided panel body so that
   // Gecko doesn't fight with our programmatic scroll management.
@@ -1005,11 +1003,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   const uploadSlot = createElement(doc, "div", "paperpilotaction-slot");
   uploadSlot.append(uploadBtn, uploadInput);
 
-  const {
-    slot: modelDropdown,
-    button: modelBtn,
-    menu: modelMenu,
-  } = createActionDropdown(doc, {
+  const { slot: modelDropdown } = createActionDropdown(doc, {
     slotId: "paperpilotmodel-dropdown",
     slotClassName: "paperpilotmodel-dropdown",
     buttonId: "paperpilotmodel-toggle",
@@ -1021,11 +1015,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     disabled: !hasItem,
   });
 
-  const {
-    slot: reasoningDropdown,
-    button: reasoningBtn,
-    menu: reasoningMenu,
-  } = createActionDropdown(doc, {
+  const { slot: reasoningDropdown } = createActionDropdown(doc, {
     slotId: "paperpilotreasoning-dropdown",
     slotClassName: "paperpilotreasoning-dropdown",
     buttonId: "paperpilotreasoning-toggle",

@@ -29,7 +29,6 @@ import {
 } from "../shared";
 import {
   buildCaptureFollowupMessage,
-  inferPdfMode,
   normalizeTarget,
   normalizeTargets,
   describeNoDefaultPaperTarget,
@@ -881,7 +880,7 @@ export function createPaperReadTool(
   figureExtractionService?: PaperReadFigureExtractionService,
   fullReadAnalyzer?: ExhaustiveBatchAnalyzer,
 ): AgentToolDefinition<PaperReadInput, unknown> {
-  const visualTool = createViewPdfPagesTool(pdfPageService, zoteroGateway);
+  const visualTool = createViewPdfPagesTool(pdfPageService);
   return {
     spec: {
       name: "paper_read",

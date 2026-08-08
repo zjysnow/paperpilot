@@ -2,8 +2,6 @@
 import { createElement } from "../../utils/domHelpers";
 import { t } from "../../utils/i18n";
 import { revealLocalPath } from "../../utils/revealLocalPath";
-import { getAllSkills } from "../../agent/skills";
-import type { AgentSkill } from "../../agent/skills/skillLoader";
 import type { RuntimeModelEntry } from "../../utils/modelProviders";
 import type { ConversationSystem } from "../../shared/types";
 import {
@@ -29,12 +27,9 @@ import {
   AUTO_SCROLL_BOTTOM_THRESHOLD,
   MAX_FULL_TEXT_PAPER_CONTEXTS,
   MAX_SELECTED_IMAGES,
-  MAX_SELECTED_PAPER_CONTEXTS,
-  PERSISTED_HISTORY_LIMIT,
   formatFigureCountLabel,
   formatFileCountLabel,
   GLOBAL_CONVERSATION_KEY_BASE,
-  GLOBAL_HISTORY_LIMIT,
   isUpstreamGlobalConversationKey,
   PREFERENCES_PANE_ID,
 } from "./constants";
@@ -52,7 +47,6 @@ import {
 } from "./quoteValidationActivity";
 import { createContextIcon } from "./contextIcons";
 import {
-  selectedModelCache,
   selectedReasoningCache,
   selectedReasoningProviderCache,
   selectedRuntimeModeCache,
@@ -88,7 +82,6 @@ import {
   clearWebChatConversationForceNewChat,
   consumeWebChatConversationForceNewChat,
   resetWebChatConversationSessionState,
-  currentRequestId,
   activeConversationModeByLibrary,
   activeGlobalConversationByLibrary,
   activePaperConversationByPaper,
@@ -109,27 +102,14 @@ import {
   isAutoLockedGlobalConversation,
 } from "./state";
 import {
-  sanitizeText,
   setStatus,
   buildQuestionWithSelectedTextContexts,
   buildModelPromptWithFileContext,
   resolvePromptText,
   getAttachmentTypeLabel,
-  normalizeSelectedTextSource,
 } from "./textUtils";
+import { positionMenuAtPointer } from "./menuPositioning";
 import { resolveSelectedTextAnchors } from "./selectedTextAnchors";
-import {
-  formatActionLabel,
-  resolveActionCompletionStatusText,
-} from "./actionStatusText";
-import {
-  normalizeAttachmentContentHash,
-  normalizeSelectedTextPaperContexts,
-} from "./normalizers";
-import {
-  positionMenuBelowButton,
-  positionMenuAtPointer,
-} from "./menuPositioning";
 import {
   getAvailableModelEntries,
   getStringPref,
@@ -145,12 +125,9 @@ import {
   setLastUsedReasoningLevelForProvider,
   setLastUsedUpstreamConversationMode,
   setLastUsedUpstreamGlobalConversationKey,
-  getLastUsedPaperConversationKey,
   setLastUsedPaperConversationKey,
-  removeLastUsedPaperConversationKey,
   getLockedGlobalConversationKey,
   setLockedGlobalConversationKey,
-  buildPaperStateKey,
 } from "./prefHelpers";
 import {
   sendQuestion,
@@ -163,7 +140,6 @@ import {
   requestChatScrollFollowBottom,
   cancelChatScrollFollowBottomRequest,
   withScrollGuard,
-  copyTextToClipboard,
   refreshConversationPanels,
   clearPendingRequestIdAndSync,
   detectReasoningProvider,
@@ -179,21 +155,10 @@ import {
 import { getWorkflowTestSendInterceptor } from "./workflowTestHooks";
 import {
   getActiveContextAttachmentFromTabs,
-  addSelectedTextContext,
-  appendSelectedTextContextForItem,
   applySelectedTextPreview,
-  formatSelectedTextContextPageLabel,
   getSelectedTextContextEntries,
-  getSelectedTextContexts,
-  getSelectedTextExpandedIndex,
-  isNoteContextExpanded,
-  refreshNoteChipPreview,
-  refreshActiveNoteChipPreview,
   resolveContextSourceItem,
   resolveContextSourceItemAsync,
-  setNoteContextExpanded,
-  setSelectedTextContextEntries,
-  setSelectedTextExpandedIndex,
 } from "./contextResolution";
 import {
   isTextLikeAttachmentSourceMode,
@@ -201,11 +166,9 @@ import {
 } from "./paperAttribution";
 import {
   filterManualPaperContextsAgainstAutoLoaded,
-  isSamePaperContextRef,
   resolveRuntimeModeForConversation,
 } from "./modeBehavior";
 import {
-  resolveSlashActionChatMode,
   shouldRenderDynamicSlashMenu,
   shouldRenderSkillSlashMenu,
 } from "./slashMenuBehavior";
@@ -249,15 +212,12 @@ import {
   retainPinnedTextState as retainPinnedTextState_,
 } from "./contexts/textContextState";
 import { optimizeImageDataUrl } from "./screenshot";
-import { readNoteSnapshot } from "./notes";
 import {
   persistAttachmentBlob,
-  extractManagedBlobHash,
   isManagedBlobPath,
   removeAttachmentFile,
   removeConversationAttachmentFiles,
 } from "./attachmentStorage";
-import { clearConversationSummary as clearConversationSummaryFromCache } from "./conversationSummaryCache";
 import { conversationRepository } from "../../core/conversations/repository";
 import {
   clearConversation as clearStoredConversation,
@@ -268,10 +228,8 @@ import {
   ATTACHMENT_GC_MIN_AGE_MS,
   clearOwnerAttachmentRefs,
   collectAndDeleteUnreferencedBlobs,
-  replaceOwnerAttachmentRefs,
 } from "../../utils/attachmentRefStore";
 import type {
-  Message,
   ChatRuntimeMode,
   ReasoningLevelSelection,
   ReasoningOption,
@@ -283,42 +241,19 @@ import type {
   PaperContextSendMode,
   PaperContentSourceMode,
   ResolvedContextSource,
-  SelectedTextContext,
 } from "./types";
 import type { ReasoningLevel as LLMReasoningLevel } from "../../utils/llmClient";
 import type { ReasoningConfig as LLMReasoningConfig } from "../../utils/llmClient";
 import {
-  browseAllItemCandidates,
-  searchAllItemCandidates,
-  searchCollectionCandidates,
-  ZOTERO_NOTE_CONTENT_TYPE,
-  normalizePaperSearchText,
   parsePaperSearchSlashToken,
   parseSkillSearchDollarToken,
-  parseAtSearchToken,
-  type PaperBrowseCollectionCandidate,
-  type PaperSearchAttachmentCandidate,
-  type PaperSearchGroupCandidate,
   type PaperSearchSlashToken,
 } from "./paperSearch";
-import {
-  resolvePaperScopedCommandInput,
-  type PaperScopedActionCollectionCandidate,
-  type PaperScopedActionProfile,
-} from "./paperScopeCommand";
-import { getAgentApi, initAgentSubsystem } from "../../agent/index";
-import type { ActionRequestContext } from "../../agent/actions";
+import { initAgentSubsystem } from "../../agent/index";
 import { clearAllAgentToolCaches } from "../../agent/tools";
 import { isCodexAppServerModeEnabled } from "../../codexAppServer/prefs";
-import type {
-  AgentPendingAction,
-  AgentConfirmationResolution,
-} from "../../agent/types";
-import { renderPendingActionCard } from "./agentTrace/render";
 
 import {
-  createGlobalPortalItem,
-  createPaperPortalItem,
   isGlobalPortalItem,
   resolveActiveNoteSession,
   resolveConversationSystemForItem,
@@ -365,33 +300,12 @@ import {
   getModelPdfSupport,
 } from "./setupHandlers/controllers/modelReasoningController";
 import {
-  GLOBAL_HISTORY_UNDO_WINDOW_MS,
-  type ConversationHistoryEntry,
-  type HistorySwitchTarget,
-  type PendingHistoryDeletion,
-  formatGlobalHistoryTimestamp,
-  formatHistoryRowDisplayTitle,
-  groupHistoryEntriesByDay,
-  normalizeConversationTitleSeed,
-  normalizeHistoryTitle,
-} from "./setupHandlers/controllers/conversationHistoryController";
-import {
-  appendHistorySearchHighlightedText,
-  buildHistorySearchResults,
-  createHistorySearchDocument,
-  normalizeHistorySearchQuery,
-  tokenizeHistorySearchQuery,
-  type HistorySearchDocument,
-  type HistorySearchResult,
-} from "./setupHandlers/controllers/historySearchController";
-import {
   formatPaperContextCardAttachmentLine,
   formatPaperContextChipLabel,
   formatPaperContextChipTitle,
   hasPaperChipSourceMenuOption,
   isPaperContextReaderFocusableSourceMode,
   normalizePaperContextEntries,
-  resolvePaperContextDisplayMetadata,
   resolvePaperContextForcedSendMode,
 } from "./setupHandlers/controllers/composeContextController";
 import { getPaperContextCollapseState } from "./setupHandlers/controllers/paperContextCollapseController";
@@ -402,10 +316,6 @@ import {
   prunePinnedImageKeys,
   removePinnedFile,
   removePinnedImage,
-  removePinnedSelectedText,
-  togglePinnedFile,
-  togglePinnedImage,
-  togglePinnedSelectedText,
 } from "./setupHandlers/controllers/pinnedContextController";
 import {
   createFileIntakeController,
@@ -426,6 +336,7 @@ import { isZoteroPdfAttachmentCandidate } from "./setupHandlers/controllers/pdfA
 import { resolvePdfModeModelInputs } from "./setupHandlers/controllers/pdfPaperModelInputController";
 import { createWebChatHistoryController } from "./setupHandlers/controllers/webChatHistoryController";
 import { createHistoryLifecycleController } from "./setupHandlers/controllers/historyLifecycleController";
+import { normalizeConversationTitleSeed } from "./setupHandlers/controllers/conversationHistoryController";
 import { attachComposePreviewInteractionController } from "./setupHandlers/controllers/composePreviewInteractionController";
 import { attachFontScaleShortcutController } from "./setupHandlers/controllers/fontScaleShortcutController";
 import { attachComposeCaptureController } from "./setupHandlers/controllers/composeCaptureController";
@@ -451,9 +362,7 @@ import {
 } from "./setupHandlers/controllers/paperSourceOptionsController";
 
 import { renderShortcuts } from "./shortcuts";
-import { loadConversationHistoryScope } from "./historyLoader";
 import {
-  buildClaudeScope,
   getClaudeRuntimeModelEntries,
   getSelectedClaudeRuntimeEntry,
   listClaudeEfforts,
@@ -461,10 +370,8 @@ import {
 } from "../../claudeCode/runtime";
 import {
   getClaudeReasoningModePref,
-  getConversationSystemPref,
   setClaudeReasoningModePref,
   setClaudeRuntimeModelPref,
-  setConversationSystemPref,
 } from "../../claudeCode/prefs";
 import {
   getCodexReasoningModePref,
@@ -480,18 +387,7 @@ import {
   type CodexAppServerModelCatalogEntry,
 } from "../../codexAppServer/modelCatalog";
 import { getConfiguredCodexAppServerBinaryPath } from "../../codexAppServer/binaryPath";
-import {
-  activeClaudeGlobalConversationByLibrary,
-  buildClaudeLibraryStateKey,
-} from "../../claudeCode/state";
-import {
-  activeCodexGlobalConversationByLibrary,
-  buildCodexLibraryStateKey,
-} from "../../codexAppServer/state";
-import {
-  retainClaudeRuntimeForBody,
-  releaseClaudeRuntimeForBody,
-} from "../../claudeCode/runtimeRetention";
+import { retainClaudeRuntimeForBody } from "../../claudeCode/runtimeRetention";
 import { touchClaudeConversationTitle } from "../../claudeCode/store";
 import { touchCodexConversationTitle } from "../../codexAppServer/store";
 import { getWebChatTargetByModelName } from "../../webchat/types";
@@ -586,14 +482,6 @@ export function setupHandlers(
     resolveConversationBaseItem(rawPanelItem);
   const buildPaperStateKey = (libraryID: number, paperItemID: number): string =>
     `${Math.floor(libraryID)}:${Math.floor(paperItemID)}`;
-  const resolveLibraryIdFromItem = (
-    targetItem: Zotero.Item | null | undefined,
-  ): number => {
-    const parsed = Number(targetItem?.libraryID);
-    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-    return resolveActiveLibraryID() || 0;
-  };
-
   const panelRefs = getPanelDomRefs(body);
   const {
     inputBox,
@@ -609,7 +497,6 @@ export function setupHandlers(
     reasoningMenu,
     actionsRow,
     actionsLeft,
-    actionsRight,
     popoutBtn,
     settingsBtn,
     exportBtn,
@@ -1205,20 +1092,6 @@ export function setupHandlers(
     updateRuntimeSystemToggles();
     void refreshGlobalHistoryHeader();
   };
-  const isClaudeConversationDraft = async (conversationKey: number) => {
-    const summary = await conversationRepository.getCatalogEntry({
-      system: "claude_code",
-      conversationKey,
-    });
-    return Boolean(summary && (summary.userTurnCount || 0) === 0);
-  };
-  const isCodexConversationDraft = async (conversationKey: number) => {
-    const summary = await conversationRepository.getCatalogEntry({
-      system: "codex",
-      conversationKey,
-    });
-    return Boolean(summary && (summary.userTurnCount || 0) === 0);
-  };
   const resolveCurrentNoteParentItem = (): Zotero.Item | null => {
     const noteSession = resolveCurrentNoteSession();
     if (!noteSession?.parentItemId) return null;
@@ -1415,8 +1288,6 @@ export function setupHandlers(
   let cleanupMineruPaperSourceObservers: (() => void) | null = null;
   {
     const agentPrefKey = `${config.prefsPrefix}.enableAgentMode`;
-    const claudeModePrefKey = `${config.prefsPrefix}.enableClaudeCodeMode`;
-    const codexModePrefKey = `${config.prefsPrefix}.enableCodexAppServerMode`;
     let agentObserverId: symbol | undefined;
     let claudeObserverId: symbol | undefined;
     let codexObserverId: symbol | undefined;
@@ -1633,7 +1504,6 @@ export function setupHandlers(
   // handler on chatBox already keeps the snapshot up to date for programmatic
   // scroll changes.
 
-  let retryMenuAnchor: HTMLButtonElement | null = null;
   const closeResponseMenu = () => {
     if (responseMenu) responseMenu.style.display = "none";
     setResponseMenuTarget(null);
@@ -1684,7 +1554,6 @@ export function setupHandlers(
     Boolean(historyNewMenu && historyNewMenu.style.display !== "none");
   const closeRetryModelMenu = () => {
     setFloatingMenuOpen(retryModelMenu, RETRY_MODEL_MENU_OPEN_CLASS, false);
-    retryMenuAnchor = null;
   };
 
   const handlerContext: SetupHandlersContext = {
@@ -3315,18 +3184,6 @@ export function setupHandlers(
     openPaperChipMenu(paperChipMenuAnchor, paperChipMenuTarget, {
       sticky: paperChipMenuSticky,
     });
-  };
-  const schedulePaperChipMenuClose = () => {
-    if (paperChipMenuSticky) return;
-    const win = body.ownerDocument?.defaultView;
-    if (!win) {
-      closePaperChipMenu();
-      return;
-    }
-    clearPaperChipMenuHideTimer();
-    paperChipMenuHideTimer = win.setTimeout(() => {
-      closePaperChipMenu();
-    }, 100);
   };
   const resolvePaperContextFromChipElement = (
     chip: HTMLElement,
@@ -6287,14 +6144,7 @@ export function setupHandlers(
     markConversationLoaded: (conversationKey) => {
       loadedConversationKeys.add(conversationKey);
     },
-    invalidateConversationSession: async (conversationKey) => {
-      if (!item) return;
-
-      const libraryID = Number(item.libraryID || 0);
-      const currentKind = resolveDisplayConversationKind(item);
-      const baseItem = resolveConversationBaseItem(item);
-      if (!Number.isFinite(libraryID) || libraryID <= 0 || !currentKind) return;
-    },
+    invalidateConversationSession: async () => {},
     clearStoredConversation: (conversationKey) =>
       clearStoredConversation(conversationKey),
     resetConversationTitle: (conversationKey) =>
@@ -6909,7 +6759,6 @@ export function setupHandlers(
       closeRetryModelMenu();
       return;
     }
-    retryMenuAnchor = anchor;
     positionFloatingMenu(body, retryModelMenu, anchor);
     setFloatingMenuOpen(retryModelMenu, RETRY_MODEL_MENU_OPEN_CLASS, true);
   };
@@ -6952,9 +6801,7 @@ export function setupHandlers(
     closeModelMenu,
     openReasoningMenu,
     closeReasoningMenu,
-    clearRetryMenuAnchor: () => {
-      retryMenuAnchor = null;
-    },
+    clearRetryMenuAnchor: () => {},
     isElementNode,
   });
 

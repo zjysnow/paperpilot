@@ -306,40 +306,10 @@ export function createWebChatHistoryController(
     const { getRelayBaseUrl, relaySetCommand } =
       await import("../../../../webchat/relayServer");
     const host = getRelayBaseUrl();
-    // const {
-    //   filterWebChatHistorySessionsForHostname,
-    //   getWebChatHistorySiteSyncEntry,
-    //   isWebChatHistorySiteFailure,
-    //   waitForFreshChatHistorySnapshot,
-    // } = await import("../../../../webchat/client");
-
-    const requestedAt = Date.now();
     relaySetCommand({ type: "SCRAPE_HISTORY" });
-
-    const { getWebChatTargetByModelName } =
-      await import("../../../../webchat/types");
-    const { currentModel: historyModel } = deps.getSelectedModelInfo();
-    const historyTargetEntry = getWebChatTargetByModelName(historyModel || "");
-    const targetHostname = historyTargetEntry?.modelName || null;
 
     const sessions: WebChatHistorySession[] = [];
     const historyFetchFailed = false;
-    try {
-      // const snapshot = await waitForFreshChatHistorySnapshot(
-      //   host,
-      //   targetHostname,
-      //   requestedAt,
-      // );
-      // sessions = filterWebChatHistorySessionsForHostname(
-      //   snapshot.sessions,
-      //   targetHostname,
-      // );
-      // historyFetchFailed = isWebChatHistorySiteFailure(
-      //   getWebChatHistorySiteSyncEntry(snapshot, targetHostname),
-      // );
-    } catch {
-      // Relay not reachable.
-    }
 
     loadingEl.remove();
 

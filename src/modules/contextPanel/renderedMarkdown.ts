@@ -1007,7 +1007,7 @@ function createMermaidDocumentFacade(
   body: HTMLElement,
 ): Document {
   const proxy = new Proxy(doc, {
-    get(target, property, receiver) {
+    get(target, property) {
       if (property === "body") return body;
       if (property === "querySelector") {
         return (selector: string) => {

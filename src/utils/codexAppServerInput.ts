@@ -1,4 +1,4 @@
-import type { AgentModelContentPart, AgentModelMessage } from "../agent/types";
+import type { AgentModelMessage } from "../agent/types";
 import { parseDataUrl } from "../shared/dataUrl";
 import type { ChatMessage, MessageContent } from "../shared/llm";
 import { fileUrlToPath } from "./pathFileUrl";

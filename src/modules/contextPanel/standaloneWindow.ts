@@ -9,7 +9,6 @@ import {
   activeContextPanelStateSync,
   activeGlobalConversationByLibrary,
   activePaperConversationByPaper,
-  selectedRuntimeModeCache,
 } from "./state";
 import {
   resolveActiveLibraryID,
@@ -30,13 +29,11 @@ import {
 import {
   applyPanelFontScale,
   buildPaperStateKey,
-  getClaudeCodeModeEnabled,
   getLastUsedUpstreamGlobalConversationKey,
   getStandaloneSidebarWidthPref,
   getLockedGlobalConversationKey,
   setLastUsedUpstreamConversationMode,
   setLastUsedUpstreamGlobalConversationKey,
-  setLockedGlobalConversationKey,
   setStandaloneSidebarWidthPref,
 } from "./prefHelpers";
 import { buildUI } from "./buildUI";
@@ -65,11 +62,6 @@ import {
   ATTACHMENT_GC_MIN_AGE_MS,
   collectAndDeleteUnreferencedBlobs,
 } from "../../utils/attachmentRefStore";
-import {
-  chatHistory,
-  loadedConversationKeys,
-  webChatIsolatedConversationKeys,
-} from "./state";
 import { loadAllConversationHistory } from "./historyLoader";
 import { releaseClaudeRuntimeForBody } from "../../claudeCode/runtimeRetention";
 import {
@@ -104,7 +96,6 @@ import {
   syncRuntimeSystemControls,
 } from "./runtimeSystemControls";
 
-import { showStandaloneConfirmationDialog } from "./standaloneConfirmationDialog";
 import { showConversationRenameDialog } from "./conversationRenameDialog";
 import {
   canCommitConversationRename,
@@ -475,23 +466,6 @@ export function openStandaloneChat(options?: {
           ? "paper"
           : "open";
   const lockedKey = getLockedGlobalConversationKey(libraryID);
-  const sourceClaudeGlobalKey =
-    resolvedSourceState.item &&
-    (resolvedSourceState.item as any).__paperpilotClaudeGlobalPortalItem ===
-      true
-      ? Number(resolvedSourceState.item.id || 0)
-      : sourceItem &&
-          (sourceItem as any).__paperpilotClaudeGlobalPortalItem === true
-        ? Number(sourceItem.id || 0)
-        : 0;
-  const sourceCodexGlobalKey =
-    resolvedSourceState.item &&
-    (resolvedSourceState.item as any).__paperpilotCodexGlobalPortalItem === true
-      ? Number(resolvedSourceState.item.id || 0)
-      : sourceItem &&
-          (sourceItem as any).__paperpilotCodexGlobalPortalItem === true
-        ? Number(sourceItem.id || 0)
-        : 0;
   const sourceUpstreamGlobalKey = isGlobalPortalItem(resolvedSourceState.item)
     ? Number(resolvedSourceState.item?.id || 0)
     : isGlobalPortalItem(sourceItem)
@@ -551,7 +525,6 @@ export function openStandaloneChat(options?: {
   let currentRawContextItem: Zotero.Item | null =
     sourceItemForResolution || sourceItem || initialMountedItem;
   let isInWebChatMode = false;
-  let currentChatHooks: SetupHandlersHooks | null = null;
   let standaloneSidebarRenderQueued = false;
   let standaloneMountGeneration = 0;
   let explicitNewChatInFlight = false;
@@ -563,7 +536,6 @@ export function openStandaloneChat(options?: {
   } | null = null;
   let darkMQ: MediaQueryList | null = null;
   let onSchemeChange: (() => void) | null = null;
-  let cleanupStandalonePrefObserver: (() => void) | null = null;
   let cleanupStandaloneVerticalResize: (() => void) | null = null;
   let cleanupStandaloneSidebarResize: (() => void) | null = null;
   let enforceStandaloneMinimumSize: (() => void) | null = null;
@@ -1498,7 +1470,6 @@ export function openStandaloneChat(options?: {
           };
           setupHandlers(contentArea, mountedItem as any, chatHooks);
           // Store hooks reference so webchat load handlers can call clearWebChatNewChatIntent
-          currentChatHooks = chatHooks;
 
           refreshChat(contentArea, mountedItem);
           applyPanelFontScale(llmMain);
@@ -2946,40 +2917,6 @@ export function openStandaloneChat(options?: {
         );
       }
       updateStandaloneSystemToggles();
-      {
-        const claudeModePrefKey = `${config.prefsPrefix}.enableClaudeCodeMode`;
-        const codexModePrefKey = `${config.prefsPrefix}.enableCodexAppServerMode`;
-        let claudeObserverId: symbol | undefined;
-        let codexObserverId: symbol | undefined;
-        const unregister = () => {
-          for (const observerId of [claudeObserverId, codexObserverId]) {
-            if (observerId === undefined) continue;
-            try {
-              (Zotero as any).Prefs.unregisterObserver(observerId);
-            } catch {
-              void 0;
-            }
-          }
-          claudeObserverId = undefined;
-          codexObserverId = undefined;
-        };
-        cleanupStandalonePrefObserver = unregister;
-        const onClaudeModePrefChange = () => {
-          if (cancelled || newWin.closed) {
-            unregister();
-            return;
-          }
-          updateStandaloneSystemToggles();
-        };
-        const onCodexModePrefChange = () => {
-          if (cancelled || newWin.closed) {
-            unregister();
-            return;
-          }
-          updateStandaloneSystemToggles();
-        };
-      }
-
       const commitStandaloneMode = (mode: "open" | "paper") => {
         standaloneMode = mode;
         {
@@ -3181,9 +3118,17 @@ export function openStandaloneChat(options?: {
           currentBasePaperItem = null;
           currentPaperItem = null;
           syncPaperTabLabel();
-          void restoreStandaloneOpenConversation(false).then(() => {
-            if (!cancelled) showNoPaperChatSourceStatus();
-          });
+          void restoreStandaloneOpenConversation(false)
+            .then(() => {
+              if (!cancelled) showNoPaperChatSourceStatus();
+            })
+            .catch((error) => {
+              ztoolkit.log(
+                "LLM: Failed to restore standalone conversation after paper removal",
+                error,
+              );
+              if (!cancelled) showNoPaperChatSourceStatus();
+            });
           return;
         }
         // Skip if same paper
@@ -3212,9 +3157,17 @@ export function openStandaloneChat(options?: {
           rawItem: target.rawItem || newBasePaper,
         });
         if (!mounted && !cancelled) {
-          void restoreStandaloneOpenConversation(false).then(() => {
-            if (!cancelled) showNoPaperChatSourceStatus();
-          });
+          void restoreStandaloneOpenConversation(false)
+            .then(() => {
+              if (!cancelled) showNoPaperChatSourceStatus();
+            })
+            .catch((error) => {
+              ztoolkit.log(
+                "LLM: Failed to restore standalone conversation after paper switch",
+                error,
+              );
+              if (!cancelled) showNoPaperChatSourceStatus();
+            });
         }
       };
 
@@ -3264,7 +3217,6 @@ export function openStandaloneChat(options?: {
 
   const cleanupWindow = () => {
     cancelled = true;
-    cleanupStandalonePrefObserver?.();
     cleanupStandaloneVerticalResize?.();
     cleanupStandaloneVerticalResize = null;
     cleanupStandaloneSidebarResize?.();

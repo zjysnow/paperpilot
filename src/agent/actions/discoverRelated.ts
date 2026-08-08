@@ -266,7 +266,6 @@ export const discoverRelatedAction: AgentAction<
 
     const extractFetchResult = (
       settled: PromiseSettledResult<FetchModeResult>,
-      mode: SearchMode,
     ): FetchModeResult =>
       settled.status === "fulfilled"
         ? settled.value
@@ -285,9 +284,9 @@ export const discoverRelatedAction: AgentAction<
         fetchMode("references", limit),
         fetchMode("citations", limit),
       ]);
-      const recResult = extractFetchResult(recSettled, "recommendations");
-      const refResult = extractFetchResult(refSettled, "references");
-      const citResult = extractFetchResult(citSettled, "citations");
+      const recResult = extractFetchResult(recSettled);
+      const refResult = extractFetchResult(refSettled);
+      const citResult = extractFetchResult(citSettled);
       rec = recResult.rows;
       ref = refResult.rows;
       cit = citResult.rows;

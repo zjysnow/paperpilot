@@ -328,7 +328,7 @@ export function buildQuoteRenderPlan(
     QUOTE_CITATION_PATTERN.lastIndex = 0;
     const replaced = segment.replace(
       QUOTE_CITATION_PATTERN,
-      (token, id: string) => {
+      (_token, id: string) => {
         const citation = citationsById.get(id);
         if (!citation) {
           diagnostics.push({

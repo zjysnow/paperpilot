@@ -70,21 +70,10 @@ type FetchJsonResponse = {
   json: () => Promise<unknown>;
 };
 
-type FetchTextResponse = {
-  ok: boolean;
-  status: number;
-  text: () => Promise<string>;
-};
-
 type FetchLike = (
   url: string,
   init?: { headers?: Record<string, string>; signal?: AbortSignal },
 ) => Promise<FetchJsonResponse>;
-
-type FetchTextLike = (
-  url: string,
-  init?: { headers?: Record<string, string> },
-) => Promise<FetchTextResponse>;
 
 interface XmlElement {
   querySelector(selector: string): XmlElement | null;
@@ -776,10 +765,6 @@ async function lookupSemanticScholar(params: {
       .map((author) => normalizeString(author.name))
       .filter(Boolean);
     const externalIds = (result.externalIds || {}) as Record<string, string>;
-    const publicationTypes = Array.isArray(result.publicationTypes)
-      ? (result.publicationTypes as string[]).join(", ")
-      : undefined;
-
     const title = normalizeString(result.title) || undefined;
     const doi = externalIds.DOI || externalIds.doi || params.doi || undefined;
     const year = typeof result.year === "number" ? result.year : undefined;

@@ -11,11 +11,7 @@ import type {
   AgentPendingAction,
   AgentPendingField,
 } from "../agent/types";
-import type {
-  CodexConversationKind,
-  NoteContextRef,
-  PaperContextRef,
-} from "../shared/types";
+import type { CodexConversationKind, PaperContextRef } from "../shared/types";
 import {
   BALANCED_EVIDENCE_GUIDANCE,
   NOTE_EDITING_QUOTE_BLOCK_GUIDANCE,
@@ -794,12 +790,6 @@ function applyNativeSkillInputs(params: {
     params.resolution.fallbackSkillIds,
   );
   return [...params.resolution.skillInputs, ...withFallback];
-}
-
-function normalizePositiveInt(value: unknown): number | undefined {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
-  return Math.floor(parsed);
 }
 
 function isCodexAppServerApprovalRequestMethod(method: string): boolean {

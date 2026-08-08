@@ -41,11 +41,7 @@ import {
   getProviderProtocolSpec,
   type ProviderProtocol,
 } from "../utils/providerProtocol";
-import {
-  runProviderConnectionTest,
-  runCodexAppServerConnectionTest,
-} from "../utils/providerConnectionTest";
-import { normalizeAgentPermissionMode } from "../shared/agentPermissionMode";
+import { runProviderConnectionTest } from "../utils/providerConnectionTest";
 import { requiresProviderApiKey } from "../utils/providerAuth";
 import { fetchOllamaModelNames } from "../utils/ollama";
 import {
@@ -145,7 +141,6 @@ import {
   cleanSyncedMineruPackages,
   repairMineruSyncPackages,
 } from "./contextPanel/mineruSync";
-import { getRuntimePlatformInfo } from "../utils/runtimePlatform";
 
 type PrefKey = "systemPrompt";
 
@@ -161,29 +156,7 @@ const setPref = (key: PrefKey, value: string) =>
 
 const CUSTOMIZED_API_HELPER_TEXT =
   "Choose a preset above, or switch to Customized to enter a full base URL or endpoint manually.";
-const LEGACY_CODEX_AUTH_HELPER_TEXT =
-  "Legacy direct ChatGPT/Codex backend mode. Existing users can keep using it in this release. New users should use Codex App Server. Planned for deprecation in a future release after app-server validation.";
-const CODEX_APP_SERVER_HELPER_TEXT =
-  "Recommended official Codex integration. Runs the local `codex app-server` CLI as the native Codex runtime. Run `codex login` first.";
-const LEGACY_CODEX_API_HELPER_TEXT =
-  "Legacy direct backend URL. Usually uses https://chatgpt.com/backend-api/codex/responses. Existing users can keep it in this release, but new users should use Codex App Server. Planned for deprecation in a future release after app-server validation.";
-const CODEX_APP_SERVER_PROTOCOL_HELPER_TEXT =
-  "Uses Codex responses with the local codex app-server transport.";
-const CODEX_APP_SERVER_PATH_HELPER_TEXT_WINDOWS =
-  "Optional. Leave blank to auto-detect native Windows Codex. WSL Codex is not supported because Zotero MCP uses Windows-local loopback. Or enter a native path such as C:\\nvm4w\\nodejs\\codex.cmd or C:\\Users\\<user>\\AppData\\Roaming\\npm\\codex.cmd.";
-const CODEX_APP_SERVER_PATH_HELPER_TEXT_MACOS =
-  "Optional. Leave blank to auto-detect. Or enter an absolute path such as /opt/homebrew/bin/codex or /usr/local/bin/codex.";
-const CODEX_APP_SERVER_PATH_HELPER_TEXT_LINUX =
-  "Optional. Leave blank to auto-detect. Or enter an absolute path such as /usr/local/bin/codex or ~/.local/bin/codex.";
 
-function getCodexAppServerPathHelperText(): string {
-  const platform = getRuntimePlatformInfo().platform;
-  if (platform === "windows") return CODEX_APP_SERVER_PATH_HELPER_TEXT_WINDOWS;
-  if (platform === "macos") return CODEX_APP_SERVER_PATH_HELPER_TEXT_MACOS;
-  return CODEX_APP_SERVER_PATH_HELPER_TEXT_LINUX;
-}
-const LEGACY_CODEX_AUTH_PROTOCOL_HELPER_TEXT =
-  "Uses Codex responses with the legacy direct backend transport.";
 const COPILOT_API_HELPER_TEXT =
   "GitHub Copilot uses device-based login. Click Login to authenticate via GitHub.";
 const DEFAULT_COPILOT_API_BASE = "https://api.githubcopilot.com";
@@ -227,8 +200,6 @@ function getProviderProfile(index: number): ProviderProfile {
     defaultModel: "",
   };
 }
-
-const DEFAULT_AGENT_BRIDGE_URL = "http://127.0.0.1:19787";
 
 function normalizeProviderPresetId(value: unknown): ProviderPresetId {
   if (typeof value !== "string") return "customized";
@@ -382,102 +353,6 @@ function normalizeAuthMode(value: unknown): ModelProviderAuthMode {
   if (value === "codex_app_server") return "codex_app_server";
   if (value === "copilot_auth") return "copilot_auth";
   return "api_key";
-}
-
-type ProcessLike = { env?: Record<string, string | undefined> };
-type PathUtilsLike = {
-  homeDir?: string;
-  join?: (...parts: string[]) => string;
-};
-type ServicesLike = {
-  dirsvc?: {
-    get?: (key: string, iface?: unknown) => { path?: string } | undefined;
-  };
-};
-type OSLike = {
-  Constants?: {
-    Path?: {
-      homeDir?: string;
-    };
-  };
-};
-
-function getProcess(): ProcessLike | undefined {
-  const fromGlobal = (globalThis as { process?: ProcessLike }).process;
-  if (fromGlobal?.env) return fromGlobal;
-  const fromToolkit = ztoolkit.getGlobal("process") as ProcessLike | undefined;
-  return fromToolkit?.env ? fromToolkit : undefined;
-}
-
-function getPathUtils(): PathUtilsLike | undefined {
-  const fromGlobal = (globalThis as { PathUtils?: PathUtilsLike }).PathUtils;
-  if (fromGlobal?.homeDir || fromGlobal?.join) return fromGlobal;
-  return ztoolkit.getGlobal("PathUtils") as PathUtilsLike | undefined;
-}
-
-function getServices(): ServicesLike | undefined {
-  const fromGlobal = (globalThis as { Services?: ServicesLike }).Services;
-  if (fromGlobal?.dirsvc?.get) return fromGlobal;
-  return ztoolkit.getGlobal("Services") as ServicesLike | undefined;
-}
-
-function getOS(): OSLike | undefined {
-  const fromGlobal = (globalThis as { OS?: OSLike }).OS;
-  if (fromGlobal?.Constants?.Path?.homeDir) return fromGlobal;
-  return ztoolkit.getGlobal("OS") as OSLike | undefined;
-}
-
-function getNsIFile(): unknown {
-  const ci = (globalThis as { Ci?: { nsIFile?: unknown } }).Ci;
-  if (ci?.nsIFile) return ci.nsIFile;
-  const components = (
-    globalThis as {
-      Components?: { interfaces?: { nsIFile?: unknown } };
-    }
-  ).Components;
-  return components?.interfaces?.nsIFile;
-}
-
-function resolveCodexAuthPath(): string {
-  const env = getProcess()?.env;
-  const codexHome = env?.CODEX_HOME?.trim();
-  if (codexHome) return joinLocalPath(codexHome, "auth.json");
-  const home =
-    env?.HOME?.trim() ||
-    env?.USERPROFILE?.trim() ||
-    getPathUtils()?.homeDir?.trim() ||
-    getOS()?.Constants?.Path?.homeDir?.trim() ||
-    getServices()?.dirsvc?.get?.("Home", getNsIFile())?.path?.trim() ||
-    (Zotero as unknown as { Profile?: { dir?: string } }).Profile?.dir?.trim();
-  if (!home) throw new Error("Unable to resolve home directory for codex auth");
-  return joinLocalPath(home, ".codex", "auth.json");
-}
-
-async function readCodexAccessToken(): Promise<string> {
-  const authPath = resolveCodexAuthPath();
-  const io = ztoolkit.getGlobal("IOUtils") as
-    | {
-        read?: (
-          path: string,
-        ) => Promise<Uint8Array<ArrayBufferLike> | ArrayBuffer>;
-      }
-    | undefined;
-  if (!io?.read) {
-    throw new Error("IOUtils is unavailable; cannot read Codex auth file");
-  }
-  const data = await io.read(authPath);
-  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-  const raw = new TextDecoder("utf-8").decode(bytes);
-  const parsed = JSON.parse(raw) as {
-    tokens?: { access_token?: string };
-  };
-  const token = parsed?.tokens?.access_token?.trim() || "";
-  if (!token) {
-    throw new Error(
-      "No access token found in ~/.codex/auth.json. Run `codex login` first.",
-    );
-  }
-  return token;
 }
 
 // ── Style tokens ───────────────────────────────────────────────────
@@ -777,49 +652,6 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   const enableAgentModeInput = doc.querySelector(
     `#${config.addonRef}-enable-agent-mode`,
   ) as HTMLInputElement | null;
-  const codexAppServerEnableSelect = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-enable`,
-  ) as HTMLSelectElement | null;
-  const codexAppServerSettingsWrap = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-settings`,
-  ) as HTMLDivElement | null;
-  const codexAppServerModelInput = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-model`,
-  ) as HTMLInputElement | null;
-  const codexAppServerReasoningSelect = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-reasoning`,
-  ) as HTMLSelectElement | null;
-  const codexAppServerPathInput = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-path`,
-  ) as HTMLInputElement | null;
-  const codexAppServerPathHelper = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-path-helper`,
-  ) as HTMLSpanElement | null;
-  const codexAppServerTestBtn = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-test`,
-  ) as HTMLButtonElement | null;
-  const codexAppServerStatus = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-status`,
-  ) as HTMLSpanElement | null;
-  const codexAppServerMcpEnableInput = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-mcp-enable`,
-  ) as HTMLInputElement | null;
-  const codexAppServerMcpSetupBtn = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-mcp-setup`,
-  ) as HTMLButtonElement | null;
-  const codexAppServerMcpStatus = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-mcp-status`,
-  ) as HTMLSpanElement | null;
-  const codexAppServerNativeApprovalsEnableInput = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-native-approvals-enable`,
-  ) as HTMLInputElement | null;
-  const codexAppServerApprovalsReviewerSelect = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-approvals-reviewer`,
-  ) as HTMLSelectElement | null;
-  const codexAppServerNativeApprovalsStatus = doc.querySelector(
-    `#${config.addonRef}-codex-app-server-native-approvals-status`,
-  ) as HTMLSpanElement | null;
-
   if (!modelSections) return;
 
   const storedGroupsRaw = Zotero.Prefs.get(
@@ -2277,90 +2109,6 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       ]?.getService?.(helper?.interfaces?.nsIClipboardHelper) as
         { copyString?: (v: string) => void } | undefined;
       svc?.copyString?.(value);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const ensureDirectory = async (dirPath: string) => {
-    const IOUtils = (globalThis as any).IOUtils as
-      | {
-          exists?: (path: string) => Promise<boolean>;
-          makeDirectory?: (
-            path: string,
-            options?: { ignoreExisting?: boolean; createAncestors?: boolean },
-          ) => Promise<void>;
-        }
-      | undefined;
-    if (IOUtils?.exists && IOUtils?.makeDirectory) {
-      const exists = await IOUtils.exists(dirPath);
-      if (!exists) {
-        await IOUtils.makeDirectory(dirPath, {
-          ignoreExisting: true,
-          createAncestors: true,
-        });
-      }
-    }
-  };
-
-  const ensureFileIfMissing = async (filePath: string, content: string) => {
-    const IOUtils = (globalThis as any).IOUtils as
-      | {
-          exists?: (path: string) => Promise<boolean>;
-          write?: (
-            path: string,
-            data: Uint8Array<ArrayBufferLike>,
-          ) => Promise<unknown>;
-        }
-      | undefined;
-    if (!IOUtils?.exists || !IOUtils?.write) return;
-    const exists = await IOUtils.exists(filePath).catch(() => false);
-    if (exists) return;
-    await IOUtils.write(filePath, new TextEncoder().encode(content));
-  };
-
-  const openDirectory = async (dirPath: string) => {
-    await ensureDirectory(dirPath);
-    try {
-      const Cc = (
-        globalThis as unknown as {
-          Components?: {
-            classes?: Record<
-              string,
-              { createInstance?: (iface: unknown) => unknown }
-            >;
-            interfaces?: Record<string, unknown>;
-          };
-        }
-      ).Components?.classes;
-      const Ci = (
-        globalThis as unknown as {
-          Components?: { interfaces?: Record<string, unknown> };
-        }
-      ).Components?.interfaces;
-      if (
-        Cc &&
-        Ci &&
-        typeof Cc["@mozilla.org/file/local;1"]?.createInstance === "function"
-      ) {
-        const f = Cc["@mozilla.org/file/local;1"].createInstance(
-          Ci.nsIFile as unknown,
-        ) as
-          | { initWithPath?: (p: string) => void; reveal?: () => void }
-          | undefined;
-        if (f?.initWithPath) {
-          f.initWithPath(dirPath);
-          f.reveal?.();
-          return;
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-    try {
-      (Zotero as unknown as { launchFile?: (p: string) => void }).launchFile?.(
-        dirPath,
-      );
     } catch {
       /* ignore */
     }

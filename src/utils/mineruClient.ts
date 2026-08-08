@@ -112,6 +112,15 @@ function getFetch(): typeof fetch {
   return ztoolkit.getGlobal("fetch") as typeof fetch;
 }
 
+function normalizeRejectionReason(
+  reason: unknown,
+  fallback = "MinerU request failed",
+): Error {
+  if (reason instanceof Error) return reason;
+  if (typeof reason === "string" && reason.trim()) return new Error(reason);
+  return new Error(fallback, { cause: reason });
+}
+
 function getAbortControllerCtor(): typeof AbortController | undefined {
   return (
     (globalThis as { AbortController?: typeof AbortController })
@@ -135,7 +144,7 @@ function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
       },
       (e) => {
         signal.removeEventListener("abort", onAbort);
-        reject(e);
+        reject(normalizeRejectionReason(e));
       },
     );
   });
@@ -808,7 +817,7 @@ async function fetchWithTimeout(
         if (settled) return;
         settled = true;
         cleanup();
-        reject(error);
+        reject(normalizeRejectionReason(error));
       };
       const onAbort = () => finishReject(new MineruCancelledError());
       const timer =

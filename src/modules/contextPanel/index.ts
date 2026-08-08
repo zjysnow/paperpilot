@@ -42,7 +42,7 @@ import {
   clearOwnerAttachmentRefs,
   collectAndDeleteUnreferencedBlobs,
 } from "../../utils/attachmentRefStore";
-import { normalizeSelectedText, setStatus } from "./textUtils";
+import { normalizeSelectedText } from "./textUtils";
 import { buildUI } from "./buildUI";
 import { setupHandlers } from "./setupHandlers";
 import { ensureConversationLoaded, getConversationKey } from "./chat";
@@ -59,7 +59,6 @@ import {
 import { persistPendingChatScrollRestoreFromBody } from "./chatScrollSnapshots";
 import {
   getActiveContextAttachmentFromTabs,
-  getActiveReaderForSelectedTab,
   refreshLastKnownSelectedTabId,
   getItemSelectionCacheKeys,
   resolvePanelContextLifecycleState,
@@ -812,15 +811,20 @@ function getReaderSelectionTrackingHandler(): ReaderTextSelectionPopupHandler {
             addTextHandled = true;
             e.preventDefault();
             e.stopPropagation();
-            void addTextToPanel().then((result) => {
-              if (
-                !result ||
-                result.outcome === "no-selection" ||
-                result.outcome === "invalid-target"
-              ) {
+            void addTextToPanel()
+              .then((result) => {
+                if (
+                  !result ||
+                  result.outcome === "no-selection" ||
+                  result.outcome === "invalid-target"
+                ) {
+                  showAddTextUnavailable();
+                }
+              })
+              .catch((error) => {
+                ztoolkit.log("LLM: Failed to add reader text to panel", error);
                 showAddTextUnavailable();
-              }
-            });
+              });
           };
           const isPrimaryButton = (e: Event): boolean => {
             const maybeMouse = e as MouseEvent;

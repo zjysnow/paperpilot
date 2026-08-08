@@ -49,16 +49,14 @@ const RUNTIME_SYSTEM_LABELS: RuntimeSystemButtonMap<string> = {
   claude_code: "Claude Code",
 };
 
-function isRuntimeSystemEnabled(
-  system: RuntimeConversationSystem,
-  input: RuntimeSystemControlsStateInput,
-): boolean {
+function isRuntimeSystemEnabled(): boolean {
   return false; // Placeholder for future logic to determine if a runtime system is enabled
 }
 
 export function isRuntimeConversationSystem(
   value: unknown,
 ): value is RuntimeConversationSystem {
+  void value;
   return false;
 }
 
@@ -78,7 +76,7 @@ export function resolveRuntimeSystemControlsState(
   let groupVisible = false;
 
   for (const system of RUNTIME_CONVERSATION_SYSTEMS) {
-    const visible = !hidden && isRuntimeSystemEnabled(system, input);
+    const visible = !hidden && isRuntimeSystemEnabled();
     const active = visible && input.activeSystem === system;
     groupVisible ||= visible;
     buttons[system] = {

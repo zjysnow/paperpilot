@@ -3,7 +3,6 @@ import {
   invalidatePaperSearchCache,
   listLibraryPaperCandidates,
   searchPaperCandidates,
-  searchAllItemCandidates,
   type PaperBrowseCollectionCandidate,
   type PaperSearchGroupCandidate,
 } from "../../modules/contextPanel/paperSearch";

@@ -1,4 +1,3 @@
-import { config } from "../../package.json";
 import {
   buildMineruFilenameMatcher,
   isGlobalAutoParseEnabled,
@@ -438,16 +437,25 @@ async function processQueue(): Promise<void> {
         );
         await writeMineruSourceProvenanceForAttachment(pdfItem);
         setItemCached(entry.attachmentId);
-        void publishMineruCachePackageForAttachment(entry.attachmentId).then(
-          (published) => {
+        void publishMineruCachePackageForAttachment(entry.attachmentId)
+          .then((published) => {
             if (published.status === "error") {
               ztoolkit.log(
                 "LLM: MinerU sync package publish failed",
                 published,
               );
             }
-          },
-        );
+          })
+          .catch((error) => {
+            ztoolkit.log(
+              "LLM: MinerU sync package publish rejected",
+              error instanceof Error
+                ? error
+                : new Error("MinerU sync package publish failed", {
+                    cause: error,
+                  }),
+            );
+          });
         // Flush stale in-memory text cache and disk embedding cache so the
         // next query picks up MinerU-quality chunks and re-generates embeddings.
         invalidateCachedContextText(entry.attachmentId);

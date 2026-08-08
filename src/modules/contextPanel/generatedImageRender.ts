@@ -210,7 +210,17 @@ async function resolveGeneratedImageFilePickerResult(
         return;
       }
       if (typeof picker.show === "function") {
-        void Promise.resolve(picker.show()).then(resolve, reject);
+        void Promise.resolve(picker.show())
+          .then(resolve)
+          .catch((error) =>
+            reject(
+              error instanceof Error
+                ? error
+                : new Error("Generated image file picker failed", {
+                    cause: error,
+                  }),
+            ),
+          );
         return;
       }
       resolve(-1);

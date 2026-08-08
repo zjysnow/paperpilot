@@ -19,7 +19,6 @@ import {
 import {
   buildDefaultUpstreamGlobalConversationKey,
   GLOBAL_CONVERSATION_KEY_BASE,
-  MAX_SELECTED_PAPER_CONTEXTS,
   GLOBAL_HISTORY_LIMIT,
   PERSISTED_HISTORY_LIMIT,
   isUpstreamGlobalConversationKey,
@@ -30,16 +29,11 @@ import {
   conversationForkLinks,
   loadedConversationKeys,
   webChatIsolatedConversationKeys,
-  activeConversationModeByLibrary,
   activeGlobalConversationByLibrary,
   activePaperConversationByPaper,
-  draftInputCache,
-  selectedImageCache,
   inlineEditCleanup,
   setInlineEditCleanup,
   setInlineEditTarget,
-  setInlineEditInputSection,
-  setInlineEditSavedDraft,
   setForkSourceNavigationRunner,
   isRequestPending,
 } from "../../state";
@@ -50,11 +44,7 @@ import {
   positionMenuAtPointer,
 } from "../../menuPositioning";
 import { renderShortcuts } from "../../shortcuts";
-import {
-  ensureConversationLoaded,
-  getConversationKey,
-  refreshConversationPanels,
-} from "../../chat";
+import { ensureConversationLoaded, getConversationKey } from "../../chat";
 import {
   loadAllConversationHistory,
   loadConversationHistoryScope,
@@ -90,7 +80,6 @@ import {
   getLockedGlobalConversationKey,
   setLastUsedUpstreamGlobalConversationKey,
   setLastUsedPaperConversationKey,
-  setLockedGlobalConversationKey,
   buildPaperStateKey,
 } from "../../prefHelpers";
 
@@ -162,17 +151,6 @@ export function shouldFallbackToLoadedConversationHistorySearch(
 }
 
 type StatusLevel = "ready" | "warning" | "error";
-type PendingTurnDeletion = {
-  conversationSystem: ConversationSystem;
-  conversationKey: number;
-  userTimestamp: number;
-  assistantTimestamp: number;
-  userIndex: number;
-  userMessage: Message;
-  assistantMessage: Message;
-  timeoutId: number | null;
-  expiresAt: number;
-};
 type CachedHistorySearchDocument = {
   fingerprint: string;
   document: HistorySearchDocument;
@@ -288,17 +266,14 @@ export function createHistoryLifecycleController(
   deps: HistoryLifecycleControllerDeps,
 ) {
   let item = deps.getItem();
-  let basePaperItem = deps.getBasePaperItem();
   const syncStateFromDeps = () => {
     item = deps.getItem();
-    basePaperItem = deps.getBasePaperItem();
   };
   const setCurrentItem = (nextItem: Zotero.Item | null) => {
     item = nextItem;
     deps.setItem(nextItem);
   };
   const setBasePaperItem = (nextItem: Zotero.Item | null) => {
-    basePaperItem = nextItem;
     deps.setBasePaperItem(nextItem);
   };
   const getForkEligibilityStatusMessage = (
@@ -354,7 +329,6 @@ export function createHistoryLifecycleController(
     historyBar,
     titleStatic,
     historyNewBtn,
-    historyNewMenu,
     historyNewOpenBtn,
     historyNewPaperBtn,
     historyToggleBtn,
@@ -368,17 +342,11 @@ export function createHistoryLifecycleController(
     modeChipBtn,
   } = deps;
   const getConversationSystem = deps.getConversationSystem;
-  const isClaudeConversationSystem = deps.isClaudeConversationSystem;
-  const isCodexConversationSystem = deps.isCodexConversationSystem;
-  const isRuntimeConversationSystem = deps.isRuntimeConversationSystem;
   const isNoteSession = deps.isNoteSession;
   const isGlobalMode = deps.isGlobalMode;
-  const isPaperMode = deps.isPaperMode;
   const isWebChatMode = deps.isWebChatMode;
   const getCurrentLibraryID = deps.getCurrentLibraryID;
   const resolveCurrentPaperBaseItem = deps.resolveCurrentPaperBaseItem;
-  const getManualPaperContextsForItem = deps.getManualPaperContextsForItem;
-  const resolveAutoLoadedPaperContext = deps.resolveAutoLoadedPaperContext;
   const refreshAutoLoadedPaperContextForCurrentItem =
     deps.refreshAutoLoadedPaperContextForCurrentItem;
   const persistDraftInputForCurrentConversation =
@@ -386,14 +354,10 @@ export function createHistoryLifecycleController(
   const restoreDraftInputForCurrentConversation =
     deps.restoreDraftInputForCurrentConversation;
   const syncConversationIdentity = deps.syncConversationIdentity;
-  const syncQueuedFollowUpRegistration = deps.syncQueuedFollowUpRegistration;
-  const updateRuntimeModeButton = deps.updateRuntimeModeButton;
   const refreshChatPreservingScroll = deps.refreshChatPreservingScroll;
   const resetComposePreviewUI = deps.resetComposePreviewUI;
   const updateModelButton = deps.updateModelButton;
   const updateReasoningButton = deps.updateReasoningButton;
-  const updatePaperPreviewPreservingScroll =
-    deps.updatePaperPreviewPreservingScroll;
   const clearForcedSkill = deps.clearForcedSkill;
   const closePaperPicker = deps.closePaperPicker;
   const closePromptMenu = deps.closePromptMenu;
@@ -422,12 +386,6 @@ export function createHistoryLifecycleController(
     deps.closeHistoryMenu();
   };
   const isHistoryMenuOpen = deps.isHistoryMenuOpen;
-  const isHistoryNewMenuOpen = deps.isHistoryNewMenuOpen;
-  const runWithChatScrollGuard = deps.runWithChatScrollGuard;
-  const clearSelectedImageState = deps.clearSelectedImageState;
-  const clearSelectedFileState = deps.clearSelectedFileState;
-  const clearSelectedTextState = deps.clearSelectedTextState;
-  const clearDraftInputState = deps.clearDraftInputState;
   const clearTransientComposeStateForItem =
     deps.clearTransientComposeStateForItem;
   const scheduleAttachmentGc = deps.scheduleAttachmentGc;
@@ -437,11 +395,8 @@ export function createHistoryLifecycleController(
   const closeModelMenu = deps.closeModelMenu;
   const closeReasoningMenu = deps.closeReasoningMenu;
   const closeSlashMenu = deps.closeSlashMenu;
-  const getSelectedModelInfo = deps.getSelectedModelInfo;
   const markNextWebChatSendAsNewChat = deps.markNextWebChatSendAsNewChat;
   const primeFreshWebChatPaperChipState = deps.primeFreshWebChatPaperChipState;
-  const updateImagePreviewPreservingScroll =
-    deps.updateImagePreviewPreservingScroll;
   const setActiveEditSession = deps.setActiveEditSession;
   const ztoolkit = { log: deps.log };
   const ensureConversationCatalogEntry = async (params: {
@@ -1413,19 +1368,6 @@ export function createHistoryLifecycleController(
     } catch (_error) {
       void _error;
     }
-  };
-
-  const expandHistorySearch = () => {
-    historySearchExpanded = true;
-    renderGlobalHistoryMenu();
-    if (
-      historyToggleBtn &&
-      historyMenu &&
-      historyMenu.style.display !== "none"
-    ) {
-      positionMenuBelowButton(body, historyMenu, historyToggleBtn);
-    }
-    restoreHistorySearchInputFocus();
   };
 
   const collapseHistorySearch = () => {

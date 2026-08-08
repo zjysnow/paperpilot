@@ -1,12 +1,6 @@
 import { isConversationKeyForKind } from "../../shared/conversationKeySpace";
-import {
-  canMigrateLegacyAmbiguousPaperRegistryScope,
-  getRegisteredConversationScope,
-  repairRegisteredConversationScope,
-} from "../../shared/conversationRegistry";
+import { repairRegisteredConversationScope } from "../../shared/conversationRegistry";
 import type {
-  ClaudeConversationSummary,
-  CodexConversationSummary,
   ConversationSystem,
   GlobalConversationSummary,
   PaperConversationSummary,
@@ -216,102 +210,6 @@ function fromUpstreamPaperSummary(
   };
 }
 
-function fromClaudeSummary(
-  summary: ClaudeConversationSummary | null | undefined,
-): ConversationCatalogEntry | null {
-  if (!summary) return null;
-  const conversationKey = normalizePositiveInt(summary.conversationKey);
-  const libraryID = normalizePositiveInt(summary.libraryID);
-  const createdAt = normalizeTimestamp(summary.createdAt);
-  const paperItemID = normalizePositiveInt(summary.paperItemID);
-  if (!conversationKey || !libraryID || !createdAt) return null;
-  if (summary.kind === "paper" && !paperItemID) return null;
-  return {
-    conversationID: summary.conversationID,
-    conversationKey,
-    system: "claude_code",
-    kind: summary.kind,
-    libraryID,
-    paperItemID: summary.kind === "paper" ? paperItemID : undefined,
-    createdAt,
-    lastActivityAt: normalizeTimestamp(summary.updatedAt, createdAt),
-    title: normalizeTitle(summary.title),
-    userTurnCount: normalizeUserTurnCount(summary.userTurnCount),
-    providerSessionId: normalizeTitle(summary.providerSessionId),
-    scopedConversationKey: normalizeTitle(summary.scopedConversationKey),
-    scopeType: normalizeTitle(summary.scopeType),
-    scopeId: normalizeTitle(summary.scopeId),
-    scopeLabel: normalizeTitle(summary.scopeLabel),
-    cwd: normalizeTitle(summary.cwd),
-    model: normalizeTitle(summary.model),
-    effort: normalizeTitle(summary.effort),
-  };
-}
-
-function fromCodexSummary(
-  summary: CodexConversationSummary | null | undefined,
-): ConversationCatalogEntry | null {
-  if (!summary) return null;
-  const conversationKey = normalizePositiveInt(summary.conversationKey);
-  const libraryID = normalizePositiveInt(summary.libraryID);
-  const createdAt = normalizeTimestamp(summary.createdAt);
-  const paperItemID = normalizePositiveInt(summary.paperItemID);
-  if (!conversationKey || !libraryID || !createdAt) return null;
-  if (summary.kind === "paper" && !paperItemID) return null;
-  return {
-    conversationID: summary.conversationID,
-    conversationKey,
-    system: "codex",
-    kind: summary.kind,
-    libraryID,
-    paperItemID: summary.kind === "paper" ? paperItemID : undefined,
-    createdAt,
-    lastActivityAt: normalizeTimestamp(summary.updatedAt, createdAt),
-    title: normalizeTitle(summary.title),
-    userTurnCount: normalizeUserTurnCount(summary.userTurnCount),
-    providerSessionId: normalizeTitle(summary.providerSessionId),
-    scopedConversationKey: normalizeTitle(summary.scopedConversationKey),
-    scopeType: normalizeTitle(summary.scopeType),
-    scopeId: normalizeTitle(summary.scopeId),
-    scopeLabel: normalizeTitle(summary.scopeLabel),
-    cwd: normalizeTitle(summary.cwd),
-    model: normalizeTitle(summary.model),
-    effort: normalizeTitle(summary.effort),
-  };
-}
-
-async function repairRuntimeRegistryFromSummary(
-  system: "claude_code" | "codex",
-  summary: ClaudeConversationSummary | CodexConversationSummary,
-): Promise<void> {
-  const existing = await getRegisteredConversationScope(
-    summary.conversationKey,
-  );
-  if (
-    existing &&
-    !existing.valid &&
-    !canMigrateLegacyAmbiguousPaperRegistryScope(existing, {
-      system,
-      kind: summary.kind,
-      libraryID: summary.libraryID,
-      paperItemID: summary.paperItemID,
-    })
-  ) {
-    return;
-  }
-  await repairRegisteredConversationScope({
-    conversationID: summary.conversationID,
-    conversationKey: summary.conversationKey,
-    system,
-    kind: summary.kind,
-    libraryID: summary.libraryID,
-    paperItemID: summary.paperItemID,
-    createdAt: summary.createdAt,
-    updatedAt: summary.updatedAt,
-    title: summary.title,
-  });
-}
-
 async function repairUpstreamRuntimeRegistryFromEntry(
   entry: ConversationCatalogEntry,
 ): Promise<boolean> {
@@ -360,14 +258,6 @@ function catalogEntryMatchesScope(
     );
   }
   return true;
-}
-
-async function touchRuntimeEmptyCatalogActivity(
-  entry: ConversationCatalogEntry,
-  timestamp: number,
-): Promise<void> {
-  if (entry.userTurnCount > 0) return;
-  const updatedAt = normalizeTimestamp(timestamp, Date.now());
 }
 
 export const conversationRepository = {
@@ -498,9 +388,6 @@ export const conversationRepository = {
       conversationKey: sourceConversationKey,
     });
     if (!catalogEntryMatchesScope(sourceEntry, params)) return null;
-    const sourceProviderSessionId =
-      normalizeTitle(sourceEntry.providerSessionId) || "";
-
     const entry = await conversationRepository.createCatalogEntry({
       system: params.system,
       kind: params.kind,
@@ -686,11 +573,7 @@ export const conversationRepository = {
     const conversationKey = normalizePositiveInt(target.conversationKey);
     if (!conversationKey) return;
     const timestamp = normalizeTimestamp(target.timestamp, Date.now());
-    if (target.system === "claude_code" || target.system === "codex") {
-      const entry = await conversationRepository.getCatalogEntry(target);
-      if (entry) await touchRuntimeEmptyCatalogActivity(entry, timestamp);
-      return;
-    }
+    if (target.system === "claude_code" || target.system === "codex") return;
     if (
       target.kind === "paper" ||
       isUpstreamPaperConversationKey(conversationKey)

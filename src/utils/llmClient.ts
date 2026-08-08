@@ -15,23 +15,16 @@ import {
   getOpenAIReasoningProfileForModel,
   getQwenReasoningProfileForModel,
   getReasoningDefaultLevelForModel,
-  getRuntimeReasoningOptionsForModel,
   supportsReasoningForModel,
 } from "./reasoningProfiles";
 import type {
-  ReasoningProvider,
   ReasoningLevel,
   OpenAIReasoningEffort,
-  OpenAIReasoningProfile,
-  GeminiThinkingParam,
-  GeminiThinkingValue,
   GeminiReasoningOption,
   GeminiReasoningProfile,
-  AnthropicAdaptiveEffort,
   AnthropicThinkingMode,
   AnthropicReasoningProfile,
   QwenReasoningProfile,
-  RuntimeReasoningOption,
 } from "./reasoningProfiles";
 import type {
   ChatMessage,
@@ -71,7 +64,6 @@ import {
 } from "./modelProviders";
 import {
   detectProviderPreset,
-  getProviderPreset,
   isGrokApiBase,
   providerSupportsResponsesEndpoint,
 } from "./providerPresets";
@@ -81,7 +73,6 @@ import {
 } from "./providerProtocol";
 import {
   buildProviderTransportHeaders,
-  resolveAnthropicMessagesEndpoint,
   resolveGeminiNativeEndpoint,
   resolveProviderTransportEndpoint,
 } from "./providerTransport";
@@ -651,11 +642,6 @@ async function loadCodexAuthJson(
   }
 }
 
-function extractCodexAccessToken(auth: CodexAuthJson | null): string {
-  const token = auth?.tokens?.access_token;
-  return typeof token === "string" ? token.trim() : "";
-}
-
 function extractCodexRefreshToken(auth: CodexAuthJson | null): string {
   const token = auth?.tokens?.refresh_token;
   return typeof token === "string" ? token.trim() : "";
@@ -713,29 +699,6 @@ async function refreshCodexAccessToken(params: {
     `${JSON.stringify(nextAuth, null, 2)}\n`,
   );
   return nextAccess;
-}
-
-async function resolveCodexAccessToken(params?: {
-  signal?: AbortSignal;
-}): Promise<{ token: string; refreshToken: string; authPath: string }> {
-  const authPath = resolveCodexAuthPath();
-  const auth = await loadCodexAuthJson(authPath);
-  const accessToken = extractCodexAccessToken(auth);
-  const refreshToken = extractCodexRefreshToken(auth);
-  if (accessToken) {
-    return { token: accessToken, refreshToken, authPath };
-  }
-  if (refreshToken) {
-    const refreshed = await refreshCodexAccessToken({
-      authPath,
-      refreshToken,
-      signal: params?.signal,
-    });
-    return { token: refreshed, refreshToken, authPath };
-  }
-  throw new Error(
-    "codex auth token not found. Please run `codex login` and ensure ~/.codex/auth.json is available.",
-  );
 }
 
 // =============================================================================
@@ -1670,7 +1633,6 @@ function resolveOpenAIReasoningEffort(
   provider: "openai" | "grok",
   level: ReasoningLevel,
   modelName?: string,
-  apiBase?: string,
 ): OpenAIReasoningEffort | null {
   const profile =
     provider === "grok"
@@ -1703,48 +1665,6 @@ function resolveOpenAIReasoningEffort(
   return null;
 }
 
-function resolveAnthropicThinkingBudget(
-  level: ReasoningLevel,
-  profile: AnthropicReasoningProfile,
-): number {
-  const direct = profile.levelToBudgetTokens[level];
-  if (Number.isFinite(direct)) {
-    return Number(direct);
-  }
-
-  const aliasLevel = getReasoningLevelAlias(level);
-  if (aliasLevel) {
-    const aliasBudget = profile.levelToBudgetTokens[aliasLevel];
-    if (Number.isFinite(aliasBudget)) {
-      return Number(aliasBudget);
-    }
-  }
-
-  const defaultBudget = profile.levelToBudgetTokens[profile.defaultLevel];
-  if (Number.isFinite(defaultBudget)) {
-    return Number(defaultBudget);
-  }
-
-  return profile.defaultBudgetTokens;
-}
-
-function resolveAnthropicAdaptiveEffort(
-  level: ReasoningLevel,
-  profile: AnthropicReasoningProfile,
-): AnthropicAdaptiveEffort | null {
-  const direct = profile.levelToEffort[level];
-  if (direct) return direct;
-
-  const aliasLevel = getReasoningLevelAlias(level);
-  if (aliasLevel) {
-    const aliasEffort = profile.levelToEffort[aliasLevel];
-    if (aliasEffort) return aliasEffort;
-  }
-
-  const defaultEffort = profile.levelToEffort[profile.defaultLevel];
-  return defaultEffort || null;
-}
-
 function resolveAnthropicThinkingMode(params: {
   profile: AnthropicReasoningProfile;
   override?: AnthropicReasoningModeOverride;
@@ -1771,32 +1691,6 @@ function resolveAnthropicThinkingMode(params: {
     return "manual";
   }
   return null;
-}
-
-function resolveAnthropicManualBudget(params: {
-  level: ReasoningLevel;
-  profile: AnthropicReasoningProfile;
-  maxTokens?: number;
-  modelName?: string;
-}): number {
-  const requested = Math.max(
-    1024,
-    Math.floor(resolveAnthropicThinkingBudget(params.level, params.profile)),
-  );
-  const maxTokens = Math.floor(Number(params.maxTokens));
-  if (!Number.isFinite(maxTokens) || maxTokens < 1) {
-    return requested;
-  }
-
-  const reservedAnswerTokens = 1024;
-  const maxBudgetTokens = maxTokens - reservedAnswerTokens;
-  if (maxBudgetTokens < 1024) {
-    const label = (params.modelName || "the selected Anthropic model").trim();
-    throw new Error(
-      `${label} extended thinking requires max_tokens of at least 2048 so budget_tokens can be less than max_tokens while leaving room for the answer. Increase max tokens or turn thinking off.`,
-    );
-  }
-  return Math.min(requested, maxBudgetTokens);
 }
 
 function resolveQwenEnableThinking(
@@ -2018,8 +1912,8 @@ export function buildReasoningPayload(
   useResponses: boolean,
   modelName?: string,
   apiBase?: string,
-  providerProtocol?: ProviderProtocol,
-  options?: ReasoningPayloadOptions,
+  _providerProtocol?: ProviderProtocol,
+  _options?: ReasoningPayloadOptions,
 ): { extra: Record<string, unknown>; omitTemperature: boolean } {
   if (!reasoning) {
     return emptyReasoningPayload();
@@ -2033,7 +1927,6 @@ export function buildReasoningPayload(
       reasoning.provider,
       reasoning.level,
       modelName,
-      apiBase,
     );
     const omitTemperature = reasoning.provider === "openai";
     if (useResponses) {
@@ -2592,7 +2485,6 @@ function createChatPayloadBuilder(params: {
               reasoningOverride.provider,
               reasoningOverride.level,
               model,
-              apiBase,
             )
           : null;
       const codexInstructionsParts = [

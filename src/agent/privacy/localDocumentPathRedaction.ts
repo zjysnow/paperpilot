@@ -229,10 +229,6 @@ function encodeFileUrlPathSegments(segments: string[]): string {
   return segments.map((segment) => encodeURIComponent(segment)).join("/");
 }
 
-function shellEscapePosixPath(value: string): string {
-  return value.replace(/([\\\s'"`$!&;()[\]{}*?<>|#~])/gu, "\\$1");
-}
-
 function buildSensitivePathVariants(rawPath: string): SensitivePathVariant[] {
   const variants: SensitivePathVariant[] = [];
   const seen = new Set<string>();
@@ -307,7 +303,6 @@ function buildSensitivePathVariants(rawPath: string): SensitivePathVariant[] {
         flexibleWindowsSeparators: true,
       });
       add(`${drive}\\${segments.join("\\")}`, { caseInsensitive: true });
-      const fileUrlTail = encodeFileUrlPathSegments(segments);
       for (const prefix of ["file:///", "file://localhost/"]) {
         add(`${prefix}${drive}/${segments.join("/")}`, {
           caseInsensitive: true,

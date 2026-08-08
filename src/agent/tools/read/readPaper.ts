@@ -1,4 +1,3 @@
-import type { PaperContextRef } from "../../../shared/types";
 import type { AgentToolDefinition } from "../../types";
 import type { PdfService } from "../../services/pdfService";
 import type { ZoteroGateway } from "../../services/zoteroGateway";

@@ -1,7 +1,6 @@
 import type { AgentToolDefinition } from "../../types";
 import type { PdfPageService } from "../../services/pdfPageService";
 import { parsePageSelectionValue } from "../../services/pdfPageService";
-import type { ZoteroGateway } from "../../services/zoteroGateway";
 import {
   fail,
   normalizePositiveInt,
@@ -34,7 +33,6 @@ function normalizePages(value: unknown): number[] | undefined {
 
 export function createViewPdfPagesTool(
   pdfPageService: PdfPageService,
-  zoteroGateway: ZoteroGateway,
 ): AgentToolDefinition<ViewPdfPagesInput, unknown> {
   return {
     spec: {

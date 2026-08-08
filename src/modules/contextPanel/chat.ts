@@ -2,7 +2,6 @@ import { renderMarkdownForNote } from "../../utils/markdown";
 import { HTML_NS } from "../../utils/domHelpers";
 import {
   t,
-  getWelcomeHtml,
   getWebChatWelcomeHtml,
   getStandaloneLibraryChatStartPageHtml,
   getPaperChatStartPageHtml,
@@ -10,7 +9,6 @@ import {
 } from "../../utils/i18n";
 import {
   appendMessage as appendStoredMessage,
-  clearConversation as clearStoredConversation,
   pruneConversation,
   updateLatestUserMessage as updateStoredLatestUserMessage,
   updateLatestAssistantMessage as updateStoredLatestAssistantMessage,
@@ -154,7 +152,6 @@ import type {
   ChatRuntimeMode,
   ReasoningProviderKind,
   ReasoningOption,
-  ReasoningLevelSelection,
   AdvancedModelParams,
   ChatAttachment,
   CollectionContextRef,
@@ -164,7 +161,6 @@ import type {
   ResolvedSelectedTextAnchor,
   SelectedTextSource,
   PaperContextRef,
-  PaperContextSendMode,
   ContextAssemblyStrategy,
   ResolvedContextSource,
 } from "./types";
@@ -175,7 +171,6 @@ import {
   loadedConversationKeys,
   loadingConversationTasks,
   webChatIsolatedConversationKeys,
-  selectedModelCache,
   selectedReasoningCache,
   selectedReasoningProviderCache,
   selectedImageCache,
@@ -190,7 +185,6 @@ import {
   getAbortController,
   setAbortController,
   nextRequestId,
-  isRequestPending,
   setPendingRequestId,
   setResponseMenuTarget,
   getResponseActionRunner,
@@ -206,7 +200,6 @@ import {
   inlineEditSavedDraft,
   setInlineEditInputSection,
   setInlineEditSavedDraft,
-  selectedRuntimeModeCache,
   pdfTextCache,
   type ResponseActionKind,
   type ResponseActionTarget,
@@ -279,7 +272,6 @@ import {
   resolveDisplayConversationKind,
 } from "./portalScope";
 import { shouldShowForkActionForAssistantTurn } from "./forkActionVisibility";
-import { buildChatHistoryNotePayload } from "./notes";
 import { readNoteSnapshot } from "./noteSnapshot";
 import { extractManagedBlobHash } from "./attachmentStorage";
 import { buildContextPlanSystemMessages } from "./requestSystemMessages";
@@ -314,7 +306,6 @@ import {
 import {
   buildQuoteSourceIndex,
   buildSelectedTextQuoteCitations,
-  extractQuoteCitationsFromToolContent,
   finalizeAssistantQuoteCitations,
   finalizeAssistantQuoteCitationsCooperatively,
   mergeQuoteCitations,
@@ -353,7 +344,6 @@ import {
 import {
   applyHistoryCompression,
   scheduleLLMSummary,
-  clearConversationSummary,
 } from "./conversationSummaryCache";
 
 import {
@@ -553,43 +543,6 @@ function appendReasoningPart(base: string | undefined, next?: string): string {
 
 function isReasoningExpandedByDefault(): boolean {
   return getLastReasoningExpanded();
-}
-
-function setHistoryControlsDisabled(body: Element, disabled: boolean): void {
-  const historyNewBtn = body.querySelector(
-    "#paperpilothistory-new",
-  ) as HTMLButtonElement | null;
-  if (historyNewBtn) {
-    historyNewBtn.disabled = disabled;
-    historyNewBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
-    if (disabled) {
-      historyNewBtn.setAttribute("aria-expanded", "false");
-    }
-  }
-  const historyToggleBtn = body.querySelector(
-    "#paperpilothistory-toggle",
-  ) as HTMLButtonElement | null;
-  if (historyToggleBtn) {
-    historyToggleBtn.disabled = disabled;
-    historyToggleBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
-    if (disabled) {
-      historyToggleBtn.setAttribute("aria-expanded", "false");
-    }
-  }
-  if (disabled) {
-    const historyNewMenu = body.querySelector(
-      "#paperpilothistory-new-menu",
-    ) as HTMLDivElement | null;
-    if (historyNewMenu) {
-      historyNewMenu.style.display = "none";
-    }
-    const historyMenu = body.querySelector(
-      "#paperpilothistory-menu",
-    ) as HTMLDivElement | null;
-    if (historyMenu) {
-      historyMenu.style.display = "none";
-    }
-  }
 }
 
 function resolveMultimodalRetryHint(
@@ -1536,17 +1489,6 @@ function stabilizeFollowBottomAfterAsyncChatContent(
 ): void {
   if (!stickChatBoxToBottomIfFollowing(conversationKey, chatBox)) return;
   scheduleFollowBottomStabilization(body, conversationKey, chatBox);
-}
-
-function applyChatScrollPolicy(
-  item: Zotero.Item,
-  chatBox: HTMLDivElement,
-): void {
-  const conversationKey = getConversationKey(item);
-  const snapshot =
-    getChatScrollSnapshot(conversationKey) || buildChatScrollSnapshot(chatBox);
-  applyChatScrollSnapshot(chatBox, snapshot);
-  persistChatScrollSnapshotForConversationKey(conversationKey, chatBox);
 }
 
 async function loadStoredConversationByKey(
@@ -2942,7 +2884,7 @@ function supportsImageInputs(config: EffectiveRequestConfig): boolean {
   return resolveEffectiveProviderCapabilities(config).images;
 }
 
-function isCodexAppServerConversationRequest(params: {
+function isCodexAppServerConversationRequest(_params: {
   item: Zotero.Item;
   authMode?:
     "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | "webchat";
@@ -6180,17 +6122,6 @@ function isSameRetryModelTarget(params: {
   return Boolean(storedEntryId || storedModel || storedProvider);
 }
 
-function bytesToDataUrl(bytes: Uint8Array, mimeType: string): string {
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(
-      ...bytes.subarray(offset, Math.min(bytes.length, offset + chunkSize)),
-    );
-  }
-  return `data:${mimeType};base64,${btoa(binary)}`;
-}
-
 async function renderRetryPdfPaperImages(params: {
   attachments: ChatAttachment[];
   existingImages: string[];
@@ -6209,24 +6140,7 @@ async function renderRetryPdfPaperImages(params: {
     Math.floor(params.maxImages) - params.existingImages.length,
   );
   if (remaining <= 0) return [];
-  const [{ readAttachmentBytes }] = await Promise.all([
-    // import("../../agent/services/pdfPageService"),
-    import("./attachmentStorage"),
-  ]);
   const images: string[] = [];
-  for (const contextItemId of contextItemIds) {
-    if (images.length >= remaining) break;
-    // const pages = await renderAllPdfPages(contextItemId, {
-    //   maxPages: remaining - images.length,
-    // });
-    // for (const page of pages) {
-    //   if (images.length >= remaining) break;
-    //   const bytes = await readAttachmentBytes(page.storedPath);
-    //   if (bytes.byteLength > 0) {
-    //     images.push(bytesToDataUrl(bytes, "image/png"));
-    //   }
-    // }
-  }
   return images;
 }
 
@@ -6658,11 +6572,6 @@ export async function editLatestUserMessageAndRetry(
   );
   const selectedTextPaperContextsForMessage =
     selectedTextContextsForMessage.map((context) => context.paperContext);
-  const selectedTextQuoteCitationsForMessage = buildSelectedTextQuoteCitations(
-    selectedTextsForMessage,
-    selectedTextSourcesForMessage,
-    selectedTextPaperContextsForMessage,
-  );
   const selectedTextNoteContextsForMessage = selectedTextContextsForMessage.map(
     (context) => context.noteContext,
   );
@@ -7590,7 +7499,6 @@ export async function editUserTurnAndRetry(opts: {
     item,
     contextSource,
     userTimestamp,
-    assistantTimestamp,
     newText,
     selectedTextContexts,
     selectedTexts,
@@ -9859,6 +9767,8 @@ export function renderForkSourceMarkerInto(
     button.disabled = true;
     try {
       await runner(link);
+    } catch (error) {
+      ztoolkit.log("LLM: Failed to open fork source conversation", error);
     } finally {
       button.disabled = false;
     }
@@ -10024,7 +9934,6 @@ export function refreshChat(
     }
     const isUser = msg.role === "user";
     const assistantPairMsg = history[index + 1];
-    const hasAssistantPair = isUser && assistantPairMsg?.role === "assistant";
     const canEditUserPrompt = canEditUserPromptTurn({
       isUser,
       hasItem: Boolean(item),

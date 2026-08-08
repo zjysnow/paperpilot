@@ -56,7 +56,6 @@ import {
   isReferenceSelectorDirectSelection,
   isReferenceSelectorGroupExpanded,
   isReferenceSelectorSelected,
-  referenceSelectorCollectionMatchesFilter,
   resetReferenceSelectorReferenceFilters,
   resolveReferenceSelectorAttachmentSelectionState,
   setReferenceSelectorCollections,

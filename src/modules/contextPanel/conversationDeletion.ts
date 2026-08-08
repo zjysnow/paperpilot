@@ -199,7 +199,7 @@ function buildOperations(
     clearOwnerAttachmentRefs,
     removeConversationAttachmentFiles,
     archiveCodexThread: async () => {},
-    invalidateClaudeConversation: async (conversationKey, target) => {
+    invalidateClaudeConversation: async () => {
       if (!deps.getCoreAgentRuntime) {
         return;
       }

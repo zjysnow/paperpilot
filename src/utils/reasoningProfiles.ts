@@ -1,5 +1,3 @@
-const REASONING_PROFILE_TABLE_VERSION = 6;
-
 export type ReasoningProvider =
   | "openai"
   | "gemini"

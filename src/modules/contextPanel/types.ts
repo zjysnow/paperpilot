@@ -2,25 +2,19 @@ import type { ReasoningLevel as LLMReasoningLevel } from "../../utils/llmClient"
 import type { ContextAttachmentSupport } from "./contextAttachmentTypes";
 import type {
   SelectedTextSource,
-  ChatAttachmentCategory,
   ChatAttachment,
   GeneratedChatImage,
   PaperContentSourceMode,
   AdvancedModelParams,
-  ActiveNoteSession,
   ActiveNoteContext,
   SelectedTextContext,
-  SelectedTextAnchorResolution,
   ResolvedSelectedTextAnchor,
   PaperContextRef,
   LocalDocumentResource,
   QuoteCitation,
   NoteContextRef,
-  OtherContextRef,
   CollectionContextRef,
   TagContextRef,
-  GlobalConversationSummary,
-  PaperConversationSummary,
 } from "../../shared/types";
 import type {
   LibraryChatCoverageReceipt,

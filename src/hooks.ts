@@ -1,7 +1,7 @@
 import { initLocale } from "./utils/locale";
 import { initI18n } from "./utils/i18n";
 import { registerPrefsScripts } from "./modules/preferenceScript";
-import { config, PREFERENCES_PANE_ID } from "./modules/contextPanel/constants";
+import { PREFERENCES_PANE_ID } from "./modules/contextPanel/constants";
 import {
   registerReaderContextPanel,
   registerLLMStyles,
@@ -31,21 +31,6 @@ type ConversationStoreReadiness = {
   claudeStoreReady: boolean;
   codexStoreReady: boolean;
 };
-
-function getStartupPrefKey(key: string): string {
-  return `${config.prefsPrefix}.${key}`;
-}
-
-function getStartupBoolPref(key: string, defaultValue = false): boolean {
-  const value = Zotero.Prefs.get(getStartupPrefKey(key), true);
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === "true") return true;
-    if (normalized === "false") return false;
-  }
-  return defaultValue;
-}
 
 async function measureStartupPhase<T>(
   label: string,

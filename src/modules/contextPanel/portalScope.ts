@@ -309,7 +309,6 @@ export function resolveNoteFocusSystemSwitch(params: {
 
 function resolvePreferredConversationMode(
   libraryID: number,
-  system: ConversationSystem,
 ): "global" | "paper" {
   const rememberedMode =
     activeConversationModeByLibrary.get(libraryID) ||
@@ -323,10 +322,7 @@ function resolvePreferredConversationMode(
   return rememberedMode === "global" ? "global" : "paper";
 }
 
-function resolveGlobalConversationKey(
-  libraryID: number,
-  system: ConversationSystem,
-): number {
+function resolveGlobalConversationKey(libraryID: number): number {
   const lockedKey = getLockedGlobalConversationKey(libraryID);
   if (lockedKey !== null) {
     return lockedKey === GLOBAL_CONVERSATION_KEY_BASE
@@ -348,20 +344,16 @@ function resolveGlobalConversationKey(
 
 export function resolveRememberedGlobalPanelItem(
   libraryID: number,
-  conversationSystem: ConversationSystem,
+  _conversationSystem: ConversationSystem,
 ): Zotero.Item | null {
   const normalizedLibraryID = normalizePositiveInt(libraryID);
   if (!normalizedLibraryID) return null;
-  const conversationKey = resolveGlobalConversationKey(
-    normalizedLibraryID,
-    conversationSystem,
-  );
+  const conversationKey = resolveGlobalConversationKey(normalizedLibraryID);
   return createGlobalPortalItem(normalizedLibraryID, conversationKey);
 }
 
 function resolvePaperConversationKeyForBaseItem(
   basePaperItem: Zotero.Item,
-  system: ConversationSystem,
 ): number {
   const libraryID = resolveLibraryIdFromItem(basePaperItem);
   const paperItemID = normalizePositiveInt(basePaperItem?.id) || 0;
@@ -380,25 +372,18 @@ function resolvePaperConversationKeyForBaseItem(
 
 export function resolveConversationKeyForNoteFocus(
   item: Zotero.Item | null | undefined,
-  options?: { conversationSystem?: ConversationSystem | null },
+  _options?: { conversationSystem?: ConversationSystem | null },
 ): number | null {
   const noteSession = resolveActiveNoteSession(item);
   if (!noteSession) return null;
-  const conversationSystem = resolvePreferredConversationSystem({
-    item,
-    preferredSystem: options?.conversationSystem,
-  });
   if (noteSession.noteKind === "standalone") {
-    return resolveGlobalConversationKey(
-      noteSession.libraryID,
-      conversationSystem,
-    );
+    return resolveGlobalConversationKey(noteSession.libraryID);
   }
   const parentItem = noteSession.parentItemId
     ? Zotero.Items.get(noteSession.parentItemId) || null
     : null;
   if (!parentItem?.isRegularItem?.()) return null;
-  return resolvePaperConversationKeyForBaseItem(parentItem, conversationSystem);
+  return resolvePaperConversationKeyForBaseItem(parentItem);
 }
 
 export function resolveInitialPanelItemState(
@@ -445,8 +430,7 @@ export function resolveInitialPanelItemState(
     preferredSystem: options?.conversationSystem,
   });
   const preferredMode =
-    options?.conversationMode ||
-    resolvePreferredConversationMode(libraryID, conversationSystem);
+    options?.conversationMode || resolvePreferredConversationMode(libraryID);
 
   if (preferredMode === "global") {
     item = resolveRememberedGlobalPanelItem(libraryID, conversationSystem);
@@ -454,10 +438,8 @@ export function resolveInitialPanelItemState(
   }
 
   const paperItemID = Number(basePaperItem.id || 0);
-  const rememberedPaperKey = resolvePaperConversationKeyForBaseItem(
-    basePaperItem,
-    conversationSystem,
-  );
+  const rememberedPaperKey =
+    resolvePaperConversationKeyForBaseItem(basePaperItem);
   if (
     Number.isFinite(rememberedPaperKey) &&
     rememberedPaperKey > 0 &&

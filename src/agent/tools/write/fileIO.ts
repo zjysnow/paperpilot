@@ -414,7 +414,7 @@ async function readFile(filePath: string, encoding: string): Promise<string> {
 async function writeFile(
   filePath: string,
   content: string,
-  encoding: string,
+  _encoding: string,
 ): Promise<void> {
   const bytes = new TextEncoder().encode(content);
 

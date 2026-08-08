@@ -636,12 +636,6 @@ function getSelectedTextCount(message: Message | null | undefined): number {
     : 0;
 }
 
-function getFirstPdfAttachment(
-  item: Zotero.Item | null | undefined,
-): Zotero.Item | null {
-  return getPdfAttachments(item)[0] || null;
-}
-
 function getPdfAttachments(
   item: Zotero.Item | null | undefined,
 ): Zotero.Item[] {
@@ -1821,27 +1815,6 @@ async function navigateToStoredQuotePageHint(params: {
     pageLabel: targetPageLabel,
     paragraphJump,
   };
-}
-
-function sortCandidatesForActiveReader(
-  candidates: AssistantCitationPaperCandidate[],
-): AssistantCitationPaperCandidate[] {
-  const activeReaderItemId = getReaderItemId(getActiveReaderForSelectedTab());
-  if (!activeReaderItemId) return candidates.slice();
-  return candidates.slice().sort((left, right) => {
-    const leftProvenance = getEffectiveCitationCandidateProvenance(left);
-    const rightProvenance = getEffectiveCitationCandidateProvenance(right);
-    if (leftProvenance !== rightProvenance) {
-      return (
-        rankCitationCandidateProvenance(rightProvenance) -
-        rankCitationCandidateProvenance(leftProvenance)
-      );
-    }
-    return (
-      Number(right.contextItemId === activeReaderItemId) -
-      Number(left.contextItemId === activeReaderItemId)
-    );
-  });
 }
 
 const scheduledCitationCacheWarmReaders = new WeakSet<object>();
@@ -3433,7 +3406,7 @@ async function resolveAndNavigateAssistantCitation(params: {
     // After any citation click, refresh all other citation buttons in the
     // panel so their page labels reflect the latest cache (which may have
     // been corrected by FindController during this click).
-    refreshAllCitationButtonPages(params.body, params.panelItem);
+    refreshAllCitationButtonPages(params.body);
     logCitationNavigationTiming(timing, timingOutcome);
   }
 }
@@ -3443,10 +3416,7 @@ async function resolveAndNavigateAssistantCitation(params: {
  * Buttons whose quote text already has a cache entry get the cached
  * (FindController-verified) page; others are left unchanged.
  */
-function refreshAllCitationButtonPages(
-  body: Element,
-  panelItem: Zotero.Item,
-): void {
+function refreshAllCitationButtonPages(body: Element): void {
   try {
     const buttons = Array.from(
       body.querySelectorAll("button.paperpilotcitation-icon"),

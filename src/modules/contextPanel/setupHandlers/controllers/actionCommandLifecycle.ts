@@ -381,7 +381,6 @@ export function createActionCommandLifecycle(params: {
     showActionHitlCard,
   };
 }
-import { getAgentApi } from "../../../../agent";
 import type {
   AgentConfirmationResolution,
   AgentPendingAction,

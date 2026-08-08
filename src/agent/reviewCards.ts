@@ -569,17 +569,11 @@ function normalizeSearchReviewArgs(args: unknown): SearchReviewArgs {
 function buildMetadataDiffRows(
   patch: EditableArticleMetadataPatch,
   context: AgentToolContext,
-  args: SearchReviewArgs,
 ): SearchReviewMetadataRow[] {
   const rows: SearchReviewMetadataRow[] = [];
   // Try to get current item snapshot for before values
   const currentFields: Partial<Record<string, string>> = {};
   let currentCreatorsDisplay = "";
-  const paperContext = args.paperContext || getReferencePaperContext(context);
-  const itemId =
-    args.itemId ||
-    paperContext?.itemId ||
-    readPositiveInt(context.request.activeItemId);
 
   // We'll try to read from the context item if available
   if (context.item) {
@@ -667,11 +661,7 @@ export function createSearchLiteratureReviewAction(
       const metadata = buildMetadataUpdatePatch(selectedChoice.raw);
       if (metadata) {
         // Build before/after diff rows for the fields that would change
-        const diffRows = buildMetadataDiffRows(
-          metadata,
-          context,
-          normalizedArgs,
-        );
+        const diffRows = buildMetadataDiffRows(metadata, context);
         return {
           toolName: "literature_search",
           mode: "review",
