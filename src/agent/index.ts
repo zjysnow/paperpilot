@@ -29,6 +29,8 @@ import {
   resetClaudeBridgeRuntime,
 } from "../claudeCode/runtime";
 import { clearCodexZoteroMcpPreflightCache } from "../codexAppServer/mcpSetup";
+import { setUserSkills } from "./skills";
+import { initUserSkills, loadUserSkills } from "./skills/userSkills";
 
 let runtime: AgentRuntime | null = null;
 let runtimeInitTask: Promise<AgentRuntime> | null = null;
@@ -67,6 +69,11 @@ function createToolRegistry(zoteroGateway: ZoteroGateway) {
 async function createAgentSubsystemRuntime(
   generation: number,
 ): Promise<AgentRuntime> {
+  // Skills are shared by the built-in agent runtime and provider-backed
+  // runtimes such as GitHub Copilot. Load them before any turn can be sent.
+  await initUserSkills();
+  assertAgentInitCurrent(generation);
+  setUserSkills(await loadUserSkills());
   await initAgentTraceStore();
   assertAgentInitCurrent(generation);
   await initConversationMemoryStore();

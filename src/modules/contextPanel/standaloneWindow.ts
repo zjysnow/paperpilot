@@ -118,6 +118,16 @@ import {
   shouldRestoreActiveConversationOnDeletionUndo,
 } from "./conversationDeletionActivation";
 import { setStatus } from "./textUtils";
+import { setUserSkills } from "../../agent/skills";
+import {
+  createSkillTemplate,
+  deleteSkillFile,
+  getSkillListing,
+  initUserSkills,
+  loadUserSkills,
+  openSkillFile,
+  restoreSkillToDefault,
+} from "../../agent/skills/userSkills";
 
 type StandaloneSessionState = {
   pending: boolean;
@@ -866,6 +876,7 @@ export function openStandaloneChat(options?: {
         "paperpilotstandalone-icon-btn paperpilotstandalone-icon-skill";
       iconSkill.type = "button";
       iconSkill.title = t("Skills");
+      iconSkill.setAttribute("aria-label", t("Skills"));
 
       const iconStripSpacer = doc.createElementNS(
         HTML_NS,
@@ -1088,6 +1099,15 @@ export function openStandaloneChat(options?: {
         "Re-seed built-in skills and refresh the list. Customized files are kept — use the right-click menu to restore individual skills to default.",
       );
 
+      const skillNewBtn = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      skillNewBtn.className = "paperpilotoutline-btn";
+      skillNewBtn.type = "button";
+      skillNewBtn.textContent = t("New skill");
+      skillNewBtn.title = t("Create a new skill file");
+
       const skillCloseBtn = doc.createElementNS(
         HTML_NS,
         "button",
@@ -1096,7 +1116,12 @@ export function openStandaloneChat(options?: {
       skillCloseBtn.type = "button";
       skillCloseBtn.textContent = "\u00D7";
 
-      skillHeader.append(skillTitle, skillRefreshBtn, skillCloseBtn);
+      skillHeader.append(
+        skillTitle,
+        skillNewBtn,
+        skillRefreshBtn,
+        skillCloseBtn,
+      );
 
       const skillGrid = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
       skillGrid.className = "paperpilotstandalone-skill-grid";
@@ -1975,6 +2000,104 @@ export function openStandaloneChat(options?: {
 
       iconSearch.addEventListener("click", () => {
         searchPopupController.toggle();
+      });
+
+      let activeSkillFilePath: string | null = null;
+
+      const refreshLoadedSkills = async () => {
+        await initUserSkills();
+        setUserSkills(await loadUserSkills());
+      };
+
+      const renderSkillListing = async () => {
+        skillGrid.replaceChildren();
+        const listing = await getSkillListing();
+        if (!listing.length) {
+          const empty = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+          empty.className = "paperpilotstandalone-skill-empty";
+          empty.textContent = t("No skills found.");
+          skillGrid.appendChild(empty);
+          return;
+        }
+        for (const skill of listing) {
+          const card = doc.createElementNS(
+            HTML_NS,
+            "button",
+          ) as HTMLButtonElement;
+          card.type = "button";
+          card.className = "paperpilotstandalone-skill-item";
+          card.title = skill.filePath;
+          const icon = doc.createElementNS(HTML_NS, "span") as HTMLSpanElement;
+          icon.className = "paperpilotstandalone-skill-doc-icon";
+          const label = doc.createElementNS(HTML_NS, "span") as HTMLSpanElement;
+          label.className = "paperpilotstandalone-skill-label";
+          label.textContent = skill.filename;
+          card.append(icon, label);
+          card.addEventListener("click", () => {
+            void openSkillFile(skill.filePath);
+          });
+          card.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            activeSkillFilePath = skill.filePath;
+            skillCtxRestore.style.display =
+              skill.source === "customized" ? "block" : "none";
+            skillCtxMenu.style.display = "block";
+            skillCtxMenu.style.left = `${event.clientX}px`;
+            skillCtxMenu.style.top = `${event.clientY}px`;
+          });
+          skillGrid.appendChild(card);
+        }
+      };
+
+      const openSkillsOverlay = async () => {
+        skillOverlay.style.display = "flex";
+        await refreshLoadedSkills();
+        await renderSkillListing();
+      };
+
+      iconSkill.addEventListener("click", () => {
+        if (skillOverlay.style.display === "none") {
+          void openSkillsOverlay();
+        } else {
+          skillOverlay.style.display = "none";
+        }
+      });
+      skillCloseBtn.addEventListener("click", () => {
+        skillOverlay.style.display = "none";
+      });
+      skillOverlay.addEventListener("click", (event) => {
+        if (event.target === skillOverlay) skillOverlay.style.display = "none";
+      });
+      skillRefreshBtn.addEventListener("click", () => {
+        void openSkillsOverlay();
+      });
+      skillNewBtn.addEventListener("click", async () => {
+        const filePath = await createSkillTemplate();
+        if (filePath) {
+          await refreshLoadedSkills();
+          await renderSkillListing();
+          await openSkillFile(filePath);
+        }
+      });
+      skillCtxShowInFs.addEventListener("click", () => {
+        if (activeSkillFilePath) void openSkillFile(activeSkillFilePath);
+        skillCtxMenu.style.display = "none";
+      });
+      skillCtxRestore.addEventListener("click", async () => {
+        if (activeSkillFilePath) {
+          await restoreSkillToDefault(activeSkillFilePath);
+          await refreshLoadedSkills();
+          await renderSkillListing();
+        }
+        skillCtxMenu.style.display = "none";
+      });
+      skillCtxDelete.addEventListener("click", async () => {
+        if (activeSkillFilePath) {
+          await deleteSkillFile(activeSkillFilePath);
+          await refreshLoadedSkills();
+          await renderSkillListing();
+        }
+        skillCtxMenu.style.display = "none";
       });
 
       // Dismiss context menu on click outside

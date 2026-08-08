@@ -203,8 +203,7 @@ function getProviderProfile(index: number): ProviderProfile {
 
 function normalizeProviderPresetId(value: unknown): ProviderPresetId {
   if (typeof value !== "string") return "customized";
-  return value === "customized" ||
-    PROVIDER_PRESETS.some((preset) => preset.id === value)
+  return value === "ollama" || value === "customized"
     ? (value as ProviderPresetId)
     : "customized";
 }
@@ -349,7 +348,9 @@ function hasEmptyModel(group: ModelProviderGroup): boolean {
 }
 
 function normalizeAuthMode(value: unknown): ModelProviderAuthMode {
-  if (value === "codex_auth") return "codex_auth";
+  // Legacy Codex Auth is no longer exposed in preferences. Treat old saved
+  // entries as regular API-key providers so they remain editable.
+  if (value === "codex_auth") return "api_key";
   if (value === "codex_app_server") return "codex_app_server";
   if (value === "copilot_auth") return "copilot_auth";
   return "api_key";
@@ -781,10 +782,6 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         "Codex App Server (native runtime settings)",
       );
       codexAppServerOption.selected = group.authMode === "codex_app_server";
-      const codexOption = el(doc, "option") as HTMLOptionElement;
-      codexOption.value = "codex_auth";
-      codexOption.textContent = t("Codex Auth (Legacy)");
-      codexOption.selected = group.authMode === "codex_auth";
       const copilotOption = el(doc, "option") as HTMLOptionElement;
       copilotOption.value = "copilot_auth";
       copilotOption.textContent = t("GitHub Copilot");
@@ -793,7 +790,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       if (group.authMode === "codex_app_server") {
         authModeSelect.append(codexAppServerOption);
       }
-      authModeSelect.append(codexOption, copilotOption);
+      authModeSelect.append(copilotOption);
       authModeSelect.addEventListener("change", () => {
         const previousAuthMode = group.authMode;
         const nextAuthMode = normalizeAuthMode(authModeSelect.value);
@@ -826,10 +823,12 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         el(doc, "span", HELPER_STYLE, authModeHelperText),
       );
 
-      const selectedPresetId: ProviderPresetId =
+      const detectedPresetId =
         group.authMode === "copilot_auth"
           ? "customized"
           : (group.presetIdOverride ?? detectProviderPreset(group.apiBase));
+      const selectedPresetId: ProviderPresetId =
+        detectedPresetId === "ollama" ? "ollama" : "customized";
       const selectedPreset =
         selectedPresetId === "customized"
           ? null
@@ -865,8 +864,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         providerPresetLabel.setAttribute("for", providerPresetSelect.id);
 
         for (const preset of PROVIDER_PRESETS) {
-          // Copilot requires copilot_auth, not usable with API Key
-          if (preset.id === "copilot") continue;
+          if (preset.id !== "ollama") continue;
           const option = el(doc, "option") as HTMLOptionElement;
           option.value = preset.id;
           option.textContent = preset.label;

@@ -25,7 +25,20 @@ describe("Ollama provider preset", function () {
     );
     assert.equal(
       providerSupportsResponsesEndpoint("http://127.0.0.1:11434/v1"),
-      false,
+      true,
+    );
+  });
+});
+
+describe("GitHub Copilot provider preset", function () {
+  it("detects the Copilot API and keeps it on the chat-compatible protocol", function () {
+    assert.equal(
+      detectProviderPreset("https://api.githubcopilot.com"),
+      "copilot",
+    );
+    assert.equal(
+      getProviderPreset("copilot").defaultProtocol,
+      "openai_chat_compat",
     );
   });
 });

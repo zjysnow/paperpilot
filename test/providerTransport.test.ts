@@ -17,6 +17,18 @@ describe("local provider transport", function () {
     );
   });
 
+  it("uses the Responses endpoint for the Ollama Copilot protocol", function () {
+    const apiBase = "http://127.0.0.1:11434/v1";
+    assert.equal(
+      resolveProviderTransportEndpoint({
+        protocol: "responses_api",
+        apiBase,
+        model: "qwen3.5",
+      }),
+      `${apiBase}/responses`,
+    );
+  });
+
   it("does not send an authorization header when the local key is empty", function () {
     assert.deepEqual(
       buildProviderTransportHeaders({

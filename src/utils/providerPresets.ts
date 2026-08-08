@@ -302,10 +302,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     label: "Ollama",
     defaultApiBase: "http://127.0.0.1:11434/v1",
     defaultProtocol: "openai_chat_compat",
-    supportedProtocols: ["openai_chat_compat"],
+    supportedProtocols: ["openai_chat_compat", "responses_api"],
     helperText:
-      "Uses Ollama's local OpenAI-compatible API. API key is not required.",
+      "Uses Ollama's local OpenAI-compatible API. API key is not required. Responses API is compatible with Ollama's Copilot CLI setup.",
     matches: makeLocalHostPortMatcher(["11434"]),
+    supportsResponsesEndpoint: true,
     supportsEmbeddings: true,
     defaultEmbeddingModel: "nomic-embed-text",
   },
