@@ -47,7 +47,7 @@ const defaultDependencies: ReaderTextInclusionDependencies = {
 };
 
 function getPanelConversationKey(body: Element): number {
-  const root = body.querySelector("#paperpilotmain") as HTMLElement | null;
+  const root = body.querySelector("#paperpilot-main") as HTMLElement | null;
   const parsed = Number(root?.dataset.itemId || 0);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
 }

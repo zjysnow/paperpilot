@@ -158,7 +158,7 @@ export function attachComposeCaptureController(
       event.stopPropagation();
 
       const currentItem = activeContextPanels.get(body)?.() ?? deps.getItem();
-      const root = body.querySelector("#paperpilotmain") as HTMLDivElement | null;
+      const root = body.querySelector("#paperpilot-main") as HTMLDivElement | null;
       const conversationKind = root?.dataset?.conversationKind || "";
       const isGlobal = conversationKind === "global";
       const conversationKey = currentItem

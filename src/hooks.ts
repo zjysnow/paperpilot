@@ -295,7 +295,7 @@ function registerPrefsPane() {
     pluginID: addon.data.config.addonID,
     id: PREFERENCES_PANE_ID,
     src: `chrome://${addon.data.config.addonRef}/content/preferences.xhtml`,
-    label: "paperpilotfor-zotero",
+    label: "paperpilot",
     image: `chrome://${addon.data.config.addonRef}/content/icons/icon.svg`,
   });
 }

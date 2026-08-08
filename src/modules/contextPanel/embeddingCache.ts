@@ -1,7 +1,7 @@
 /**
  * Persistent disk cache for paper chunk embeddings.
  *
- * Stores one JSON file per paper in `{dataDir}/paperpilotfor-zotero-embeddings/`.
+ * Stores one JSON file per paper in `{dataDir}/paperpilot-embeddings/`.
  * Uses the same Gecko I/O pattern as mineruCache.ts (IOUtils → OS.File fallback).
  *
  * Cache invalidation:
@@ -12,7 +12,7 @@
 
 import { joinLocalPath } from "../../utils/localPath";
 
-const EMBEDDING_CACHE_DIR = "paperpilotfor-zotero-embeddings";
+const EMBEDDING_CACHE_DIR = "paperpilot-embeddings";
 const CACHE_VERSION = 2; // v2: added provider field for cross-provider cache isolation
 
 // ── Gecko I/O helpers (mirrors mineruCache.ts) ──────────────────────────────

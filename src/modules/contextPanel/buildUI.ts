@@ -88,7 +88,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   }
 
   // Main container
-  const container = createElement(doc, "div", "paperpilotpanel", { id: "paperpilotmain" });
+  const container = createElement(doc, "div", "paperpilotpanel", { id: "paperpilot-main" });
   container.dataset.itemId =
     conversationItemId > 0 ? `${conversationItemId}` : "";
   container.dataset.libraryId = hasItem && item ? `${item.libraryID}` : "";

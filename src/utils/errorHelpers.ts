@@ -15,7 +15,7 @@ export function logCatch(context: string, err: unknown): void {
   } catch {
     // If ztoolkit isn't available (e.g. early init), fall back to console
     try {
-      console.warn(`[paperpilotfor-zotero] ${context}`, err);
+      console.warn(`[paperpilot] ${context}`, err);
     } catch {
       // truly nothing we can do
     }

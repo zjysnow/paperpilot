@@ -222,7 +222,7 @@ function renderStandalonePlaceholdersInEmbeddedPanels(
   const seenBodies = new Set<Element>();
   const mainWindows = Zotero.getMainWindows?.() || [];
   for (const win of mainWindows) {
-    const panelRoots = win?.document?.querySelectorAll?.("#paperpilotmain") || [];
+    const panelRoots = win?.document?.querySelectorAll?.("#paperpilot-main") || [];
     for (const panelRoot of panelRoots) {
       const body = (panelRoot as Element).parentElement;
       if (
@@ -763,7 +763,7 @@ export function openStandaloneChat(options?: {
         const mountedItem = activeItem;
         if (!mountedItem) return;
         const llmMain = contentArea.querySelector(
-          "#paperpilotmain",
+          "#paperpilot-main",
         ) as HTMLElement | null;
         applyPanelFontScale(llmMain);
         applyPanelFontScale(root);
@@ -1441,7 +1441,7 @@ export function openStandaloneChat(options?: {
           syncPaperTabLabel();
 
           const llmMain = contentArea.querySelector(
-            "#paperpilotmain",
+            "#paperpilot-main",
           ) as HTMLElement | null;
           if (llmMain) llmMain.dataset.standalone = "true";
 

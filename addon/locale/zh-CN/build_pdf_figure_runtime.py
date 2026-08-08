@@ -196,7 +196,7 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     zip_path = (
         args.out_dir
-        / f"paperpilot-pdf-figure-runtime-v{args.version}-{args.platform}.zip"
+        / f"Paper Pilot-pdf-figure-runtime-v{args.version}-{args.platform}.zip"
     )
     with zipfile.ZipFile(zip_path, "w", allowZip64=True) as zip_file:
         zip_file.writestr(

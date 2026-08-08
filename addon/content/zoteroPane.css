@@ -10627,17 +10627,17 @@ label.paperpilotsearch-results-item:hover {
   gap: 6px;
 }
 
-#paperpilotmain[data-paperpilotaction-layout-mode="half"] .paperpilotuser-files-list,
-#paperpilotmain[data-paperpilotaction-layout-mode="half"] .paperpilotfile-context-list,
-#paperpilotmain[data-paperpilotaction-layout-mode="half"] .paperpilotpaper-context-list,
-#paperpilotmain[data-paperpilotaction-layout-mode="half"] .paperpilotuser-papers-list {
+#paperpilot-main[data-paperpilotaction-layout-mode="half"] .paperpilotuser-files-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="half"] .paperpilotfile-context-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="half"] .paperpilotpaper-context-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="half"] .paperpilotuser-papers-list {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-#paperpilotmain[data-paperpilotaction-layout-mode="full"] .paperpilotuser-files-list,
-#paperpilotmain[data-paperpilotaction-layout-mode="full"] .paperpilotfile-context-list,
-#paperpilotmain[data-paperpilotaction-layout-mode="full"] .paperpilotpaper-context-list,
-#paperpilotmain[data-paperpilotaction-layout-mode="full"] .paperpilotuser-papers-list {
+#paperpilot-main[data-paperpilotaction-layout-mode="full"] .paperpilotuser-files-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="full"] .paperpilotfile-context-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="full"] .paperpilotpaper-context-list,
+#paperpilot-main[data-paperpilotaction-layout-mode="full"] .paperpilotuser-papers-list {
   grid-template-columns: repeat(
     auto-fit,
     minmax(var(--paperpilotfile-card-min-width), 1fr)
@@ -10645,10 +10645,10 @@ label.paperpilotsearch-results-item:hover {
 }
 
 /* User-message file cards should remain readable inside bubble-aligned width. */
-#paperpilotmain
+#paperpilot-main
   .paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
   .paperpilotuser-files-list,
-#paperpilotmain
+#paperpilot-main
   .paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
   .paperpilotuser-papers-list {
   grid-template-columns: minmax(0, 1fr);

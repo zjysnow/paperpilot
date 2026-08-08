@@ -394,7 +394,7 @@ export function persistPendingChatScrollRestoreForConversationKey(
 }
 
 export function persistChatScrollSnapshotFromBody(body: Element): void {
-  const root = body.querySelector("#paperpilotmain") as HTMLElement | null;
+  const root = body.querySelector("#paperpilot-main") as HTMLElement | null;
   const conversationKey = normalizeConversationKey(
     Number(root?.dataset?.itemId || 0),
   );
@@ -405,7 +405,7 @@ export function persistChatScrollSnapshotFromBody(body: Element): void {
 }
 
 export function persistPendingChatScrollRestoreFromBody(body: Element): void {
-  const root = body.querySelector("#paperpilotmain") as HTMLElement | null;
+  const root = body.querySelector("#paperpilot-main") as HTMLElement | null;
   const conversationKey = normalizeConversationKey(
     Number(root?.dataset?.itemId || 0),
   );
@@ -419,7 +419,7 @@ export function persistPendingChatScrollRestoreForElement(
   body: Element,
   targetElement: Element | null | undefined,
 ): void {
-  const root = body.querySelector("#paperpilotmain") as HTMLElement | null;
+  const root = body.querySelector("#paperpilot-main") as HTMLElement | null;
   const conversationKey = normalizeConversationKey(
     Number(root?.dataset?.itemId || 0),
   );

@@ -1,4 +1,4 @@
-pref-title = paperpilotfor-zotero
+pref-title = paperpilot
 pref-api-base = API Base URL
 pref-api-key = Secret / API Key
 pref-model = Model Name

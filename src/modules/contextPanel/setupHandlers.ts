@@ -506,7 +506,7 @@ export function setupHandlers(
   hooks?: SetupHandlersHooks,
 ) {
   const existingPanelRoot = body.querySelector(
-    "#paperpilotmain",
+    "#paperpilot-main",
   ) as HTMLElement | null;
   // A repeated lifecycle callback for the same completed DOM must be a true
   // no-op. Disposing before this check would tear down cleanup-managed
@@ -6018,7 +6018,7 @@ export function setupHandlers(
     },
     getWebChatHost: () => {
       const port = Zotero.Prefs.get("httpServer.port") || 23119;
-      return `http://127.0.0.1:${port}/paperpilotfor-zotero/webchat`;
+      return `http://127.0.0.1:${port}/paperpilot/webchat`;
     },
     markNextWebChatSendAsNewChat,
   });

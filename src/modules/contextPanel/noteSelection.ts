@@ -10,7 +10,7 @@ function isSelectionInsideEditableSurface(
   let el: Element | null =
     node.nodeType === elementNodeType ? (node as Element) : node.parentElement;
   while (el) {
-    if (el.id === "paperpilotmain" || el.closest?.("#paperpilotmain")) {
+    if (el.id === "paperpilot-main" || el.closest?.("#paperpilot-main")) {
       return false;
     }
     const htmlEl =
@@ -29,7 +29,7 @@ function isEditableTextControlElement(
   el: Element | null | undefined,
   doc: Document,
 ): el is HTMLTextAreaElement | HTMLInputElement {
-  if (!el || el.id === "paperpilotmain" || el.closest?.("#paperpilotmain")) {
+  if (!el || el.id === "paperpilot-main" || el.closest?.("#paperpilot-main")) {
     return false;
   }
   const HTMLTextAreaCtor = doc.defaultView?.HTMLTextAreaElement;

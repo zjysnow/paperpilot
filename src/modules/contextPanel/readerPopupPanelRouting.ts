@@ -84,9 +84,9 @@ function getPanelTarget(
   const readerPanel = getReaderContextPanelForTab(doc, tabID);
   if (!readerPanel) return null;
   const root = (
-    readerPanel.matches?.("#paperpilotmain")
+    readerPanel.matches?.("#paperpilot-main")
       ? readerPanel
-      : readerPanel.querySelector?.("#paperpilotmain")
+      : readerPanel.querySelector?.("#paperpilot-main")
   ) as HTMLDivElement | null;
   if (!root) return null;
   return {
@@ -100,7 +100,7 @@ function getStandalonePanelTarget(
 ): ReaderPopupPanelTarget | null {
   if (!body.isConnected) return null;
   const root = (
-    body.matches?.("#paperpilotmain") ? body : body.querySelector?.("#paperpilotmain")
+    body.matches?.("#paperpilot-main") ? body : body.querySelector?.("#paperpilot-main")
   ) as HTMLDivElement | null;
   if (!root || root.getAttribute("data-standalone") !== "true") return null;
   return {

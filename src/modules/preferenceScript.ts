@@ -2055,7 +2055,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     for (const w of wins) {
       const d = w?.document;
       if (!d) continue;
-      d.querySelectorAll("#paperpilotmain").forEach((n: Element) =>
+      d.querySelectorAll("#paperpilot-main").forEach((n: Element) =>
         push(n as HTMLElement),
       );
       push(
@@ -2067,7 +2067,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     const standaloneWin = addon?.data?.standaloneWindow as Window | undefined;
     if (standaloneWin && standaloneWin.document) {
       standaloneWin.document
-        .querySelectorAll("#paperpilotmain")
+        .querySelectorAll("#paperpilot-main")
         .forEach((n: Element) => push(n as HTMLElement));
       push(
         standaloneWin.document.getElementById(
@@ -2441,7 +2441,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           }
           const testFile = joinLocalPath(
             fullPath,
-            ".paperpilotfor-zotero-test",
+            ".paperpilot-test",
           );
           const bytes = new TextEncoder().encode("test");
           await IOUtils.write(testFile, bytes);

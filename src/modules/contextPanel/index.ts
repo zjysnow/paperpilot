@@ -224,7 +224,7 @@ function isPanelRootInitialized(
 
 function isPanelBodyInitialized(body: Element): boolean {
   return isPanelRootInitialized(
-    body.querySelector("#paperpilotmain") as HTMLElement | null,
+    body.querySelector("#paperpilot-main") as HTMLElement | null,
   );
 }
 
@@ -298,7 +298,7 @@ export function registerReaderContextPanel() {
         return;
       }
       try {
-        const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
+        const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
         // Treat missing panel root as needing a full render — the body may
         // belong to a tab that onAsyncRender never fired for.
         // Also treat an uninitialized shell as incomplete.  Zotero can fire a
@@ -400,7 +400,7 @@ export function registerReaderContextPanel() {
           // if we defer buildUI, the stale panel from the previous tab wins.
           buildUI(body, resolvedState.item);
           const nextPanelRoot = body.querySelector(
-            "#paperpilotmain",
+            "#paperpilot-main",
           ) as HTMLElement | null;
           writePanelContextDataset(nextPanelRoot, rawContextItem);
           activeContextPanels.set(body, () => resolvedState.item);
@@ -503,14 +503,14 @@ export function registerReaderContextPanel() {
         renderClaim.outcome === "sync-rendered" ? renderClaim.cycle : null;
       const contextRefreshOnly =
         renderClaim.outcome === "context-refresh" &&
-        Boolean(body.querySelector("#paperpilotmain"));
+        Boolean(body.querySelector("#paperpilot-main"));
       if (contextRefreshOnly) {
         activeContextPanels.set(body, () => resolvedItem);
         activeContextPanelRawItems.set(body, item || null);
       } else if (!syncAlreadyRendered) {
         persistPendingChatScrollRestoreFromBody(body);
         buildUI(body, resolvedItem);
-        const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
+        const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
         writePanelContextDataset(panelRoot, item || resolvedItem);
         activeContextPanelRawItems.set(body, item || null);
       }
@@ -1040,7 +1040,7 @@ function refreshPanelsForConversationKey(conversationKey: number): void {
       continue;
     }
     const activeRoot = activeBody.querySelector(
-      "#paperpilotmain",
+      "#paperpilot-main",
     ) as HTMLDivElement | null;
     const activeConversationKey = activeRoot
       ? Number(activeRoot.dataset.itemId || 0)
@@ -1065,7 +1065,7 @@ export function refreshNoteEditingPanelsForNote(noteId: number): number {
       continue;
     }
     const activeRoot = activeBody.querySelector(
-      "#paperpilotmain",
+      "#paperpilot-main",
     ) as HTMLDivElement | null;
     const panelNoteId = Number(activeRoot?.dataset.noteId || 0);
     if (
@@ -1102,7 +1102,7 @@ function getActiveNotePanelConversationSystems(
   for (const [activeBody] of activeContextPanelStateSync) {
     if (!(activeBody as Element).isConnected) continue;
     const activeRoot = activeBody.querySelector(
-      "#paperpilotmain",
+      "#paperpilot-main",
     ) as HTMLDivElement | null;
     const panelNoteId = Number(activeRoot?.dataset.noteId || 0);
     if (!Number.isFinite(panelNoteId) || Math.floor(panelNoteId) !== noteId) {
@@ -1169,7 +1169,7 @@ function refreshTrackedNoteEditingSelection(
     const activeEl = win.document.activeElement;
     if (
       activeEl &&
-      (activeEl.id === "paperpilotmain" || activeEl.closest?.("#paperpilotmain"))
+      (activeEl.id === "paperpilot-main" || activeEl.closest?.("#paperpilot-main"))
     ) {
       return;
     }

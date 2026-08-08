@@ -385,7 +385,7 @@ export function attachFloatingMenuInteractionController(
 
       for (const modelMenuEl of modelMenus) {
         if (!isFloatingMenuOpen(modelMenuEl)) continue;
-        const panelRoot = modelMenuEl.closest("#paperpilotmain");
+        const panelRoot = modelMenuEl.closest("#paperpilot-main");
         const modelButtonEl = panelRoot?.querySelector(
           "#paperpilotmodel-toggle",
         ) as HTMLButtonElement | null;
@@ -398,7 +398,7 @@ export function attachFloatingMenuInteractionController(
       }
       for (const reasoningMenuEl of reasoningMenus) {
         if (!isFloatingMenuOpen(reasoningMenuEl)) continue;
-        const panelRoot = reasoningMenuEl.closest("#paperpilotmain");
+        const panelRoot = reasoningMenuEl.closest("#paperpilot-main");
         const reasoningButtonEl = panelRoot?.querySelector(
           "#paperpilotreasoning-toggle",
         ) as HTMLButtonElement | null;
@@ -416,7 +416,7 @@ export function attachFloatingMenuInteractionController(
       }
       for (const retryModelMenuEl of retryModelMenus) {
         if (!isFloatingMenuOpen(retryModelMenuEl)) continue;
-        const panelRoot = retryModelMenuEl.closest("#paperpilotmain");
+        const panelRoot = retryModelMenuEl.closest("#paperpilot-main");
         const clickedRetryButtonInSamePanel = Boolean(
           retryButtonTarget &&
           panelRoot &&
@@ -464,7 +464,7 @@ export function attachFloatingMenuInteractionController(
       for (const exportMenuEl of exportMenus) {
         if (exportMenuEl.style.display === "none") continue;
         if (target && exportMenuEl.contains(target)) continue;
-        const panelRoot = exportMenuEl.closest("#paperpilotmain");
+        const panelRoot = exportMenuEl.closest("#paperpilot-main");
         const exportButtonEl = panelRoot?.querySelector(
           "#paperpilotexport",
         ) as HTMLButtonElement | null;
@@ -475,7 +475,7 @@ export function attachFloatingMenuInteractionController(
       for (const slashMenuEl of slashMenus) {
         if (slashMenuEl.style.display === "none") continue;
         if (target && slashMenuEl.contains(target)) continue;
-        const panelRoot = slashMenuEl.closest("#paperpilotmain");
+        const panelRoot = slashMenuEl.closest("#paperpilot-main");
         const slashButtonEl = panelRoot?.querySelector(
           "#paperpilotupload-file",
         ) as HTMLButtonElement | null;
@@ -487,7 +487,7 @@ export function attachFloatingMenuInteractionController(
       for (const historyMenuEl of historyMenus) {
         if (historyMenuEl.style.display === "none") continue;
         if (target && historyMenuEl.contains(target)) continue;
-        const panelRoot = historyMenuEl.closest("#paperpilotmain");
+        const panelRoot = historyMenuEl.closest("#paperpilot-main");
         const historyToggleEl = panelRoot?.querySelector(
           "#paperpilothistory-toggle",
         ) as HTMLButtonElement | null;
@@ -503,7 +503,7 @@ export function attachFloatingMenuInteractionController(
       for (const historyNewMenuEl of historyNewMenus) {
         if (historyNewMenuEl.style.display === "none") continue;
         if (target && historyNewMenuEl.contains(target)) continue;
-        const panelRoot = historyNewMenuEl.closest("#paperpilotmain");
+        const panelRoot = historyNewMenuEl.closest("#paperpilot-main");
         const historyNewEl = panelRoot?.querySelector(
           "#paperpilothistory-new",
         ) as HTMLButtonElement | null;

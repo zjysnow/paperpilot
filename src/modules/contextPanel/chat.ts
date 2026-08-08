@@ -2140,7 +2140,7 @@ function getPanelRequestUI(body: Element): PanelRequestUI {
 }
 
 function syncInlineActionCardAttr(body: Element): void {
-  const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
+  const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
   if (!panelRoot) return;
   const hasCard = Boolean(
     body.querySelector(".paperpilotaction-inline-card, .paperpilotaction-progress-card"),
@@ -2369,7 +2369,7 @@ export async function resolveCodexNativeApprovalWithOptionalReviewCard(params: {
 
 function isPanelWebChatMode(body: Element): boolean {
   return (
-    (body.querySelector("#paperpilotmain") as HTMLElement | null)?.dataset
+    (body.querySelector("#paperpilot-main") as HTMLElement | null)?.dataset
       ?.webchatMode === "true"
   );
 }
@@ -2444,7 +2444,7 @@ function getPanelBodyConversationKey(
   body: Element,
   fallbackItem?: Zotero.Item | null,
 ): number | null {
-  const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
+  const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
   const displayedKey = Number(panelRoot?.dataset.itemId || 0);
   if (Number.isFinite(displayedKey) && displayedKey > 0) {
     return displayedKey;
@@ -2576,7 +2576,7 @@ function restoreRequestUIIdle(
   // Guard: only restore UI if the panel is still showing this conversation.
   // If the user switched away, the panel rebuild (onAsyncRender) will handle
   // the correct idle/busy state for the new conversation.
-  const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
+  const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
   if (panelRoot) {
     const displayedKey = Number(panelRoot.dataset.itemId || 0);
     if (displayedKey > 0 && displayedKey !== conversationKey) return;
@@ -8630,7 +8630,7 @@ export async function sendQuestion(
     return;
   }
   const ui = getPanelRequestUI(body);
-  const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
+  const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
   if (
     panelRoot &&
     (opts.providerProtocol === "web_sync" || opts.authMode === "webchat")
@@ -9856,7 +9856,7 @@ export function refreshChat(
   const tokenUsageEl = body.querySelector(
     "#paperpilottoken-usage",
   ) as HTMLElement | null;
-  const panelRoot = body.querySelector("#paperpilotmain") as HTMLDivElement | null;
+  const panelRoot = body.querySelector("#paperpilot-main") as HTMLDivElement | null;
   const isGlobalConversation =
     isGlobalPortalItem(item) ||
     panelRoot?.dataset.conversationKind === "global";
@@ -11342,7 +11342,7 @@ export function refreshConversationPanels(
   const conversationKey = getConversationKey(primaryItem);
   const refreshedPanels = new Set<Element>();
   const refreshOne = (body: Element, item: Zotero.Item) => {
-    const panelRoot = body.querySelector("#paperpilotmain") as HTMLElement | null;
+    const panelRoot = body.querySelector("#paperpilot-main") as HTMLElement | null;
     const displayedKey = Number(panelRoot?.dataset.itemId || 0);
     if (
       Number.isFinite(displayedKey) &&

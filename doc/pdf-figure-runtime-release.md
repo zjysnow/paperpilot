@@ -8,18 +8,18 @@ That workflow builds six ZIP files and uploads them to the fixed GitHub release 
 The plugin downloads runtime assets from this pattern:
 
 ```text
-https://github.com/yilewang/paperpilotfor-zotero/releases/download/pdf-figure-runtime-v1/paperpilotfor-zotero-pdf-figure-runtime-v1-{platform}.zip
+https://github.com/yilewang/paperpilot/releases/download/pdf-figure-runtime-v1/paperpilot-pdf-figure-runtime-v1-{platform}.zip
 ```
 
 The current platform assets are:
 
 ```text
-paperpilotfor-zotero-pdf-figure-runtime-v1-macos-arm64.zip
-paperpilotfor-zotero-pdf-figure-runtime-v1-macos-x64.zip
-paperpilotfor-zotero-pdf-figure-runtime-v1-linux-arm64.zip
-paperpilotfor-zotero-pdf-figure-runtime-v1-linux-x64.zip
-paperpilotfor-zotero-pdf-figure-runtime-v1-windows-arm64.zip
-paperpilotfor-zotero-pdf-figure-runtime-v1-windows-x64.zip
+paperpilot-pdf-figure-runtime-v1-macos-arm64.zip
+paperpilot-pdf-figure-runtime-v1-macos-x64.zip
+paperpilot-pdf-figure-runtime-v1-linux-arm64.zip
+paperpilot-pdf-figure-runtime-v1-linux-x64.zip
+paperpilot-pdf-figure-runtime-v1-windows-arm64.zip
+paperpilot-pdf-figure-runtime-v1-windows-x64.zip
 ```
 
 Run the workflow manually after changing `PDF_FIGURE_RUNTIME_VERSION`, the runtime packaging script, or the Python/Poppler dependency set.

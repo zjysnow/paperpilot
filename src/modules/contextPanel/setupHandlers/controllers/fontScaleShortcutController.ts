@@ -17,7 +17,7 @@ export function attachFontScaleShortcutController(panelDoc: Document): void {
   }
 
   const isEventWithinActivePanel = (event: Event) => {
-    const panel = panelDoc.querySelector("#paperpilotmain") as HTMLElement | null;
+    const panel = panelDoc.querySelector("#paperpilot-main") as HTMLElement | null;
     if (!panel) return null;
     const standaloneRoot = panelDoc.getElementById(
       "paperpilot-standalone-chat-root",

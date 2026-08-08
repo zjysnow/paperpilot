@@ -1,45 +1,45 @@
 item-section-example1-head-text =
-    .label = Plugin Template: Item Info
+    .label = 插件模板：条目信息
 item-section-example1-sidenav-tooltip =
-    .tooltiptext = This is Plugin Template section (item info)
+    .tooltiptext = 这是插件模板部分（条目信息）
 item-section-example2-head-text =
-    .label = Plugin Template: Reader [{$status}]
+    .label = 插件模板：阅读器 [{$status}]
 item-section-example2-sidenav-tooltip =
-    .tooltiptext = This is Plugin Template section (reader)
+    .tooltiptext = 这是插件模板部分（阅读器）
 item-section-example2-button-tooltip =
-    .tooltiptext = Unregister this section
-item-info-row-example-label = Example Row
+    .tooltiptext = 取消注册此部分
+item-info-row-example-label = 示例行
 
-# LLM Panel
+# LLM 面板
 paperpilotpanel-head =
-    .label = paperpilotfor-zotero
+    .label = Paper Pilot
 paperpilotpanel-sidenav-tooltip =
-    .tooltiptext = Chat with AI about the current document
-paperpilotpanel-title = LLM-for-Zotero
-paperpilotpanel-subtitle = Ask questions about your documents
-paperpilotpanel-send = Send
-paperpilotpanel-placeholder = Ask a question about this paper...
-paperpilotpanel-empty = Select an item or open a PDF to start
-paperpilotpanel-welcome = Start a conversation by asking a question or using one of the quick actions above.
-paperpilotpanel-loading-context = Loading document context...
-paperpilotpanel-context-label = Document
+    .tooltiptext = 与 AI 讨论当前文档
+paperpilotpanel-title = LLM 助手
+paperpilotpanel-subtitle = 向 AI 提问关于您的文档
+paperpilotpanel-send = 发送
+paperpilotpanel-placeholder = 询问关于这篇论文的问题...
+paperpilotpanel-empty = 选择一个条目或打开 PDF 以开始
+paperpilotpanel-welcome = 通过提问或使用上方的快捷操作开始对话。
+paperpilotpanel-loading-context = 正在加载文档内容...
+paperpilotpanel-context-label = 文档
 
-# Status Messages
-paperpilotpanel-status-ready = Ready
-paperpilotpanel-status-sending = Thinking...
-paperpilotpanel-status-error = Error
-paperpilotpanel-status-context-missing = Select an item or open a PDF
+# 状态消息
+paperpilotpanel-status-ready = 就绪
+paperpilotpanel-status-sending = 思考中...
+paperpilotpanel-status-error = 错误
+paperpilotpanel-status-context-missing = 选择一个条目或打开 PDF
 
-# Context Info
-paperpilotcontext-has-pdf = PDF loaded
-paperpilotcontext-annotations = annotations
-paperpilotcontext-notes = notes
+# 上下文信息
+paperpilotcontext-has-pdf = PDF 已加载
+paperpilotcontext-annotations = 个标注
+paperpilotcontext-notes = 个笔记
 
-# Quick Actions
-paperpilotaction-summarize = Summarize
-paperpilotaction-keypoints = Key Points
-paperpilotaction-methodology = Methodology
-paperpilotaction-limitations = Limitations
-paperpilotaction-future = Future Work
-paperpilotaction-clear = Clear Chat
-paperpilotaction-copy = Copy to clipboard
+# 快捷操作
+paperpilotaction-summarize = 摘要
+paperpilotaction-keypoints = 要点
+paperpilotaction-methodology = 方法论
+paperpilotaction-limitations = 局限性
+paperpilotaction-future = 未来方向
+paperpilotaction-clear = 清空对话
+paperpilotaction-copy = 复制到剪贴板

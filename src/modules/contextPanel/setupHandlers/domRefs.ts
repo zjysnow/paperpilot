@@ -316,6 +316,6 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     status: body.querySelector("#paperpilotstatus") as HTMLElement | null,
     tokenUsageEl: body.querySelector("#paperpilottoken-usage") as HTMLElement | null,
     chatBox: body.querySelector("#paperpilotchat-box") as HTMLDivElement | null,
-    panelRoot: body.querySelector("#paperpilotmain") as HTMLDivElement | null,
+    panelRoot: body.querySelector("#paperpilot-main") as HTMLDivElement | null,
   };
 }

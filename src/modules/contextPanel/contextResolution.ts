@@ -1484,7 +1484,7 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
   if (!previewList) return;
 
   const selectedContexts = getSelectedTextContextEntries(itemId);
-  const panelRoot = body.querySelector("#paperpilotmain") as HTMLDivElement | null;
+  const panelRoot = body.querySelector("#paperpilot-main") as HTMLDivElement | null;
   // Show the active-note chip whenever the panel is in note-editing mode,
   // regardless of whether the user has selected any text in the editor.
   const showActiveNoteChip = Boolean(panelRoot?.dataset.noteId);
@@ -1732,7 +1732,7 @@ export function applySelectedTextPreview(body: Element, itemId: number) {
 }
 
 export function refreshActiveNoteChipPreview(body: Element): void {
-  const panelRoot = body.querySelector("#paperpilotmain") as HTMLDivElement | null;
+  const panelRoot = body.querySelector("#paperpilot-main") as HTMLDivElement | null;
   const previewList = body.querySelector(
     "#paperpilotselected-context-list",
   ) as HTMLDivElement | null;
