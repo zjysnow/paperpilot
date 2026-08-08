@@ -328,7 +328,17 @@ function getAbortControllerCtor(): new () => AbortController {
 
 const blockedConversationLoadKeys = new Set<number>();
 
-
+function isEffectiveWebChatRequest(item: Zotero.Item): boolean {
+  try {
+    const requestConfig = resolveEffectiveRequestConfig({ item });
+    return (
+      requestConfig.authMode === "webchat" ||
+      requestConfig.providerProtocol === "web_sync"
+    );
+  } catch {
+    return false;
+  }
+}
 
 function isolateWebChatConversationKey(
   conversationKey: number,
@@ -2860,13 +2870,7 @@ function isCodexAppServerConversationRequest(params: {
   providerProtocol?: ProviderProtocol;
   modelProviderLabel?: string;
 }): boolean {
-  if (!isCodexAppServerModeEnabled()) return false;
-  if (resolveConversationSystemForItem(params.item) === "codex") return true;
-  return (
-    params.authMode === "codex_app_server" ||
-    (params.modelProviderLabel === "Codex" &&
-      params.providerProtocol === "codex_responses")
-  );
+  return false;
 }
 
 function resolveEffectiveConversationSystem(params: {
@@ -2883,9 +2887,6 @@ function resolveEffectiveConversationSystem(params: {
   const itemSystem = resolveConversationSystemForItem(params.item);
   if (itemSystem) return itemSystem;
   if (isCodexAppServerConversationRequest(params)) return "codex";
-  if (params.modelProviderLabel === "Claude Code") {
-    return "claude_code";
-  }
   return "upstream";
 }
 
@@ -2935,27 +2936,14 @@ function resolveEffectiveRequestConfig(params: {
     ? null
     : getSelectedModelEntryForItem(params.item.id);
   const explicitEntry =
-    hasExplicitProviderMetadata && params.modelProviderLabel === "Claude Code"
-      ? {
-          entryId:
-            params.modelEntryId ||
-            `claude_runtime::${(params.model || "sonnet").trim() || "sonnet"}`,
-          model: (params.model || "sonnet").trim() || "sonnet",
-          apiBase: params.apiBase ?? "",
-          apiKey: params.apiKey ?? "",
-          authMode: params.authMode || "api_key",
-          providerProtocol: params.providerProtocol || "anthropic_messages",
-          providerLabel: params.modelProviderLabel,
-          advanced: params.advanced,
-        }
-      : params.model || params.apiBase || params.apiKey
-        ? getAvailableModelEntries().find(
-            (entry) =>
-              entry.model === (params.model || "").trim() &&
-              entry.apiBase === (params.apiBase || "").trim() &&
-              entry.apiKey === (params.apiKey || "").trim(),
-          ) || null
-        : null;
+    params.model || params.apiBase || params.apiKey
+      ? getAvailableModelEntries().find(
+          (entry) =>
+            entry.model === (params.model || "").trim() &&
+            entry.apiBase === (params.apiBase || "").trim() &&
+            entry.apiKey === (params.apiKey || "").trim(),
+        ) || null
+      : null;
   const model = (
     params.model ||
     explicitEntry?.model ||
@@ -5983,18 +5971,7 @@ function buildLLMHistoryMessages(history: Message[]): ChatMessage[] {
 
 function normalizeModelFileAttachments(
   attachments?: ChatAttachment[],
-  options?: {
-    authMode?: string;
-    runtimeMode?: ChatRuntimeMode;
-  },
 ): ChatFileAttachment[] {
-  if (
-    shouldApplyCodexAppServerNativeAttachmentPolicy({
-      authMode: options?.authMode,
-    })
-  ) {
-    return [];
-  }
   if (!Array.isArray(attachments) || !attachments.length) return [];
   return attachments
     .filter(
@@ -7085,24 +7062,6 @@ export async function retryLatestAssistantResponse(
     );
     setStatusSafely("Cancelled", "ready");
   };
-  if (
-    shouldApplyCodexAppServerNativeAttachmentPolicy({
-      authMode: effectiveRequestConfig.authMode,
-    })
-  ) {
-    const blockedAttachments =
-      getBlockedCodexAppServerNativeAttachments(attachments);
-    if (blockedAttachments.length) {
-      restoreOriginalTurn();
-      restoreRequestUIIdle(body, conversationKey, thisRequestId);
-      clearPendingRequestIdAndSync(conversationKey, body, item);
-      setStatusSafely(
-        buildCodexAppServerNativeAttachmentBlockMessage(blockedAttachments),
-        "error",
-      );
-      return;
-    }
-  }
   let retryScreenshotImages = screenshotImages;
   let requestFileAttachments: ChatFileAttachment[] = [];
   let retryPdfUploadSystemMessages: string[] = [];
@@ -7129,10 +7088,6 @@ export async function retryLatestAssistantResponse(
       effectiveRequestConfig.modelProviderLabel;
     requestFileAttachments = normalizeModelFileAttachments(
       retryModelInputs.modelAttachments ?? attachments,
-      {
-        authMode: effectiveRequestConfig.authMode,
-        runtimeMode: "chat",
-      },
     );
     retryPdfUploadSystemMessages = [
       ...(pdfUploadSystemMessages || []),
@@ -8937,10 +8892,6 @@ export async function sendQuestion(
   }
   const requestFileAttachments = normalizeModelFileAttachments(
     modelAttachments ?? attachments,
-    {
-      authMode: effectiveRequestConfig.authMode,
-      runtimeMode: effectiveRuntimeMode,
-    },
   );
   const selectedTextContextsForMessage = synthesizeSelectedTextContexts({
     selectedTextContexts,

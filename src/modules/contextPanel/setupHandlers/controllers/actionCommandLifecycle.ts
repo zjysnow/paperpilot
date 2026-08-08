@@ -180,7 +180,7 @@ export function createActionCommandLifecycle(params: {
     actionHitlPanel,
     body,
     chatBox,
-    registerPendingConfirmation = getAgentApi().registerPendingConfirmation,
+    registerPendingConfirmation = () => {},
     syncHasActionCardAttr,
   } = params;
   let actionCompletionDismissTimer: ReturnType<typeof setTimeout> | null = null;

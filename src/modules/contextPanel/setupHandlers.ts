@@ -306,6 +306,9 @@ import {
   type PaperScopedActionCollectionCandidate,
   type PaperScopedActionProfile,
 } from "./paperScopeCommand";
+import { getAgentApi, initAgentSubsystem } from "../../agent/index";
+import { clearAllAgentToolCaches } from "../../agent/tools";
+import { isCodexAppServerModeEnabled } from "../../codexAppServer/prefs";
 
 import {
   createGlobalPortalItem,
@@ -426,6 +429,7 @@ import { createActionCommandController } from "./setupHandlers/controllers/actio
 import { parseInlineActionCommand } from "./setupHandlers/controllers/actionCommandParams";
 import { addZoteroItemsAsDefaultContext } from "./contextSelectionActions";
 import { registerContextSurfaceActionTarget } from "./zoteroItemContextMenu";
+import { clearAgentConversationState } from "./agentConversationCleanup";
 import {
   createCoalescedFrameScheduler,
   getOrCreateKeyedInFlightTask,
@@ -442,6 +446,13 @@ import {
 
 import { renderShortcuts } from "./shortcuts";
 import { loadConversationHistoryScope } from "./historyLoader";
+import { retainClaudeRuntimeForBody } from "../../claudeCode/runtimeRetention";
+import {
+  touchClaudeConversationTitle,
+} from "../../claudeCode/store";
+import {
+  touchCodexConversationTitle,
+} from "../../codexAppServer/store";
 
 
 import { resolveConversationStorageSystem } from "../../shared/conversationStorageRouting";
@@ -769,6 +780,13 @@ export function setupHandlers(
     });
   const getConversationSystem = (): ConversationSystem =>
     currentConversationSystem;
+  const isClaudeConversationSystem = () =>
+    getConversationSystem() === "claude_code";
+  const isCodexConversationSystem = () => getConversationSystem() === "codex";
+  const isRuntimeConversationSystem = () =>
+    isClaudeConversationSystem() || isCodexConversationSystem();
+  const isClaudeModeAvailable = () => getClaudeCodeModeEnabled();
+  const isCodexModeAvailable = () => isCodexAppServerModeEnabled();
 
   const shouldRenderDynamicSlashMenuForCurrentConversation = () =>
     shouldRenderDynamicSlashMenu({
@@ -6274,11 +6292,20 @@ export function setupHandlers(
     scheduleQueuedFollowUpDrainForThread(getQueuedFollowUpThreadKey());
   }
 
-  // Send button - use addEventListener
+  // Keep the send action on the same path as keyboard and shortcut sends.
   sendBtn.addEventListener("click", (e: Event) => {
     e.preventDefault();
     e.stopPropagation();
-    void executeSend();
+    void executeSend().catch((error: unknown) => {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Failed to send the message.";
+      ztoolkit.log("LLM: Send button action failed", error);
+      if (status) {
+        setStatus(status, message, "error");
+      }
+    });
   });
 
   if (runtimeModeBtn) {
@@ -6706,8 +6733,7 @@ export function setupHandlers(
   }): boolean => {
     const cancelledReviewRequestIds = cancelVisiblePendingConfirmationCards(
       chatBox || body,
-      (requestId, resolution) =>
-        getAgentApi().resolveConfirmation(requestId, resolution),
+      (_requestId, _resolution) => {},
     );
     if (
       options?.requireVisibleReviewCard &&

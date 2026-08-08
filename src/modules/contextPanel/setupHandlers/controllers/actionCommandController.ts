@@ -1,13 +1,22 @@
-
+import type { AgentSkill } from "../../../../agent/skills/skillLoader";
+import { getAgentApi, initAgentSubsystem } from "../../../../agent";
+import type { ActionRequestContext } from "../../../../agent/actions";
 import { createElement } from "../../../../utils/domHelpers";
 import { callLLM } from "../../../../utils/llmClient";
 import type { ModelProviderAuthMode } from "../../../../utils/modelProviders";
 import type { ProviderProtocol } from "../../../../utils/providerProtocol";
 import { getAgentModeEnabled } from "../../prefHelpers";
 import { formatActionLabel } from "../../actionStatusText";
+import { renderPendingActionCard } from "../../agentTrace/render";
 
 import { buildPaperKey } from "../../pdfContext";
 
+import {
+  resolvePaperScopedCommandInput,
+  type PaperScopedActionCollectionCandidate,
+  type PaperScopedActionProfile,
+  type PaperScopedActionTagCandidate,
+} from "../../paperScopeCommand";
 import { resolveDisplayConversationKind } from "../../portalScope";
 import {
   selectedCollectionContextCache,
@@ -1381,7 +1390,9 @@ export function createActionCommandController(
     } catch (error) {
       deps.logError("LLM: failed to resolve natural action intent", error);
       setStatus("Agent system unavailable", "error");
-      return true;
+      // Action detection is optional; a failed action subsystem must not block
+      // the normal chat send path.
+      return false;
     }
   };
 

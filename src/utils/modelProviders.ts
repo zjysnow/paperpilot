@@ -143,7 +143,6 @@ function normalizeProviderAuthMode(value: unknown): ModelProviderAuthMode {
   if (value === "codex_auth") return "codex_auth";
   if (value === "codex_app_server") return "codex_app_server";
   if (value === "copilot_auth") return "copilot_auth";
-  if (value === "webchat") return "webchat"; // [webchat]
   return "api_key";
 }
 
@@ -619,17 +618,14 @@ export function getRuntimeModelEntries(): RuntimeModelEntry[] {
       group.apiBase,
       groupIndex + 1,
     );
-    // [webchat] Use "ChatGPT Web" (or target label) as provider label
     const providerLabel =
-      authMode === "webchat"
-        ? `${baseProviderLabel} (web)`
-        : authMode === "codex_auth"
-          ? `${baseProviderLabel} (codex auth, legacy)`
-          : authMode === "codex_app_server"
-            ? `${baseProviderLabel} (app server)`
-            : authMode === "copilot_auth"
-              ? `${baseProviderLabel} (copilot auth)`
-              : baseProviderLabel;
+      authMode === "codex_auth"
+        ? `${baseProviderLabel} (codex auth, legacy)`
+        : authMode === "codex_app_server"
+          ? `${baseProviderLabel} (app server)`
+          : authMode === "copilot_auth"
+            ? `${baseProviderLabel} (copilot auth)`
+            : baseProviderLabel;
     const normalizedCounts = new Map<string, number>();
     for (const modelEntry of group.models) {
       const modelName = modelEntry.model.trim();
@@ -637,17 +633,14 @@ export function getRuntimeModelEntries(): RuntimeModelEntry[] {
       const normalizedModel = modelName.toLowerCase();
       const duplicateCount = (normalizedCounts.get(normalizedModel) || 0) + 1;
       normalizedCounts.set(normalizedModel, duplicateCount);
-      // [webchat] Display as "web/chatgpt" etc.
       const baseModelLabel =
-        authMode === "webchat"
-          ? `web/${modelName}`
-          : authMode === "codex_auth"
-            ? `codex/${modelName}`
-            : authMode === "codex_app_server"
-              ? `codex-app/${modelName}`
-              : authMode === "copilot_auth"
-                ? `copilot/${modelName}`
-                : modelName;
+        authMode === "codex_auth"
+          ? `codex/${modelName}`
+          : authMode === "codex_app_server"
+            ? `codex-app/${modelName}`
+            : authMode === "copilot_auth"
+              ? `copilot/${modelName}`
+              : modelName;
       entries.push({
         entryId: modelEntry.id,
         groupId: group.id,

@@ -20,8 +20,18 @@ import type { SelectedTextSource } from "../../types";
 import type { EditLatestTurnMarker, EditLatestTurnResult } from "../../chat";
 import type { ReasoningConfig as LLMReasoningConfig } from "../../../../utils/llmClient";
 
+import {
+  buildCodexAppServerNativeAttachmentBlockMessage,
+  getBlockedCodexAppServerNativeAttachments,
+  shouldApplyCodexAppServerNativeAttachmentPolicy,
+} from "../../codexAppServerAttachmentPolicy";
 import { resolvePdfModeModelInputs } from "./pdfPaperModelInputController";
 
+import {
+  getAllSkills,
+  prependNativeSkillMention,
+  resolveSkillDirectiveText,
+} from "../../../../agent/skills";
 import {
   buildNoteEditingTurnContext,
   resolveNoteEditingScope,

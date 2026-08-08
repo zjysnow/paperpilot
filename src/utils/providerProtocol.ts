@@ -196,6 +196,9 @@ export function normalizeProviderProtocolForAuthMode(params: {
   if (params.authMode === "webchat") {
     return "web_sync";
   }
+  if (normalized === "web_sync") {
+    return fallback === "web_sync" ? inferred : fallback;
+  }
   if (normalized === "codex_responses") {
     return fallback === "codex_responses" ? inferred : fallback;
   }

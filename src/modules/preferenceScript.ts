@@ -378,7 +378,6 @@ function hasEmptyModel(group: ModelProviderGroup): boolean {
 }
 
 function normalizeAuthMode(value: unknown): ModelProviderAuthMode {
-  if (value === "webchat") return "webchat"; // [webchat]
   if (value === "codex_auth") return "codex_auth";
   if (value === "codex_app_server") return "codex_app_server";
   if (value === "copilot_auth") return "copilot_auth";
@@ -958,16 +957,11 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       copilotOption.value = "copilot_auth";
       copilotOption.textContent = t("GitHub Copilot");
       copilotOption.selected = group.authMode === "copilot_auth";
-      // [webchat] Add webchat option
-      const webchatOption = el(doc, "option") as HTMLOptionElement;
-      webchatOption.value = "webchat";
-      webchatOption.textContent = t("WebChat");
-      webchatOption.selected = group.authMode === "webchat";
       authModeSelect.append(apiKeyOption);
       if (group.authMode === "codex_app_server") {
         authModeSelect.append(codexAppServerOption);
       }
-      authModeSelect.append(codexOption, copilotOption, webchatOption);
+      authModeSelect.append(codexOption, copilotOption);
       authModeSelect.addEventListener("change", () => {
         const previousAuthMode = group.authMode;
         const nextAuthMode = normalizeAuthMode(authModeSelect.value);
