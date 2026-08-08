@@ -3563,13 +3563,14 @@
 
 .paperpilotuser-selected-text {
   align-self: flex-end;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  display: inline-flex;
+  justify-content: center;
+  box-sizing: border-box;
   align-items: center;
-  gap: 6px;
-  width: clamp(140px, 46%, 320px);
-  max-width: 100%;
-  padding: 3px 8px;
+  width: 24px;
+  min-width: 24px;
+  max-width: 24px;
+  padding: 5px;
   margin: 0;
   border: none;
   border-radius: 8px;
@@ -3604,11 +3605,7 @@
 }
 
 .paperpilotuser-selected-text-content {
-  display: block;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: none;
 }
 
 .paperpilotuser-selected-text.expanded {
@@ -3634,12 +3631,13 @@
 .paperpilotuser-context-badges {
   align-self: flex-end;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-  width: auto;
-  max-width: min(95%, 620px);
+  width: max-content;
+  max-width: none;
+  overflow-x: auto;
 }
 
 .paperpilotuser-screenshots-bar {
@@ -3647,8 +3645,8 @@
   align-items: center;
   gap: 6px;
   width: auto;
-  max-width: 100%;
-  padding: 3px 8px;
+  max-width: none;
+  padding: 5px;
   margin: 0;
   border: none;
   border-radius: 8px;
@@ -3666,8 +3664,8 @@
   align-items: center;
   gap: 6px;
   width: auto;
-  max-width: 100%;
-  padding: 3px 8px;
+  max-width: none;
+  padding: 5px;
   margin: 0;
   border: none;
   border-radius: 8px;
@@ -3819,8 +3817,8 @@
   align-items: center;
   gap: 6px;
   width: auto;
-  max-width: 100%;
-  padding: 3px 8px;
+  max-width: none;
+  padding: 5px;
   margin: 0;
   border: none;
   border-radius: 8px;
@@ -3996,16 +3994,18 @@
 }
 
 .paperpilotuser-screenshots-label {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: none;
+}
+
+.paperpilotuser-files-label,
+.paperpilotuser-papers-label {
+  display: none;
 }
 
 .paperpilotuser-screenshots-expanded {
   align-self: flex-end;
-  width: min(95%, 620px);
-  max-width: 100%;
+  width: 40ch;
+  max-width: none;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -4015,8 +4015,6 @@
 }
 
 .paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
-  .paperpilotuser-selected-text,
-.paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
   .paperpilotuser-selected-text-expanded,
 .paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
   .paperpilotuser-screenshots-expanded,
@@ -4024,17 +4022,16 @@
   .paperpilotuser-files-expanded,
 .paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
   .paperpilotuser-papers-expanded {
-  width: var(--paperpilotuser-bubble-width, min(95%, 620px));
-  max-width: var(--paperpilotuser-bubble-width, min(95%, 620px));
+  width: 40ch;
+  max-width: none;
   box-sizing: border-box;
 }
 
 .paperpilotmessage-wrapper.user.paperpilotuser-context-aligned
   .paperpilotuser-context-badges {
-  width: var(--paperpilotuser-bubble-width, min(95%, 620px));
-  max-width: var(--paperpilotuser-bubble-width, min(95%, 620px));
-  box-sizing: border-box;
-  justify-content: flex-start;
+  width: max-content;
+  max-width: none;
+  justify-content: flex-end;
 }
 
 .paperpilotuser-tag-context-chip .paperpilottag-chip-label {
@@ -4054,6 +4051,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
+  justify-content: flex-end;
   gap: 6px;
 }
 

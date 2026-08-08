@@ -669,7 +669,6 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     },
   );
   selectedContextList.style.display = "none";
-  contextPreviews.appendChild(selectedContextList);
 
   const paperPreview = createElement(
     doc,
@@ -690,6 +689,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   );
   paperPreview.append(paperPreviewList);
   contextPreviews.appendChild(paperPreview);
+  contextPreviews.appendChild(selectedContextList);
 
   // Image preview area (shows selected screenshot)
   const imagePreview = createElement(doc, "div", "paperpilotimage-preview", {

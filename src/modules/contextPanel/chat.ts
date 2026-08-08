@@ -84,7 +84,6 @@ import {
   PERSISTED_HISTORY_LIMIT,
   MAX_FULL_TEXT_PAPER_CONTEXTS,
   MAX_SELECTED_IMAGES,
-  formatFigureCountLabel,
   formatPaperCountLabel,
 } from "./constants";
 import {
@@ -9978,6 +9977,17 @@ export function refreshChat(
       let collectionsExpanded: HTMLDivElement | null = null;
       let tagsExpanded: HTMLDivElement | null = null;
       let filesExpanded: HTMLDivElement | null = null;
+      const syncAttachmentExpansionStates: Array<() => void> = [];
+      const collapseOtherAttachments = () => {
+        msg.screenshotExpanded = false;
+        msg.collectionContextsExpanded = false;
+        msg.tagContextsExpanded = false;
+        msg.paperContextsExpanded = false;
+        msg.attachmentsExpanded = false;
+        msg.selectedTextExpandedIndex = -1;
+        msg.selectedTextExpanded = false;
+        syncAttachmentExpansionStates.forEach((applyState) => applyState());
+      };
       const selectedTexts = getMessageSelectedTexts(msg);
       const selectedTextSources = normalizeSelectedTextSources(
         msg.selectedTextSources,
@@ -10000,33 +10010,9 @@ export function refreshChat(
         selectedCollectionContexts.length > 0 ||
         selectedTagContexts.length > 0;
       if (hasScreenshotContext) {
-        const screenshotBar = doc.createElementNS(
-          HTML_NS,
-          "button",
-        ) as HTMLButtonElement;
-        screenshotBar.type = "button";
-        screenshotBar.className = "paperpilotuser-screenshots-bar";
-
-        const screenshotIcon = createContextIcon(
-          doc,
-          "image",
-          "paperpilotuser-screenshots-icon",
-        );
-
-        const screenshotLabel = doc.createElement("span") as HTMLSpanElement;
-        screenshotLabel.className = "paperpilotuser-screenshots-label";
-        screenshotLabel.textContent = formatFigureCountLabel(
-          screenshotImages.length,
-        );
-
-        screenshotBar.append(screenshotIcon, screenshotLabel);
-
         const screenshotExpandedEl = doc.createElement("div") as HTMLDivElement;
         screenshotExpandedEl.className = "paperpilotuser-screenshots-expanded";
         screenshotExpanded = screenshotExpandedEl;
-
-        const thumbStrip = doc.createElement("div") as HTMLDivElement;
-        thumbStrip.className = "paperpilotuser-screenshots-thumbs";
 
         const previewWrap = doc.createElement("div") as HTMLDivElement;
         previewWrap.className = "paperpilotuser-screenshots-preview";
@@ -10035,47 +10021,75 @@ export function refreshChat(
         previewImg.alt = "Screenshot preview";
         previewWrap.appendChild(previewImg);
 
+        const thumbStrip = doc.createElement("div") as HTMLDivElement;
+        thumbStrip.className = "paperpilotuser-screenshots-thumbs";
         const thumbButtons: HTMLButtonElement[] = [];
         screenshotImages.forEach((imageUrl, index) => {
-          const thumbBtn = doc.createElementNS(
+          const thumbButton = doc.createElementNS(
             HTML_NS,
             "button",
           ) as HTMLButtonElement;
-          thumbBtn.type = "button";
-          thumbBtn.className = "paperpilotuser-screenshot-thumb";
-          thumbBtn.title = `Screenshot ${index + 1}`;
-
-          const thumbImg = doc.createElement("img") as HTMLImageElement;
-          thumbImg.className = "paperpilotuser-screenshot-thumb-img";
-          thumbImg.src = imageUrl;
-          thumbImg.alt = `Screenshot ${index + 1}`;
-          thumbBtn.appendChild(thumbImg);
-
-          const activateScreenshotThumb = (e: Event) => {
-            const mouse = e as MouseEvent;
+          thumbButton.type = "button";
+          thumbButton.className = "paperpilotuser-screenshot-thumb";
+          thumbButton.title = `Screenshot ${index + 1}`;
+          const thumbImage = doc.createElement("img") as HTMLImageElement;
+          thumbImage.className = "paperpilotuser-screenshot-thumb-img";
+          thumbImage.src = imageUrl;
+          thumbImage.alt = `Screenshot ${index + 1}`;
+          thumbButton.appendChild(thumbImage);
+          thumbButton.addEventListener("mousedown", (event: Event) => {
+            const mouse = event as MouseEvent;
             if (typeof mouse.button === "number" && mouse.button !== 0) return;
-            e.preventDefault();
-            e.stopPropagation();
+            event.preventDefault();
+            event.stopPropagation();
             mutateChatWithScrollGuard(() => {
+              collapseOtherAttachments();
               msg.screenshotActiveIndex = index;
-              if (!msg.screenshotExpanded) {
-                msg.screenshotExpanded = true;
-              }
+              msg.screenshotExpanded = true;
               applyScreenshotState();
             });
-          };
-          thumbBtn.addEventListener("mousedown", activateScreenshotThumb);
-          thumbBtn.addEventListener("click", (e: Event) => {
-            e.preventDefault();
-            e.stopPropagation();
           });
-          thumbBtn.addEventListener("keydown", (e: KeyboardEvent) => {
-            if (e.key !== "Enter" && e.key !== " ") return;
-            activateScreenshotThumb(e);
+          thumbButton.addEventListener("click", (event: Event) => {
+            event.preventDefault();
+            event.stopPropagation();
           });
-          thumbButtons.push(thumbBtn);
-          thumbStrip.appendChild(thumbBtn);
+          thumbButtons.push(thumbButton);
+          thumbStrip.appendChild(thumbButton);
         });
+
+        const screenshotBar = doc.createElementNS(
+          HTML_NS,
+          "button",
+        ) as HTMLButtonElement;
+        screenshotBar.type = "button";
+        screenshotBar.className = "paperpilotuser-screenshots-bar";
+        screenshotBar.title = "Expand figures";
+        screenshotBar.setAttribute("aria-label", "Expand figures");
+        screenshotBar.append(
+          createContextIcon(doc, "image", "paperpilotuser-screenshots-icon"),
+        );
+        const activateScreenshot = (e: Event) => {
+          const mouse = e as MouseEvent;
+          if (typeof mouse.button === "number" && mouse.button !== 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          mutateChatWithScrollGuard(() => {
+            const expanded = !msg.screenshotExpanded;
+            collapseOtherAttachments();
+            msg.screenshotExpanded = expanded;
+            applyScreenshotState();
+          });
+        };
+        screenshotBar.addEventListener("mousedown", activateScreenshot);
+        screenshotBar.addEventListener("click", (e: Event) => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+        screenshotBar.addEventListener("keydown", (e: KeyboardEvent) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          activateScreenshot(e);
+        });
+        contextBadgesRow.appendChild(screenshotBar);
 
         screenshotExpandedEl.append(thumbStrip, previewWrap);
 
@@ -10097,40 +10111,16 @@ export function refreshChat(
           screenshotExpandedEl.hidden = !expanded;
           screenshotExpandedEl.style.display = expanded ? "flex" : "none";
           previewImg.src = screenshotImages[activeIndex];
-          thumbButtons.forEach((btn, index) => {
-            btn.classList.toggle("active", index === activeIndex);
-          });
+          previewImg.alt = `Screenshot ${activeIndex + 1} preview`;
           screenshotBar.title = expanded
             ? "Collapse figures"
             : "Expand figures";
-        };
-
-        const toggleScreenshotsExpanded = () => {
-          mutateChatWithScrollGuard(() => {
-            msg.screenshotExpanded = !msg.screenshotExpanded;
-            applyScreenshotState();
+          thumbButtons.forEach((button, index) => {
+            button.classList.toggle("active", index === activeIndex);
           });
         };
+        syncAttachmentExpansionStates.push(applyScreenshotState);
         applyScreenshotState();
-        screenshotBar.addEventListener("mousedown", (e: Event) => {
-          const mouse = e as MouseEvent;
-          if (mouse.button !== 0) return;
-          mouse.preventDefault();
-          mouse.stopPropagation();
-          toggleScreenshotsExpanded();
-        });
-        screenshotBar.addEventListener("click", (e: Event) => {
-          e.preventDefault();
-          e.stopPropagation();
-        });
-        screenshotBar.addEventListener("keydown", (e: KeyboardEvent) => {
-          if (e.key !== "Enter" && e.key !== " ") return;
-          e.preventDefault();
-          e.stopPropagation();
-          toggleScreenshotsExpanded();
-        });
-
-        contextBadgesRow.appendChild(screenshotBar);
         hasContextBadge = true;
       }
 
@@ -10203,9 +10193,12 @@ export function refreshChat(
             : "Expand collections";
         };
         const toggleCollectionsExpanded = () => {
-          msg.collectionContextsExpanded = !msg.collectionContextsExpanded;
+          const expanded = !msg.collectionContextsExpanded;
+          collapseOtherAttachments();
+          msg.collectionContextsExpanded = expanded;
           applyCollectionsState();
         };
+        syncAttachmentExpansionStates.push(applyCollectionsState);
         applyCollectionsState();
         collectionsBar.addEventListener("mousedown", (e: Event) => {
           const mouse = e as MouseEvent;
@@ -10289,9 +10282,12 @@ export function refreshChat(
           tagsBar.title = expanded ? "Collapse tags" : "Expand tags";
         };
         const toggleTagsExpanded = () => {
-          msg.tagContextsExpanded = !msg.tagContextsExpanded;
+          const expanded = !msg.tagContextsExpanded;
+          collapseOtherAttachments();
+          msg.tagContextsExpanded = expanded;
           applyTagsState();
         };
+        syncAttachmentExpansionStates.push(applyTagsState);
         applyTagsState();
         tagsBar.addEventListener("mousedown", (e: Event) => {
           const mouse = e as MouseEvent;
@@ -10397,9 +10393,12 @@ export function refreshChat(
           papersBar.title = expanded ? "Collapse papers" : "Expand papers";
         };
         const togglePapersExpanded = () => {
-          msg.paperContextsExpanded = !msg.paperContextsExpanded;
+          const expanded = !msg.paperContextsExpanded;
+          collapseOtherAttachments();
+          msg.paperContextsExpanded = expanded;
           applyPapersState();
         };
+        syncAttachmentExpansionStates.push(applyPapersState);
         applyPapersState();
         papersBar.addEventListener("mousedown", (e: Event) => {
           const mouse = e as MouseEvent;
@@ -10529,9 +10528,12 @@ export function refreshChat(
           filesBar.title = expanded ? "Collapse files" : "Expand files";
         };
         const toggleFilesExpanded = () => {
-          msg.attachmentsExpanded = !msg.attachmentsExpanded;
+          const expanded = !msg.attachmentsExpanded;
+          collapseOtherAttachments();
+          msg.attachmentsExpanded = expanded;
           applyFilesState();
         };
+        syncAttachmentExpansionStates.push(applyFilesState);
         applyFilesState();
         filesBar.addEventListener("mousedown", (e: Event) => {
           const mouse = e as MouseEvent;
@@ -10555,7 +10557,7 @@ export function refreshChat(
         hasContextBadge = true;
       }
 
-      if (hasContextBadge) {
+      if (hasContextBadge || hasSelectedTextContext) {
         wrapper.appendChild(contextBadgesRow);
       }
       if (screenshotExpanded) {
@@ -10590,6 +10592,7 @@ export function refreshChat(
             applyState();
           }
         };
+        syncAttachmentExpansionStates.push(renderSelectedTextStates);
 
         selectedTexts.forEach((selectedText, contextIndex) => {
           const selectedSource = selectedTextSources[contextIndex] || "pdf";
@@ -10643,8 +10646,9 @@ export function refreshChat(
           };
           const toggleSelectedTextExpanded = () => {
             mutateChatWithScrollGuard(() => {
-              selectedTextExpandedIndex =
-                selectedTextExpandedIndex === contextIndex ? -1 : contextIndex;
+              const expanded = selectedTextExpandedIndex !== contextIndex;
+              collapseOtherAttachments();
+              selectedTextExpandedIndex = expanded ? contextIndex : -1;
               syncSelectedTextExpandedState();
               renderSelectedTextStates();
             });
@@ -10667,7 +10671,7 @@ export function refreshChat(
             e.stopPropagation();
             toggleSelectedTextExpanded();
           });
-          wrapper.appendChild(selectedBar);
+          contextBadgesRow.appendChild(selectedBar);
           wrapper.appendChild(selectedExpanded);
         });
         renderSelectedTextStates();
