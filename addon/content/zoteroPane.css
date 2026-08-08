@@ -1257,6 +1257,12 @@
   -webkit-mask-image: url("icons/action-settings.svg");
 }
 
+/* VS Code workspace icon */
+.paperpilotstandalone-icon-workspace::before {
+  mask-image: url("icons/vscode.svg");
+  -webkit-mask-image: url("icons/vscode.svg");
+}
+
 /* Skill icon — pen/edit */
 .paperpilotstandalone-icon-skill::before {
   mask-image: url("icons/action-skill.svg");
@@ -1273,6 +1279,16 @@
 .paperpilotstandalone-icon-clear::before {
   mask-image: url("icons/action-clear.svg");
   -webkit-mask-image: url("icons/action-clear.svg");
+}
+
+.paperpilotstandalone-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.paperpilotstandalone-icon-btn:disabled:hover {
+  background: none;
+  color: var(--fill-secondary);
 }
 
 /* Exit button — webchat mode override for clear icon */

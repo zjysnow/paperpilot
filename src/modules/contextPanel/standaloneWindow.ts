@@ -118,6 +118,7 @@ import {
   shouldRestoreActiveConversationOnDeletionUndo,
 } from "./conversationDeletionActivation";
 import { setStatus } from "./textUtils";
+import { openWorkspaceInVSCode } from "./openWorkspaceController";
 import { setUserSkills } from "../../agent/skills";
 import {
   createSkillTemplate,
@@ -893,6 +894,16 @@ export function openStandaloneChat(options?: {
       iconSettings.type = "button";
       iconSettings.title = t("Settings");
 
+      const iconWorkspace = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      iconWorkspace.className =
+        "paperpilotstandalone-icon-btn paperpilotstandalone-icon-workspace";
+      iconWorkspace.type = "button";
+      iconWorkspace.title = t("Open workspace in VS Code");
+      iconWorkspace.setAttribute("aria-label", t("Open workspace in VS Code"));
+
       const iconExport = doc.createElementNS(
         HTML_NS,
         "button",
@@ -917,6 +928,7 @@ export function openStandaloneChat(options?: {
         iconSearch,
         iconSkill,
         iconStripSpacer,
+        iconWorkspace,
         iconSettings,
         iconExport,
         iconClear,
@@ -1315,6 +1327,8 @@ export function openStandaloneChat(options?: {
           : t("Clear");
         iconClear.textContent = isWebChat ? t("Exit") : "";
         iconClear.classList.toggle("paperpilotstandalone-icon-exit", isWebChat);
+        iconWorkspace.disabled =
+          isWebChat || standaloneMode !== "paper" || !currentBasePaperItem;
 
         // Keep original paper title — webchat mode is already indicated by tabs/mode chip
         updateContentTitle();
@@ -2804,6 +2818,18 @@ export function openStandaloneChat(options?: {
         ) as HTMLElement | null;
         if (btn) btn.click();
       });
+      iconWorkspace.addEventListener("click", () => {
+        if (iconWorkspace.disabled || standaloneMode !== "paper") return;
+        const item = currentBasePaperItem;
+        if (!item) return;
+        void openWorkspaceInVSCode({
+          doc,
+          item,
+          setStatus: (message, level) => {
+            setStandaloneHistoryStatus(message, level);
+          },
+        });
+      });
       iconExport.addEventListener("click", (e: Event) => {
         e.stopPropagation();
         const innerBtn = contentArea.querySelector(
@@ -2996,6 +3022,8 @@ export function openStandaloneChat(options?: {
         }
         paperTab.classList.toggle("active", mode === "paper");
         openTab.classList.toggle("active", mode === "open");
+        iconWorkspace.disabled =
+          isInWebChatMode || mode !== "paper" || !currentBasePaperItem;
       };
 
       const showNoPaperChatSourceStatus = () => {
