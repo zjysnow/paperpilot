@@ -53,16 +53,12 @@ import type { AgentRuntime } from "../../../../agent/runtime";
 import {
   getConversationSystemPref,
   setConversationSystemPref,
-} from "../../../../claudeCode/prefs";
-import { setLastUsedCodexGlobalConversationKey } from "../../../../codexAppServer/prefs";
-import {
+  setLastUsedCodexGlobalConversationKey,
   activeClaudeGlobalConversationByLibrary,
   buildClaudeLibraryStateKey,
-} from "../../../../claudeCode/state";
-import {
   activeCodexGlobalConversationByLibrary,
   buildCodexLibraryStateKey,
-} from "../../../../codexAppServer/state";
+} from "../../../../utils/removedBackends";
 
 import {
   createGlobalPortalItem,

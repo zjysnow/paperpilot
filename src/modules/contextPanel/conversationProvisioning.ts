@@ -10,11 +10,9 @@ import { getConversationKey } from "./conversationIdentity";
 import {
   buildDefaultClaudeGlobalConversationKey,
   buildDefaultClaudePaperConversationKey,
-} from "../../claudeCode/constants";
-import {
   buildDefaultCodexGlobalConversationKey,
   buildDefaultCodexPaperConversationKey,
-} from "../../codexAppServer/constants";
+} from "../../utils/removedBackends";
 import {
   resolveActiveNoteSession,
   resolveConversationBaseItem,
@@ -134,77 +132,6 @@ async function provisionUpstreamConversation(scope: {
   );
 }
 
-async function provisionRuntimeConversation(
-  system: "claude_code" | "codex",
-  scope: {
-    conversationKey: number;
-    kind: ConversationKind;
-    libraryID: number;
-    paperItemID?: number;
-  },
-): Promise<boolean> {
-  const existing = await conversationRepository.getCatalogEntry({
-    system,
-    kind: scope.kind,
-    conversationKey: scope.conversationKey,
-  });
-  if (sameRuntimeScope(existing, scope)) {
-    return Boolean(
-      await conversationRepository.ensureCatalogEntry({
-        system,
-        conversationKey: scope.conversationKey,
-        kind: scope.kind,
-        libraryID: scope.libraryID,
-        paperItemID: scope.paperItemID,
-      }),
-    );
-  }
-  if (scope.kind === "global") {
-    const expectedKey =
-      system === "claude_code"
-        ? buildDefaultClaudeGlobalConversationKey(scope.libraryID)
-        : buildDefaultCodexGlobalConversationKey(scope.libraryID);
-    if (scope.conversationKey !== expectedKey) return false;
-    const ensured = await conversationRepository.ensureCatalogEntry({
-      system,
-      kind: "global",
-      libraryID: scope.libraryID,
-    });
-    return ensured?.conversationKey === scope.conversationKey;
-  }
-  if (!scope.paperItemID) return false;
-  const expectedPaperKey =
-    system === "claude_code"
-      ? buildDefaultClaudePaperConversationKey(scope.paperItemID)
-      : buildDefaultCodexPaperConversationKey(scope.paperItemID);
-  if (scope.conversationKey !== expectedPaperKey) return false;
-  const ensured = await conversationRepository.ensureCatalogEntry({
-    system,
-    kind: "paper",
-    libraryID: scope.libraryID,
-    paperItemID: scope.paperItemID,
-  });
-  return ensured?.conversationKey === scope.conversationKey;
-}
-
-async function provisionClaudeConversation(scope: {
-  conversationKey: number;
-  kind: ConversationKind;
-  libraryID: number;
-  paperItemID?: number;
-}): Promise<boolean> {
-  return provisionRuntimeConversation("claude_code", scope);
-}
-
-async function provisionCodexConversation(scope: {
-  conversationKey: number;
-  kind: ConversationKind;
-  libraryID: number;
-  paperItemID?: number;
-}): Promise<boolean> {
-  return provisionRuntimeConversation("codex", scope);
-}
-
 export async function provisionConversationScopeForItem(params: {
   item: Zotero.Item;
   conversationSystem?: ConversationSystem | null;
@@ -214,12 +141,6 @@ export async function provisionConversationScopeForItem(params: {
   const scope = resolveProvisionScope(params.item, storageSystem);
   if (!scope) return false;
   try {
-    if (storageSystem === "claude_code") {
-      return await provisionClaudeConversation(scope);
-    }
-    if (storageSystem === "codex") {
-      return await provisionCodexConversation(scope);
-    }
     if (storageSystem === "upstream") {
       return await provisionUpstreamConversation(scope);
     }

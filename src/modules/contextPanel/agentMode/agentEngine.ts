@@ -7,6 +7,12 @@
  * mode can be read and edited without opening chat.ts.
  */
 import type { AgentRuntime } from "../../../agent/runtime";
+import {
+  captureClaudeSessionInfo,
+  buildClaudeScope,
+  isClaudeBlockStreamingEnabled,
+  type CodexNativeConversationScope,
+} from "../../../utils/removedBackends";
 import type {
   AgentEvent,
   AgentPendingAction,
@@ -14,11 +20,6 @@ import type {
   AgentRuntimeOutcome,
   AgentRuntimeRequest,
 } from "../../../agent/types";
-import { consumePendingRetentionEvents } from "../../../claudeCode/runtimeRetention";
-import {
-  captureClaudeSessionInfo,
-  buildClaudeScope,
-} from "../../../claudeCode/runtime";
 import {
   resolveConversationBaseItem,
   resolveDisplayConversationKind,
@@ -60,16 +61,6 @@ function buildPendingAgentTraceEvents(body?: Element): AgentRunEventRecord[] {
     },
   ];
   if (!body) return events;
-  const retentionEvents = consumePendingRetentionEvents(body);
-  for (const event of retentionEvents) {
-    events.push({
-      runId: "pending",
-      seq: events.length + 1,
-      eventType: event.type,
-      payload: event,
-      createdAt: Date.now(),
-    });
-  }
   return events;
 }
 
@@ -103,7 +94,6 @@ import type { ReasoningConfig as LLMReasoningConfig } from "../../../utils/llmCl
 import type { ChatMessage } from "../../../utils/llmClient";
 import type { StoredChatMessage } from "../../../utils/chatStore";
 import type { Message } from "../types";
-import { isClaudeBlockStreamingEnabled } from "../../../claudeCode/prefs";
 import { recordContextCacheTelemetry } from "../../../contextCache/manager";
 import {
   buildSelectedTextQuoteCitations,
@@ -170,9 +160,7 @@ function normalizeAgentUsageForCacheTelemetry(
 }
 
 function shouldSyncVisibleRollbackText(message: Message): boolean {
-  return (
-    isClaudeBlockStreamingEnabled() || message.modelProviderLabel === "Codex"
-  );
+  return message.modelProviderLabel === "Codex";
 }
 
 function appendPendingFinalText(
@@ -621,25 +609,6 @@ async function finalizeAgentTurnOutcome(ctx: {
   refreshChatSafely();
   if (!skipAssistantPersist) {
     await persistAssistantOnce();
-  }
-  if (deps.getConversationSystem?.() === "claude_code") {
-    const conversationKind = resolveDisplayConversationKind(item);
-    const baseItem = resolveConversationBaseItem(item);
-    await captureClaudeSessionInfo(
-      conversationKey,
-      buildClaudeScope({
-        libraryID: Number(item.libraryID || baseItem?.libraryID || 0),
-        kind: conversationKind === "global" ? "global" : "paper",
-        paperItemID:
-          conversationKind === "paper"
-            ? Number(baseItem?.id || 0) || undefined
-            : undefined,
-        paperTitle:
-          conversationKind === "paper"
-            ? String(baseItem?.getField?.("title") || "").trim() || undefined
-            : undefined,
-      }),
-    ).catch(() => null);
   }
   if (!uiRelease.isReleased()) {
     setStatusSafely("Ready", "ready");

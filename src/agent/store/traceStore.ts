@@ -1,5 +1,5 @@
 import { config } from "../../../package.json";
-import { getClaudeRuntimeRootDir } from "../../claudeCode/projectSkills";
+import { getZoteroAgentRuntimeRootDir } from "../skills/nativeSkillPaths";
 import { getLocalParentPath, joinLocalPath } from "../../utils/localPath";
 import type {
   AgentEvent,
@@ -91,7 +91,7 @@ async function writeUtf8File(path: string, content: string): Promise<void> {
 
 function getAgentTraceExportDir(): string {
   return joinLocalPath(
-    getClaudeRuntimeRootDir(),
+    getZoteroAgentRuntimeRootDir(),
     ".debug",
     AGENT_TRACE_EXPORT_DIR_NAME,
   );

@@ -251,7 +251,6 @@ import {
 } from "./paperSearch";
 import { initAgentSubsystem } from "../../agent/index";
 import { clearAllAgentToolCaches } from "../../agent/tools";
-import { isCodexAppServerModeEnabled } from "../../codexAppServer/prefs";
 
 import {
   isGlobalPortalItem,
@@ -362,35 +361,30 @@ import {
 } from "./setupHandlers/controllers/paperSourceOptionsController";
 
 import { renderShortcuts } from "./shortcuts";
+import { getWebChatTargetByModelName } from "../../webchat/types";
 import {
+  buildCodexRuntimeModelEntries,
+  getClaudeReasoningModePref,
   getClaudeRuntimeModelEntries,
   getSelectedClaudeRuntimeEntry,
   listClaudeEfforts,
-  refreshClaudeSlashCommands,
-} from "../../claudeCode/runtime";
-import {
-  getClaudeReasoningModePref,
-  setClaudeReasoningModePref,
-  setClaudeRuntimeModelPref,
-} from "../../claudeCode/prefs";
-import {
+  getCodexAppServerReasoningChoices,
   getCodexReasoningModePref,
   getCodexRuntimeModelPref,
-  setCodexRuntimeModelPref,
-  setCodexReasoningModePref,
-} from "../../codexAppServer/prefs";
-import {
-  buildCodexRuntimeModelEntries,
-  getCodexAppServerReasoningChoices,
+  getConfiguredCodexAppServerBinaryPath,
+  isCodexAppServerModeEnabled,
   loadCodexAppServerModelCatalog,
+  refreshClaudeSlashCommands,
+  retainClaudeRuntimeForBody,
+  setClaudeReasoningModePref,
+  setClaudeRuntimeModelPref,
+  setCodexReasoningModePref,
+  setCodexRuntimeModelPref,
+  touchClaudeConversationTitle,
+  touchCodexConversationTitle,
   resolveCodexAppServerReasoningSelection,
   type CodexAppServerModelCatalogEntry,
-} from "../../codexAppServer/modelCatalog";
-import { getConfiguredCodexAppServerBinaryPath } from "../../codexAppServer/binaryPath";
-import { retainClaudeRuntimeForBody } from "../../claudeCode/runtimeRetention";
-import { touchClaudeConversationTitle } from "../../claudeCode/store";
-import { touchCodexConversationTitle } from "../../codexAppServer/store";
-import { getWebChatTargetByModelName } from "../../webchat/types";
+} from "../../utils/removedBackends";
 
 import { resolveConversationStorageSystem } from "../../shared/conversationStorageRouting";
 import { validateConversationScope } from "../../shared/conversationRegistry";
@@ -743,8 +737,10 @@ export function setupHandlers(
       }),
       catalogReady: codexModelCatalogStatus === "ready",
     });
-  const getCodexReasoningChoices = () =>
-    resolveCurrentCodexReasoningSelection().choices;
+  const getCodexReasoningChoices = (): Array<{
+    value: string;
+    label: string;
+  }> => resolveCurrentCodexReasoningSelection().choices;
   const reconcileSelectedCodexReasoningMode = () => {
     const currentMode = getCodexReasoningModePref();
     const reconciledMode = resolveCurrentCodexReasoningSelection().mode;
@@ -5971,11 +5967,7 @@ export function setupHandlers(
     ) => getActiveWebChatPdfPaperContexts(currentItem, selectedPaperContexts),
     resolvePdfPaperAttachments: pdfPaperResolver.resolvePdfPaperAttachments,
     resolveLocalPdfResources: localPdfResourceResolver.resolve,
-    preflightLocalPdfCapability: async () => {
-      // const { preflightClaudeBridgeLocalPdfCapability } =
-      //   await import("../../agent/externalBackendBridge");
-      // await preflightClaudeBridgeLocalPdfCapability();
-    },
+    preflightLocalPdfCapability: async () => undefined,
     renderPdfPagesAsImages: pdfPaperResolver.renderPdfPagesAsImages,
     getModelPdfSupport: (modelName, protocol, authMode, apiBase, inputMode) =>
       resolvePaperPdfSupportForConversation({
@@ -6302,24 +6294,6 @@ export function setupHandlers(
         pdfUploadSystemMessages,
         localDocuments,
       } = pdfInputs;
-      if (localDocuments.length && isClaudeConversationSystem()) {
-        try {
-          const { preflightClaudeBridgeLocalPdfCapability } =
-            await import("../../agent/externalBackendBridge");
-          await preflightClaudeBridgeLocalPdfCapability();
-        } catch (error) {
-          if (status) {
-            setStatus(
-              status,
-              error instanceof Error && error.message.trim()
-                ? error.message
-                : "Claude bridge does not support raw local PDF paths.",
-              "error",
-            );
-          }
-          return;
-        }
-      }
       const images = [
         ...(isScreenshotUnsupportedModel(
           activeModelName,

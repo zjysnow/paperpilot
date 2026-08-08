@@ -20,11 +20,6 @@ import type { SelectedTextSource } from "../../types";
 import type { EditLatestTurnMarker, EditLatestTurnResult } from "../../chat";
 import type { ReasoningConfig as LLMReasoningConfig } from "../../../../utils/llmClient";
 
-import {
-  buildCodexAppServerNativeAttachmentBlockMessage,
-  getBlockedCodexAppServerNativeAttachments,
-  shouldApplyCodexAppServerNativeAttachmentPolicy,
-} from "../../codexAppServerAttachmentPolicy";
 import { resolvePdfModeModelInputs } from "./pdfPaperModelInputController";
 
 import {
@@ -239,10 +234,10 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       const draftText = deps.inputBox.value.trim();
       const earlyProfile = deps.getSelectedProfile();
       const rawSubmittedText = (options?.overrideText ?? draftText).trim();
-      const codexNativeSkillText =
-        earlyProfile?.authMode === "codex_app_server"
-          ? resolveSkillDirectiveText(rawSubmittedText, getAllSkills())
-          : { text: rawSubmittedText };
+      const codexNativeSkillText = {
+        text: rawSubmittedText,
+        forcedSkillId: undefined,
+      };
       const text = codexNativeSkillText.text;
       const selectedContexts = deps.getSelectedTextContextEntries(
         textContextConversationKey,
@@ -310,10 +305,6 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       const runtimeMode: ChatRuntimeMode = usesPluginAgentMode
         ? "agent"
         : "chat";
-      const useCodexAttachmentPolicy =
-        shouldApplyCodexAppServerNativeAttachmentPolicy({
-          authMode: earlyProfile?.authMode,
-        });
       const earlyModelName = (
         earlyProfile?.model ||
         deps.getCurrentModelName() ||
@@ -323,17 +314,6 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         earlyProfile?.entryId,
       );
       const selectedBaseFiles = deps.getSelectedFiles(item.id);
-      if (useCodexAttachmentPolicy) {
-        const blockedAttachments =
-          getBlockedCodexAppServerNativeAttachments(selectedBaseFiles);
-        if (blockedAttachments.length) {
-          deps.setStatusMessage?.(
-            buildCodexAppServerNativeAttachmentBlockMessage(blockedAttachments),
-            "error",
-          );
-          return;
-        }
-      }
       const selectedImages = deps
         .getSelectedImages(item.id)
         .slice(0, MAX_SELECTED_IMAGES);
@@ -371,7 +351,6 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
           : null,
         currentModelName: earlyModelName,
         isWebChat,
-        useCodexAttachmentPolicy,
       });
       if (!pdfInputs.ok) return;
       const {

@@ -318,4 +318,4 @@ export function renderAgentActionsInSlashMenu(
 import { getAgentApi, initAgentSubsystem } from "../../../../agent";
 import { getAllSkills } from "../../../../agent/skills";
 import type { AgentSkill } from "../../../../agent/skills/skillLoader";
-import { refreshClaudeSlashCommands } from "../../../../claudeCode/runtime";
+import { refreshClaudeSlashCommands } from "../../../../utils/removedBackends";

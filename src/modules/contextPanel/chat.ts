@@ -15,51 +15,44 @@ import {
   StoredChatMessage,
 } from "../../utils/chatStore";
 import { conversationRepository } from "../../core/conversations/repository";
-import {
-  appendCodexMessage,
-  pruneCodexConversation,
-  updateLatestCodexAssistantMessage,
-  updateLatestCodexUserMessage,
-} from "../../codexAppServer/store";
-import {
-  appendClaudeConversationMessage,
-  buildClaudeScope,
-  captureClaudeSessionInfo,
-  getClaudeBridgeRuntime,
-  updateLatestClaudeConversationAssistantMessage,
-  updateLatestClaudeConversationUserMessage,
-} from "../../claudeCode/runtime";
-import {
-  getClaudeAutoCompactThresholdPercent,
-  isClaudeAutoCompactEnabled,
-  getClaudeReasoningModePref,
-} from "../../claudeCode/prefs";
-import { getCodexProfileSignature } from "../../codexAppServer/constants";
-import {
-  getCodexReasoningModePref,
-  getCodexRuntimeModelPref,
-  isCodexAppServerNativeApprovalsEnabled,
-  isCodexZoteroMcpToolsEnabled,
-} from "../../codexAppServer/prefs";
-import { getEffectiveCodexAppServerBinaryPath } from "../../codexAppServer/binaryPath";
-import { buildCodexAppServerReasoningConfig } from "../../codexAppServer/reasoning";
-import {
-  buildCodexNativeApprovalPendingAction,
-  buildCodexNativeApprovalResponseFromResolution,
-  compactCodexAppServerConversation,
-  isCodexNativeBuiltInApprovalRequest,
-  NO_CODEX_APP_SERVER_THREAD_TO_COMPACT_MESSAGE,
-  resolveCodexNativeApprovalRequest,
-  runCodexAppServerNativeTurn,
-  type CodexNativeApprovalRequest,
-  type CodexNativeConversationScope,
-  type CodexNativeDiagnostics,
-} from "../../codexAppServer/nativeClient";
-import type { CodexNativeSkillContext } from "../../codexAppServer/nativeSkills";
-import { preflightClaudeBridgeLocalPdfCapability } from "../../agent/externalBackendBridge";
 import { validateLocalPdfDocumentBatch } from "../../agent/context/localDocumentBatch";
 
 import { resolveConversationStorageSystem } from "../../shared/conversationStorageRouting";
+import {
+  appendClaudeConversationMessage,
+  appendCodexMessage,
+  buildClaudeScope,
+  buildCodexAppServerReasoningConfig,
+  buildCodexNativeApprovalPendingAction,
+  buildCodexNativeApprovalResponseFromResolution,
+  buildCodexRuntimeModelEntries,
+  captureClaudeSessionInfo,
+  compactCodexAppServerConversation,
+  getClaudeAutoCompactThresholdPercent,
+  getClaudeBridgeRuntime,
+  getClaudeReasoningModePref,
+  getCodexAppServerReasoningChoices,
+  getCodexProfileSignature,
+  getCodexReasoningModePref,
+  getCodexRuntimeModelPref,
+  getEffectiveCodexAppServerBinaryPath,
+  isClaudeAutoCompactEnabled,
+  isCodexAppServerNativeApprovalsEnabled,
+  isCodexNativeBuiltInApprovalRequest,
+  isCodexZoteroMcpToolsEnabled,
+  NO_CODEX_APP_SERVER_THREAD_TO_COMPACT_MESSAGE,
+  pruneCodexConversation,
+  resolveCodexNativeApprovalRequest,
+  runCodexAppServerNativeTurn,
+  updateLatestClaudeConversationAssistantMessage,
+  updateLatestClaudeConversationUserMessage,
+  updateLatestCodexAssistantMessage,
+  updateLatestCodexUserMessage,
+  type CodexNativeApprovalRequest,
+  type CodexNativeConversationScope,
+  type CodexNativeDiagnostics,
+  type CodexNativeSkillContext,
+} from "../../utils/removedBackends";
 import { normalizeForcedSkillIds } from "../../shared/skillIds";
 
 import {
@@ -2689,21 +2682,20 @@ function createStreamUsageHandler(params: {
   };
 }
 
-type CodexNativeTurnCallbacks = Pick<
-  Parameters<typeof runCodexAppServerNativeTurn>[0],
-  | "onSkillActivated"
-  | "onDelta"
-  | "onAgentMessageDelta"
-  | "onReasoning"
-  | "onUsage"
-  | "onItemStarted"
-  | "onItemCompleted"
-  | "onMcpToolActivity"
-  | "onMcpConfirmationRequest"
-  | "onMcpSetupWarning"
-  | "onDiagnostics"
-  | "onApprovalRequest"
->;
+type CodexNativeTurnCallbacks = {
+  onSkillActivated: (skillId: string) => void;
+  onDelta: (delta: string) => void;
+  onAgentMessageDelta: (event: any) => void;
+  onReasoning: (event: any) => void;
+  onUsage: (event: any) => void;
+  onItemStarted: (event: any) => void;
+  onItemCompleted: (event: any) => void;
+  onMcpToolActivity: (event: any) => void;
+  onMcpConfirmationRequest: (params: any) => Promise<any>;
+  onMcpSetupWarning: (message: string) => void;
+  onDiagnostics: (diagnostics: any) => void;
+  onApprovalRequest: (request: any) => Promise<any>;
+};
 
 /**
  * The Codex app-server native-turn callback set, previously duplicated
@@ -7081,12 +7073,6 @@ export async function retryLatestAssistantResponse(
       usesLocalPdfTransport && pdfPaperContexts.length
         ? await createLocalPdfResourceResolver().resolve(pdfPaperContexts)
         : undefined;
-    if (
-      retryLocalDocuments?.length &&
-      effectiveConversationSystem === "claude_code"
-    ) {
-      await preflightClaudeBridgeLocalPdfCapability();
-    }
     const llmHistory = buildLLMHistoryMessages(historyForLLM);
     const recentPaperContexts = collectRecentPaperContexts(historyForLLM);
     // Create AbortController early so the signal is available during context
@@ -8254,11 +8240,7 @@ function buildAgentEngineDeps(
     buildAgentRuntimeRequest,
     resolveLocalPdfResources: (paperContexts) =>
       createLocalPdfResourceResolver().resolve(paperContexts),
-    preflightLocalPdfCapability: async () => {
-      if (getEffectiveConversationSystem() === "claude_code") {
-        await preflightClaudeBridgeLocalPdfCapability();
-      }
-    },
+    preflightLocalPdfCapability: async () => undefined,
     resolveEffectiveRequestConfig,
     getConversationSystem: () => getEffectiveConversationSystem(),
     accumulateSessionTokens,

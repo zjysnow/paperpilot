@@ -62,18 +62,20 @@ import {
 } from "./workflowTestHooks";
 import { dispatchZoteroItemsAsContext } from "./zoteroItemContextMenu";
 import { appendMessage } from "../../utils/chatStore";
-import { appendClaudeMessage } from "../../claudeCode/store";
-import { appendCodexMessage } from "../../codexAppServer/store";
+import {
+  appendClaudeMessage,
+  appendCodexMessage,
+} from "../../utils/removedBackends";
 import {
   activeClaudeConversationModeByLibrary,
   activeClaudeGlobalConversationByLibrary,
   activeClaudePaperConversationByPaper,
-} from "../../claudeCode/state";
+} from "../../utils/removedBackends";
 import {
   activeCodexConversationModeByLibrary,
   activeCodexGlobalConversationByLibrary,
   activeCodexPaperConversationByPaper,
-} from "../../codexAppServer/state";
+} from "../../utils/removedBackends";
 
 import {
   ensureMarkedReaderSelectionTrackingListener,

@@ -63,7 +63,7 @@ import {
   collectAndDeleteUnreferencedBlobs,
 } from "../../utils/attachmentRefStore";
 import { loadAllConversationHistory } from "./historyLoader";
-import { releaseClaudeRuntimeForBody } from "../../claudeCode/runtimeRetention";
+import { releaseClaudeRuntimeForBody } from "../../utils/removedBackends";
 import {
   formatGlobalHistoryTimestamp,
   GLOBAL_HISTORY_UNDO_WINDOW_MS,

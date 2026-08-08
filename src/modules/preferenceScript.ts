@@ -776,20 +776,11 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       apiKeyOption.value = "api_key";
       apiKeyOption.textContent = t("API Key");
       apiKeyOption.selected = group.authMode === "api_key";
-      const codexAppServerOption = el(doc, "option") as HTMLOptionElement;
-      codexAppServerOption.value = "codex_app_server";
-      codexAppServerOption.textContent = t(
-        "Codex App Server (native runtime settings)",
-      );
-      codexAppServerOption.selected = group.authMode === "codex_app_server";
       const copilotOption = el(doc, "option") as HTMLOptionElement;
       copilotOption.value = "copilot_auth";
       copilotOption.textContent = t("GitHub Copilot");
       copilotOption.selected = group.authMode === "copilot_auth";
       authModeSelect.append(apiKeyOption);
-      if (group.authMode === "codex_app_server") {
-        authModeSelect.append(codexAppServerOption);
-      }
       authModeSelect.append(copilotOption);
       authModeSelect.addEventListener("change", () => {
         const previousAuthMode = group.authMode;

@@ -19,16 +19,6 @@ import type {
   AgentRuntimeRequest,
   AgentToolDefinition,
 } from "./types";
-import {
-  getConversationSystemPref,
-  isClaudeCodeModeEnabled,
-} from "../claudeCode/prefs";
-import { getClaudeCommandCatalog } from "../claudeCode/commandCatalog";
-import {
-  getClaudeBridgeRuntime,
-  resetClaudeBridgeRuntime,
-} from "../claudeCode/runtime";
-import { clearCodexZoteroMcpPreflightCache } from "../codexAppServer/mcpSetup";
 import { setUserSkills } from "./skills";
 import { initUserSkills, loadUserSkills } from "./skills/userSkills";
 
@@ -130,11 +120,9 @@ export async function initAgentSubsystem(): Promise<AgentRuntime> {
 export function shutdownAgentSubsystem(): void {
   agentLifecycleGeneration += 1;
   unregisterMcpServer();
-  clearCodexZoteroMcpPreflightCache();
   runtimeInitTask = null;
   _actionRegistry = null;
   _toolRegistry = null;
-  resetClaudeBridgeRuntime();
   runtime = null;
   _zoteroGateway = null;
 }
@@ -147,14 +135,7 @@ export function getCoreAgentRuntime(): AgentRuntime {
 }
 
 export function getAgentRuntime(): AgentRuntime {
-  const coreRuntime = getCoreAgentRuntime();
-  if (
-    getConversationSystemPref() === "claude_code" &&
-    isClaudeCodeModeEnabled()
-  ) {
-    return getClaudeBridgeRuntime(coreRuntime) as unknown as AgentRuntime;
-  }
-  return coreRuntime;
+  return getCoreAgentRuntime();
 }
 
 /**
@@ -196,7 +177,7 @@ export function getAgentApi() {
       requestId: string,
       resolve: (resolution: AgentConfirmationResolution) => void,
     ) => getAgentRuntime().registerPendingConfirmation(requestId, resolve),
-    listSlashCommands: () => getClaudeCommandCatalog(getCoreAgentRuntime()),
+    listSlashCommands: () => [],
 
     // ── Extension API ──────────────────────────────────────────────────────
     /**

@@ -44,7 +44,6 @@ import {
 } from "../../../shared/exhaustiveDocumentReader";
 import { resolveFullReadPaperTargets } from "../../../shared/fullReadTargetResolver";
 import { detectExplicitFullReadIntent } from "../../../modules/contextPanel/retrievalQueryPlan";
-import { createCodexAppServerExhaustiveReaderSession } from "../../../codexAppServer/exhaustiveReader";
 
 type PaperReadMode =
   "overview" | "targeted" | "full" | "figures" | "visual" | "capture";
@@ -1158,16 +1157,6 @@ export function createPaperReadTool(
             "Exhaustive paper reading cannot run because a tool-free full-read backend is unavailable for this MCP scope. Use mode:'targeted', or start the request from a provider-backed chat that supports exhaustive reading.",
           );
         }
-        const nativeFullReadModel = `${context.request.model || ""}`.trim();
-        if (
-          !fullReadAnalyzer &&
-          context.request.authMode === "codex_app_server" &&
-          (!nativeFullReadModel || nativeFullReadModel === "codex-app-server")
-        ) {
-          throw new Error(
-            "Exhaustive paper reading cannot run because the Codex tool-free full-read backend has no selected model.",
-          );
-        }
         const paperInputs = [];
         for (const paperContext of targets) {
           paperInputs.push({
@@ -1179,41 +1168,24 @@ export function createPaperReadTool(
           2048,
           Math.floor(Number(context.request.advanced?.inputTokenCap || 12000)),
         );
-        const nativeReaderSession =
-          !fullReadAnalyzer && context.request.authMode === "codex_app_server"
-            ? createCodexAppServerExhaustiveReaderSession({
-                model: nativeFullReadModel,
-                reasoning: context.request.reasoning,
-              })
-            : null;
         const result = await (async () => {
-          try {
-            return await readDocumentsExhaustively({
-              papers: paperInputs,
-              question:
-                input.query ||
-                context.request.userText ||
-                "Read the full text.",
-              batchTokenBudget: Math.max(1024, Math.floor(inputTokenCap * 0.5)),
-              finalTokenBudget: Math.max(
-                1024,
-                Math.floor(inputTokenCap * 0.45),
-              ),
-              analyzeBatch:
-                fullReadAnalyzer || nativeReaderSession?.analyzeBatch,
-              signal: context.signal,
-              llm: {
-                model: context.request.model,
-                apiBase: context.request.apiBase,
-                apiKey: context.request.apiKey,
-                authMode: context.request.authMode,
-                providerProtocol: context.request.providerProtocol,
-                reasoning: context.request.reasoning,
-              },
-            });
-          } finally {
-            nativeReaderSession?.dispose();
-          }
+          return await readDocumentsExhaustively({
+            papers: paperInputs,
+            question:
+              input.query || context.request.userText || "Read the full text.",
+            batchTokenBudget: Math.max(1024, Math.floor(inputTokenCap * 0.5)),
+            finalTokenBudget: Math.max(1024, Math.floor(inputTokenCap * 0.45)),
+            analyzeBatch: fullReadAnalyzer,
+            signal: context.signal,
+            llm: {
+              model: context.request.model,
+              apiBase: context.request.apiBase,
+              apiKey: context.request.apiKey,
+              authMode: context.request.authMode,
+              providerProtocol: context.request.providerProtocol,
+              reasoning: context.request.reasoning,
+            },
+          });
         })();
         const output: PaperReadFullResult = {
           mode: "full",
