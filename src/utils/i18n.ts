@@ -51,7 +51,6 @@ const zhCN: Record<string, string> = {
   "Delete this prompt and response": "删除此提问和回答",
   "Fork this turn": "从此轮分叉",
   "Start a new chat from this turn": "从此轮开始新的对话",
-  "Copy chat as md": "复制对话为 Markdown",
   "Save chat as note": "保存对话为笔记",
   "Upload files": "上传文件",
   "Add documents or images": "添加文档或图片",
@@ -136,7 +135,6 @@ const zhCN: Record<string, string> = {
   "Forked from conversation": "从对话分叉",
   "Open original conversation": "打开原始对话",
   "No chat history detected.": "未检测到对话历史。",
-  "Copied chat as md": "已复制对话为 Markdown",
   "Saved chat history to new note": "已将对话历史保存为新笔记",
   "Saved chat history to new note with warnings":
     "已将对话历史保存为新笔记，但有警告",

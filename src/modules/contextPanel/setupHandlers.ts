@@ -555,9 +555,6 @@ export function setupHandlers(
     promptMenu,
     promptMenuForkBtn,
     promptMenuDeleteBtn,
-    exportMenu,
-    exportMenuCopyBtn,
-    exportMenuNoteBtn,
     retryModelMenu,
     status,
     chatBox,
@@ -1508,9 +1505,7 @@ export function setupHandlers(
     if (promptMenu) promptMenu.style.display = "none";
     setPromptMenuTarget(null);
   };
-  const closeExportMenu = () => {
-    if (exportMenu) exportMenu.style.display = "none";
-  };
+  const closeExportMenu = () => {};
   let resetHistorySearchState = () => {};
   const closeHistoryRowMenu = () => {
     if (historyRowMenu) historyRowMenu.style.display = "none";
@@ -1594,9 +1589,6 @@ export function setupHandlers(
     promptMenu,
     promptMenuForkBtn,
     promptMenuDeleteBtn,
-    exportMenu,
-    exportMenuCopyBtn,
-    exportMenuNoteBtn,
     exportBtn,
     popoutBtn,
     settingsBtn,

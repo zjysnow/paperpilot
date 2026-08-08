@@ -79,9 +79,6 @@ export type PanelDomRefs = {
   promptMenu: HTMLDivElement | null;
   promptMenuForkBtn: HTMLButtonElement | null;
   promptMenuDeleteBtn: HTMLButtonElement | null;
-  exportMenu: HTMLDivElement | null;
-  exportMenuCopyBtn: HTMLButtonElement | null;
-  exportMenuNoteBtn: HTMLButtonElement | null;
   retryModelMenu: HTMLDivElement | null;
   status: HTMLElement | null;
   tokenUsageEl: HTMLElement | null;
@@ -328,15 +325,6 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     ) as HTMLButtonElement | null,
     promptMenuDeleteBtn: body.querySelector(
       "#paperpilotprompt-menu-delete",
-    ) as HTMLButtonElement | null,
-    exportMenu: body.querySelector(
-      "#paperpilotexport-menu",
-    ) as HTMLDivElement | null,
-    exportMenuCopyBtn: body.querySelector(
-      "#paperpilotexport-copy",
-    ) as HTMLButtonElement | null,
-    exportMenuNoteBtn: body.querySelector(
-      "#paperpilotexport-note",
     ) as HTMLButtonElement | null,
     retryModelMenu: body.querySelector(
       "#paperpilotretry-model-menu",

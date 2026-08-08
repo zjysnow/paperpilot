@@ -519,34 +519,6 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   promptMenu.append(promptMenuForkBtn, promptMenuDeleteBtn);
   container.appendChild(promptMenu);
 
-  // Export menu
-  const exportMenu = createElement(doc, "div", "paperpilotresponse-menu", {
-    id: "paperpilotexport-menu",
-  });
-  exportMenu.style.display = "none";
-  const exportMenuCopyBtn = createElement(
-    doc,
-    "button",
-    "paperpilotresponse-menu-item",
-    {
-      id: "paperpilotexport-copy",
-      type: "button",
-      textContent: t("Copy chat as md"),
-    },
-  );
-  const exportMenuNoteBtn = createElement(
-    doc,
-    "button",
-    "paperpilotresponse-menu-item",
-    {
-      id: "paperpilotexport-note",
-      type: "button",
-      textContent: t("Save chat as note"),
-    },
-  );
-  exportMenu.append(exportMenuCopyBtn, exportMenuNoteBtn);
-  container.appendChild(exportMenu);
-
   const slashMenu = createElement(
     doc,
     "div",

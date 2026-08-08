@@ -2,7 +2,6 @@ import { t } from "../../../../utils/i18n";
 import {
   copyGeneratedImageToClipboard,
   copyRenderedMarkdownToClipboard,
-  copyTextToClipboard,
   resolveAssistantResponseMenuContent,
 } from "../../chat";
 import { getMessageCitationPaperContexts } from "../../citationContexts";
@@ -14,7 +13,6 @@ import {
 } from "../../notes";
 import { isGlobalPortalItem } from "../../portalScope";
 
-import { positionMenuBelowButton } from "../../menuPositioning";
 import { renderMermaidSourceToSvg } from "../../renderedMarkdown";
 import { getMessageQuoteDisplay } from "../../quoteRenderPlan";
 import { setStatus } from "../../textUtils";
@@ -68,9 +66,6 @@ type MenuActionControllerDeps = {
   promptMenu: HTMLDivElement | null;
   promptMenuForkBtn: HTMLButtonElement | null;
   promptMenuDeleteBtn: HTMLButtonElement | null;
-  exportMenu: HTMLDivElement | null;
-  exportMenuCopyBtn: HTMLButtonElement | null;
-  exportMenuNoteBtn: HTMLButtonElement | null;
   exportBtn: HTMLButtonElement | null;
   popoutBtn: HTMLButtonElement | null;
   settingsBtn: HTMLButtonElement | null;
@@ -579,93 +574,52 @@ export function attachMenuActionController(
     });
   }
 
-  if (
-    deps.exportMenu &&
-    deps.exportMenuCopyBtn &&
-    deps.exportMenuNoteBtn &&
-    !deps.exportMenu.dataset.listenerAttached
-  ) {
-    deps.exportMenu.dataset.listenerAttached = "true";
-    stopFloatingMenuPropagation(deps.exportMenu);
-    deps.exportMenuCopyBtn.addEventListener("click", async (e: Event) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const item = deps.getItem();
-      if (!item) return;
-      await deps.ensureConversationLoaded(item);
-      const conversationKey = deps.getConversationKey(item);
-      const payload = buildChatHistoryNotePayload(
-        deps.getHistory(conversationKey),
-      );
-      if (!payload.noteText) {
+  const saveChatHistoryAsNote = async () => {
+    const currentItem = deps.getItem();
+    const currentLibraryID = deps.getCurrentLibraryID();
+    deps.closeExportMenu();
+    if (!currentItem) return;
+    try {
+      await deps.ensureConversationLoaded(currentItem);
+      const conversationKey = deps.getConversationKey(currentItem);
+      const history = deps.getHistory(conversationKey);
+      if (!buildChatHistoryNotePayload(history).noteText) {
         setStatusMessage(t("No chat history detected."), "ready");
-        deps.closeExportMenu();
         return;
       }
-      await copyTextToClipboard(deps.body, payload.noteText);
-      setStatusMessage(t("Copied chat as md"), "ready");
-      deps.closeExportMenu();
-    });
-    deps.exportMenuNoteBtn.addEventListener("click", async (e: Event) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const currentItem = deps.getItem();
-      const currentLibraryID = deps.getCurrentLibraryID();
-      deps.closeExportMenu();
-      if (!currentItem) return;
-      try {
-        await deps.ensureConversationLoaded(currentItem);
-        const conversationKey = deps.getConversationKey(currentItem);
-        const history = deps.getHistory(conversationKey);
-        const payload = buildChatHistoryNotePayload(history);
-        if (!payload.noteText) {
-          setStatusMessage(t("No chat history detected."), "ready");
-          return;
-        }
-        const result = deps.isGlobalMode()
-          ? await createStandaloneNoteFromChatHistory(
-              currentLibraryID,
-              history,
-              {
-                figureRender: buildNoteFigureRenderOptions(deps),
-              },
-            )
-          : await createNoteFromChatHistory(currentItem, history, {
-              figureRender: buildNoteFigureRenderOptions(deps),
-            });
-        setStatusMessage(
-          t(
-            result.warnings?.length
-              ? "Saved chat history to new note with warnings"
-              : "Saved chat history to new note",
-          ),
-          result.warnings?.length ? "warning" : "ready",
-        );
-      } catch (err) {
-        deps.logError("Save chat history note failed:", err);
-        setStatusMessage(t("Failed to save chat history"), "error");
-      }
-    });
-  }
+      const result = deps.isGlobalMode()
+        ? await createStandaloneNoteFromChatHistory(currentLibraryID, history, {
+            figureRender: buildNoteFigureRenderOptions(deps),
+          })
+        : await createNoteFromChatHistory(currentItem, history, {
+            figureRender: buildNoteFigureRenderOptions(deps),
+          });
+      setStatusMessage(
+        t(
+          result.warnings?.length
+            ? "Saved chat history to new note with warnings"
+            : "Saved chat history to new note",
+        ),
+        result.warnings?.length ? "warning" : "ready",
+      );
+    } catch (err) {
+      deps.logError("Save chat history note failed:", err);
+      setStatusMessage(t("Failed to save chat history"), "error");
+    }
+  };
 
   deps.exportBtn?.addEventListener("click", (e: Event) => {
     e.preventDefault();
     e.stopPropagation();
-    const item = deps.getItem();
     const exportBtn = deps.exportBtn;
-    const exportMenu = deps.exportMenu;
-    if (!exportBtn || exportBtn.disabled || !exportMenu || !item) return;
+    if (!exportBtn || exportBtn.disabled || !deps.getItem()) return;
     deps.closeRetryModelMenu();
     deps.closeSlashMenu();
     deps.closeResponseMenu();
     deps.closePromptMenu();
     deps.closeHistoryNewMenu();
     deps.closeHistoryMenu();
-    if (exportMenu.style.display !== "none") {
-      deps.closeExportMenu();
-      return;
-    }
-    positionMenuBelowButton(deps.body, exportMenu, exportBtn);
+    void saveChatHistoryAsNote();
   });
 
   deps.popoutBtn?.addEventListener("click", (e: Event) => {

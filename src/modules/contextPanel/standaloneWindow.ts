@@ -922,29 +922,6 @@ export function openStandaloneChat(options?: {
         iconClear,
       );
 
-      // Export popup — floating menu from sidebar export icon
-      const exportPopup = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-      exportPopup.className = "paperpilotstandalone-export-popup";
-      exportPopup.style.display = "none";
-
-      const exportPopupCopyBtn = doc.createElementNS(
-        HTML_NS,
-        "button",
-      ) as HTMLButtonElement;
-      exportPopupCopyBtn.className = "paperpilotstandalone-popup-item";
-      exportPopupCopyBtn.type = "button";
-      exportPopupCopyBtn.textContent = t("Copy chat as md");
-
-      const exportPopupNoteBtn = doc.createElementNS(
-        HTML_NS,
-        "button",
-      ) as HTMLButtonElement;
-      exportPopupNoteBtn.className = "paperpilotstandalone-popup-item";
-      exportPopupNoteBtn.type = "button";
-      exportPopupNoteBtn.textContent = t("Save chat as note");
-
-      exportPopup.append(exportPopupCopyBtn, exportPopupNoteBtn);
-
       // Panel — the expandable conversation list
       const sidebarPanel = doc.createElementNS(
         HTML_NS,
@@ -1165,7 +1142,7 @@ export function openStandaloneChat(options?: {
 
       skillCtxMenu.append(skillCtxShowInFs, skillCtxRestore, skillCtxDelete);
 
-      root.append(lowerArea, exportPopup, skillOverlay, skillCtxMenu);
+      root.append(lowerArea, skillOverlay, skillCtxMenu);
       cleanupStandaloneVerticalResize = installStandaloneVerticalResizeBehavior(
         newWin,
         contentArea,
@@ -2110,16 +2087,6 @@ export function openStandaloneChat(options?: {
         }
       });
 
-      // Click-outside dismissal for export popup
-      doc.addEventListener("mousedown", (e: Event) => {
-        const target = e.target as HTMLElement;
-        if (exportPopup.style.display !== "none") {
-          if (!exportPopup.contains(target) && !iconExport.contains(target)) {
-            exportPopup.style.display = "none";
-          }
-        }
-      });
-
       const hideStandaloneHistoryUndoToast = () => {
         standaloneHistoryUndo.style.display = "none";
         standaloneHistoryUndoText.textContent = "";
@@ -2839,29 +2806,8 @@ export function openStandaloneChat(options?: {
       });
       iconExport.addEventListener("click", (e: Event) => {
         e.stopPropagation();
-        if (exportPopup.style.display !== "none") {
-          exportPopup.style.display = "none";
-          return;
-        }
-        // Position popup to the right of the icon strip, near the export icon
-        const stripRect = iconStrip.getBoundingClientRect();
-        const iconRect = iconExport.getBoundingClientRect();
-        exportPopup.style.position = "fixed";
-        exportPopup.style.left = `${Math.round(stripRect.right + 4)}px`;
-        exportPopup.style.top = `${Math.round(iconRect.top)}px`;
-        exportPopup.style.display = "flex";
-      });
-      exportPopupCopyBtn.addEventListener("click", () => {
-        exportPopup.style.display = "none";
         const innerBtn = contentArea.querySelector(
-          "#paperpilotexport-copy",
-        ) as HTMLElement | null;
-        if (innerBtn) innerBtn.click();
-      });
-      exportPopupNoteBtn.addEventListener("click", () => {
-        exportPopup.style.display = "none";
-        const innerBtn = contentArea.querySelector(
-          "#paperpilotexport-note",
+          "#paperpilotexport",
         ) as HTMLElement | null;
         if (innerBtn) innerBtn.click();
       });
