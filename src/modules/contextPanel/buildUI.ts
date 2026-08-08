@@ -126,7 +126,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   // });
   const title = createElement(doc, "div", "paperpilottitle", {
     id: "paperpilottitle-static",
-    textContent: t("LLM-for-Zotero"),
+    textContent: t("Paper Pilot"),
   });
   if (hasItem) {
     title.style.display = "none";

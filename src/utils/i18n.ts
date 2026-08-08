@@ -1,5 +1,5 @@
 /**
- * Centralized i18n module for LLM-for-Zotero.
+ * Centralized i18n module for Paper Pilot.
  *
  * Design: English is the source of truth. All UI strings stay hardcoded in
  * English throughout the codebase. The `t()` function wraps them — when the
@@ -20,7 +20,7 @@ const zhCN: Record<string, string> = {
   Limitations: "局限性",
 
   // ── Chat panel UI ───────────────────────────────────────────────────────
-  "LLM-for-Zotero": "LLM-for-Zotero",
+  "Paper Pilot": "Paper Pilot",
   "Start a new chat": "开始新对话",
   "Conversation history": "对话历史",
   "Item note": "条目笔记",
@@ -37,8 +37,8 @@ const zhCN: Record<string, string> = {
   "Clear all": "全部清除",
   "Context cleared": "上下文已清除",
   "No context to clear": "没有可清除的上下文",
-  "Add Items as Context to LLM-for-Zotero":
-    "将条目作为上下文添加到 LLM-for-Zotero",
+  "Add Items as Context to Paper Pilot":
+    "将条目作为上下文添加到 Paper Pilot",
   "No supported default attachment found": "未找到支持的默认附件",
   Rename: "重命名",
   "Rename chat": "重命名对话",
@@ -860,7 +860,7 @@ export function getWebChatWelcomeHtml(
   if (getEffectiveLocale().startsWith("zh")) {
     return `
       <div class="paperpilotstart-page paperpilotwebchat-start-page">
-        <div class="paperpilotstart-page-title">LLM-for-Zotero WebChat</div>
+        <div class="paperpilotstart-page-title">Paper Pilot WebChat</div>
         <div class="paperpilotstart-page-subtitle">通过已打开的 ${label} 浏览器标签页工作</div>
         <div class="paperpilotstart-page-recommendations">
           <div class="paperpilotstart-page-rec-title">工作方式</div>
@@ -885,7 +885,7 @@ export function getWebChatWelcomeHtml(
   }
   return `
     <div class="paperpilotstart-page paperpilotwebchat-start-page">
-      <div class="paperpilotstart-page-title">LLM-for-Zotero WebChat</div>
+      <div class="paperpilotstart-page-title">Paper Pilot WebChat</div>
       <div class="paperpilotstart-page-subtitle">Use your open ${label} browser tab</div>
       <div class="paperpilotstart-page-recommendations">
         <div class="paperpilotstart-page-rec-title">How it works</div>
@@ -946,7 +946,7 @@ export function getPaperChatStartPageHtml(): string {
   if (getEffectiveLocale().startsWith("zh")) {
     return `
       <div class="paperpilotstart-page">
-        <div class="paperpilotstart-page-title">LLM-for-Zotero</div>
+        <div class="paperpilotstart-page-title">Paper Pilot</div>
         <div class="paperpilotstart-page-subtitle">从这里开始，读懂这篇论文的一切</div>
         <div class="paperpilotstart-page-desc">
           <p>论文对话回答关于当前活跃论文的问题。论文将在你提问前预加载到上下文中。</p>
@@ -958,7 +958,7 @@ export function getPaperChatStartPageHtml(): string {
   }
   return `
     <div class="paperpilotstart-page">
-      <div class="paperpilotstart-page-title">LLM-for-Zotero</div>
+      <div class="paperpilotstart-page-title">Paper Pilot</div>
       <div class="paperpilotstart-page-subtitle">Understand everything of this paper, from here</div>
       <div class="paperpilotstart-page-desc">
         <p>Paper chat answers questions about your current active paper. The paper will be pre-loaded into context before your first question.</p>
@@ -973,7 +973,7 @@ export function getNoteEditingStartPageHtml(): string {
   if (getEffectiveLocale().startsWith("zh")) {
     return `
       <div class="paperpilotstart-page">
-        <div class="paperpilotstart-page-title">LLM-for-Zotero</div>
+        <div class="paperpilotstart-page-title">Paper Pilot</div>
         <div class="paperpilotstart-page-subtitle">一起写笔记，让想法进化</div>
         <div class="paperpilotstart-page-desc">
           <p>选中一段文字，我可以帮你<strong>重写润色</strong>。</p>
@@ -985,7 +985,7 @@ export function getNoteEditingStartPageHtml(): string {
   }
   return `
     <div class="paperpilotstart-page">
-      <div class="paperpilotstart-page-title">LLM-for-Zotero</div>
+      <div class="paperpilotstart-page-title">Paper Pilot</div>
       <div class="paperpilotstart-page-subtitle">Write with me, evolve your ideas</div>
       <div class="paperpilotstart-page-desc">
         <p>Select a text snippet, and I can <strong>rewrite</strong> it for you.</p>
@@ -1000,7 +1000,7 @@ export function getStandaloneLibraryChatStartPageHtml(): string {
   if (getEffectiveLocale().startsWith("zh")) {
     return `
       <div class="paperpilotstandalone-start-page">
-        <div class="paperpilotstart-page-title">LLM-for-Zotero Agent</div>
+        <div class="paperpilotstart-page-title">Paper Pilot Agent</div>
         <div class="paperpilotstart-page-subtitle">为你和你的文献库服务</div>
         <div class="paperpilotstart-page-recommendations">
           <div class="paperpilotstart-page-rec-title">推荐设置以获得最佳体验</div>
@@ -1016,7 +1016,7 @@ export function getStandaloneLibraryChatStartPageHtml(): string {
   }
   return `
     <div class="paperpilotstandalone-start-page">
-      <div class="paperpilotstart-page-title">LLM-for-Zotero Agent</div>
+      <div class="paperpilotstart-page-title">Paper Pilot Agent</div>
       <div class="paperpilotstart-page-subtitle">serve you and your library</div>
       <div class="paperpilotstart-page-recommendations">
         <div class="paperpilotstart-page-rec-title">Recommended settings for the best experience</div>

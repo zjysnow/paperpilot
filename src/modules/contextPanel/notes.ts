@@ -459,11 +459,11 @@ function injectCitationLinksIntoNoteHtml(
  * — and so the skill's footer instruction in `src/agent/skills/write-note.md`
  * stays textually identical to the UI-appended one.
  */
-const NOTE_FOOTER_TEXT = "Written by LLM-for-Zotero.";
+const NOTE_FOOTER_TEXT = "Written by Paper Pilot.";
 const NOTE_FOOTER_HTML = `<hr/><p>${NOTE_FOOTER_TEXT}</p>`;
 
 /**
- * Strips an already-present `Written by LLM-for-Zotero[ plugin][.]` footer
+ * Strips an already-present `Written by Paper Pilot[ plugin][.]` footer
  * from the end of markdown text produced by the LLM. When the agent follows
  * the `write-note` skill, its output already ends with the canonical
  * footer — we must remove it before the UI adds its own, otherwise the
@@ -476,7 +476,7 @@ const NOTE_FOOTER_HTML = `<hr/><p>${NOTE_FOOTER_TEXT}</p>`;
 function stripTrailingPluginFooter(text: string): string {
   if (!text) return text;
   return text.replace(
-    /\s*(?:\n+-{3,}\s*)?\n+\s*Written by LLM-for-Zotero(?:\s+plugin)?\.?\s*$/i,
+    /\s*(?:\n+-{3,}\s*)?\n+\s*Written by Paper Pilot(?:\s+plugin)?\.?\s*$/i,
     "",
   );
 }
@@ -801,7 +801,7 @@ export function buildChatHistoryNotePayload(
   ) {
     const msg = messages[messageIndex]!;
     // Strip any skill-added footer from assistant messages so chat-history
-    // exports don't end up with "Written by LLM-for-Zotero." repeated for
+    // exports don't end up with "Written by Paper Pilot." repeated for
     // every saved-as-note assistant turn plus the UI wrapper's own footer.
     const quoteDisplay =
       msg.role === "assistant" ? getMessageQuoteDisplay(msg) : null;
