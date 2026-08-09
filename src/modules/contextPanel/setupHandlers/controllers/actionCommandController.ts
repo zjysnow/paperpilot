@@ -1,4 +1,5 @@
 import type { AgentSkill } from "../../../../agent/skills/skillLoader";
+import { getAllSkills } from "../../../../agent/skills";
 import { getAgentApi, initAgentSubsystem } from "../../../../agent";
 import type { ActionRequestContext } from "../../../../agent/actions";
 import { createElement } from "../../../../utils/domHelpers";
@@ -1570,8 +1571,20 @@ export function createActionCommandController(
     buildActionRequestContext,
   };
 
-  const renderSkillsInSlashMenu = (query = ""): void =>
+  const renderSkillsInSlashMenu = (query = ""): void => {
     renderSkillsSlashSection(slashMenuContext, query);
+    if (getAllSkills().length > 0) return;
+
+    // The first slash-menu render can race agent subsystem initialization.
+    // Refresh once initialization has populated the shared skill set.
+    void initAgentSubsystem()
+      .then(() => {
+        if (getAllSkills().length > 0) {
+          renderSkillsSlashSection(slashMenuContext, query);
+        }
+      })
+      .catch(() => {});
+  };
 
   const renderAgentActionsInSlashMenu = (query = ""): void =>
     renderAgentActionsSlashSection(slashMenuContext, query);
