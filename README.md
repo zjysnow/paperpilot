@@ -64,15 +64,103 @@ tool-calling support can still be used for ordinary chat.
 ## Skills
 
 Skills are Markdown instructions that describe reusable research workflows.
-Paper Pilot includes built-in Skills and supports user-defined Skills at:
+Paper Pilot includes built-in Skills and supports user-defined Skills. User Skills
+are stored at:
 
 ```text
-{Zotero data directory}/paperpilot/skills/<skill-id>/SKILL.md
+{Zotero data directory}/agent-runtime/<profile-signature>/.agents/skills/<skill-id>/SKILL.md
 ```
 
 In the standalone window, use the **Skills** button to list, create, open,
 restore, or delete Skills. Skills are used by Agent Mode, not by ordinary
 text-only chat.
+
+### Using Skills
+
+Skills can be activated automatically when the request matches their trigger
+patterns, or explicitly from the chat slash menu:
+
+1. Type `/` in the Agent compose box.
+2. Select a Skill, such as `write-note` or `analyze-figures`.
+3. Enter the task and send it.
+
+The explicit command uses the Skill ID and a hyphen, for example:
+
+```text
+/write-note
+
+Summarize this paper and save the result as a Markdown file to Obsidian.
+```
+
+Other examples:
+
+```text
+/analyze-figures
+
+Explain Figure 3 and describe the implementation implications.
+```
+
+```text
+/evidence-based-qa
+
+Find the paper's dataset, batch size, learning rate, and supporting passages.
+```
+
+`/write-note` selects the note-writing workflow; it does not by itself choose
+the destination. Mention `Obsidian`, `Markdown`, a local file, or a directory
+to request an external file. Otherwise, the workflow may write a Zotero note.
+For example:
+
+```text
+/write-note Create a reading note for this paper and save it to Obsidian.
+```
+
+The built-in Skill IDs are:
+
+| Skill | Typical use |
+| --- | --- |
+| `simple-paper-qa` | General questions and summaries about one paper |
+| `evidence-based-qa` | Locate methods, parameters, results, and source passages |
+| `analyze-figures` | Explain figures, tables, charts, and diagrams |
+| `compare-papers` | Compare selected papers or their methods and findings |
+| `literature-review` | Produce a structured review or thematic synthesis |
+| `library-analysis` | Analyze a library or collection |
+| `write-note` | Create a Zotero note or Markdown file note |
+| `import-to-library` | Import cited papers or references into Zotero |
+
+Skills provide workflow instructions; registered Agent tools perform the actual
+operations. For example, `write-note` uses `paper_read` and `library_read` to
+collect evidence, then uses `note_write` for a Zotero note or `file_io` for a
+Markdown file.
+
+### Creating a Custom Skill
+
+Create a `SKILL.md` file under the user Skills directory. Its frontmatter
+defines the identifier, activation behavior, context, and matching patterns:
+
+```markdown
+---
+id: prepare-reproduction
+description: Prepare structured context for reproducing a paper
+version: 1
+contexts: single-paper
+activation: manual
+match: /\b(reproduce|replicate|reproduction)\b/i
+---
+
+## Workflow
+
+1. Extract the method, data, hyperparameters, and evaluation protocol.
+2. Separate confirmed evidence from inferred assumptions.
+3. List missing data and unresolved implementation choices.
+4. Generate a reproduction specification before writing full code.
+```
+
+Supported `contexts` include `any`, `single-paper`, `paper-set`,
+`library-corpus`, and `note`. `activation` can be `auto`, `manual`, or `both`.
+The Skill body is injected into the current Agent turn when the Skill is
+activated. User edits are preserved across plugin updates unless the Skill is
+restored to its default.
 
 ## Installation
 
