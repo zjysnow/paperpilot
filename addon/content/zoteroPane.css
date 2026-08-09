@@ -861,6 +861,17 @@
   pointer-events: none;
 }
 
+.paperpilotnotes-graph-btn::before {
+  content: "";
+  display: block;
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: url("icons/obsidian-icon.svg") center / contain no-repeat;
+  -webkit-mask: url("icons/obsidian-icon.svg") center / contain no-repeat;
+  pointer-events: none;
+}
+
 .paperpilotexport-btn::before {
   content: "";
   display: block;
@@ -1064,6 +1075,11 @@
 .paperpilotstandalone-icon-workspace::before {
   mask-image: url("icons/vscode.svg");
   -webkit-mask-image: url("icons/vscode.svg");
+}
+
+.paperpilotstandalone-icon-notes-graph::before {
+  mask-image: url("icons/obsidian-icon.svg");
+  -webkit-mask-image: url("icons/obsidian-icon.svg");
 }
 
 /* Skill icon — pen/edit */

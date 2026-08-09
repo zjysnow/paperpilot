@@ -130,6 +130,8 @@ import {
   setNotesDirectoryAttachmentsFolder,
   getNotesDirectoryNickname,
   setNotesDirectoryNickname,
+  getObsidianExecutablePath,
+  setObsidianExecutablePath,
 } from "../utils/notesDirectoryConfig";
 import {
   getWorkspaceDirectory,
@@ -2223,6 +2225,15 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       notesDirPathInput.value = getNotesDirectoryPath();
       notesDirPathInput.addEventListener("input", () => {
         setNotesDirectoryPath(notesDirPathInput.value);
+      });
+    }
+    const obsidianExecutablePathInput = doc.querySelector(
+      `#${config.addonRef}-obsidian-executable-path`,
+    ) as HTMLInputElement | null;
+    if (obsidianExecutablePathInput) {
+      obsidianExecutablePathInput.value = getObsidianExecutablePath();
+      obsidianExecutablePathInput.addEventListener("input", () => {
+        setObsidianExecutablePath(obsidianExecutablePathInput.value);
       });
     }
     if (notesDirFolderInput) {

@@ -103,6 +103,7 @@ import {
 } from "./textUtils";
 import { positionMenuAtPointer } from "./menuPositioning";
 import { openWorkspaceInVSCode } from "./openWorkspaceController";
+import { openNotesDirectoryGraph } from "../../utils/openNotesDirectoryGraph";
 import { resolveSelectedTextAnchors } from "./selectedTextAnchors";
 import {
   getAvailableModelEntries,
@@ -483,6 +484,7 @@ export function setupHandlers(
     popoutBtn,
     settingsBtn,
     workspaceBtn,
+    notesGraphBtn,
     exportBtn,
     clearBtn,
     titleStatic,
@@ -1212,6 +1214,15 @@ export function setupHandlers(
           ? t("Open workspace in VS Code")
           : t("Workspace opening is only available in paper chat");
       workspaceBtn.setAttribute("aria-label", workspaceBtn.title);
+    }
+    if (notesGraphBtn) {
+      notesGraphBtn.addEventListener("click", () => {
+        try {
+          openNotesDirectoryGraph();
+        } catch (err) {
+          ztoolkit.log("LLM: failed to open Obsidian note graph", err);
+        }
+      });
     }
     if (modeChipBtn) {
       const currentLabel = noteSession

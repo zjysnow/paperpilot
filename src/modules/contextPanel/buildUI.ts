@@ -273,6 +273,17 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     },
   );
   exportBtn.setAttribute("aria-label", t("Export"));
+  const notesGraphBtn = createElement(
+    doc,
+    "button",
+    "paperpilotbtn-icon paperpilotnotes-graph-btn",
+    {
+      id: "paperpilotnotes-graph",
+      type: "button",
+      title: t("Open note graph in Obsidian"),
+    },
+  );
+  notesGraphBtn.setAttribute("aria-label", t("Open note graph in Obsidian"));
   const clearBtn = createElement(
     doc,
     "button",
@@ -290,6 +301,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     popoutBtn,
     settingsBtn,
     workspaceBtn,
+    notesGraphBtn,
     exportBtn,
     clearBtn,
   );

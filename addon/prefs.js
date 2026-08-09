@@ -52,6 +52,7 @@ pref("claudeCodeBlockStreaming", false);
 pref("claudeCodeAutoCompact", false);
 pref("claudeCodeAutoCompactThreshold", 50);
 pref("obsidianVaultPath", "");
+pref("obsidianExecutablePath", "");
 pref("obsidianTargetFolder", "Zotero Notes");
 pref("obsidianAttachmentsFolder", "assets");
 pref("obsidianNoteTemplate", "");

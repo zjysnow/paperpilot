@@ -118,6 +118,7 @@ import {
 } from "./conversationDeletionActivation";
 import { setStatus } from "./textUtils";
 import { openWorkspaceInVSCode } from "./openWorkspaceController";
+import { openNotesDirectoryGraph } from "../../utils/openNotesDirectoryGraph";
 import { setUserSkills } from "../../agent/skills";
 import {
   createSkillTemplate,
@@ -910,6 +911,18 @@ export function openStandaloneChat(options?: {
         "paperpilotstandalone-icon-btn paperpilotstandalone-icon-export";
       iconExport.type = "button";
       iconExport.title = t("Export");
+      const iconNotesGraph = doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      iconNotesGraph.className =
+        "paperpilotstandalone-icon-btn paperpilotstandalone-icon-notes-graph";
+      iconNotesGraph.type = "button";
+      iconNotesGraph.title = t("Open note graph in Obsidian");
+      iconNotesGraph.setAttribute(
+        "aria-label",
+        t("Open note graph in Obsidian"),
+      );
 
       const iconClear = doc.createElementNS(
         HTML_NS,
@@ -928,6 +941,7 @@ export function openStandaloneChat(options?: {
         iconStripSpacer,
         iconSettings,
         iconWorkspace,
+        iconNotesGraph,
         iconExport,
         iconClear,
       );
@@ -2754,6 +2768,13 @@ export function openStandaloneChat(options?: {
           "#paperpilotexport",
         ) as HTMLElement | null;
         if (innerBtn) innerBtn.click();
+      });
+      iconNotesGraph.addEventListener("click", () => {
+        try {
+          openNotesDirectoryGraph();
+        } catch (err) {
+          ztoolkit.log("LLM: standalone note graph failed", err);
+        }
       });
       iconClear.addEventListener("click", () => {
         const btn = contentArea.querySelector(

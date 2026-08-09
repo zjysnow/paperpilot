@@ -7,6 +7,7 @@ const NOTES_DIR_PATH_KEY = `${config.prefsPrefix}.obsidianVaultPath`;
 const NOTES_DIR_FOLDER_KEY = `${config.prefsPrefix}.obsidianTargetFolder`;
 const NOTES_DIR_ATTACHMENTS_KEY = `${config.prefsPrefix}.obsidianAttachmentsFolder`;
 const NOTES_DIR_NICKNAME_KEY = `${config.prefsPrefix}.notesDirectoryNickname`;
+const OBSIDIAN_EXECUTABLE_PATH_KEY = `${config.prefsPrefix}.obsidianExecutablePath`;
 
 type ZoteroPrefsLike = {
   get?: (key: string, global?: boolean) => unknown;
@@ -75,6 +76,14 @@ export function getNotesDirectoryNickname(): string {
 
 export function setNotesDirectoryNickname(value: string): void {
   setStringPref(NOTES_DIR_NICKNAME_KEY, value);
+}
+
+export function getObsidianExecutablePath(): string {
+  return getStringPref(OBSIDIAN_EXECUTABLE_PATH_KEY);
+}
+
+export function setObsidianExecutablePath(value: string): void {
+  setStringPref(OBSIDIAN_EXECUTABLE_PATH_KEY, value);
 }
 
 export function isNotesDirectoryConfigured(): boolean {
