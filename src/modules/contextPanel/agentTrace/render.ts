@@ -172,11 +172,11 @@ function appendAgentActivityDisclosure(params: {
   agentActivityExpandedCache.set(message, state);
 
   const details = doc.createElement("details") as HTMLDetailsElement;
-  details.className = "llm-agent-activity-details";
+  details.className = "paperpilotagent-activity-details";
   details.open = params.forceOpen === true || state.open;
 
   const summary = doc.createElement("summary") as HTMLElement;
-  summary.className = "llm-agent-activity-summary";
+  summary.className = "paperpilotagent-activity-summary";
   summary.textContent = working
     ? "Working…"
     : `Worked for ${formatAgentActivityDuration(
@@ -3785,24 +3785,28 @@ function renderAgentTraceChips(
 ): HTMLDivElement | null {
   if (!chips?.length) return null;
   const chipsEl = doc.createElement("div") as HTMLDivElement;
-  chipsEl.className = "llm-agent-process-chips";
+  chipsEl.className = "paperpilotagent-process-chips";
   for (const chip of chips) {
     const chipEl = doc.createElement("div") as HTMLDivElement;
-    chipEl.className = "llm-agent-process-chip";
+    chipEl.className = "paperpilotagent-process-chip";
     if (chip.title) {
       chipEl.title = chip.title;
     }
     const chipLabel = doc.createElement("span") as HTMLSpanElement;
-    chipLabel.className = "llm-agent-process-chip-label";
+    chipLabel.className = "paperpilotagent-process-chip-label";
     chipLabel.textContent = chip.label;
     const chipIcon = isContextIconName(chip.iconName)
-      ? createContextIcon(doc, chip.iconName, "llm-agent-process-chip-icon")
+      ? createContextIcon(
+          doc,
+          chip.iconName,
+          "paperpilotagent-process-chip-icon",
+        )
       : null;
     if (chipIcon) {
       chipEl.append(chipIcon, chipLabel);
     } else if (chip.icon) {
       const fallbackIcon = doc.createElement("span") as HTMLSpanElement;
-      fallbackIcon.className = "llm-agent-process-chip-icon";
+      fallbackIcon.className = "paperpilotagent-process-chip-icon";
       fallbackIcon.textContent = chip.icon;
       chipEl.append(fallbackIcon, chipLabel);
     } else {
@@ -3818,26 +3822,27 @@ function renderAgentTraceDetailsBody(
   details: AgentTraceDetail[],
 ): HTMLDivElement {
   const body = doc.createElement("div") as HTMLDivElement;
-  body.className = "llm-agent-process-details";
+  body.className = "paperpilotagent-process-details";
   for (const detail of details) {
     const item = doc.createElement("div") as HTMLDivElement;
-    item.className = "llm-agent-process-detail";
+    item.className = "paperpilotagent-process-detail";
 
     const label = doc.createElement("div") as HTMLDivElement;
-    label.className = "llm-agent-process-detail-label";
+    label.className = "paperpilotagent-process-detail-label";
     label.textContent = detail.label;
 
     if (detail.kind === "code" || detail.kind === "json") {
       const pre = doc.createElement("pre") as HTMLPreElement;
-      pre.className = `llm-agent-process-detail-value llm-agent-process-detail-value-${detail.kind}`;
+      pre.className =
+        `paperpilotagent-process-detail-value paperpilotagent-process-detail-value-${detail.kind}`;
       const code = doc.createElement("code") as HTMLElement;
       code.textContent = detail.value;
       pre.appendChild(code);
       item.append(label, pre);
     } else {
       const value = doc.createElement("div") as HTMLDivElement;
-      value.className = `llm-agent-process-detail-value${
-        detail.kind === "url" ? " llm-agent-process-detail-value-url" : ""
+      value.className = `paperpilotagent-process-detail-value${
+        detail.kind === "url" ? " paperpilotagent-process-detail-value-url" : ""
       }`;
       value.textContent = detail.value;
       item.append(label, value);
@@ -3865,19 +3870,19 @@ export function renderAgentTrace({
     return null;
   }
   const wrap = doc.createElement("div");
-  wrap.className = "llm-agent-activity";
+  wrap.className = "paperpilotagent-activity";
   const list = doc.createElement("div");
-  list.className = "llm-agent-activity-list";
+  list.className = "paperpilotagent-activity-list";
 
   if (!events.length) {
     onTraceMissing?.();
     const loadingRow = doc.createElement("div");
-    loadingRow.className = "llm-at-row llm-at-row-plan";
+    loadingRow.className = "paperpilotat-row paperpilotat-row-plan";
     const loadingIcon = doc.createElement("span");
-    loadingIcon.className = "llm-at-icon";
+    loadingIcon.className = "paperpilotat-icon";
     loadingIcon.textContent = "…";
     const loadingText = doc.createElement("span");
-    loadingText.className = "llm-at-text llm-at-plan-text";
+    loadingText.className = "paperpilotat-text paperpilotat-plan-text";
     loadingText.textContent = "Loading agent activity...";
     loadingRow.append(loadingIcon, loadingText);
     list.appendChild(loadingRow);
@@ -3899,7 +3904,7 @@ export function renderAgentTrace({
   }
   const pending = getPendingConfirmation(events);
   if (pending) {
-    wrap.classList.add("llm-agent-activity-with-pending-action");
+    wrap.classList.add("paperpilotagent-activity-with-pending-action");
   }
   const hasFinalResponse = events.some(
     (entry) => entry.payload.type === "final",
@@ -3907,7 +3912,7 @@ export function renderAgentTrace({
   for (const [itemIndex, itemEntry] of processItems.entries()) {
     if (itemEntry.type === "inline_text") {
       const inlineEl = doc.createElement("div");
-      inlineEl.className = "llm-agent-inline-text";
+      inlineEl.className = "paperpilotagent-inline-text";
       const inlineText = buildAgentTraceMarkdownForRender(
         itemEntry.text,
         message,
@@ -3923,9 +3928,10 @@ export function renderAgentTrace({
 
     if (itemEntry.type === "message") {
       const messageEl = doc.createElement("div");
-      messageEl.className = `llm-agent-process-message llm-agent-process-message-${itemEntry.tone}`;
+      messageEl.className =
+        `paperpilotagent-process-message paperpilotagent-process-message-${itemEntry.tone}`;
       if (itemEntry.markdown) {
-        messageEl.classList.add("llm-agent-process-message-markdown");
+        messageEl.classList.add("paperpilotagent-process-message-markdown");
         const markdownText = buildAgentTraceMarkdownForRender(
           itemEntry.text,
           message,
@@ -3949,14 +3955,14 @@ export function renderAgentTrace({
 
     if (itemEntry.type === "image_grid") {
       const container = doc.createElement("div") as HTMLDivElement;
-      container.className = "llm-agent-image-artifacts";
+      container.className = "paperpilotagent-image-artifacts";
       const rendered = renderAssistantGeneratedImagesInto(
         container,
         itemEntry.images,
         doc,
         {
-          wrapClassName: "llm-agent-image-artifacts-grid",
-          frameClassName: "llm-agent-image-artifact-frame",
+          wrapClassName: "paperpilotagent-image-artifacts-grid",
+          frameClassName: "paperpilotagent-image-artifact-frame",
         },
       );
       if (rendered) list.appendChild(container);
@@ -3965,12 +3971,12 @@ export function renderAgentTrace({
 
     if (itemEntry.type === "reasoning") {
       const details = doc.createElement("details") as HTMLDetailsElement;
-      details.className = "llm-agent-reasoning";
+      details.className = "paperpilotagent-reasoning";
       const expansionKey = `${runId}:${itemEntry.key}`;
       details.open = Boolean(agentReasoningExpandedCache.get(expansionKey));
 
       const summary = doc.createElement("summary") as HTMLElement;
-      summary.className = "llm-agent-reasoning-summary";
+      summary.className = "paperpilotagent-reasoning-summary";
       summary.textContent = itemEntry.label;
       let reasoningToggleHandled = false;
       const toggleReasoning = (event: Event) => {
@@ -3999,15 +4005,15 @@ export function renderAgentTrace({
       details.appendChild(summary);
 
       const bodyWrap = doc.createElement("div") as HTMLDivElement;
-      bodyWrap.className = "llm-agent-reasoning-body";
+      bodyWrap.className = "paperpilotagent-reasoning-body";
 
       // Show only summary — details from most models duplicate the summary
       const reasoningText = itemEntry.summary || itemEntry.details;
       if (reasoningText) {
         const summaryBlock = doc.createElement("div") as HTMLDivElement;
-        summaryBlock.className = "llm-agent-reasoning-block";
+        summaryBlock.className = "paperpilotagent-reasoning-block";
         const text = doc.createElement("div") as HTMLDivElement;
-        text.className = "llm-agent-reasoning-text";
+        text.className = "paperpilotagent-reasoning-text";
         text.textContent = reasoningText;
         summaryBlock.appendChild(text);
         bodyWrap.appendChild(summaryBlock);
@@ -4025,8 +4031,8 @@ export function renderAgentTrace({
     const actionWrap = doc.createElement(
       isExpandable ? "details" : "div",
     ) as HTMLElement;
-    actionWrap.className = `llm-agent-process-action${
-      isExpandable ? " llm-agent-process-action-expandable" : ""
+    actionWrap.className = `paperpilotagent-process-action${
+      isExpandable ? " paperpilotagent-process-action-expandable" : ""
     }`;
     const expansionKey = `${runId}:action:${itemEntry.detailKey || itemIndex}`;
     if (isExpandable) {
@@ -4035,18 +4041,19 @@ export function renderAgentTrace({
       );
     }
     const row = doc.createElement("div");
-    row.className = `llm-at-row llm-at-row-${itemEntry.row.kind}`;
+    row.className = `paperpilotat-row paperpilotat-row-${itemEntry.row.kind}`;
     const icon = doc.createElement("span");
-    icon.className = "llm-at-icon";
+    icon.className = "paperpilotat-icon";
     icon.textContent = itemEntry.row.icon;
     const text = doc.createElement("span");
-    text.className = `llm-at-text llm-at-${itemEntry.row.kind}-text`;
+    text.className =
+      `paperpilotat-text paperpilotat-${itemEntry.row.kind}-text`;
     text.textContent = itemEntry.row.text;
     if (isExpandable) {
       row.append(icon, text);
 
       const summary = doc.createElement("summary") as HTMLElement;
-      summary.className = "llm-agent-process-action-summary";
+      summary.className = "paperpilotagent-process-action-summary";
       summary.appendChild(row);
       const chips = renderAgentTraceChips(doc, itemEntry.chips);
       if (chips) summary.appendChild(chips);
@@ -4083,14 +4090,14 @@ export function renderAgentTrace({
   const hasAnswerText = Boolean(message.text?.trim());
   if (hasFinalResponse || (hasAnswerText && !inlineTextReplacesAssistantText)) {
     const divider = doc.createElement("div");
-    divider.className = "llm-agent-output-divider";
+    divider.className = "paperpilotagent-output-divider";
     divider.setAttribute("aria-hidden", "true");
     wrap.appendChild(divider);
   }
 
   if (pending) {
     const pendingShell = doc.createElement("div");
-    pendingShell.className = "llm-agent-pending-action-shell";
+    pendingShell.className = "paperpilotagent-pending-action-shell";
     pendingShell.appendChild(renderPendingActionCard(doc, pending));
     wrap.appendChild(pendingShell);
   }
