@@ -1460,7 +1460,8 @@ export function normalizeMermaidFlowchartLabels(source: string): string {
     return source;
   }
 
-  return source
+  const normalizedQuotes = source.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+  return normalizedQuotes
     .split(/(\r?\n)/)
     .map((part) =>
       /\r?\n/.test(part) ? part : normalizeMermaidFlowchartLabelsInLine(part),
@@ -1552,7 +1553,7 @@ function escapeMermaidQuotedLabel(label: string): string {
 }
 
 function shouldQuoteMermaidFlowchartLabel(label: string): boolean {
-  return /[()?:;]/.test(label) || /<\/?(?:strong|code)\b/i.test(label);
+  return /[\s()?:;]/.test(label) || /<\/?(?:strong|code)\b/i.test(label);
 }
 
 function normalizeMermaidFlowchartLabelsInLine(line: string): string {
@@ -1565,7 +1566,15 @@ function normalizeMermaidFlowchartLabelsInLine(line: string): string {
       return `${prefix}["${escapeMermaidQuotedLabel(normalizedLabel)}"]`;
     },
   );
-  const normalized = quotedNormalized
+  const normalizedCurlyLabels = quotedNormalized.replace(
+    /(\b[A-Za-z][\w-]*\s*)\{(?!\{)([^\}\n]*[\s()?:;][^\}\n]*)\}/g,
+    (match, prefix: string, label: string) => {
+      const normalizedLabel = normalizeMermaidLabelMarkdown(label);
+      const escapedLabel = escapeMermaidQuotedLabel(normalizedLabel);
+      return `${prefix}{"${escapedLabel}"}`;
+    },
+  );
+  const normalized = normalizedCurlyLabels
     .replace(
       /(\b[A-Za-z][\w-]*\s*)\[(?!\[)([^\]\n]*[()?:;][^\]\n]*)\]/g,
       (match, prefix: string, label: string) => {
@@ -1582,8 +1591,10 @@ function normalizeMermaidFlowchartLabelsInLine(line: string): string {
       /(\b[A-Za-z][\w-]*\s*)\[(?!\[)([^\]"\n]*)\]/g,
       (match, prefix: string, label: string) => {
         const normalizedLabel = normalizeMermaidLabelMarkdown(label);
-        if (normalizedLabel === label) return match;
-        if (!shouldQuoteMermaidFlowchartLabel(normalizedLabel)) {
+        if (
+          normalizedLabel === label &&
+          !shouldQuoteMermaidFlowchartLabel(normalizedLabel)
+        ) {
           return `${prefix}[${normalizedLabel}]`;
         }
         return `${prefix}["${escapeMermaidQuotedLabel(normalizedLabel)}"]`;
