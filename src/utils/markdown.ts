@@ -63,6 +63,7 @@ interface TextBlock {
  * unlike the paste handler which can transform KaTeX/MathML on the fly.
  */
 let zoteroNoteMode = false;
+let mermaidPreviewEnabled = true;
 let activeImageResolver: ((src: string) => string | null) | null = null;
 let markedMarkdownDisabled = false;
 let markedMarkdownFailureReported = false;
@@ -247,7 +248,7 @@ function renderSafeRawHtmlAttributes(
     }
     const safeSrc = attrs.src ? sanitizeMarkdownUrl(attrs.src, "image") : null;
     if (!safeSrc) return null;
-    return ` src="${escapeAttribute(safeSrc)}" alt="${escapeAttribute(alt)}" class="llm-chat-inline-figure"`;
+    return ` src="${escapeAttribute(safeSrc)}" alt="${escapeAttribute(alt)}" class="paperpilot-chat-inline-figure"`;
   }
 
   if (tagName === "ol" && attrs.start) {
@@ -401,10 +402,10 @@ function wrapCopyable(
 ): string {
   const className =
     display === "inline"
-      ? `llm-copyable llm-copyable-${kind} llm-copyable-inline`
-      : `llm-copyable llm-copyable-${kind}`;
+      ? `paperpilotcopyable paperpilotcopyable-${kind} paperpilotcopyable-inline`
+      : `paperpilotcopyable paperpilotcopyable-${kind}`;
   const tag = display === "inline" ? "span" : "div";
-  return `<${tag} class="${className}" data-llm-copy-source="${escapeAttribute(copySource)}">${html}</${tag}>`;
+  return `<${tag} class="${className}" data-paperpilotcopy-source="${escapeAttribute(copySource)}">${html}</${tag}>`;
 }
 
 /** Count non-overlapping occurrences of a pattern */
@@ -628,11 +629,12 @@ export function buildSafeSvgDataUri(
 }
 
 function renderMermaidPreview(code: string): string {
+  if (!mermaidPreviewEnabled) return "";
   const source = code.trim();
   if (!source || source.length > MERMAID_PREVIEW_MAX_CHARS) return "";
   return [
-    `<div class="llm-mermaid-preview" data-mermaid-state="pending" data-llm-mermaid-source="${escapeAttribute(source)}" role="img" aria-label="Mermaid diagram preview">`,
-    `<div class="llm-mermaid-status">Rendering diagram...</div>`,
+    `<div class="paperpilotmermaid-preview" data-mermaid-state="pending" data-paperpilotmermaid-source="${escapeAttribute(source)}" role="img" aria-label="Mermaid diagram preview">`,
+    `<div class="paperpilotmermaid-status">Rendering diagram...</div>`,
     `</div>`,
   ].join("");
 }
@@ -1650,17 +1652,17 @@ function renderCodeBlock(code: string, raw: string): string {
     : null;
   const svgPreview =
     safeSvgMarkup && svgPreviewUri
-      ? `<div class="llm-svg-preview" data-llm-svg-source="${escapeAttribute(safeSvgMarkup)}" aria-label="SVG preview"><img src="${escapeAttribute(svgPreviewUri)}" alt="SVG preview" /></div>`
+      ? `<div class="paperpilotsvg-preview" data-paperpilotsvg-source="${escapeAttribute(safeSvgMarkup)}" aria-label="SVG preview"><img src="${escapeAttribute(svgPreviewUri)}" alt="SVG preview" /></div>`
       : "";
   const mermaidPreview = isMermaidFenceLanguage(lang)
     ? renderMermaidPreview(code)
     : "";
   const html = [
-    `<div class="llm-codeblock-shell" data-code-lang="${escapeAttribute(label)}">`,
-    `<div class="llm-codeblock-header"><span class="llm-codeblock-lang">${escapeHtml(label)}</span></div>`,
+    `<div class="paperpilotcodeblock-shell" data-code-lang="${escapeAttribute(label)}">`,
+    `<div class="paperpilotcodeblock-header"><span class="paperpilotcodeblock-lang">${escapeHtml(label)}</span></div>`,
     svgPreview,
     mermaidPreview,
-    `<div class="llm-codeblock-body">${codeHtml}</div>`,
+    `<div class="paperpilotcodeblock-body">${codeHtml}</div>`,
     `</div>`,
   ].join("");
   return wrapCopyable(html, raw.trim(), "code");
@@ -1849,7 +1851,7 @@ function renderTable(content: string): string {
     )
     .join("");
 
-  const html = `<div class="llm-table-scroll"><table><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table></div>`;
+  const html = `<div class="paperpilottable-scroll"><table><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table></div>`;
   if (zoteroNoteMode) return html;
   return wrapCopyable(html, content.trim(), "table");
 }
@@ -2002,7 +2004,7 @@ function renderInline(text: string): string {
         const resolved = activeImageResolver(trimmedSrc);
         if (resolved) {
           return protect(
-            `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(alt)}" class="llm-chat-inline-figure" style="max-width:100%; border-radius:4px; margin:4px 0;" />`,
+            `<img src="${escapeHtml(resolved)}" alt="${escapeHtml(alt)}" class="paperpilot-chat-inline-figure" style="max-width:100%; border-radius:4px; margin:4px 0;" />`,
           );
         }
       }
@@ -2053,7 +2055,8 @@ function renderMarkdownImage(
   if (!safeSrc) return escapeHtml(alt || trimmedHref);
 
   const titleAttr = title ? ` title="${escapeAttribute(title)}"` : "";
-  const classAttr = target === "chat" ? ' class="llm-chat-inline-figure"' : "";
+  const classAttr =
+    target === "chat" ? ' class="paperpilot-chat-inline-figure"' : "";
   return `<img src="${escapeAttribute(safeSrc)}" alt="${escapeAttribute(alt)}"${titleAttr}${classAttr} />`;
 }
 
@@ -2161,7 +2164,7 @@ function createMarkedRenderer(
             .join("")}</tr>`,
       )
       .join("");
-    const html = `<div class="llm-table-scroll"><table><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table></div>`;
+    const html = `<div class="paperpilottable-scroll"><table><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table></div>`;
     if (zoteroNoteMode) return html;
     return wrapCopyable(html, token.raw.trim(), "table");
   };
@@ -2212,10 +2215,17 @@ function createMarkedMarkdownRenderer(target: MarkdownRenderTarget): Marked {
 
 export function renderMarkdownWithLegacyParser(
   text: string,
-  options?: { resolveImage?: (src: string) => string | null },
+  options?: {
+    resolveImage?: (src: string) => string | null;
+    renderMermaid?: boolean;
+  },
 ): string {
   const prevResolver = activeImageResolver;
+  const prevMermaidPreviewEnabled = mermaidPreviewEnabled;
   if (options?.resolveImage) activeImageResolver = options.resolveImage;
+  if (options?.renderMermaid !== undefined) {
+    mermaidPreviewEnabled = options.renderMermaid;
+  }
   try {
     const blocks = splitIntoBlocks(restoreEscapedSafeRawHtmlTags(text));
     return blocks
@@ -2234,6 +2244,7 @@ export function renderMarkdownWithLegacyParser(
     return `<div class="render-fallback">${escapeHtml(text)}</div>`;
   } finally {
     activeImageResolver = prevResolver;
+    mermaidPreviewEnabled = prevMermaidPreviewEnabled;
   }
 }
 
@@ -2266,7 +2277,10 @@ export function __setMarkdownParserDisabledForTest(disabled: boolean): void {
  */
 export function renderMarkdown(
   text: string,
-  options?: { resolveImage?: (src: string) => string | null },
+  options?: {
+    resolveImage?: (src: string) => string | null;
+    renderMermaid?: boolean;
+  },
 ): string {
   // Handle empty input
   if (!text || !text.trim()) {
@@ -2274,11 +2288,15 @@ export function renderMarkdown(
   }
 
   const prevResolver = activeImageResolver;
+  const prevMermaidPreviewEnabled = mermaidPreviewEnabled;
   if (options?.resolveImage) activeImageResolver = options.resolveImage;
+  if (options?.renderMermaid !== undefined) {
+    mermaidPreviewEnabled = options.renderMermaid;
+  }
 
   try {
     if (markedMarkdownDisabled) {
-      return renderMarkdownWithLegacyParser(text);
+      return renderMarkdownWithLegacyParser(text, options);
     }
 
     const normalized = normalizeMarkdownForMarked(
@@ -2294,12 +2312,13 @@ export function renderMarkdown(
     reportMarkedMarkdownFailure(
       new Error("Markdown parser returned non-string output"),
     );
-    return renderMarkdownWithLegacyParser(text);
+    return renderMarkdownWithLegacyParser(text, options);
   } catch (err) {
     reportMarkedMarkdownFailure(err);
-    return renderMarkdownWithLegacyParser(text);
+    return renderMarkdownWithLegacyParser(text, options);
   } finally {
     activeImageResolver = prevResolver;
+    mermaidPreviewEnabled = prevMermaidPreviewEnabled;
   }
 }
 

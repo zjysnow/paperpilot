@@ -251,10 +251,13 @@ function findRenderedMermaidSvgForSource(
     ),
   ) as HTMLElement[];
   for (const preview of previews) {
-    if ((preview.dataset.llmMermaidSource || "").trim() !== normalizedSource) {
+    if (
+      (preview.dataset.paperpilotmermaidSource || "").trim() !==
+      normalizedSource
+    ) {
       continue;
     }
-    const renderedSvg = (preview.dataset.llmRenderedSvg || "").trim();
+    const renderedSvg = (preview.dataset.paperpilotRenderedSvg || "").trim();
     if (renderedSvg) return renderedSvg;
   }
   return null;

@@ -144,7 +144,7 @@ function initializeStandaloneSvgWindow(
       ? "paperpilotmermaid-theme-dark"
       : "paperpilotmermaid-theme-light",
   ].join(" ");
-  root.dataset.llmMermaidTheme = payload.themeKey;
+  root.dataset.paperpilotmermaidTheme = payload.themeKey;
 
   const toolbar = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
   toolbar.className = "paperpilotmermaid-window-toolbar";

@@ -48,6 +48,21 @@ type FloatingMenuInteractionControllerDeps = {
   isElementNode: (value: unknown) => value is Element;
 };
 
+function ensureCodeFenceLanguage(
+  source: string,
+  codeShell: HTMLElement,
+): string {
+  const language = (codeShell.dataset.codeLang || "").trim().toLowerCase();
+  if (!language) return source;
+
+  if (/^```[ \t]*(?:\r?\n|$)/.test(source)) {
+    return source.replace(/^```[ \t]*(?=\r?\n|$)/, `\`\`\`${language}`);
+  }
+  if (/^```[^\n]*\n/.test(source)) return source;
+
+  return `\`\`\`${language}\n${source}\n\`\`\``;
+}
+
 export function attachFloatingMenuInteractionController(
   deps: FloatingMenuInteractionControllerDeps,
 ): void {
@@ -267,7 +282,15 @@ export function attachFloatingMenuInteractionController(
         const copyable = copyBtn.closest(
           ".paperpilotcopyable",
         ) as HTMLElement | null;
-        const source = copyable?.dataset.llmCopySource || "";
+        const codeShell = copyBtn.closest(
+          ".paperpilotcodeblock-shell",
+        ) as HTMLElement | null;
+        const source = codeShell
+          ? ensureCodeFenceLanguage(
+              copyable?.dataset.paperpilotcopySource || "",
+              codeShell,
+            )
+          : copyable?.dataset.paperpilotcopySource || "";
         if (source) {
           copyable?.setAttribute("data-copy-feedback", "copied");
           void copyTextToClipboard(body, source);

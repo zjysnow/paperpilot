@@ -275,7 +275,10 @@ import {
   mergeToolActivityPayload,
 } from "./agentTrace/toolActivityDedupe";
 
-import { renderRenderedMarkdownInto } from "./renderedMarkdown";
+import {
+  normalizeMermaidFlowchartLabels,
+  renderRenderedMarkdownInto,
+} from "./renderedMarkdown";
 import { toFileUrl } from "../../utils/pathFileUrl";
 import { replaceOwnerAttachmentRefs } from "../../utils/attachmentRefStore";
 import { getNotesDirectoryConfig } from "../../utils/notesDirectoryConfig";
@@ -1948,6 +1951,32 @@ export function buildAssistantDisplayMarkdownForRender(
 
 export { QUOTE_RENDER_OCCURRENCE_PATTERN };
 
+const MERMAID_DIAGRAM_START =
+  /^(?:flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|journey|gantt|pie|mindmap|timeline|gitGraph|sankey|xychart(?:-beta)?|quadrantChart|requirementDiagram|architecture-beta|block-beta)\b/i;
+
+function restoreMermaidFenceLanguage(markdown: string): string {
+  return markdown.replace(
+    /```([^\s`]*)[^\n`]*\n([\s\S]*?)```/g,
+    (match, rawLanguage: string, body: string) => {
+      const language = rawLanguage.trim().toLowerCase();
+      if (language && language !== "mermaid" && language !== "mmd") {
+        return match;
+      }
+      const normalizedBody = normalizeMermaidFlowchartLabels(body);
+      if (language === "mermaid" || language === "mmd") {
+        return `\`\`\`${rawLanguage}\n${normalizedBody}\`\`\``;
+      }
+      const firstLine = body
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find(Boolean);
+      return firstLine && MERMAID_DIAGRAM_START.test(firstLine)
+        ? `\`\`\`mermaid\n${normalizedBody}\`\`\``
+        : match;
+    },
+  );
+}
+
 export function buildPlainMarkdownClipboardText(
   markdownText: string,
   quoteCitations?: QuoteCitation[],
@@ -1956,7 +1985,7 @@ export function buildPlainMarkdownClipboardText(
     markdown: sanitizeText(markdownText).trim(),
     quoteCitations,
   });
-  return safeText || null;
+  return safeText ? restoreMermaidFenceLanguage(safeText) : null;
 }
 
 /**
@@ -2000,6 +2029,13 @@ export async function copyRenderedMarkdownToClipboard(
   );
   if (!payload) return;
   const { plainText: safeText, renderedHtml } = payload;
+
+  // Preserve Mermaid's fence language when pasting into Markdown editors such
+  // as Obsidian; their rich-HTML paste path otherwise turns it into plain code.
+  if (/```(?:mermaid|mmd)\b/i.test(safeText)) {
+    await copyTextToClipboard(body, safeText);
+    return;
+  }
 
   // Try rich clipboard (HTML + plain) first so that paste into Zotero
   // notes gives properly rendered content with math.
@@ -10482,6 +10518,7 @@ export function refreshChat(
         } else
           try {
             renderRenderedMarkdownInto(bubble, safeText, doc, {
+              renderMermaid: !msg.streaming,
               onAsyncContentRendered: () => {
                 stabilizeFollowBottomAfterAsyncChatContent(
                   body,

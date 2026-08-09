@@ -28,6 +28,7 @@ import {
 export type RenderedMarkdownOptions = {
   resolveImage?: (src: string) => string | null;
   onAsyncContentRendered?: () => void;
+  renderMermaid?: boolean;
 };
 
 type MermaidRenderOptions = {
@@ -121,7 +122,10 @@ const MERMAID_FLOWCHART_CONFIG = {
 
 const MERMAID_BASE_CONFIG = {
   startOnLoad: false,
-  securityLevel: "sandbox" as const,
+  // Zotero chrome documents do not reliably complete Mermaid's sandbox
+  // iframe render path. Strict mode renders in-process; the resulting SVG is
+  // still passed through sanitizeRenderedMermaidSvgWithReason.
+  securityLevel: "strict" as const,
   secure: [
     "securityLevel",
     "htmlLabels",
@@ -307,7 +311,8 @@ async function initializeMermaidRenderer(
   doc: Document,
   themeKey: MermaidThemeKey,
 ): Promise<void> {
-  await withDocumentGlobals(doc, async () => {
+  const renderDoc = mermaidDocuments.get(mermaid) || doc;
+  await withDocumentGlobals(renderDoc, async () => {
     mermaid.initialize(getMermaidConfig(themeKey));
   });
 }
@@ -319,10 +324,7 @@ const MERMAID_VIEWER_ZOOM_IN_ICON = "+";
 
 const MERMAID_PREVIEW_OPEN_ICON = "⛶";
 const FIGURE_COPY_RESET_DELAY_MS = 1400;
-const MERMAID_CYTOSCAPE_STYLESHEET_ID = "__________cytoscape_stylesheet";
-const MERMAID_CYTOSCAPE_CONTAINER_CLASS = "__________cytoscape_container";
-
-const MERMAID_THEME_DATASET_KEY = "llmMermaidTheme";
+const MERMAID_THEME_DATASET_KEY = "paperpilotmermaidTheme";
 
 const MERMAID_THEME_CLASS_BY_KEY: Record<MermaidThemeKey, string> = {
   light: "paperpilotmermaid-theme-light",
@@ -334,7 +336,7 @@ function setMermaidThemeDataset(
   themeKey: MermaidThemeKey,
 ): void {
   element.dataset[MERMAID_THEME_DATASET_KEY] = themeKey;
-  element.dataset.llmMermaidRenderVersion = MERMAID_RENDER_VERSION;
+  element.dataset.paperpilotmermaidRenderVersion = MERMAID_RENDER_VERSION;
   element.classList.remove(
     MERMAID_THEME_CLASS_BY_KEY.light,
     MERMAID_THEME_CLASS_BY_KEY.dark,
@@ -343,7 +345,9 @@ function setMermaidThemeDataset(
 }
 
 function getRenderedMermaidTheme(preview: HTMLElement): MermaidThemeKey | null {
-  if (preview.dataset.llmMermaidRenderVersion !== MERMAID_RENDER_VERSION) {
+  if (
+    preview.dataset.paperpilotmermaidRenderVersion !== MERMAID_RENDER_VERSION
+  ) {
     return null;
   }
   const theme = preview.dataset[MERMAID_THEME_DATASET_KEY];
@@ -365,6 +369,7 @@ type Mermaid = {
 };
 
 const mermaidPromises = new WeakMap<Window, Promise<Mermaid>>();
+const mermaidDocuments = new WeakMap<object, Document>();
 let mermaidRenderQueue: Promise<void> = Promise.resolve();
 let mermaidRenderCounter = 0;
 
@@ -828,8 +833,6 @@ type CssRuleLike = {
   cssText: string;
 };
 
-const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
-
 class MermaidFallbackCSSStyleSheet {
   cssRules: CssRuleLike[] = [];
 
@@ -980,83 +983,6 @@ function getWindowGlobalValue(win: Window, key: string): unknown {
   return value;
 }
 
-function escapeCssStringLiteral(value: string): string {
-  return value.replace(/["\\]/g, "\\$&");
-}
-
-function stripMermaidLeadingDirectivesAndComments(source: string): string {
-  let text = source.trimStart();
-  let previous = "";
-  while (text !== previous) {
-    previous = text;
-    text = text
-      .replace(/^%%\{[\s\S]*?\}%%\s*/i, "")
-      .replace(/^%%(?!\{)[^\n\r]*(?:\r?\n|$)\s*/i, "");
-  }
-  return text;
-}
-
-export function needsMermaidCytoscapeLayoutHost(source: string): boolean {
-  return /^mindmap(?:\b|-)/i.test(
-    stripMermaidLeadingDirectivesAndComments(source),
-  );
-}
-
-function createMermaidDocumentFacade(
-  doc: Document,
-  body: HTMLElement,
-): Document {
-  const proxy = new Proxy(doc, {
-    get(target, property) {
-      if (property === "body") return body;
-      if (property === "querySelector") {
-        return (selector: string) => {
-          if (selector === "body") return body;
-          return body.querySelector(selector) || target.querySelector(selector);
-        };
-      }
-      if (property === "querySelectorAll") {
-        return (selector: string) => {
-          if (selector === "body") return [body];
-          const scoped = body.querySelectorAll(selector);
-          return scoped.length ? scoped : target.querySelectorAll(selector);
-        };
-      }
-      if (property === "getElementById") {
-        return (id: string) =>
-          body.querySelector(`[id="${escapeCssStringLiteral(id)}"]`) ||
-          target.getElementById(id);
-      }
-
-      const value = Reflect.get(target, property, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  });
-  return proxy as Document;
-}
-
-type MermaidRenderTarget = {
-  container: HTMLElement;
-  documentBody: HTMLElement;
-  cleanup: () => void;
-};
-
-function createMermaidRenderHost(
-  doc: Document,
-  preview: HTMLElement,
-): HTMLElement {
-  const host = doc.createElementNS(HTML_NAMESPACE, "div") as HTMLElement;
-  host.setAttribute("aria-hidden", "true");
-  host.style.position = "absolute";
-  host.style.left = "-10000px";
-  host.style.top = "0";
-  host.style.width = "800px";
-  host.style.height = "1px";
-  host.style.overflow = "hidden";
-  preview.appendChild(host);
-  return host;
-}
-
 function removeMermaidRenderNode(node: HTMLElement): void {
   if (typeof node.remove === "function") {
     node.remove();
@@ -1065,85 +991,30 @@ function removeMermaidRenderNode(node: HTMLElement): void {
   }
 }
 
-function createMermaidCytoscapeLayoutHost(doc: Document): HTMLElement {
-  const host = doc.createElementNS(HTML_NAMESPACE, "div") as HTMLElement;
-  // Mermaid's cose-bilkent layout asks Cytoscape for document.getElementById("cy").
-  host.id = "cy";
-  host.className = MERMAID_CYTOSCAPE_CONTAINER_CLASS;
-  host.setAttribute("aria-hidden", "true");
-  host.style.position = "absolute";
-  host.style.left = "-10000px";
-  host.style.top = "0";
-  host.style.width = "1px";
-  host.style.height = "1px";
-  host.style.overflow = "hidden";
-  return host;
-}
-
-function createMermaidCytoscapeStylesheetSentinel(
-  doc: Document,
-): HTMLStyleElement {
-  const style = doc.createElementNS(
-    HTML_NAMESPACE,
-    "style",
-  ) as HTMLStyleElement;
-  // Cytoscape otherwise tries document.head.insertBefore(...), but Zotero
-  // windows do not always expose a browser-like head element on this path.
-  style.id = MERMAID_CYTOSCAPE_STYLESHEET_ID;
-  style.textContent = `.${MERMAID_CYTOSCAPE_CONTAINER_CLASS} { position: relative; }`;
-  return style;
-}
-
-function createMermaidRenderTarget(
-  doc: Document,
-  preview: HTMLElement,
-  source: string,
-): MermaidRenderTarget {
-  if (!needsMermaidCytoscapeLayoutHost(source)) {
-    const container = createMermaidRenderHost(doc, preview);
-    return {
-      container,
-      documentBody: container,
-      cleanup: () => removeMermaidRenderNode(container),
-    };
-  }
-
-  const wrapper = createMermaidRenderHost(doc, preview);
-  const styleSentinel = createMermaidCytoscapeStylesheetSentinel(doc);
-  const layoutHost = createMermaidCytoscapeLayoutHost(doc);
-  const container = doc.createElementNS(HTML_NAMESPACE, "div") as HTMLElement;
-  wrapper.append(styleSentinel, layoutHost, container);
-  return {
-    container,
-    documentBody: wrapper,
-    cleanup: () => removeMermaidRenderNode(wrapper),
-  };
-}
-
 async function withDocumentGlobals<T>(
   doc: Document,
   action: () => Promise<T>,
 ): Promise<T> {
   const win = doc.defaultView;
-  if (!win) return action();
-
   const globalObject = globalThis as MutableDomGlobal;
-  const windowObject = win as Window & { console?: Console };
+  const windowObject = win as (Window & { console?: Console }) | null;
   const scopedConsole =
-    globalObject.console || windowObject.console || noopMermaidConsole;
+    globalObject.console || windowObject?.console || noopMermaidConsole;
   const restores: ScopedGlobalRestore[] = [];
 
   addScopedGlobalValue(restores, globalObject, "console", scopedConsole);
   addScopedGlobalValue(restores, globalObject, "document", doc);
-  addScopedGlobalValue(restores, globalObject, "window", win);
-  addScopedGlobalValue(restores, windowObject, "console", scopedConsole);
-  for (const key of MERMAID_BROWSER_GLOBAL_KEYS) {
-    addScopedGlobalValue(
-      restores,
-      globalObject,
-      key,
-      getWindowGlobalValue(win, key),
-    );
+  if (windowObject) {
+    addScopedGlobalValue(restores, globalObject, "window", windowObject);
+    addScopedGlobalValue(restores, windowObject, "console", scopedConsole);
+    for (const key of MERMAID_BROWSER_GLOBAL_KEYS) {
+      addScopedGlobalValue(
+        restores,
+        globalObject,
+        key,
+        getWindowGlobalValue(windowObject, key),
+      );
+    }
   }
 
   try {
@@ -1153,6 +1024,14 @@ async function withDocumentGlobals<T>(
       restoreScopedGlobalValue(restore);
     }
   }
+}
+
+function createMermaidRenderDocument(doc: Document): Document {
+  const implementation = doc.implementation;
+  if (implementation?.createHTMLDocument) {
+    return implementation.createHTMLDocument("Paper Pilot Mermaid");
+  }
+  return doc;
 }
 
 function getMermaidGlobal(win: Window): Mermaid | null {
@@ -1176,7 +1055,10 @@ function getMermaidRenderer(doc: Document): Promise<Mermaid> {
   }
 
   const existing = getMermaidGlobal(win);
-  if (existing) return Promise.resolve(existing);
+  if (existing) {
+    mermaidDocuments.set(existing, doc);
+    return Promise.resolve(existing);
+  }
 
   const activeLoad = mermaidPromises.get(win);
   if (activeLoad) return activeLoad;
@@ -1188,30 +1070,60 @@ function getMermaidRenderer(doc: Document): Promise<Mermaid> {
       return;
     }
 
-    const script = doc.createElementNS(
-      HTML_NAMESPACE,
-      "script",
-    ) as HTMLScriptElement;
-    script.async = true;
-    script.src = MERMAID_VENDOR_SCRIPT_URL;
-    script.addEventListener(
-      "load",
-      () => {
-        const mermaid = getMermaidGlobal(win);
-        if (mermaid) {
-          resolve(mermaid);
-        } else {
-          reject(new Error("Mermaid loaded without exposing a renderer."));
-        }
-      },
-      { once: true },
-    );
-    script.addEventListener(
-      "error",
-      () => reject(new Error("Unable to load Mermaid renderer.")),
-      { once: true },
-    );
-    mount.appendChild(script);
+    const iframe = doc.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.position = "absolute";
+    iframe.style.left = "-10000px";
+    iframe.style.width = "1px";
+    iframe.style.height = "1px";
+    iframe.style.border = "0";
+    iframe.src = "about:blank";
+    mount.appendChild(iframe);
+
+    let scriptLoadStarted = false;
+    const loadScript = () => {
+      if (scriptLoadStarted) return;
+      scriptLoadStarted = true;
+      const iframeDoc = iframe.contentDocument;
+      const iframeWin = iframe.contentWindow;
+      if (!iframeDoc || !iframeWin) {
+        reject(new Error("Unable to create Mermaid HTML rendering context."));
+        return;
+      }
+      void fetch(MERMAID_VENDOR_SCRIPT_URL)
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(
+              `Mermaid renderer request failed (${response.status}).`,
+            );
+          }
+          return response.text();
+        })
+        .then((source) => {
+          iframeWin.eval(
+            source.replace(
+              /globalThis\.__esbuild_esm_mermaid_nm/g,
+              "__esbuild_esm_mermaid_nm",
+            ),
+          );
+          const mermaid = getMermaidGlobal(iframeWin);
+          if (mermaid) {
+            mermaidDocuments.set(mermaid, iframeDoc);
+            resolve(mermaid);
+          } else {
+            reject(new Error("Mermaid loaded without exposing a renderer."));
+          }
+        })
+        .catch((error) => reject(error));
+    };
+    if (iframe.contentDocument && iframe.contentWindow) {
+      loadScript();
+    } else {
+      iframe.addEventListener("load", loadScript, { once: true });
+    }
+    // Some Zotero chrome iframe implementations expose the document before
+    // completing navigation but do not dispatch the corresponding load event.
+    setTimeout(loadScript, 0);
   }).catch((error) => {
     mermaidPromises.delete(win);
     throw error;
@@ -1275,7 +1187,7 @@ function setMermaidPreviewError(preview: HTMLElement, error?: unknown): void {
   const reason = getMermaidErrorReason(error);
   preview.dataset.mermaidState = "error";
   delete preview.dataset.mermaidZoom;
-  delete preview.dataset.llmRenderedSvg;
+  delete preview.dataset.paperpilotRenderedSvg;
   preview.textContent = reason
     ? `Unable to render Mermaid diagram: ${reason}`
     : "Unable to render Mermaid diagram.";
@@ -1484,7 +1396,7 @@ function renderMermaidImagePreview(
   });
 
   delete preview.dataset.mermaidZoom;
-  preview.dataset.llmRenderedSvg = svgMarkup;
+  preview.dataset.paperpilotRenderedSvg = svgMarkup;
   preview.replaceChildren(viewport, openButton);
   syncFigureCopyButtonStateForShell(
     preview.closest(".paperpilotcodeblock-shell") as HTMLElement | null,
@@ -1500,7 +1412,9 @@ function attachRenderedSvgPreviewButtons(
   ) as HTMLElement[];
   for (const preview of previews) {
     if (preview.querySelector(":scope > .paperpilotsvg-open-btn")) continue;
-    const svgMarkup = buildSafeSvgMarkup(preview.dataset.llmSvgSource || "");
+    const svgMarkup = buildSafeSvgMarkup(
+      preview.dataset.paperpilotsvgSource || "",
+    );
     if (!svgMarkup) continue;
 
     const openButton = createMermaidZoomButton(
@@ -1836,37 +1750,34 @@ async function renderMermaidSvg(
   mermaid: Mermaid,
   doc: Document,
   source: string,
-  preview: HTMLElement,
 ): Promise<string> {
-  const renderTarget = createMermaidRenderTarget(doc, preview, source);
-  const renderDoc = createMermaidDocumentFacade(doc, renderTarget.documentBody);
   const renderId = `llmMermaid${Date.now()}${++mermaidRenderCounter}`;
-  try {
-    const { svg } = await withDocumentGlobals(renderDoc, () =>
-      Promise.resolve(mermaid.render(renderId, source, renderTarget.container)),
-    );
-    return svg;
-  } finally {
-    renderTarget.cleanup();
-  }
+  const renderDoc =
+    mermaidDocuments.get(mermaid) || createMermaidRenderDocument(doc);
+  const { svg } = await withDocumentGlobals(renderDoc, () =>
+    Promise.resolve(
+      // Mermaid needs a real HTML body for its temporary D3/SVG nodes.
+      mermaid.render(renderId, source),
+    ),
+  );
+  return svg;
 }
 
 async function renderMermaidSvgWithRetry(
   mermaid: Mermaid,
   doc: Document,
   source: string,
-  preview: HTMLElement,
   themeKey: MermaidThemeKey,
 ): Promise<string> {
   const themedSource = normalizeMermaidSourceForTheme(source, themeKey);
   const normalizedSource = normalizeMermaidFlowchartLabels(themedSource);
   try {
-    const svg = await renderMermaidSvg(mermaid, doc, normalizedSource, preview);
+    const svg = await renderMermaidSvg(mermaid, doc, normalizedSource);
     return polishRenderedMermaidSvg(extractRenderedMermaidSvg(svg), themeKey);
   } catch (firstError) {
     if (normalizedSource === themedSource) throw firstError;
     try {
-      const svg = await renderMermaidSvg(mermaid, doc, themedSource, preview);
+      const svg = await renderMermaidSvg(mermaid, doc, themedSource);
       return polishRenderedMermaidSvg(extractRenderedMermaidSvg(svg), themeKey);
     } catch {
       throw firstError;
@@ -1901,7 +1812,7 @@ async function renderMermaidBlocksNow(
       continue;
     }
     if (!isStillInRenderedRoot(root, preview)) continue;
-    const source = preview.dataset.llmMermaidSource || "";
+    const source = preview.dataset.paperpilotmermaidSource || "";
     if (!source.trim()) continue;
     const cacheKey = buildMermaidSvgCacheKey(
       MERMAID_RENDER_VERSION,
@@ -1953,7 +1864,7 @@ async function renderMermaidBlocksNow(
       continue;
     }
     if (!isStillInRenderedRoot(root, preview)) continue;
-    const source = preview.dataset.llmMermaidSource || "";
+    const source = preview.dataset.paperpilotmermaidSource || "";
     if (!source.trim()) continue;
 
     preview.dataset.mermaidState = "rendering";
@@ -1969,7 +1880,6 @@ async function renderMermaidBlocksNow(
         mermaid,
         doc,
         source,
-        preview,
         themeKey,
       );
       const sanitizedSvg = sanitizeRenderedMermaidSvgWithReason(
@@ -2037,7 +1947,6 @@ export async function renderMermaidSourceToSvg(
       mermaid,
       doc,
       normalizedSource,
-      preview,
       themeKey,
     );
     const sanitized = sanitizeRenderedMermaidSvgWithReason(
@@ -2114,13 +2023,13 @@ function getVisualCodeBlockPreview(shell: HTMLElement): HTMLElement | null {
 function getVisualCodeBlockSvgMarkup(shell: HTMLElement): string | null {
   const svgPreview = getDirectChildWithClass(shell, "paperpilotsvg-preview");
   if (svgPreview) {
-    return buildSafeSvgMarkup(svgPreview.dataset.llmSvgSource || "");
+    return buildSafeSvgMarkup(svgPreview.dataset.paperpilotsvgSource || "");
   }
   const mermaidPreview = getDirectChildWithClass(
     shell,
     "paperpilotmermaid-preview",
   );
-  const renderedSvg = mermaidPreview?.dataset.llmRenderedSvg || "";
+  const renderedSvg = mermaidPreview?.dataset.paperpilotRenderedSvg || "";
   return renderedSvg.trim() || null;
 }
 
@@ -2352,13 +2261,15 @@ export function renderRenderedMarkdownInto(
   attachRenderedCodeBlockControls(target, doc);
   attachRenderedCopyButtons(target, doc);
   attachRenderedSvgPreviewButtons(target, doc);
-  void renderMermaidBlocks(
-    target,
-    doc,
-    options?.onAsyncContentRendered
-      ? {
-          onContentRendered: options.onAsyncContentRendered,
-        }
-      : undefined,
-  );
+  if (options?.renderMermaid !== false) {
+    void renderMermaidBlocks(
+      target,
+      doc,
+      options?.onAsyncContentRendered
+        ? {
+            onContentRendered: options.onAsyncContentRendered,
+          }
+        : undefined,
+    );
+  }
 }
