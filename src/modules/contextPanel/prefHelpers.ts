@@ -90,7 +90,7 @@ const LAST_PAPER_CONVERSATION_MAP_PREF_KEY = "lastUsedPaperConversationMap";
 const PANEL_FONT_SCALE_PREF_KEY = "panelFontScale";
 const STANDALONE_SIDEBAR_WIDTH_PREF_KEY = "standaloneSidebarWidth";
 const SHORTCUT_DEFAULTS_MIGRATION_PREF_KEY = "shortcutDefaultsMigrationVersion";
-const SHORTCUT_DEFAULTS_MIGRATION_VERSION = 2;
+const SHORTCUT_DEFAULTS_MIGRATION_VERSION = 3;
 const MESSAGE_LINE_SPACING_PREF_KEY = "messageLineSpacing";
 const MESSAGE_PARAGRAPH_SPACING_PREF_KEY = "messageParagraphSpacing";
 const MESSAGE_WORD_SPACING_PREF_KEY = "messageWordSpacing";
@@ -134,6 +134,9 @@ const BUILTIN_SHORTCUT_IDS = new Set<string>(
 const BUILTIN_IDS_RESTORED_ON_MIGRATION = new Set<string>(["mermaid-diagram"]);
 const KNOWN_OLD_BUILTIN_PROMPTS: Record<string, string[]> = {
   summarize: ["Summarize the document in 3-5 bullet points."],
+  "mermaid-diagram": [
+    "Generate a Mermaid flowchart to help me understand the paper's main idea, method, key findings, and conclusion. Keep it compact and high-level: show only the central problem, method or architecture, key evidence/findings, and conclusion. Avoid poster-style detail dumps; use short node labels and semantic classDef/class styling where useful. Do not invent structure unsupported by the paper.",
+  ],
 };
 
 export function buildPaperStateKey(
