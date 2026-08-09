@@ -106,6 +106,7 @@ export const BUILTIN_SHORTCUT_FILES = [
   { id: "methodology", label: "Methodology", file: "methodology.txt" },
   { id: "limitations", label: "Limitations", file: "limitations.txt" },
   { id: "mermaid-diagram", label: "Diagram", file: "mermaid-diagram.txt" },
+  { id: "future-work", label: "Future work", file: "future-work.txt" },
 ] as const;
 
 export const STOPWORDS = new Set([
