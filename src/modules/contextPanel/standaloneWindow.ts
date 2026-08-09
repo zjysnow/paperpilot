@@ -918,10 +918,10 @@ export function openStandaloneChat(options?: {
       iconNotesGraph.className =
         "paperpilotstandalone-icon-btn paperpilotstandalone-icon-notes-graph";
       iconNotesGraph.type = "button";
-      iconNotesGraph.title = t("Open note graph in Obsidian");
+      iconNotesGraph.title = t("Open note in Obsidian");
       iconNotesGraph.setAttribute(
         "aria-label",
-        t("Open note graph in Obsidian"),
+        t("Open note in Obsidian"),
       );
 
       const iconClear = doc.createElementNS(

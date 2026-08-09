@@ -280,10 +280,10 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     {
       id: "paperpilotnotes-graph",
       type: "button",
-      title: t("Open note graph in Obsidian"),
+      title: t("Open note in Obsidian"),
     },
   );
-  notesGraphBtn.setAttribute("aria-label", t("Open note graph in Obsidian"));
+  notesGraphBtn.setAttribute("aria-label", t("Open note in Obsidian"));
   const clearBtn = createElement(
     doc,
     "button",
