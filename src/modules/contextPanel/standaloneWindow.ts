@@ -926,8 +926,8 @@ export function openStandaloneChat(options?: {
         iconSearch,
         iconSkill,
         iconStripSpacer,
-        iconWorkspace,
         iconSettings,
+        iconWorkspace,
         iconExport,
         iconClear,
       );
