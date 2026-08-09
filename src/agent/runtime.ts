@@ -1017,12 +1017,19 @@ export class AgentRuntime {
             );
           }
         }
-        return {
-          kind: "completed",
-          runId,
-          text: redactedFinalText,
-          usedFallback: false,
-        };
+        return status === "completed"
+          ? {
+              kind: "completed",
+              runId,
+              text: redactedFinalText,
+              usedFallback: false,
+            }
+          : {
+              kind: "failed",
+              runId,
+              text: redactedFinalText,
+              usedFallback: false,
+            };
       };
       const emitFinalStep = async (
         step: Extract<AgentModelStep, { kind: "final" }>,
@@ -1314,9 +1321,24 @@ export class AgentRuntime {
         resolution: AgentConfirmationResolution;
       }> => {
         const requestId = createConfirmationRequestId();
+        let abortListener: (() => void) | undefined;
         const resolution = new Promise<AgentConfirmationResolution>(
           (resolve) => {
-            this.pendingConfirmations.set(requestId, { resolve });
+            const settle = (value: AgentConfirmationResolution) => {
+              if (abortListener && params.signal) {
+                params.signal.removeEventListener("abort", abortListener);
+              }
+              this.pendingConfirmations.delete(requestId);
+              resolve(value);
+            };
+            this.pendingConfirmations.set(requestId, { resolve: settle });
+            abortListener = () =>
+              settle({ approved: false, actionId: "cancel" });
+            if (params.signal?.aborted) abortListener();
+            else
+              params.signal?.addEventListener("abort", abortListener, {
+                once: true,
+              });
           },
         );
         await emit({

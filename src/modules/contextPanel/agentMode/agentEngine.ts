@@ -590,7 +590,7 @@ async function finalizeAgentTurnOutcome(ctx: {
   assistantMessage.agentRunId = outcome.runId;
   assistantMessage.runMode = "agent";
   const finalOutcomeText =
-    outcome.kind === "completed"
+    outcome.kind === "completed" || outcome.kind === "failed"
       ? outcome.text
       : assistantMessage.pendingFinalText || assistantMessage.text;
   assistantMessage.text =
@@ -611,7 +611,10 @@ async function finalizeAgentTurnOutcome(ctx: {
     await persistAssistantOnce();
   }
   if (!uiRelease.isReleased()) {
-    setStatusSafely("Ready", "ready");
+    setStatusSafely(
+      outcome.kind === "failed" ? "Agent failed" : "Ready",
+      outcome.kind === "failed" ? "error" : "ready",
+    );
   }
 }
 

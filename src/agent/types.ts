@@ -547,6 +547,12 @@ export type AgentRuntimeOutcome =
       runId: string;
       reason: string;
       usedFallback: true;
+    }
+  | {
+      kind: "failed";
+      runId: string;
+      text: string;
+      usedFallback: false;
     };
 
 export type AgentToolArtifact =
