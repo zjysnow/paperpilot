@@ -173,6 +173,7 @@ const MAX_PROVIDER_COUNT = 10;
 const INITIAL_PROVIDER_COUNT = 1;
 const DEFAULT_OLLAMA_API_BASE = "http://127.0.0.1:11434/v1";
 const DEFAULT_OLLAMA_MODEL = "llama3.2";
+const registeredPreferenceWindows = new WeakSet<Window>();
 
 type ProviderProfile = {
   label: string;
@@ -455,6 +456,8 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     ztoolkit.log("Preferences window not available");
     return;
   }
+  if (registeredPreferenceWindows.has(_window)) return;
+  registeredPreferenceWindows.add(_window);
 
   const doc = _window.document;
   const notifyMineruParseFiltersChanged = () => {
@@ -850,7 +853,10 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           : normalizeProviderPresetId(
               group.presetIdOverride ?? detectProviderPreset(group.apiBase),
             );
-      const selectedPresetId: ProviderPresetId = detectedPresetId;
+      const selectedPresetId: ProviderPresetId =
+        detectedPresetId === "local_openai_compatible"
+          ? "local_openai_compatible"
+          : "customized";
       const selectedPreset =
         selectedPresetId === "customized"
           ? null
@@ -883,6 +889,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         providerPresetLabel.setAttribute("for", providerPresetSelect.id);
 
         for (const preset of PROVIDER_PRESETS) {
+          if (preset.id !== "local_openai_compatible") continue;
           const option = el(doc, "option") as HTMLOptionElement;
           option.value = preset.id;
           option.textContent = preset.label;
