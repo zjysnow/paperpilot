@@ -30,6 +30,9 @@ const ZOTERO_MCP_TRACE_TOOL_NAMES = new Set([
   "undo_last_action",
 ]);
 const ZOTERO_MCP_TRACE_SERVER_NAMES = new Set([
+  "paperpilot",
+  "paper-pilot",
+  "paper pilot",
   "llm_for_zotero",
   "llm-for-zotero",
   "llm for zotero",
@@ -50,12 +53,16 @@ function normalizeZoteroMcpServerAliasForDedupe(value: string): string {
   const normalized = normalizeCodexServerIdentityTextForDedupe(value);
   if (!normalized) return "";
   if (
+    normalized === "paperpilot" ||
+    normalized === "paper_pilot" ||
+    normalized.startsWith("paperpilot_") ||
+    normalized.startsWith("paper_pilot_") ||
     normalized === "llm_for_zotero" ||
     normalized === "claude_zotero" ||
     normalized.startsWith("llm_for_zotero_") ||
     normalized.startsWith("claude_zotero_")
   ) {
-    return "llm_for_zotero";
+    return "paperpilot";
   }
   return normalized;
 }
@@ -113,13 +120,13 @@ function normalizeCodexServerNameForDedupe(
   if (mcpMatch?.[1]) {
     const serverAlias = normalizeZoteroMcpServerAliasForDedupe(mcpMatch[1]);
     if (ZOTERO_MCP_TRACE_SERVER_NAMES.has(mcpMatch[1].toLowerCase())) {
-      return "llm_for_zotero";
+      return "paperpilot";
     }
     return serverAlias;
   }
   const normalizedToolName = normalizeCodexToolNameForDedupe(cleanToolName);
   return ZOTERO_MCP_TRACE_TOOL_NAMES.has(normalizedToolName)
-    ? "llm_for_zotero"
+    ? "paperpilot"
     : "";
 }
 

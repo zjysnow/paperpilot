@@ -54,7 +54,7 @@ export function getCanonicalUserSkillsDir(): string {
 }
 
 export function getLegacyUserSkillsDir(): string {
-  return joinLocalPath(getSkillStorageBaseDir(), "paeprpilot", "skills");
+  return joinLocalPath(getSkillStorageBaseDir(), "llm-for-zotero", "skills");
 }
 
 export function getCanonicalSkillDir(skillId: string): string {

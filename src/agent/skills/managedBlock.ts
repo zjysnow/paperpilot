@@ -10,6 +10,8 @@
 
 export const MANAGED_BEGIN_MARKER = "<!-- Paper Pilot:MANAGED-BEGIN -->";
 export const MANAGED_END_MARKER = "<!-- Paper Pilot:MANAGED-END -->";
+const LEGACY_MANAGED_BEGIN_MARKER = "<!-- LLM-FOR-ZOTERO:MANAGED-BEGIN -->";
+const LEGACY_MANAGED_END_MARKER = "<!-- LLM-FOR-ZOTERO:MANAGED-END -->";
 
 /**
  * Extract the managed block from a skill file's raw content.
@@ -23,16 +25,22 @@ export function extractManagedBlock(raw: string): {
   before: string;
   after: string;
 } {
-  const beginIdx = raw.indexOf(MANAGED_BEGIN_MARKER);
-  const endIdx = raw.indexOf(MANAGED_END_MARKER);
+  const markerPair = raw.includes(MANAGED_BEGIN_MARKER)
+    ? { begin: MANAGED_BEGIN_MARKER, end: MANAGED_END_MARKER }
+    : {
+        begin: LEGACY_MANAGED_BEGIN_MARKER,
+        end: LEGACY_MANAGED_END_MARKER,
+      };
+  const beginIdx = raw.indexOf(markerPair.begin);
+  const endIdx = raw.indexOf(markerPair.end);
   if (beginIdx < 0 || endIdx < 0 || endIdx <= beginIdx) {
     return { block: null, before: raw, after: "" };
   }
-  const blockStart = beginIdx + MANAGED_BEGIN_MARKER.length;
+  const blockStart = beginIdx + markerPair.begin.length;
   const blockEnd = endIdx;
   const before = raw.slice(0, beginIdx);
   const block = raw.slice(blockStart, blockEnd);
-  const after = raw.slice(endIdx + MANAGED_END_MARKER.length);
+  const after = raw.slice(endIdx + markerPair.end.length);
   return { block, before, after };
 }
 
