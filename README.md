@@ -173,6 +173,12 @@ restored to its default.
    **Test Connection**.
 5. Open a PDF and click the Paper Pilot icon in the reader toolbar.
 
+After the first installation, Zotero can update Paper Pilot through its native
+Add-on Manager. The plugin publishes `update.json` on the fixed `release`
+GitHub release, and the manifest points Zotero to that file. See
+[发布与 Zotero 自动更新](doc/release-and-update-zhCN.md) for the versioning,
+release, and update procedure.
+
 ## Development
 
 This repository uses the Zotero plugin scaffold and TypeScript.
