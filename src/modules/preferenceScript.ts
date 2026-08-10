@@ -906,9 +906,6 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
             group.apiBase = getProviderPreset(nextPresetId).defaultApiBase;
             group.providerProtocol =
               getProviderPreset(nextPresetId).defaultProtocol;
-            if (nextPresetId === "local_openai_compatible") {
-              group.apiKey = "";
-            }
           }
           persistGroups(groups);
           // Defer rerender so the browser can close the dropdown before we replace the DOM
