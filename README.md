@@ -4,7 +4,7 @@ Paper Pilot is a customized Zotero plugin for reading, organizing, and
 researching academic literature with large language models.
 
 This project is a customized modification based on
-[llm-for-zotero](https://github.com/jianghao-zhang/llm-for-zotero). It keeps the
+[Paper Pilot](https://github.com/zjysnow/paperpilot). It keeps the
 original project's Zotero-focused research workflow and extends it with a
 local-first model and agent architecture.
 
@@ -194,12 +194,12 @@ npm run start
 
 Paper Pilot is an actively customized project. The local Agent, Skills, and local
 provider transport, standalone-window, and PDF workflows may evolve
-independently from upstream llm-for-zotero.
+independently from upstream paperpilot.
 
 ## Acknowledgements
 
 This project would not exist without
-[llm-for-zotero](https://github.com/jianghao-zhang/llm-for-zotero). Thank you to
+[Paper Pilot](https://github.com/zjysnow/paperpilot). Thank you to
 the original authors and contributors for building the Zotero research
 assistant that this customized version is based on.
 

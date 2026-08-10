@@ -162,7 +162,7 @@ function isObviousMineruReadPath(value: string): boolean {
   const normalized = normalizePathForPrefix(value);
   const fileName = getFileNameFromPath(normalized).toLowerCase();
   return (
-    normalized.includes("llm-for-zotero-mineru/") &&
+    normalized.includes("paperpilot-mineru/") &&
     (fileName === "manifest.json" || fileName === "full.md")
   );
 }
@@ -170,7 +170,7 @@ function isObviousMineruReadPath(value: string): boolean {
 function isMineruFullMarkdownReadPath(value: string): boolean {
   const normalized = normalizePathForPrefix(value);
   return (
-    normalized.includes("llm-for-zotero-mineru/") &&
+    normalized.includes("paperpilot-mineru/") &&
     getFileNameFromPath(normalized).toLowerCase() === "full.md"
   );
 }
@@ -189,7 +189,7 @@ export function summarizeFileIOCall(args: unknown): string | null {
   if (action === "read") {
     if (
       fileName === "manifest.json" &&
-      filePath.includes("llm-for-zotero-mineru")
+      filePath.includes("paperpilot-mineru")
     ) {
       return "Reading paper structure";
     }
@@ -523,7 +523,7 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
           const fileName = filePath.split(/[\\/]/).pop() || "";
           if (
             fileName === "manifest.json" &&
-            filePath.includes("llm-for-zotero-mineru")
+            filePath.includes("paperpilot-mineru")
           ) {
             return "Paper structure loaded";
           }

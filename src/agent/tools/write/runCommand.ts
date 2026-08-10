@@ -212,7 +212,7 @@ async function executeCommand(params: {
     }
   } catch (error) {
     Zotero.debug?.(
-      `[llm-for-zotero] Subprocess.call failed: ${error instanceof Error ? error.message : String(error)}`,
+      `[Paper Pilot] Subprocess.call failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 

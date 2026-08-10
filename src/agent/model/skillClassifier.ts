@@ -63,7 +63,7 @@ export async function detectSkillIntent(
     });
   } catch (err) {
     Zotero.debug?.(
-      `[llm-for-zotero] Skill classifier LLM call failed, falling back to regex: ${
+      `[Paper Pilot] Skill classifier LLM call failed, falling back to regex: ${
         err instanceof Error ? err.message : String(err)
       }`,
     );
@@ -73,7 +73,7 @@ export async function detectSkillIntent(
   const parsed = parseClassifierResponse(raw, skills);
   if (parsed === null) {
     Zotero.debug?.(
-      `[llm-for-zotero] Skill classifier returned malformed JSON, falling back to regex. Raw: ${raw.slice(0, 200)}`,
+      `[Paper Pilot] Skill classifier returned malformed JSON, falling back to regex. Raw: ${raw.slice(0, 200)}`,
     );
     return regexFallback(skills, request);
   }

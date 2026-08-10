@@ -825,7 +825,7 @@ export function createEditCurrentNoteTool(
             : undefined,
           log: (message, error) => {
             Zotero.debug?.(
-              `[llm-for-zotero] ${message}: ${
+              `[Paper Pilot] ${message}: ${
                 error instanceof Error ? error.message : String(error || "")
               }`,
             );
@@ -834,7 +834,7 @@ export function createEditCurrentNoteTool(
         const noteId = persisted.noteId;
         if (persisted.warnings.length) {
           Zotero.debug?.(
-            `[llm-for-zotero] Note ${noteId} created with warnings: ${persisted.warnings.join(
+            `[Paper Pilot] Note ${noteId} created with warnings: ${persisted.warnings.join(
               "; ",
             )}`,
           );
@@ -891,7 +891,7 @@ export function createEditCurrentNoteTool(
               zoteroGateway,
             );
           } catch (e) {
-            Zotero.debug?.(`[llm-for-zotero] Image import failed: ${e}`);
+            Zotero.debug?.(`[Paper Pilot] Image import failed: ${e}`);
           }
         }
 
@@ -934,7 +934,7 @@ export function createEditCurrentNoteTool(
             zoteroGateway,
           );
         } catch (e) {
-          Zotero.debug?.(`[llm-for-zotero] Image import failed: ${e}`);
+          Zotero.debug?.(`[Paper Pilot] Image import failed: ${e}`);
         }
       }
 
