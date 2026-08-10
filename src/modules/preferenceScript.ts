@@ -850,10 +850,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           : normalizeProviderPresetId(
               group.presetIdOverride ?? detectProviderPreset(group.apiBase),
             );
-      const selectedPresetId: ProviderPresetId =
-        detectedPresetId === "local_openai_compatible"
-          ? "local_openai_compatible"
-          : "customized";
+      const selectedPresetId: ProviderPresetId = detectedPresetId;
       const selectedPreset =
         selectedPresetId === "customized"
           ? null
@@ -886,7 +883,6 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         providerPresetLabel.setAttribute("for", providerPresetSelect.id);
 
         for (const preset of PROVIDER_PRESETS) {
-          if (preset.id !== "local_openai_compatible") continue;
           const option = el(doc, "option") as HTMLOptionElement;
           option.value = preset.id;
           option.textContent = preset.label;
