@@ -2,9 +2,6 @@ import type { ChatRuntimeMode, PaperContextRef } from "./types";
 
 export type RuntimeModeResolutionInput = {
   cachedMode?: ChatRuntimeMode | null;
-  isRuntimeConversationSystem?: boolean;
-  runtimeConversationSystem?:
-    "upstream" | "claude_code" | "codex" | string | null;
   agentModeEnabled?: boolean;
   displayConversationKind?: "global" | "paper" | null;
   noteKind?: "standalone" | "item" | string | null;
@@ -36,13 +33,6 @@ export function filterManualPaperContextsAgainstAutoLoaded(
 export function resolveRuntimeModeForConversation(
   input: RuntimeModeResolutionInput,
 ): ChatRuntimeMode {
-  if (input.runtimeConversationSystem === "codex") return "chat";
-  if (
-    input.isRuntimeConversationSystem ||
-    input.runtimeConversationSystem === "claude_code"
-  ) {
-    return "agent";
-  }
   if (!input.agentModeEnabled) return "chat";
   if (input.cachedMode === "agent" || input.cachedMode === "chat") {
     return input.cachedMode;

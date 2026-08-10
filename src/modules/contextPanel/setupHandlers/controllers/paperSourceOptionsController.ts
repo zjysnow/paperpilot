@@ -44,18 +44,12 @@ export type PaperSourceOption = {
 
 export function resolvePaperPdfSupportForConversation(params: {
   basePdfSupport: PdfSupport;
-  isClaudeCode: boolean;
-  isCodex: boolean;
 }): PdfSupport {
-  return params.isClaudeCode || params.isCodex
-    ? "local_path"
-    : params.basePdfSupport;
+  return params.basePdfSupport;
 }
 
 export function shouldDowngradePdfSourceForConversation(params: {
   basePdfSupport: PdfSupport;
-  isClaudeCode: boolean;
-  isCodex: boolean;
 }): boolean {
   const support = resolvePaperPdfSupportForConversation(params);
   return support !== "native" && support !== "local_path";

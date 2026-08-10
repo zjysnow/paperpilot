@@ -12,50 +12,6 @@ import {
 import { createAgentModelAdapter } from "../agent/model/factory";
 import type { AgentRuntimeRequest } from "../agent/types";
 
-function extractTextFromCodexSSE(raw: string): string {
-  const lines = raw.split(/\r?\n/);
-  let out = "";
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("data:")) continue;
-    const payload = trimmed.slice(5).trim();
-    if (!payload || payload === "[DONE]") continue;
-    try {
-      const parsed = JSON.parse(payload) as {
-        delta?: string;
-        response?: {
-          output_text?: string;
-          output?: Array<{
-            content?: Array<{ type?: string; text?: string }>;
-          }>;
-        };
-      };
-      if (typeof parsed.delta === "string") {
-        out += parsed.delta;
-      }
-      const completedText = parsed.response?.output_text;
-      if (typeof completedText === "string" && completedText.trim()) {
-        out += completedText;
-      }
-      const outputItems = parsed.response?.output || [];
-      for (const item of outputItems) {
-        const content = item.content || [];
-        for (const part of content) {
-          if (
-            (part.type === "output_text" || part.type === "text") &&
-            typeof part.text === "string"
-          ) {
-            out += part.text;
-          }
-        }
-      }
-    } catch (_error) {
-      continue;
-    }
-  }
-  return out.trim();
-}
-
 function extractAnthropicText(data: unknown): string {
   if (!data || typeof data !== "object") return "";
   const content = (data as { content?: unknown }).content;
@@ -92,24 +48,6 @@ function buildConnectionRequestPayload(params: {
   protocol: ProviderProtocol;
   modelName: string;
 }): { body: Record<string, unknown>; expectsSse: boolean } {
-  if (params.protocol === "codex_responses") {
-    return {
-      expectsSse: true,
-      body: {
-        model: params.modelName,
-        instructions: "You are a concise assistant. Reply with OK.",
-        input: [
-          {
-            type: "message",
-            role: "user",
-            content: [{ type: "input_text", text: "Say OK" }],
-          },
-        ],
-        store: false,
-        stream: true,
-      },
-    };
-  }
   if (params.protocol === "responses_api") {
     return {
       expectsSse: false,
@@ -166,9 +104,6 @@ function extractConnectionReply(params: {
   rawText: string;
   jsonData?: unknown;
 }): string {
-  if (params.protocol === "codex_responses") {
-    return extractTextFromCodexSSE(params.rawText) || "OK";
-  }
   if (params.protocol === "responses_api") {
     const data = params.jsonData as {
       output_text?: string;

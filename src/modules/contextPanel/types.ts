@@ -421,7 +421,7 @@ export type SendQuestionOptions = {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+  authMode?: "api_key" | "copilot_auth";
   providerProtocol?: import("../../utils/providerProtocol").ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -493,7 +493,7 @@ export type EditRetryOptions = {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+  authMode?: "api_key" | "copilot_auth";
   providerProtocol?: import("../../utils/providerProtocol").ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;

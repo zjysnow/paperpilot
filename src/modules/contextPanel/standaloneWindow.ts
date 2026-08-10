@@ -63,7 +63,6 @@ import {
   collectAndDeleteUnreferencedBlobs,
 } from "../../utils/attachmentRefStore";
 import { loadAllConversationHistory } from "./historyLoader";
-import { releaseClaudeRuntimeForBody } from "../../utils/removedBackends";
 import {
   formatGlobalHistoryTimestamp,
   GLOBAL_HISTORY_UNDO_WINDOW_MS,
@@ -88,12 +87,6 @@ import { createHistorySearchPopupController } from "./setupHandlers/controllers/
 import { primeHistoryNavigationMode } from "./historyNavigationModeSync";
 import { resolveFreshConversationDraft } from "./freshConversationDraft";
 import { collapseDuplicateReusableConversationDrafts } from "./standaloneConversationResolution";
-import {
-  createRuntimeSystemControls,
-  RUNTIME_CONVERSATION_SYSTEMS,
-  resolveRuntimeSystemToggleTarget,
-  syncRuntimeSystemControls,
-} from "./runtimeSystemControls";
 
 import { showConversationRenameDialog } from "./conversationRenameDialog";
 import {
@@ -821,20 +814,9 @@ export function openStandaloneChat(options?: {
       tabGroup.className = "paperpilotstandalone-tab-group";
       tabGroup.append(paperTab, openTab);
 
-      const standaloneRuntimeSystemControls = createRuntimeSystemControls(doc, {
-        groupClassName: "paperpilotstandalone-runtime-system-controls",
-        buttonClassName: "paperpilotstandalone-runtime-system-toggle",
-      });
-      const updateStandaloneSystemToggles = () => {
-        syncRuntimeSystemControls(standaloneRuntimeSystemControls, {
-          activeSystem: currentConversationSystem,
-          hidden: false,
-        });
-      };
-
       const tabRow = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
       tabRow.className = "paperpilotstandalone-tab-row";
-      tabRow.append(standaloneRuntimeSystemControls.group, tabGroup);
+      tabRow.append(tabGroup);
 
       // -- Lower area: sidebar + content side by side --
       const lowerArea = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
@@ -919,10 +901,7 @@ export function openStandaloneChat(options?: {
         "paperpilotstandalone-icon-btn paperpilotstandalone-icon-notes-graph";
       iconNotesGraph.type = "button";
       iconNotesGraph.title = t("Open note in Obsidian");
-      iconNotesGraph.setAttribute(
-        "aria-label",
-        t("Open note in Obsidian"),
-      );
+      iconNotesGraph.setAttribute("aria-label", t("Open note in Obsidian"));
 
       const iconClear = doc.createElementNS(
         HTML_NS,
@@ -1283,7 +1262,6 @@ export function openStandaloneChat(options?: {
         userTurnCount: entry.userTurnCount,
         sessionVersion: entry.sessionVersion,
         paperItemID: entry.paperItemID,
-        providerSessionId: entry.providerSessionId,
         scopedConversationKey: entry.scopedConversationKey,
         conversationSystem: entry.system,
         mode: entry.kind === "paper" ? "paper" : "open",
@@ -1701,7 +1679,6 @@ export function openStandaloneChat(options?: {
           userTurnCount: entry.userTurnCount,
           paperItemID: entry.paperItemID,
           sessionVersion: entry.sessionVersion,
-          providerSessionId: entry.providerSessionId,
           scopedConversationKey: entry.scopedConversationKey,
         };
       };
@@ -2308,7 +2285,6 @@ export function openStandaloneChat(options?: {
                 ? getCurrentPaperLibraryID()
                 : getCurrentLibraryScopeID()),
             paperItemID: entry.paperItemID,
-            providerSessionId: entry.providerSessionId,
           },
           {
             resetSessionTokens,
@@ -2359,7 +2335,6 @@ export function openStandaloneChat(options?: {
         userTurnCount: entry.userTurnCount,
         sessionVersion: entry.sessionVersion,
         paperItemID: entry.paperItemID,
-        providerSessionId: entry.providerSessionId,
         scopedConversationKey: entry.scopedConversationKey,
         mode: entry.kind === "paper" ? "paper" : "open",
       });
@@ -2840,14 +2815,12 @@ export function openStandaloneChat(options?: {
           activeConversationKey = getConversationKey(activeNoteItem);
           mountChatPanel(activeNoteItem);
           scheduleStandaloneSidebarRender();
-          updateStandaloneSystemToggles();
           return;
         }
         const currentSystem = currentConversationSystem;
         if (nextSystem === currentSystem) return;
         const forceFresh = options?.forceFresh === true;
         currentConversationSystem = nextSystem;
-        updateStandaloneSystemToggles();
         if (standaloneMode === "open") {
           const libraryID = getCurrentLibraryScopeID();
           const mountOpenConversation = (conversationKey: number) => {
@@ -2863,7 +2836,6 @@ export function openStandaloneChat(options?: {
             }
             mountChatPanel(nextItem as Zotero.Item);
             scheduleStandaloneSidebarRender();
-            updateStandaloneSystemToggles();
           };
 
           if (forceFresh) {
@@ -2918,7 +2890,6 @@ export function openStandaloneChat(options?: {
           mountChatPanel(freshItem as Zotero.Item, currentRawContextItem);
           scheduleStandaloneSidebarRender();
           void renderShortcuts(contentArea, freshItem as Zotero.Item, "paper");
-          updateStandaloneSystemToggles();
           return;
         }
         if (switchSeq !== systemSwitchSeq) return;
@@ -2932,25 +2903,8 @@ export function openStandaloneChat(options?: {
             resolveShortcutMode(nextItem),
           );
         }
-        updateStandaloneSystemToggles();
       };
 
-      for (const system of RUNTIME_CONVERSATION_SYSTEMS) {
-        standaloneRuntimeSystemControls.buttons[system].addEventListener(
-          "click",
-          () => {
-            if (cancelled || newWin.closed) return;
-            void switchConversationSystem(
-              resolveRuntimeSystemToggleTarget(
-                currentConversationSystem,
-                system,
-              ),
-              { forceFresh: true },
-            );
-          },
-        );
-      }
-      updateStandaloneSystemToggles();
       const commitStandaloneMode = (mode: "open" | "paper") => {
         standaloneMode = mode;
         {
@@ -3272,7 +3226,6 @@ export function openStandaloneChat(options?: {
     const contentArea = root?.querySelector(".paperpilotstandalone-content");
     if (contentArea) {
       disposeSetupHandlers(contentArea);
-      void releaseClaudeRuntimeForBody(contentArea as Element);
       activeContextPanels.delete(contentArea);
       activeContextPanelRawItems.delete(contentArea);
       activeContextPanelStateSync.delete(contentArea);

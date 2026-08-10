@@ -321,11 +321,7 @@ export function registerReaderContextPanel() {
             : 0) ||
           (item ? Number(item.libraryID || 0) : 0);
         const lockedKey =
-          expectedSystem === "claude_code" || expectedSystem === "codex"
-            ? null
-            : libraryID > 0
-              ? getLockedGlobalConversationKey(libraryID)
-              : null;
+          libraryID > 0 ? getLockedGlobalConversationKey(libraryID) : null;
         const currentKind = panelRoot?.dataset?.conversationKind;
         const currentItemKey = panelRoot?.dataset?.itemId;
         const currentSystem = panelRoot?.dataset?.conversationSystem || "";
@@ -1093,8 +1089,6 @@ export function refreshNoteEditingPanelsForNote(noteId: number): number {
 function parseConversationSystem(value: unknown): ConversationSystem | null {
   const raw = `${value || ""}`.trim().toLowerCase();
   if (raw === "upstream") return "upstream";
-  if (raw === "claude_code") return "claude_code";
-  if (raw === "codex") return "codex";
   return null;
 }
 

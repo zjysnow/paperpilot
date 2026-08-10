@@ -3,11 +3,6 @@
  * Enables the agent to read data files, write scripts, export results, etc.
  */
 import type { AgentToolContext, AgentToolDefinition } from "../../types";
-import type { PaperContextRef } from "../../../shared/types";
-import {
-  formatPaperCitationLabel,
-  formatPaperSourceLabel,
-} from "../../../modules/contextPanel/paperAttribution";
 import { ok, fail, validateObject } from "../shared";
 import { getLocalParentPath, joinLocalPath } from "../../../utils/localPath";
 import {
@@ -311,41 +306,6 @@ function resolveFileNoteWriteInput(
     },
     requestedFilePath: input.filePath,
   };
-}
-
-function buildCodexMineruPaperSourceMetadata(
-  filePath: string,
-  request: AgentToolContext["request"],
-): {
-  paperContext: PaperContextRef;
-  citationLabel: string;
-  sourceLabel: string;
-  citationInstruction: string;
-} | null {
-  if (request.authMode !== "codex_app_server") return null;
-  const normalizedFilePath = normalizePathForPrefix(filePath);
-  for (const paperContext of collectRequestPaperContexts(request)) {
-    const cacheDir =
-      typeof paperContext.mineruCacheDir === "string"
-        ? normalizePathForPrefix(paperContext.mineruCacheDir)
-        : "";
-    if (!cacheDir) continue;
-    if (
-      normalizedFilePath === cacheDir ||
-      normalizedFilePath.startsWith(`${cacheDir}/`)
-    ) {
-      const sourceLabel = formatPaperSourceLabel(paperContext);
-      return {
-        paperContext,
-        citationLabel: formatPaperCitationLabel(paperContext),
-        sourceLabel,
-        citationInstruction:
-          `This file is parsed paper text for ${paperContext.title}. ` +
-          `When using this content in the answer, use > blockquotes only for short verbatim original source text that provides direct evidence for an important paper-specific claim, and put ${sourceLabel} on the next non-empty line after the blockquote, before any commentary. Paper titles, headings, author lists, journal names, DOI blocks, and source labels are metadata, not direct evidence. Never translate quote text to match the user's language; put translation, interpretation, emphasis, examples, or opinion in normal prose or fenced text blocks. Never put interpretation between the quote and ${sourceLabel}. A bare parenthetical citation alone is not enough.`,
-      };
-    }
-  }
-  return null;
 }
 
 function getRequestMineruCacheRelativePath(
@@ -679,10 +639,6 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
       const { input: effectiveInput, requestedFilePath } =
         resolveFileNoteWriteInput(input, context);
       input = effectiveInput;
-      const paperSourceMetadata = buildCodexMineruPaperSourceMetadata(
-        input.filePath,
-        context.request,
-      );
       if (input.action === "read") {
         // Image files: return via artifacts so the LLM can see them visually
         const IMAGE_EXTENSIONS = new Set([
@@ -744,14 +700,12 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
               filePath: input.filePath,
               imageFile: true,
               mimeType,
-              ...(paperSourceMetadata || {}),
             },
             artifacts: [
               {
                 kind: "image" as const,
                 mimeType,
                 storedPath: input.filePath,
-                paperContext: paperSourceMetadata?.paperContext,
               },
             ],
           };
@@ -772,7 +726,6 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
               filePath: input.filePath,
               text,
               bytesRead: text.length,
-              ...(paperSourceMetadata || {}),
               ...(start > 0 ? { offset: start } : {}),
               ...(text.length < raw.length ? { totalLength: raw.length } : {}),
             },

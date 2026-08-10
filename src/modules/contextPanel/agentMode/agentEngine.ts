@@ -7,12 +7,6 @@
  * mode can be read and edited without opening chat.ts.
  */
 import type { AgentRuntime } from "../../../agent/runtime";
-import {
-  captureClaudeSessionInfo,
-  buildClaudeScope,
-  isClaudeBlockStreamingEnabled,
-  type CodexNativeConversationScope,
-} from "../../../utils/removedBackends";
 import type {
   AgentEvent,
   AgentPendingAction,
@@ -64,17 +58,6 @@ function buildPendingAgentTraceEvents(body?: Element): AgentRunEventRecord[] {
   return events;
 }
 
-function applyResolvedClaudeEffortDisplay(
-  body: Element,
-  event: AgentEvent,
-): void {
-  if (event.type !== "provider_event") return;
-  if (event.providerType !== "runtime_config") return;
-  const applyResolvedEffort = (body as any).__llmApplyResolvedClaudeEffort as
-    ((effort: unknown) => void) | undefined;
-  if (typeof applyResolvedEffort !== "function") return;
-  applyResolvedEffort(event.payload?.resolvedEffort);
-}
 import type {
   AdvancedModelParams,
   ChatAttachment,
@@ -157,10 +140,6 @@ function normalizeAgentUsageForCacheTelemetry(
         : undefined,
     contextWindowIsAuthoritative: record.contextWindowIsAuthoritative === true,
   };
-}
-
-function shouldSyncVisibleRollbackText(message: Message): boolean {
-  return message.modelProviderLabel === "Codex";
 }
 
 function appendPendingFinalText(
@@ -275,9 +254,6 @@ function createAgentTurnEventHandler(
       flushMessageDeltas(event.type === "final" ? "final" : "event");
     }
     switch (event.type) {
-      case "provider_event":
-        applyResolvedClaudeEffortDisplay(body, event);
-        break;
       case "usage": {
         const usageEvent = event as Extract<AgentEvent, { type: "usage" }>;
         recordContextCacheTelemetry(
@@ -340,9 +316,7 @@ function createAgentTurnEventHandler(
               ui.tokenUsageEl,
               effectiveTokens,
               nextWindow,
-              body.querySelector(
-                "#llm-claude-context-gauge",
-              ) as HTMLElement | null,
+              null,
               {
                 estimated: usageRecord.contextWindowIsAuthoritative !== true,
                 cacheReadTokens:
@@ -477,10 +451,8 @@ function createAgentTurnEventHandler(
               (assistantMessage.pendingFinalText || "").length - event.length,
             ),
           );
-          if (shouldSyncVisibleRollbackText(assistantMessage)) {
-            assistantMessage.text = assistantMessage.pendingFinalText || "";
-            queueRefresh();
-          }
+          assistantMessage.text = assistantMessage.pendingFinalText || "";
+          queueRefresh();
         }
         return;
       case "context_compacted": {
@@ -876,9 +848,8 @@ type EffectiveRequestConfigShape = {
   model: string;
   apiBase: string;
   apiKey: string;
-  authMode: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+  authMode: "api_key" | "copilot_auth";
   providerProtocol?:
-    | "codex_responses"
     | "responses_api"
     | "openai_chat_compat"
     | "anthropic_messages"
@@ -1040,9 +1011,8 @@ export type AgentEngineDeps = {
     model?: string;
     apiBase?: string;
     apiKey?: string;
-    authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+    authMode?: "api_key" | "copilot_auth";
     providerProtocol?:
-      | "codex_responses"
       | "responses_api"
       | "openai_chat_compat"
       | "anthropic_messages"
@@ -1188,9 +1158,8 @@ export async function sendAgentTurn(
     model?: string;
     apiBase?: string;
     apiKey?: string;
-    authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+    authMode?: "api_key" | "copilot_auth";
     providerProtocol?:
-      | "codex_responses"
       | "responses_api"
       | "openai_chat_compat"
       | "anthropic_messages"
@@ -1400,16 +1369,8 @@ export async function sendAgentTurn(
     modelEntryId: effectiveRequestConfig.modelEntryId,
     modelProviderLabel: effectiveRequestConfig.modelProviderLabel,
     streaming: true,
-    waitingAnimationStartedAt:
-      effectiveRequestConfig.modelProviderLabel === "Claude Code" ||
-      effectiveRequestConfig.modelProviderLabel === "Codex"
-        ? Date.now()
-        : undefined,
-    pendingAgentTraceEvents:
-      effectiveRequestConfig.modelProviderLabel === "Claude Code" ||
-      effectiveRequestConfig.modelProviderLabel === "Codex"
-        ? buildPendingAgentTraceEvents(body)
-        : undefined,
+    waitingAnimationStartedAt: Date.now(),
+    pendingAgentTraceEvents: buildPendingAgentTraceEvents(body),
     reasoningOpen: deps.isReasoningExpandedByDefault(),
     quoteCitations: selectedTextQuoteCitationsForMessage.length
       ? selectedTextQuoteCitationsForMessage
@@ -1725,10 +1686,8 @@ export async function retryAgentTurn(
   model: string | undefined,
   apiBase: string | undefined,
   apiKey: string | undefined,
-  authMode:
-    "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth" | undefined,
+  authMode: "api_key" | "copilot_auth" | undefined,
   providerProtocol:
-    | "codex_responses"
     | "responses_api"
     | "openai_chat_compat"
     | "anthropic_messages"
@@ -1769,10 +1728,7 @@ export async function retryAgentTurn(
     advanced,
   });
   const conversationSystem = deps.getConversationSystem();
-  const usesLocalPdfTransport =
-    conversationSystem === "claude_code" ||
-    (conversationSystem === "codex" &&
-      effectiveRequestConfig.authMode === "codex_app_server");
+  const usesLocalPdfTransport = false;
 
   let retryLocalDocuments: readonly LocalDocumentResource[] | undefined;
   try {
@@ -1849,19 +1805,11 @@ export async function retryAgentTurn(
   assistantMessage.modelEntryId = effectiveRequestConfig.modelEntryId;
   assistantMessage.modelProviderLabel =
     effectiveRequestConfig.modelProviderLabel;
-  assistantMessage.waitingAnimationStartedAt =
-    assistantMessage.modelProviderLabel === "Claude Code" ||
-    assistantMessage.modelProviderLabel === "Codex"
-      ? Date.now()
-      : undefined;
+  assistantMessage.waitingAnimationStartedAt = Date.now();
   assistantMessage.reasoningSummary = undefined;
   assistantMessage.reasoningDetails = undefined;
   assistantMessage.reasoningOpen = deps.isReasoningExpandedByDefault();
-  assistantMessage.pendingAgentTraceEvents =
-    assistantMessage.modelProviderLabel === "Claude Code" ||
-    assistantMessage.modelProviderLabel === "Codex"
-      ? buildPendingAgentTraceEvents(body)
-      : undefined;
+  assistantMessage.pendingAgentTraceEvents = buildPendingAgentTraceEvents(body);
 
   const { refreshChatSafely, refreshAssistantMessageSafely, setStatusSafely } =
     deps.createPanelUpdateHelpers(body, item, conversationKey, ui);

@@ -76,10 +76,6 @@ export function getAgentModeEnabled(): boolean {
   return getBoolPref("enableAgentMode", false);
 }
 
-export function getClaudeCodeModeEnabled(): boolean {
-  return getBoolPref("enableClaudeCodeMode", false);
-}
-
 const LAST_REASONING_LEVEL_PREF_KEY = "lastUsedReasoningLevel";
 const LAST_REASONING_LEVEL_BY_PROVIDER_PREF_KEY =
   "lastUsedReasoningLevelByProvider";

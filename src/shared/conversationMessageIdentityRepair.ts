@@ -40,7 +40,7 @@ function canonicalIDConflictsWithRegistered(
   registered: ConversationRegistryRow,
 ): boolean {
   const match =
-    /^lfz:[^:]+:(upstream|claude_code|codex):(global|paper):lib-(\d+):paper-(\d+):legacy-(\d+)$/.exec(
+    /^lfz:[^:]+:(upstream):(global|paper):lib-(\d+):paper-(\d+):legacy-(\d+)$/.exec(
       conversationID,
     );
   if (!match) return false;

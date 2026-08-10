@@ -23,7 +23,6 @@ import {
   resolvePreferredConversationSystem,
 } from "./portalScope";
 import { getConversationKey } from "./conversationIdentity";
-import { createRuntimeSystemControls } from "./runtimeSystemControls";
 
 function createActionDropdown(doc: Document, spec: ActionDropdownSpec) {
   const slot = createElement(
@@ -193,32 +192,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
 
   modeSwitchWrap.append(modeChipBtn);
 
-  const runtimeSystemControls = createRuntimeSystemControls(doc, {
-    groupId: "paperpilotruntime-system-controls",
-    groupClassName: "paperpilotpanel-runtime-system-controls",
-    buttonClassName: "paperpilotpanel-runtime-system-toggle",
-    buttonIds: {
-      codex: "paperpilotcodex-system-toggle",
-      claude_code: "paperpilotclaude-system-toggle",
-    },
-  });
-
-  const claudeContextGauge = createElement(
-    doc,
-    "div",
-    "paperpilotclaude-context-gauge",
-    {
-      id: "paperpilotclaude-context-gauge",
-    },
-  ) as HTMLDivElement;
-  claudeContextGauge.style.display = "none";
-  claudeContextGauge.setAttribute("aria-hidden", "true");
-
-  headerRuntimeControls.append(
-    modeSwitchWrap,
-    runtimeSystemControls.group,
-    claudeContextGauge,
-  );
+  headerRuntimeControls.append(modeSwitchWrap);
   historyBar.append(historyNewBtn, historyToggle, headerRuntimeControls);
 
   headerInfo.append(title, historyBar);

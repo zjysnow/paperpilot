@@ -1,7 +1,8 @@
 import type { ResolvedContextSource, SendQuestionOptions } from "./types";
 import type { QuoteCitation } from "../../shared/types";
 import type { WorkflowTestFinalRequestSnapshot } from "./workflowTestHooks";
-import type { RuntimeConversationSystem } from "./runtimeSystemControls";
+import type { ConversationSystem } from "../../shared/types";
+type RuntimeConversationSystem = ConversationSystem;
 
 export type WorkflowTestFixture = {
   parentItemId: number;

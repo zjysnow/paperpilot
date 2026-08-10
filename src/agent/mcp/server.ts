@@ -143,12 +143,8 @@ export type ZoteroMcpActiveScope = {
   title?: string;
   userText?: string;
   model?: string;
-  codexPath?: string;
   reasoning?: ReasoningConfig;
-  exhaustiveReadBackend?: Extract<
-    ExhaustiveReadBackend,
-    "codex_responses" | "unavailable"
-  >;
+  exhaustiveReadBackend?: Extract<ExhaustiveReadBackend, "unavailable">;
   paperContext?: PaperContextRef;
   selectedPaperContexts?: PaperContextRef[];
   pdfPaperContexts?: PaperContextRef[];
@@ -603,12 +599,8 @@ function normalizeActiveScope(
     title: normalizeText(scope.title),
     userText: normalizeText(scope.userText, 4000),
     model: normalizeText(scope.model, 256),
-    codexPath: normalizeText(scope.codexPath, 4096),
     reasoning: normalizeReasoningConfig(scope.reasoning),
-    exhaustiveReadBackend:
-      scope.exhaustiveReadBackend === "codex_responses"
-        ? "codex_responses"
-        : "unavailable",
+    exhaustiveReadBackend: "unavailable",
     paperContext,
     selectedPaperContexts: normalizePaperContexts(scope.selectedPaperContexts),
     pdfPaperContexts: (
@@ -1396,10 +1388,7 @@ function createToolContext(
     pinnedPaperContexts?.length,
   );
   const activeNoteContext = resolveScopeActiveNoteContext(scope);
-  const exhaustiveReadBackend =
-    scope?.exhaustiveReadBackend === "codex_responses"
-      ? "codex_responses"
-      : "unavailable";
+  const exhaustiveReadBackend = "unavailable" as const;
   const request: AgentRuntimeRequest = {
     conversationKey: scope?.conversationKey || 0,
     mode: "agent",
@@ -1414,15 +1403,6 @@ function createToolContext(
     libraryID: scopeArgs.libraryID || scope?.libraryID || 0,
     conversationKind: scope?.kind,
     model: scope?.model,
-    apiBase: scope?.codexPath,
-    authMode:
-      exhaustiveReadBackend === "codex_responses"
-        ? "codex_app_server"
-        : undefined,
-    providerProtocol:
-      exhaustiveReadBackend === "codex_responses"
-        ? "codex_responses"
-        : undefined,
     reasoning: scope?.reasoning,
     exhaustiveReadBackend,
     selectedPaperContexts:
@@ -1442,8 +1422,7 @@ function createToolContext(
     item,
     currentAnswerText: "",
     modelName: scope?.model || "external-mcp",
-    modelProviderLabel:
-      exhaustiveReadBackend === "codex_responses" ? "Codex" : "External MCP",
+    modelProviderLabel: "External MCP",
   };
 }
 

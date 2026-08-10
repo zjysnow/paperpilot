@@ -68,7 +68,6 @@ function buildReasoningContentForContinuation(
 function isToolCapableApiBase(request: AgentRuntimeRequest): boolean {
   const apiBase = (request.apiBase || "").trim();
   if (!apiBase) return false;
-  if (request.authMode === "codex_auth") return false;
   return true;
 }
 

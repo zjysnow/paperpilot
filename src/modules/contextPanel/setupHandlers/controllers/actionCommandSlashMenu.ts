@@ -20,7 +20,6 @@ export type ActionCommandSlashMenuContext = {
   slashMenu: HTMLDivElement | null;
   getItem: () => Zotero.Item | null;
   getSelectedProfile: () => { authMode?: string } | null;
-  isClaudeConversationSystem: () => boolean;
   clearAgentSlashItems: () => void;
   clearSkillSlashItems: () => void;
   consumeActiveActionToken: () => boolean;
@@ -33,12 +32,6 @@ export type ActionCommandSlashMenuContext = {
     userQuery?: string,
   ) => void | Promise<void>;
   buildActionRequestContext: () => { mode: ActionChatMode };
-};
-
-type ClaudeSlashMenuItem = {
-  name: string;
-  description: string;
-  argumentHint?: string;
 };
 
 function firstSentence(text: string): string {
@@ -139,73 +132,6 @@ export function renderAgentActionsInSlashMenu(
     element.setAttribute("data-slash-agent-item", "true");
     return element;
   };
-  if (context.isClaudeConversationSystem()) {
-    let commands: ClaudeSlashMenuItem[];
-    try {
-      commands = getAgentApi().listSlashCommands?.() || [];
-    } catch {
-      commands = [];
-    }
-    if (!commands.length) {
-      const loading = mkAgentEl("div", "paperpilotslash-menu-section");
-      loading.setAttribute("aria-hidden", "true");
-      loading.textContent = t("Loading Claude commands...");
-      list.insertBefore(loading, firstBase);
-      void initAgentSubsystem()
-        .then((coreRuntime) => refreshClaudeSlashCommands(coreRuntime, false))
-        .then(() => {
-          renderAgentActionsInSlashMenu(context, query);
-        })
-        .catch(() => {});
-      const baseLabel = mkAgentEl("div", "paperpilotslash-menu-section");
-      baseLabel.setAttribute("aria-hidden", "true");
-      baseLabel.textContent = t("Base actions");
-      list.insertBefore(baseLabel, firstBase);
-      return;
-    }
-    const filtered = query
-      ? commands.filter(
-          (command) =>
-            command.name.toLowerCase().includes(query) ||
-            command.description.toLowerCase().includes(query),
-        )
-      : commands;
-    if (filtered.length) {
-      const section = mkAgentEl("div", "paperpilotslash-menu-section");
-      section.setAttribute("aria-hidden", "true");
-      section.textContent = "Claude Code";
-      list.insertBefore(section, firstBase);
-      filtered.forEach((command) => {
-        const button = mkAgentEl(
-          "button",
-          "paperpilotaction-picker-item",
-        ) as HTMLButtonElement;
-        button.type = "button";
-        button.title = command.description;
-        const titleEl = ownerDoc.createElement("span");
-        titleEl.className = "paperpilotaction-picker-title";
-        titleEl.textContent = `/${command.name}`;
-        button.append(titleEl);
-        button.addEventListener("click", (event: Event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          context.consumeActiveActionToken();
-          context.closeSlashMenu();
-          context.insertCommandToken({
-            name: command.name,
-            description: command.description,
-            inputSchema: { type: "object", properties: {} },
-          });
-        });
-        list.insertBefore(button, firstBase);
-      });
-    }
-    const baseLabel = mkAgentEl("div", "paperpilotslash-menu-section");
-    baseLabel.setAttribute("aria-hidden", "true");
-    baseLabel.textContent = t("Base actions");
-    list.insertBefore(baseLabel, firstBase);
-    return;
-  }
   const chatMode = resolveSlashActionChatMode(
     resolveDisplayConversationKind(context.getItem()),
   );
@@ -233,13 +159,9 @@ export function renderAgentActionsInSlashMenu(
   baseLabel.setAttribute("data-slash-section", "base");
   baseLabel.textContent = t("Base actions");
   list.insertBefore(baseLabel, baseAnchor);
-  const selectedProfile = context.getSelectedProfile();
   const compactAction: SlashMenuActionItem = {
     name: "compact",
-    description:
-      selectedProfile?.authMode === "codex_app_server"
-        ? "Compact the current Codex context."
-        : "Compact the current agent context.",
+    description: "Compact the current agent context.",
     inputSchema: { type: "object", properties: {} },
   };
   if (
@@ -318,4 +240,3 @@ export function renderAgentActionsInSlashMenu(
 import { getAgentApi, initAgentSubsystem } from "../../../../agent";
 import { getAllSkills } from "../../../../agent/skills";
 import type { AgentSkill } from "../../../../agent/skills/skillLoader";
-import { refreshClaudeSlashCommands } from "../../../../utils/removedBackends";

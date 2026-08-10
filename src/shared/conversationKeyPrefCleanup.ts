@@ -2,7 +2,6 @@ import { config } from "../../package.json";
 import {
   UPSTREAM_GLOBAL_CONVERSATION_KEY_BASE,
   isConversationKeyForKind,
-  isRuntimeAllocatedConversationKeyForKind,
 } from "./conversationKeySpace";
 
 type ZoteroPrefsAPI = {
@@ -90,12 +89,6 @@ function cleanScalarConversationKeyPref(
   }
 }
 
-function allocatedKindForMapKey(key: string): "global" | "paper" | null {
-  if (key.endsWith(":global")) return "global";
-  if (key.endsWith(":paper")) return "paper";
-  return null;
-}
-
 function isUpstreamPaperConversationKeyForPrefs(value: number): boolean {
   return (
     Number.isFinite(value) &&
@@ -108,64 +101,10 @@ export function cleanupRememberedConversationKeyPrefs(): void {
   const prefs = getZoteroPrefs();
   if (!prefs?.get || !prefs.set) return;
 
-  cleanJsonNumberMapPref("claudeCodeGlobalConversationMap", (_key, value) =>
-    isConversationKeyForKind("claude_code", "global", value),
-  );
-  cleanJsonNumberMapPref("claudeCodePaperConversationMap", (_key, value) =>
-    isConversationKeyForKind("claude_code", "paper", value),
-  );
-  cleanJsonNumberMapPref(
-    "claudeCodeLastAllocatedConversationKeyMap",
-    (key, value) => {
-      const kind = allocatedKindForMapKey(key);
-      return Boolean(
-        kind &&
-        isRuntimeAllocatedConversationKeyForKind("claude_code", kind, value),
-      );
-    },
-  );
-
-  cleanJsonNumberMapPref("codexAppServerGlobalConversationMap", (_key, value) =>
-    isConversationKeyForKind("codex", "global", value),
-  );
-  cleanJsonNumberMapPref("codexAppServerPaperConversationMap", (_key, value) =>
-    isConversationKeyForKind("codex", "paper", value),
-  );
-  cleanJsonNumberMapPref(
-    "codexAppServerLastAllocatedConversationKeyMap",
-    (key, value) => {
-      const kind = allocatedKindForMapKey(key);
-      return Boolean(
-        kind && isRuntimeAllocatedConversationKeyForKind("codex", kind, value),
-      );
-    },
-  );
-
   cleanJsonNumberMapPref("lastUsedPaperConversationMap", (_key, value) =>
     isUpstreamPaperConversationKeyForPrefs(value),
   );
   cleanJsonNumberMapPref("lastUsedGlobalConversationMap", (_key, value) =>
     isConversationKeyForKind("upstream", "global", value),
-  );
-
-  cleanScalarConversationKeyPref(
-    "claudeCodeLastAllocatedGlobalConversationKey",
-    (value) =>
-      isRuntimeAllocatedConversationKeyForKind("claude_code", "global", value),
-  );
-  cleanScalarConversationKeyPref(
-    "claudeCodeLastAllocatedPaperConversationKey",
-    (value) =>
-      isRuntimeAllocatedConversationKeyForKind("claude_code", "paper", value),
-  );
-  cleanScalarConversationKeyPref(
-    "codexAppServerLastAllocatedGlobalConversationKey",
-    (value) =>
-      isRuntimeAllocatedConversationKeyForKind("codex", "global", value),
-  );
-  cleanScalarConversationKeyPref(
-    "codexAppServerLastAllocatedPaperConversationKey",
-    (value) =>
-      isRuntimeAllocatedConversationKeyForKind("codex", "paper", value),
   );
 }

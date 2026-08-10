@@ -484,14 +484,12 @@ export type AgentModelStep =
       assistantMessage: AgentAssistantMessage;
     };
 
-export type ExhaustiveReadBackend =
-  "request_provider" | "codex_responses" | "unavailable";
+export type ExhaustiveReadBackend = "request_provider" | "unavailable";
 
 export type AgentRuntimeRequest = AgentRequest & {
   item?: Zotero.Item | null;
   history?: ChatMessage[];
   authMode?: ModelProviderAuthMode;
-  claudeEffortLevel?: "low" | "medium" | "high" | "xhigh" | "max";
   systemPrompt?: string;
   /** Optional user-defined instructions injected between persona and tool guidance */
   customInstructions?: string;

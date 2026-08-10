@@ -41,14 +41,6 @@ const CATALOG_TABLES: Array<{
     system: "upstream",
     catalogTable: "llm_for_zotero_paper_conversations",
   },
-  {
-    system: "claude_code",
-    catalogTable: "llm_for_zotero_claude_conversations",
-  },
-  {
-    system: "codex",
-    catalogTable: "llm_for_zotero_codex_conversations",
-  },
 ];
 
 const MESSAGE_TABLES: Array<{
@@ -63,16 +55,6 @@ const MESSAGE_TABLES: Array<{
       "llm_for_zotero_global_conversations",
       "llm_for_zotero_paper_conversations",
     ],
-  },
-  {
-    system: "claude_code",
-    messageTable: "llm_for_zotero_claude_messages",
-    catalogTables: ["llm_for_zotero_claude_conversations"],
-  },
-  {
-    system: "codex",
-    messageTable: "llm_for_zotero_codex_messages",
-    catalogTables: ["llm_for_zotero_codex_conversations"],
   },
 ];
 
@@ -93,18 +75,6 @@ const SUMMARY_TABLES: Array<{
     catalogTable: "llm_for_zotero_paper_conversations",
     messageTable: "llm_for_zotero_chat_messages",
     activityFallbackSql: "c.created_at",
-  },
-  {
-    system: "claude_code",
-    catalogTable: "llm_for_zotero_claude_conversations",
-    messageTable: "llm_for_zotero_claude_messages",
-    activityFallbackSql: "c.updated_at, c.created_at",
-  },
-  {
-    system: "codex",
-    catalogTable: "llm_for_zotero_codex_conversations",
-    messageTable: "llm_for_zotero_codex_messages",
-    activityFallbackSql: "c.updated_at, c.created_at",
   },
 ];
 

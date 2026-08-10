@@ -3,10 +3,8 @@ import type { ConversationSystem } from "../../shared/types";
 export type ConversationForkEligibilityReason =
   | "invalid_turn"
   | "pending_response"
-  | "claude_code"
   | "unsupported_system"
   | "compact_marker"
-  | "codex_older_turn"
   | "missing_provider_session";
 
 export type ConversationForkEligibility = {
@@ -70,8 +68,7 @@ export function evaluateConversationForkEligibility(params: {
   });
 
   if (params.pendingResponse) return blocked("pending_response");
-  if (params.system === "claude_code") return blocked("claude_code");
-  if (params.system !== "upstream" && params.system !== "codex") {
+  if (params.system !== "upstream") {
     return blocked("unsupported_system");
   }
 
@@ -89,14 +86,6 @@ export function evaluateConversationForkEligibility(params: {
   if (assistantMessage?.compactMarker) return blocked("compact_marker");
 
   if (
-    params.system === "codex" &&
-    hasHistory &&
-    latestForkableAssistantTimestamp !== assistantTimestamp
-  ) {
-    return blocked("codex_older_turn");
-  }
-  if (
-    params.system === "codex" &&
     params.requireProviderSession &&
     !hasProviderSessionId(params.sourceProviderSessionId)
   ) {

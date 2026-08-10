@@ -2825,7 +2825,7 @@ export type EffectiveRequestConfig = {
   model: string;
   apiBase: string;
   apiKey: string;
-  authMode: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+  authMode: "api_key" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -2847,25 +2847,13 @@ function supportsImageInputs(config: EffectiveRequestConfig): boolean {
   return resolveEffectiveProviderCapabilities(config).images;
 }
 
-function isCodexAppServerConversationRequest(_params: {
-  item: Zotero.Item;
-  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
-  providerProtocol?: ProviderProtocol;
-  modelProviderLabel?: string;
-}): boolean {
-  return false;
-}
-
 function resolveEffectiveConversationSystem(params: {
   item: Zotero.Item;
-  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+  authMode?: "api_key" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   modelProviderLabel?: string;
 }): ConversationSystem {
-  const itemSystem = resolveConversationSystemForItem(params.item);
-  if (itemSystem) return itemSystem;
-  if (isCodexAppServerConversationRequest(params)) return "codex";
-  return "upstream";
+  return resolveConversationSystemForItem(params.item) || "upstream";
 }
 
 function resolveEffectiveRequestConfig(params: {
@@ -2873,32 +2861,13 @@ function resolveEffectiveRequestConfig(params: {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+  authMode?: "api_key" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
   reasoning?: LLMReasoningConfig;
   advanced?: AdvancedModelParams;
 }): EffectiveRequestConfig {
-  if (isCodexAppServerConversationRequest(params)) {
-    const model =
-      (params.model || getCodexRuntimeModelPref()).trim() || "gpt-5.4";
-    const reasoningMode = getCodexReasoningModePref();
-    const reasoning =
-      params.reasoning || buildCodexAppServerReasoningConfig(reasoningMode);
-    return {
-      model,
-      apiBase: (params.apiBase ?? "").trim(),
-      apiKey: "",
-      authMode: "codex_app_server",
-      providerProtocol: "codex_responses",
-      modelEntryId: params.modelEntryId || `codex_app_server::${model}`,
-      modelProviderLabel: "Codex",
-      reasoning,
-      advanced: params.advanced,
-    };
-  }
-
   const hasExplicitProviderMetadata = Boolean(
     params.modelProviderLabel ||
     params.providerProtocol ||
@@ -2938,13 +2907,8 @@ function resolveEffectiveRequestConfig(params: {
   const authMode =
     params.authMode ||
     explicitEntry?.authMode ||
-    (fallbackEntry?.authMode === "codex_auth"
-      ? "codex_auth"
-      : fallbackEntry?.authMode === "codex_app_server"
-        ? "codex_app_server"
-        : fallbackEntry?.authMode === "copilot_auth"
-          ? "copilot_auth"
-          : "api_key");
+    fallbackEntry?.authMode ||
+    "api_key";
   const providerProtocol =
     params.providerProtocol ||
     explicitEntry?.providerProtocol ||
@@ -6489,9 +6453,7 @@ export async function editLatestUserMessageAndRetry(
     contextSource,
   );
   const editRetryCodexNativeMcpLightContext = shouldUseCodexNativeLightContext({
-    isCodexNativeTurn:
-      retryConversationSystem === "codex" &&
-      retryRequestConfig.authMode === "codex_app_server",
+    isCodexNativeTurn: false,
   });
   if (editRetryCodexNativeMcpLightContext) {
     const [enrichedPaperContexts, enrichedFullTextPaperContexts] =
@@ -6671,7 +6633,7 @@ export async function retryLatestAssistantResponse(
   model?: string,
   apiBase?: string,
   apiKey?: string,
-  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth",
+  authMode?: "api_key" | "copilot_auth",
   providerProtocol?: ProviderProtocol,
   modelEntryId?: string,
   modelProviderLabel?: string,
@@ -6739,9 +6701,7 @@ export async function retryLatestAssistantResponse(
       item,
       conversationSystem: effectiveConversationSystem,
     }) || effectiveConversationSystem;
-  const isCodexNativeTurn =
-    effectiveConversationSystem === "codex" &&
-    effectiveRequestConfig.authMode === "codex_app_server";
+  const isCodexNativeTurn = false;
   assistantMessage.runMode = isCodexNativeTurn ? "agent" : "chat";
   assistantMessage.modelName = effectiveRequestConfig.model;
   assistantMessage.modelEntryId = effectiveRequestConfig.modelEntryId;
@@ -7342,7 +7302,7 @@ export async function editUserTurnAndRetry(opts: {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+  authMode?: "api_key" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -8046,15 +8006,6 @@ async function buildAgentRuntimeRequest(
     authMode: params.effectiveRequestConfig.authMode,
     providerProtocol: params.effectiveRequestConfig.providerProtocol,
     reasoning: params.effectiveRequestConfig.reasoning,
-    claudeEffortLevel:
-      typeof params.effectiveRequestConfig.reasoning?.level === "string"
-        ? ((params.effectiveRequestConfig.reasoning.level === "xhigh"
-            ? getClaudeReasoningModePref() === "max"
-              ? "max"
-              : "xhigh"
-            : params.effectiveRequestConfig.reasoning.level) as
-            "low" | "medium" | "high" | "xhigh" | "max")
-        : undefined,
     advanced: params.effectiveRequestConfig.advanced,
     history: params.history,
     item: params.item,
@@ -8250,7 +8201,7 @@ async function retryLatestAgentResponse(
   model?: string,
   apiBase?: string,
   apiKey?: string,
-  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth",
+  authMode?: "api_key" | "copilot_auth",
   providerProtocol?: ProviderProtocol,
   modelEntryId?: string,
   modelProviderLabel?: string,
@@ -8292,7 +8243,7 @@ async function sendAgentQuestion(opts: {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+  authMode?: "api_key" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   modelEntryId?: string;
   modelProviderLabel?: string;
@@ -8544,9 +8495,7 @@ export async function sendQuestion(
     advanced,
   });
   const shouldPersistTurn = true;
-  const isCodexNativeTurn =
-    effectiveConversationSystem === "codex" &&
-    effectiveRequestConfig.authMode === "codex_app_server";
+  const isCodexNativeTurn = false;
   const isCodexNativeCompactCommand =
     isCodexNativeTurn && isCompactCommandText(question);
   if (isCodexNativeCompactCommand) {

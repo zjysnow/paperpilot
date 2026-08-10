@@ -47,15 +47,12 @@ export type ConversationDeletionTarget = {
   conversationSystem: ConversationSystem;
   libraryID: number;
   paperItemID?: number;
-  providerSessionId?: string | null;
 };
 
 export type ConversationDeletionIssueCode =
   | "cancel_pending_request"
   | "runtime_cache"
   | "agent_state"
-  | "claude_session"
-  | "codex_thread_archive"
   | "message_rows"
   | "attachment_refs"
   | "attachment_files"
@@ -85,11 +82,6 @@ type ConversationDeletionOperations = {
   ) => Promise<void>;
   clearOwnerAttachmentRefs: typeof clearOwnerAttachmentRefs;
   removeConversationAttachmentFiles: typeof removeConversationAttachmentFiles;
-  archiveCodexThread: (threadId: string) => Promise<void>;
-  invalidateClaudeConversation: (
-    conversationKey: number,
-    target: ConversationDeletionTarget,
-  ) => Promise<void>;
   clearRememberedSelection: (target: ConversationDeletionTarget) => void;
 };
 
@@ -109,10 +101,6 @@ function normalizePositiveInt(value: unknown): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
   return Math.floor(parsed);
-}
-
-function normalizeProviderSessionId(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
 }
 
 function normalizeConversationID(value: unknown): string {
@@ -136,12 +124,9 @@ export function getConversationDeletionFailureMessage(
   }
   if (
     result.blocked &&
-    result.errors.some(
-      (issue) =>
-        issue.code === "codex_thread_archive" || issue.code === "message_rows",
-    )
+    result.errors.some((issue) => issue.code === "message_rows")
   ) {
-    return "Failed to delete conversation. Codex thread was not archived.";
+    return "Failed to delete conversation.";
   }
   return "Failed to fully delete conversation. Check logs.";
 }
@@ -198,12 +183,6 @@ function buildOperations(
     },
     clearOwnerAttachmentRefs,
     removeConversationAttachmentFiles,
-    archiveCodexThread: async () => {},
-    invalidateClaudeConversation: async () => {
-      if (!deps.getCoreAgentRuntime) {
-        return;
-      }
-    },
     clearRememberedSelection,
     ...deps.operations,
   };
@@ -421,56 +400,6 @@ export async function finalizeConversationDeletion(
       ),
     log,
   );
-
-  if (normalizedTarget.conversationSystem === "claude_code") {
-    await runStep(
-      result,
-      "claude_session",
-      "LLM: Failed to invalidate deleted Claude conversation",
-      () =>
-        operations.invalidateClaudeConversation(
-          conversationKey,
-          normalizedTarget,
-        ),
-      log,
-    );
-  }
-
-  const codexThreadId =
-    normalizedTarget.conversationSystem === "codex"
-      ? normalizeProviderSessionId(normalizedTarget.providerSessionId)
-      : "";
-  if (codexThreadId) {
-    const preflightErrorCount = result.errors.length;
-    await runStep(
-      result,
-      "message_rows",
-      "LLM: Failed to validate local conversation rows before archiving Codex thread",
-      () => operations.preflightDeleteLocalConversationRows(normalizedTarget),
-      log,
-    );
-    if (result.errors.length > preflightErrorCount) {
-      result.blocked = true;
-      return result;
-    }
-    try {
-      await operations.archiveCodexThread(codexThreadId);
-    } catch (error) {
-      result.blocked = true;
-      recordIssue(
-        result,
-        "errors",
-        {
-          code: "codex_thread_archive",
-          message:
-            "LLM: Failed to archive Codex thread; local conversation was not deleted",
-          error,
-        },
-        log,
-      );
-      return result;
-    }
-  }
 
   const localDeleteErrorCount = result.errors.length;
   await runStep(

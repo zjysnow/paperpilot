@@ -36,9 +36,6 @@ export type PanelDomRefs = {
   historyUndoText: HTMLSpanElement | null;
   historyUndoBtn: HTMLButtonElement | null;
   topToast: HTMLDivElement | null;
-  runtimeSystemControls: HTMLDivElement | null;
-  codexSystemToggleBtn: HTMLButtonElement | null;
-  claudeSystemToggleBtn: HTMLButtonElement | null;
   selectTextBtn: HTMLButtonElement | null;
   screenshotBtn: HTMLButtonElement | null;
   uploadBtn: HTMLButtonElement | null;
@@ -199,15 +196,6 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     topToast: body.querySelector(
       "#paperpilottop-toast",
     ) as HTMLDivElement | null,
-    runtimeSystemControls: body.querySelector(
-      "#paperpilotruntime-system-controls",
-    ) as HTMLDivElement | null,
-    codexSystemToggleBtn: body.querySelector(
-      "#paperpilotcodex-system-toggle",
-    ) as HTMLButtonElement | null,
-    claudeSystemToggleBtn: body.querySelector(
-      "#paperpilotclaude-system-toggle",
-    ) as HTMLButtonElement | null,
     selectTextBtn: body.querySelector(
       "#paperpilotselect-text",
     ) as HTMLButtonElement | null,

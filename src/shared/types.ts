@@ -185,7 +185,7 @@ export type ActiveNoteContext = {
   noteHtml?: string;
 };
 
-export type ConversationSystem = "upstream" | "claude_code" | "codex";
+export type ConversationSystem = string;
 
 export type GlobalConversationSummary = {
   conversationID: string;
@@ -206,49 +206,5 @@ export type PaperConversationSummary = {
   createdAt: number;
   title?: string;
   lastActivityAt: number;
-  userTurnCount: number;
-};
-
-export type ClaudeConversationKind = "global" | "paper";
-
-export type ClaudeConversationSummary = {
-  conversationID: string;
-  conversationKey: number;
-  libraryID: number;
-  kind: ClaudeConversationKind;
-  paperItemID?: number;
-  createdAt: number;
-  updatedAt: number;
-  title?: string;
-  providerSessionId?: string;
-  scopedConversationKey?: string;
-  scopeType?: string;
-  scopeId?: string;
-  scopeLabel?: string;
-  cwd?: string;
-  model?: string;
-  effort?: string;
-  userTurnCount: number;
-};
-
-export type CodexConversationKind = "global" | "paper";
-
-export type CodexConversationSummary = {
-  conversationID: string;
-  conversationKey: number;
-  libraryID: number;
-  kind: CodexConversationKind;
-  paperItemID?: number;
-  createdAt: number;
-  updatedAt: number;
-  title?: string;
-  providerSessionId?: string;
-  scopedConversationKey?: string;
-  scopeType?: string;
-  scopeId?: string;
-  scopeLabel?: string;
-  cwd?: string;
-  model?: string;
-  effort?: string;
   userTurnCount: number;
 };

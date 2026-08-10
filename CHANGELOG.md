@@ -2,6 +2,13 @@
 
 记录 Paper Pilot 项目的功能、修复、重构和测试变更。后续每次修改完成后，将修改内容追加到本文件顶部。
 
+## 2026-08-10
+
+- 清理 Claude Code 和 Codex 专用后端、认证协议、偏好设置、运行时适配器、界面入口及相关图标，统一保留通用模型服务商协议和内置 Agent 运行时。
+- 移除已废弃的专用对话存储、搜索索引和会话键空间 wiring，并保留旧会话数据的兼容边界，避免启动和类型检查回归。
+- 精简模型偏好设置与请求配置逻辑，继续支持 OpenAI-compatible、Responses API、Gemini、Anthropic-compatible 和 GitHub Copilot 服务商。
+- 通过 TypeScript typecheck、18 个单元测试、workflow 构建、ESLint 和 `git diff --check`。
+
 ## 2026-08-09
 
 - 在默认模型系统提示词中加入 Mermaid 节点标签引号规范，避免将兼容规则显示到用户对话框或快捷指令文本中。

@@ -26,10 +26,7 @@ export function shouldRenderDynamicSlashMenu(params: {
 }): boolean {
   if (params.itemPresent === false) return false;
   if (params.runtimeMode === "agent") return true;
-  return (
-    params.conversationSystem === "codex" ||
-    params.conversationSystem === "claude_code"
-  );
+  return false;
 }
 
 export function shouldRenderSkillSlashMenu(params: {
@@ -38,7 +35,6 @@ export function shouldRenderSkillSlashMenu(params: {
   conversationSystem?: ConversationSystem | string | null;
 }): boolean {
   if (params.itemPresent === false) return false;
-  if (params.conversationSystem === "claude_code") return false;
   if (params.runtimeMode === "agent") return true;
-  return params.conversationSystem === "codex";
+  return false;
 }

@@ -24,7 +24,6 @@ import { resolvePdfModeModelInputs } from "./pdfPaperModelInputController";
 
 import {
   getAllSkills,
-  prependNativeSkillMention,
   resolveSkillDirectiveText,
 } from "../../../../agent/skills";
 import {
@@ -41,7 +40,7 @@ type SelectedProfile = {
   apiBase: string;
   apiKey: string;
   providerLabel: string;
-  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+  authMode?: "api_key" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
 };
 
@@ -133,18 +132,8 @@ type SendFlowControllerDeps = {
   ) => string;
   isAgentMode: () => boolean;
   isGlobalMode: () => boolean;
-  isClaudeConversationSystem: () => boolean;
-  isCodexConversationSystem: () => boolean;
   normalizeConversationTitleSeed: (raw: unknown) => string;
   getConversationKey: (item: Zotero.Item) => number;
-  touchClaudeConversationTitle: (
-    conversationKey: number,
-    title: string,
-  ) => Promise<void>;
-  touchCodexConversationTitle: (
-    conversationKey: number,
-    title: string,
-  ) => Promise<void>;
   touchGlobalConversationTitle: (
     conversationKey: number,
     title: string,
@@ -219,11 +208,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       const draftText = deps.inputBox.value.trim();
       const earlyProfile = deps.getSelectedProfile();
       const rawSubmittedText = (options?.overrideText ?? draftText).trim();
-      const codexNativeSkillText = {
-        text: rawSubmittedText,
-        forcedSkillId: undefined,
-      };
-      const text = codexNativeSkillText.text;
+      const text = rawSubmittedText;
       const selectedContexts = deps.getSelectedTextContextEntries(
         textContextConversationKey,
       );
@@ -242,9 +227,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         item.id,
       );
       const selectedTagContexts = deps.getSelectedTagContexts(item.id);
-      const usesPluginAgentMode =
-        (deps.isAgentMode() || deps.isClaudeConversationSystem()) &&
-        !deps.isCodexConversationSystem();
+      const usesPluginAgentMode = deps.isAgentMode();
       // Plugin Agent mode uses text/MinerU pipeline by default, but if the user
       // explicitly forced PDF mode on a paper, honour that choice.
       const pdfModePaperContexts = deps.getPdfModePaperContexts(
@@ -327,19 +310,6 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         pdfUploadSystemMessages,
         localDocuments,
       } = pdfInputs;
-      if (localDocuments.length && deps.isClaudeConversationSystem()) {
-        try {
-          await deps.preflightLocalPdfCapability?.();
-        } catch (error) {
-          deps.setStatusMessage?.(
-            error instanceof Error && error.message.trim()
-              ? error.message
-              : "Claude bridge does not support raw local PDF paths.",
-            "error",
-          );
-          return;
-        }
-      }
       const hasImageInputs =
         selectedImages.length > 0 || pdfPageImageDataUrls.length > 0;
       const hasPaperComposeState =
@@ -444,13 +414,9 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
         deps.normalizeConversationTitleSeed(rawSubmittedText) ||
         deps.normalizeConversationTitleSeed(resolvedPromptText);
       if (titleSeed) {
-        const touchTitle = deps.isClaudeConversationSystem()
-          ? deps.touchClaudeConversationTitle
-          : deps.isCodexConversationSystem()
-            ? deps.touchCodexConversationTitle
-            : deps.isGlobalMode()
-              ? deps.touchGlobalConversationTitle
-              : deps.touchPaperConversationTitle;
+        const touchTitle = deps.isGlobalMode()
+          ? deps.touchGlobalConversationTitle
+          : deps.touchPaperConversationTitle;
         void touchTitle(deps.getConversationKey(item), titleSeed).catch(
           (err) => {
             ztoolkit.log("LLM: Failed to touch conversation title", err);
@@ -459,9 +425,6 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       }
 
       const selectedProfile = deps.getSelectedProfile();
-      const shouldRetainClaudeRuntime =
-        deps.isClaudeConversationSystem() ||
-        selectedProfile?.providerLabel === "Claude Code";
       const activeModelName = (
         selectedProfile?.model ||
         deps.getCurrentModelName() ||
@@ -608,21 +571,8 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
       }
 
       const consumedForcedSkillIds = deps.consumeForcedSkillIds?.() || [];
-      const forcedSkillIds = Array.from(
-        new Set([
-          ...consumedForcedSkillIds,
-          ...(codexNativeSkillText.forcedSkillId
-            ? [codexNativeSkillText.forcedSkillId]
-            : []),
-        ]),
-      );
-      const questionForSend =
-        selectedProfile?.authMode === "codex_app_server" && forcedSkillIds[0]
-          ? prependNativeSkillMention(composedQuestion, forcedSkillIds[0])
-          : composedQuestion;
-      if (shouldRetainClaudeRuntime) {
-        await deps.retainClaudeRuntime?.(deps.body, item);
-      }
+      const forcedSkillIds = Array.from(new Set([...consumedForcedSkillIds]));
+      const questionForSend = composedQuestion;
       const activeNoteScope = resolveNoteEditingScope(item);
       const activeNoteContext = buildNoteEditingTurnContext({
         scope: activeNoteScope,
@@ -688,11 +638,7 @@ export function createSendFlowController(deps: SendFlowControllerDeps): {
           deps.refreshGlobalHistoryHeader();
         }, 120);
       }
-      try {
-        await sendTask;
-      } catch (err) {
-        throw err;
-      }
+      await sendTask;
       deps.refreshGlobalHistoryHeader();
     } finally {
       deps.autoUnlockGlobalChat();

@@ -23,7 +23,6 @@ import {
   createProviderModelEntry,
   getModelProviderGroups,
   getProviderDisplayName,
-  migrateApiBaseForAuthModeChange,
   setModelProviderGroups,
   type ModelProviderAuthMode,
   type ModelProviderGroup,
@@ -174,8 +173,6 @@ const MAX_PROVIDER_COUNT = 10;
 const INITIAL_PROVIDER_COUNT = 1;
 const DEFAULT_OLLAMA_API_BASE = "http://127.0.0.1:11434/v1";
 const DEFAULT_OLLAMA_MODEL = "llama3.2";
-const DEFAULT_CODEX_API_BASE =
-  "https://chatgpt.com/backend-api/codex/responses";
 
 type ProviderProfile = {
   label: string;
@@ -230,13 +227,9 @@ function getProtocolOptions(
   authMode: ModelProviderAuthMode,
   presetId: ProviderPresetId,
 ): ProviderProtocol[] {
-  if (authMode === "codex_auth" || authMode === "codex_app_server")
-    return ["codex_responses"];
   if (authMode === "copilot_auth")
     return ["openai_chat_compat", "responses_api"];
-  return getProviderPresetProtocolOptions(presetId).filter(
-    (protocol) => protocol !== "codex_responses",
-  );
+  return getProviderPresetProtocolOptions(presetId);
 }
 
 function resolveSelectedProtocol(
@@ -246,17 +239,11 @@ function resolveSelectedProtocol(
   const allowed = getProtocolOptions(group.authMode, presetId);
   if (presetId !== "customized") {
     const defaultProtocol =
-      group.authMode === "codex_auth" || group.authMode === "codex_app_server"
-        ? "codex_responses"
-        : group.authMode === "copilot_auth"
-          ? "openai_chat_compat"
-          : getProviderPreset(presetId).defaultProtocol;
+      group.authMode === "copilot_auth"
+        ? "openai_chat_compat"
+        : getProviderPreset(presetId).defaultProtocol;
     return allowed.includes(defaultProtocol) ? defaultProtocol : allowed[0];
   }
-  const fallback =
-    group.authMode === "codex_auth" || group.authMode === "codex_app_server"
-      ? "codex_responses"
-      : undefined;
   const shouldInferCustomizedProtocol =
     presetId === "customized" &&
     group.providerProtocol === "openai_chat_compat";
@@ -266,7 +253,6 @@ function resolveSelectedProtocol(
       : group.providerProtocol,
     authMode: group.authMode,
     apiBase: group.apiBase,
-    ...(fallback ? { fallback } : {}),
   });
   return allowed.includes(normalized) ? normalized : allowed[0];
 }
@@ -356,10 +342,6 @@ function hasEmptyModel(group: ModelProviderGroup): boolean {
 }
 
 function normalizeAuthMode(value: unknown): ModelProviderAuthMode {
-  // Legacy Codex Auth is no longer exposed in preferences. Treat old saved
-  // entries as regular API-key providers so they remain editable.
-  if (value === "codex_auth") return "api_key";
-  if (value === "codex_app_server") return "codex_app_server";
   if (value === "copilot_auth") return "copilot_auth";
   return "api_key";
 }
@@ -843,19 +825,10 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       authModeSelect.append(apiKeyOption);
       authModeSelect.append(copilotOption);
       authModeSelect.addEventListener("change", () => {
-        const previousAuthMode = group.authMode;
         const nextAuthMode = normalizeAuthMode(authModeSelect.value);
         group.authMode = nextAuthMode;
-        group.apiBase = migrateApiBaseForAuthModeChange(
-          previousAuthMode,
-          nextAuthMode,
-          group.apiBase,
-        );
         if (nextAuthMode === "copilot_auth") {
           group.providerProtocol = "openai_chat_compat";
-        } else if (group.providerProtocol === "codex_responses") {
-          group.providerProtocol =
-            selectedPreset?.defaultProtocol || "openai_chat_compat";
         }
         if (nextAuthMode === "copilot_auth" && !group.apiBase.trim()) {
           group.apiBase = DEFAULT_COPILOT_API_BASE;
@@ -956,14 +929,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         "div",
         "display: flex; flex-direction: column;",
       );
-      const apiUrlLabel = el(
-        doc,
-        "label",
-        LABEL_STYLE,
-        group.authMode === "codex_app_server"
-          ? t("Codex CLI Path")
-          : t("API URL"),
-      );
+      const apiUrlLabel = el(doc, "label", LABEL_STYLE, t("API URL"));
       const apiUrlInput = el(doc, "input", INPUT_STYLE) as HTMLInputElement;
       apiUrlInput.id = `${config.addonRef}-api-base-${group.id}`;
       apiUrlLabel.setAttribute("for", apiUrlInput.id);
@@ -1729,11 +1695,7 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
             const authMode = normalizeAuthMode(group.authMode);
             const apiBase = (
               group.apiBase.trim() ||
-              (authMode === "codex_auth"
-                ? DEFAULT_CODEX_API_BASE
-                : authMode === "copilot_auth"
-                  ? DEFAULT_COPILOT_API_BASE
-                  : "")
+              (authMode === "copilot_auth" ? DEFAULT_COPILOT_API_BASE : "")
             ).replace(/\/$/, "");
 
             const apiKey =

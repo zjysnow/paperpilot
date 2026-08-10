@@ -111,26 +111,6 @@ export function resolvePromptCacheCapability(
   const protocol = normalizeProtocol(params.protocol);
   const preset = detectProviderPreset(params.apiBase || "");
 
-  if (authMode === "codex_app_server") {
-    return {
-      kind: "opaque",
-      provider: "codex",
-      label: "Codex app-server",
-      telemetry: "opaque",
-      stablePrefix: true,
-    };
-  }
-
-  if (authMode === "codex_auth" || protocol === "codex_responses") {
-    return {
-      kind: "automatic_prefix",
-      provider: "codex",
-      label: "Codex / ChatGPT",
-      telemetry: "openai_cached_tokens",
-      stablePrefix: true,
-    };
-  }
-
   if (preset === "openai") {
     return {
       kind: "automatic_prefix",
@@ -497,7 +477,7 @@ export function extractContextCacheUsage(usage: unknown): Partial<UsageStats> {
       cacheWriteTokens: genericWrite,
       cacheMissTokens: genericMiss,
       cacheHitRatio: denominator > 0 ? genericRead / denominator : undefined,
-      cacheProvider: "codex",
+      cacheProvider: "unknown",
     };
   }
 

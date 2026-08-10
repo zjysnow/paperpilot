@@ -51,7 +51,7 @@ import {
   resolveEndpoint,
   usesMaxCompletionTokens,
 } from "./apiHelpers";
-import { getLocalParentPath, joinLocalPath, pathToFileUrl } from "./localPath";
+import { pathToFileUrl } from "./localPath";
 import {
   normalizeTemperature,
   normalizeMaxTokensForModel,
@@ -201,10 +201,6 @@ type NativePdfPart = {
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
-export const DEFAULT_CODEX_API_BASE =
-  "https://chatgpt.com/backend-api/codex/responses";
-const CODEX_REFRESH_TOKEN_URL = "https://auth.openai.com/oauth/token";
-const CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 
 const COPILOT_GITHUB_CLIENT_ID = "Iv1.b507a08c87ecfe98";
 const COPILOT_DEVICE_CODE_URL = "https://github.com/login/device/code";
@@ -241,11 +237,7 @@ function getApiConfig(overrides?: {
   const resolvedApiBase =
     overrides?.apiBase ||
     prefApiBase ||
-    (authMode === "codex_auth" || authMode === "codex_app_server"
-      ? DEFAULT_CODEX_API_BASE
-      : authMode === "copilot_auth"
-        ? DEFAULT_COPILOT_API_BASE
-        : "");
+    (authMode === "copilot_auth" ? DEFAULT_COPILOT_API_BASE : "");
   const apiBase = resolvedApiBase.trim().replace(/\/$/, "");
   const apiKey = (
     overrides?.apiKey ||
@@ -378,23 +370,12 @@ export function getEmbeddingModelName(): string {
 }
 
 type IOUtilsLike = {
-  exists?: (path: string) => Promise<boolean>;
   read?: (path: string) => Promise<Uint8Array | ArrayBuffer>;
   write?: (path: string, data: Uint8Array) => Promise<unknown>;
-  makeDirectory?: (
-    path: string,
-    options?: { createAncestors?: boolean; ignoreExisting?: boolean },
-  ) => Promise<void>;
 };
 
 type OSFileLike = {
-  exists?: (path: string) => Promise<boolean>;
   read?: (path: string) => Promise<Uint8Array | ArrayBuffer>;
-  writeAtomic?: (path: string, data: Uint8Array) => Promise<void>;
-  makeDir?: (
-    path: string,
-    options?: { from?: string; ignoreExisting?: boolean },
-  ) => Promise<void>;
 };
 
 type ZoteroFileLike = {
@@ -410,36 +391,6 @@ type ZoteroFileLike = {
 };
 
 const uploadedResponseFileIdCache = new Map<string, string>();
-type ProcessLike = { env?: Record<string, string | undefined> };
-type PathUtilsLike = {
-  homeDir?: string;
-  join?: (...parts: string[]) => string;
-  parent?: (path: string) => string;
-};
-type ServicesLike = {
-  dirsvc?: {
-    get?: (key: string, iface?: unknown) => { path?: string } | undefined;
-  };
-};
-type OSLike = {
-  Constants?: {
-    Path?: {
-      homeDir?: string;
-    };
-  };
-};
-
-type CodexTokenData = {
-  access_token?: string;
-  refresh_token?: string;
-};
-
-type CodexAuthJson = {
-  tokens?: CodexTokenData;
-  last_refresh?: string;
-  OPENAI_API_KEY?: string;
-};
-
 function getIOUtils(): IOUtilsLike | undefined {
   const fromGlobal = (globalThis as unknown as { IOUtils?: IOUtilsLike })
     .IOUtils;
@@ -455,44 +406,6 @@ function getOSFile(): OSFileLike | undefined {
     { File?: OSFileLike } | undefined;
   const fromToolkit = toolkitOS?.File;
   return fromToolkit?.read ? fromToolkit : undefined;
-}
-
-function getPathUtils(): PathUtilsLike | undefined {
-  const fromGlobal = (globalThis as { PathUtils?: PathUtilsLike }).PathUtils;
-  if (fromGlobal?.join || fromGlobal?.homeDir || fromGlobal?.parent) {
-    return fromGlobal;
-  }
-  return ztoolkit.getGlobal("PathUtils") as PathUtilsLike | undefined;
-}
-
-function getServices(): ServicesLike | undefined {
-  const fromGlobal = (globalThis as { Services?: ServicesLike }).Services;
-  if (fromGlobal?.dirsvc?.get) return fromGlobal;
-  return ztoolkit.getGlobal("Services") as ServicesLike | undefined;
-}
-
-function getOS(): OSLike | undefined {
-  const fromGlobal = (globalThis as { OS?: OSLike }).OS;
-  if (fromGlobal?.Constants?.Path?.homeDir) return fromGlobal;
-  return ztoolkit.getGlobal("OS") as OSLike | undefined;
-}
-
-function getNsIFile(): unknown {
-  const ci = (globalThis as { Ci?: { nsIFile?: unknown } }).Ci;
-  if (ci?.nsIFile) return ci.nsIFile;
-  const components = (
-    globalThis as {
-      Components?: { interfaces?: { nsIFile?: unknown } };
-    }
-  ).Components;
-  return components?.interfaces?.nsIFile;
-}
-
-function getProcess(): ProcessLike | undefined {
-  const fromGlobal = (globalThis as { process?: ProcessLike }).process;
-  if (fromGlobal?.env) return fromGlobal;
-  const fromToolkit = ztoolkit.getGlobal("process") as ProcessLike | undefined;
-  return fromToolkit?.env ? fromToolkit : undefined;
 }
 
 function getZoteroFile(): ZoteroFileLike | undefined {
@@ -529,177 +442,6 @@ function coerceToBytes(data: unknown): Uint8Array | null {
     return binaryStringToBytes(data);
   }
   return null;
-}
-
-function resolveHomeDir(): string {
-  const env = getProcess()?.env;
-  const envHome = env?.HOME || env?.USERPROFILE;
-  if (typeof envHome === "string" && envHome.trim()) {
-    return envHome.trim();
-  }
-  const fromPathUtils = getPathUtils()?.homeDir;
-  if (typeof fromPathUtils === "string" && fromPathUtils.trim()) {
-    return fromPathUtils.trim();
-  }
-  const osHome = getOS()?.Constants?.Path?.homeDir;
-  if (typeof osHome === "string" && osHome.trim()) {
-    return osHome.trim();
-  }
-  const servicesHome = getServices()
-    ?.dirsvc?.get?.("Home", getNsIFile())
-    ?.path?.trim();
-  if (typeof servicesHome === "string" && servicesHome) {
-    return servicesHome;
-  }
-  const profileDir = (Zotero as unknown as { Profile?: { dir?: string } })
-    .Profile?.dir;
-  if (typeof profileDir === "string" && profileDir.trim()) {
-    return profileDir.trim();
-  }
-  throw new Error("Unable to resolve HOME directory for Codex auth");
-}
-
-function resolveCodexAuthPath(): string {
-  const env = getProcess()?.env;
-  const codexHome = env?.CODEX_HOME?.trim();
-  if (codexHome) return joinLocalPath(codexHome, "auth.json");
-  return joinLocalPath(resolveHomeDir(), ".codex", "auth.json");
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  const io = getIOUtils();
-  if (io?.exists) {
-    try {
-      return Boolean(await io.exists(path));
-    } catch (_err) {
-      return false;
-    }
-  }
-  const osFile = getOSFile();
-  if (osFile?.exists) {
-    try {
-      return Boolean(await osFile.exists(path));
-    } catch (_err) {
-      return false;
-    }
-  }
-  return false;
-}
-
-async function ensureDir(path: string): Promise<void> {
-  const io = getIOUtils();
-  if (io?.makeDirectory) {
-    await io.makeDirectory(path, {
-      createAncestors: true,
-      ignoreExisting: true,
-    });
-    return;
-  }
-  const osFile = getOSFile();
-  if (osFile?.makeDir) {
-    await osFile.makeDir(path, {
-      from: getLocalParentPath(path),
-      ignoreExisting: true,
-    });
-    return;
-  }
-  throw new Error("No directory API available to persist Codex auth");
-}
-
-async function readUtf8File(path: string): Promise<string> {
-  const bytes = await readLocalFileBytes(path);
-  const decoder = new TextDecoder("utf-8");
-  return decoder.decode(bytes);
-}
-
-async function writeUtf8File(path: string, content: string): Promise<void> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(content);
-  await ensureDir(getLocalParentPath(path));
-  const io = getIOUtils();
-  if (io?.write) {
-    await io.write(path, data);
-    return;
-  }
-  const osFile = getOSFile();
-  if (osFile?.writeAtomic) {
-    await osFile.writeAtomic(path, data);
-    return;
-  }
-  throw new Error("No file write API available to persist Codex auth");
-}
-
-async function loadCodexAuthJson(
-  authPath: string,
-): Promise<CodexAuthJson | null> {
-  if (!(await pathExists(authPath))) return null;
-  try {
-    const raw = await readUtf8File(authPath);
-    if (!raw.trim()) return null;
-    const parsed = JSON.parse(raw) as CodexAuthJson;
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch (_err) {
-    return null;
-  }
-}
-
-function extractCodexRefreshToken(auth: CodexAuthJson | null): string {
-  const token = auth?.tokens?.refresh_token;
-  return typeof token === "string" ? token.trim() : "";
-}
-
-async function refreshCodexAccessToken(params: {
-  authPath: string;
-  refreshToken: string;
-  signal?: AbortSignal;
-}): Promise<string> {
-  const response = await getFetch()(CODEX_REFRESH_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      client_id: CODEX_CLIENT_ID,
-      grant_type: "refresh_token",
-      refresh_token: params.refreshToken,
-    }),
-    signal: params.signal,
-  });
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Codex token refresh failed: ${response.status} ${response.statusText} - ${errorText}`,
-    );
-  }
-  const payload = (await response.json()) as {
-    access_token?: unknown;
-    refresh_token?: unknown;
-  };
-  const nextAccess =
-    typeof payload.access_token === "string" ? payload.access_token.trim() : "";
-  if (!nextAccess) {
-    throw new Error("Codex token refresh returned empty access token");
-  }
-
-  const current = (await loadCodexAuthJson(params.authPath)) || {};
-  const tokens: CodexTokenData = {
-    ...(current.tokens || {}),
-    access_token: nextAccess,
-    refresh_token:
-      typeof payload.refresh_token === "string" && payload.refresh_token.trim()
-        ? payload.refresh_token.trim()
-        : params.refreshToken,
-  };
-  const nextAuth: CodexAuthJson = {
-    ...current,
-    tokens,
-    last_refresh: new Date().toISOString(),
-  };
-  await writeUtf8File(
-    params.authPath,
-    `${JSON.stringify(nextAuth, null, 2)}\n`,
-  );
-  return nextAccess;
 }
 
 // =============================================================================
@@ -906,8 +648,6 @@ function isCopilotModelUsable(m: CopilotModelEntry): boolean {
   // Exclude internal/legacy duplicates (model_picker_enabled=false with no category)
   if (m.model_picker_enabled === false && !m.model_picker_category)
     return false;
-  // Exclude codex agent-only models (gated to VS Code agent, not usable via general API)
-  if (typeof m.id === "string" && /-codex($|-)/i.test(m.id)) return false;
   // Exclude VS Code internal models (oswe = fine-tuned for VS Code Copilot)
   if (typeof m.id === "string" && /^oswe-/i.test(m.id)) return false;
   // Exclude grok-code models (gated to specific Copilot integrations)
@@ -2393,16 +2133,6 @@ export function buildPromptCachePayloadHints(
   return hints;
 }
 
-function assertCodexAppServerUsesNativeRuntime(
-  authMode: ModelProviderAuthMode,
-): void {
-  if (authMode !== "codex_app_server") return;
-  throw new Error(
-    "Codex App Server is only supported through the native Codex conversation system. " +
-      "Use Codex Auth (Legacy) for the direct backend transport.",
-  );
-}
-
 async function parseGeminiNativeStreamResponse(
   body: ReadableStream<Uint8Array>,
   onDelta: (delta: string) => void,
@@ -2480,7 +2210,6 @@ function createChatPayloadBuilder(params: {
   messages: ChatMessage[];
   useResponses: boolean;
   responseFileIds?: string[];
-  authMode: ModelProviderAuthMode;
   apiBase: string;
   providerProtocol?: ProviderProtocol;
   effectiveTemperature: number;
@@ -2493,7 +2222,6 @@ function createChatPayloadBuilder(params: {
     messages,
     useResponses,
     responseFileIds,
-    authMode,
     apiBase,
     providerProtocol,
     effectiveTemperature,
@@ -2502,7 +2230,6 @@ function createChatPayloadBuilder(params: {
     contextCache,
   } = params;
   return (reasoningOverride: ReasoningConfig | undefined) => {
-    const isCodexAuth = authMode === "codex_auth";
     const responsesInput = useResponses
       ? buildResponsesInput(messages, responseFileIds, {
           preserveSystemMessages: isGrokApiBase(apiBase),
@@ -2511,38 +2238,6 @@ function createChatPayloadBuilder(params: {
     const chatMessages = useResponses
       ? messages
       : mergeSystemMessagesForChatPayload(messages);
-    if (useResponses && isCodexAuth && responsesInput) {
-      const codexReasoningEffort =
-        reasoningOverride &&
-        (reasoningOverride.provider === "openai" ||
-          reasoningOverride.provider === "grok")
-          ? resolveOpenAIReasoningEffort(
-              reasoningOverride.provider,
-              reasoningOverride.level,
-              model,
-            )
-          : null;
-      const codexInstructionsParts = [
-        responsesInput.instructions || "You are a helpful assistant.",
-        codexReasoningEffort
-          ? "Before the final answer, output one concise high-level reasoning summary wrapped in <thought>...</thought>."
-          : "",
-      ]
-        .map((entry) => entry.trim())
-        .filter(Boolean);
-      const codexPayload = {
-        model,
-        ...responsesInput,
-        instructions: codexInstructionsParts.join("\n\n"),
-        ...(codexReasoningEffort
-          ? { reasoning: { effort: codexReasoningEffort, summary: "detailed" } }
-          : {}),
-        store: false,
-        stream: true,
-      };
-      return codexPayload as Record<string, unknown>;
-    }
-
     const reasoningPayload = buildReasoningPayload(
       reasoningOverride,
       useResponses,
@@ -2673,10 +2368,6 @@ function getTemperatureRecoveryPolicy(
 export type RequestAuthState = {
   mode: ModelProviderAuthMode;
   token: string;
-  codex?: {
-    authPath: string;
-    refreshToken: string;
-  };
   copilot?: {
     githubToken: string;
   };
@@ -2696,35 +2387,6 @@ function buildAuthHeaders(
     headers.Authorization = `Bearer ${token}`;
   }
   return headers;
-}
-
-async function refreshCodexAuthState(
-  state: RequestAuthState,
-  signal?: AbortSignal,
-): Promise<RequestAuthState> {
-  if (state.mode !== "codex_auth") return state;
-  const authPath = state.codex?.authPath || resolveCodexAuthPath();
-  const refreshToken =
-    state.codex?.refreshToken ||
-    extractCodexRefreshToken(await loadCodexAuthJson(authPath));
-  if (!refreshToken) {
-    throw new Error(
-      "codex auth refresh token missing. Please run `codex login` to restore ~/.codex/auth.json.",
-    );
-  }
-  const token = await refreshCodexAccessToken({
-    authPath,
-    refreshToken,
-    signal,
-  });
-  return {
-    mode: "codex_auth",
-    token,
-    codex: {
-      authPath,
-      refreshToken,
-    },
-  };
 }
 
 async function refreshCopilotAuthState(
@@ -2775,13 +2437,7 @@ async function postWithTemperatureFallback(params: {
   let authState = params.auth;
   let res = await send(requestPayload, authState);
   if (res.status === 401) {
-    if (authState.mode === "codex_auth" && authState.codex?.refreshToken) {
-      authState = await refreshCodexAuthState(authState, params.signal);
-      res = await send(requestPayload, authState);
-    } else if (
-      authState.mode === "copilot_auth" &&
-      authState.copilot?.githubToken
-    ) {
+    if (authState.mode === "copilot_auth" && authState.copilot?.githubToken) {
       authState = await refreshCopilotAuthState(authState, params.signal);
       res = await send(requestPayload, authState);
     }
@@ -2799,13 +2455,7 @@ async function postWithTemperatureFallback(params: {
     );
     res = await send(fallbackPayload, authState);
     if (res.status === 401) {
-      if (authState.mode === "codex_auth" && authState.codex?.refreshToken) {
-        authState = await refreshCodexAuthState(authState, params.signal);
-        res = await send(fallbackPayload, authState);
-      } else if (
-        authState.mode === "copilot_auth" &&
-        authState.copilot?.githubToken
-      ) {
+      if (authState.mode === "copilot_auth" && authState.copilot?.githubToken) {
         authState = await refreshCopilotAuthState(authState, params.signal);
         res = await send(fallbackPayload, authState);
       }
@@ -3163,19 +2813,6 @@ export async function callLLM(params: ChatParams): Promise<string> {
       contextCache: params.contextCache,
     });
   }
-  assertCodexAppServerUsesNativeRuntime(authMode);
-  if (authMode === "codex_auth") {
-    let output = "";
-    const streamed = await callLLMStream(
-      params,
-      (delta) => {
-        output += delta;
-      },
-      undefined,
-      undefined,
-    );
-    return output.trim() || streamed.trim() || "OK";
-  }
   const auth = await resolveRequestAuthState({
     authMode,
     apiKey,
@@ -3191,9 +2828,7 @@ export async function callLLM(params: ChatParams): Promise<string> {
       effects: inputCap.effects,
     });
   }
-  const useResponses =
-    providerProtocol === "responses_api" ||
-    providerProtocol === "codex_responses";
+  const useResponses = providerProtocol === "responses_api";
   // Only upload files via /v1/files for providers that actually host that endpoint.
   // Third-party relays using responses_api get inline base64 instead (via buildResponsesInput).
   const canUploadFiles =
@@ -3230,7 +2865,6 @@ export async function callLLM(params: ChatParams): Promise<string> {
     messages,
     useResponses,
     responseFileIds,
-    authMode,
     apiBase,
     providerProtocol,
     effectiveTemperature,
@@ -3302,7 +2936,6 @@ export async function callLLMStream(
       contextCache: params.contextCache,
     });
   }
-  assertCodexAppServerUsesNativeRuntime(authMode);
   const auth = await resolveRequestAuthState({
     authMode,
     apiKey,
@@ -3318,18 +2951,7 @@ export async function callLLMStream(
       effects: inputCap.effects,
     });
   }
-  if (
-    authMode === "codex_auth" &&
-    Array.isArray(params.attachments) &&
-    params.attachments.length
-  ) {
-    throw new Error(
-      "codex auth currently does not support file attachments in this plugin v1.",
-    );
-  }
-  const useResponses =
-    providerProtocol === "responses_api" ||
-    providerProtocol === "codex_responses";
+  const useResponses = providerProtocol === "responses_api";
   // Only upload files via /v1/files for providers that actually host that endpoint.
   // Third-party relays using responses_api get inline base64 instead (via buildResponsesInput).
   const canUploadFiles =
@@ -3366,7 +2988,6 @@ export async function callLLMStream(
     messages,
     useResponses,
     responseFileIds,
-    authMode,
     apiBase,
     providerProtocol,
     effectiveTemperature,

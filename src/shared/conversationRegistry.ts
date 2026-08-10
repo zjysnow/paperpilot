@@ -80,9 +80,7 @@ function normalizeText(value: unknown, maxLength = 256): string {
 }
 
 function normalizeSystem(value: unknown): ConversationSystem | null {
-  return value === "upstream" || value === "claude_code" || value === "codex"
-    ? value
-    : null;
+  return value === "upstream" ? value : null;
 }
 
 function normalizeKind(value: unknown): RegistryConversationKind | null {
@@ -250,7 +248,7 @@ async function createConversationRegistryTable(): Promise<void> {
     `CREATE TABLE IF NOT EXISTS ${CONVERSATION_REGISTRY_TABLE} (
       conversation_id TEXT PRIMARY KEY,
       legacy_conversation_key INTEGER NOT NULL,
-      system TEXT NOT NULL CHECK(system IN ('upstream', 'claude_code', 'codex')),
+      system TEXT NOT NULL CHECK(system IN ('upstream')),
       kind TEXT NOT NULL CHECK(kind IN ('global', 'paper')),
       profile_signature TEXT NOT NULL,
       library_id INTEGER NOT NULL,

@@ -365,10 +365,7 @@ export const conversationRepository = {
   async forkConversation(
     params: ForkConversationParams,
   ): Promise<ForkConversationResult | null> {
-    if (params.system === "claude_code") return null;
-    if (params.system !== "upstream" && params.system !== "codex") {
-      return null;
-    }
+    if (params.system !== "upstream") return null;
     const libraryID = normalizePositiveInt(params.libraryID);
     const paperItemID = normalizePositiveInt(params.paperItemID);
     const sourceConversationKey = normalizePositiveInt(
@@ -395,11 +392,6 @@ export const conversationRepository = {
       paperItemID,
     });
     if (!entry) return null;
-
-    // The catalog entry is created first so the fork can be told which
-    // conversation it belongs to. Codex binds the Zotero scope header when it
-    // creates the target conversation, and resume never rebinds it, so a fork
-    // that inherits the source header would stay bound to the source scope.
 
     const cleanupForkEntry = async () => {
       await conversationRepository.deleteCatalogEntry({
@@ -573,7 +565,6 @@ export const conversationRepository = {
     const conversationKey = normalizePositiveInt(target.conversationKey);
     if (!conversationKey) return;
     const timestamp = normalizeTimestamp(target.timestamp, Date.now());
-    if (target.system === "claude_code" || target.system === "codex") return;
     if (
       target.kind === "paper" ||
       isUpstreamPaperConversationKey(conversationKey)

@@ -1,6 +1,5 @@
 import { isResponsesBase } from "./apiHelpers";
 export type ProviderProtocol =
-  | "codex_responses"
   | "responses_api"
   | "openai_chat_compat"
   | "anthropic_messages"
@@ -21,16 +20,6 @@ export type AgentCapabilityClass =
   "full_agent" | "agent_without_file_upload" | "chat_only";
 
 export const PROVIDER_PROTOCOL_SPECS: ProviderProtocolSpec[] = [
-  {
-    id: "codex_responses",
-    label: "Codex Responses",
-    helperText: "Use ChatGPT/Codex auth with the Codex Responses endpoint.",
-    streaming: true,
-    toolCalls: true,
-    multimodal: true,
-    fileInputs: false,
-    reasoning: true,
-  },
   {
     id: "responses_api",
     label: "Responses API",
@@ -130,12 +119,6 @@ export function inferLegacyProviderProtocol(params: {
   authMode?: string;
   apiBase?: string;
 }): ProviderProtocol {
-  if (
-    params.authMode === "codex_auth" ||
-    params.authMode === "codex_app_server"
-  ) {
-    return "codex_responses";
-  }
   if (params.authMode === "copilot_auth") {
     return "openai_chat_compat";
   }
@@ -168,20 +151,11 @@ export function normalizeProviderProtocolForAuthMode(params: {
   const inferred = inferLegacyProviderProtocol(params);
   const fallback = params.fallback || inferred;
   const normalized = normalizeProviderProtocol(params.protocol, fallback);
-  if (
-    params.authMode === "codex_auth" ||
-    params.authMode === "codex_app_server"
-  ) {
-    return "codex_responses";
-  }
   if (params.authMode === "copilot_auth") {
     // Copilot supports both responses_api and openai_chat_compat
     return normalized === "openai_chat_compat" || normalized === "responses_api"
       ? normalized
       : "openai_chat_compat";
-  }
-  if (normalized === "codex_responses") {
-    return fallback === "codex_responses" ? inferred : fallback;
   }
   return normalized;
 }

@@ -28,8 +28,6 @@ import { closeAllAddonDialogs } from "./utils/dialogRegistry";
 
 type ConversationStoreReadiness = {
   chatStoreReady: boolean;
-  claudeStoreReady: boolean;
-  codexStoreReady: boolean;
 };
 
 async function measureStartupPhase<T>(
@@ -64,8 +62,6 @@ function runDeferredStartupTask(
 async function initializeConversationStoresForStartup(): Promise<ConversationStoreReadiness> {
   const readiness: ConversationStoreReadiness = {
     chatStoreReady: false,
-    claudeStoreReady: false,
-    codexStoreReady: false,
   };
 
   try {
@@ -81,11 +77,7 @@ async function initializeConversationStoresForStartup(): Promise<ConversationSto
 function allConversationStoresReady(
   readiness: ConversationStoreReadiness,
 ): boolean {
-  return (
-    readiness.chatStoreReady &&
-    readiness.claudeStoreReady &&
-    readiness.codexStoreReady
-  );
+  return readiness.chatStoreReady;
 }
 
 function scheduleConversationMaintenance(

@@ -33,9 +33,7 @@ function normalizePositiveInt(value: unknown): number {
 }
 
 function normalizeSystem(value: unknown): ConversationSystem | null {
-  return value === "upstream" || value === "claude_code" || value === "codex"
-    ? value
-    : null;
+  return value === "upstream" ? value : null;
 }
 
 function normalizeKind(value: unknown): ConversationForkScopeKind | null {

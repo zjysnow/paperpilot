@@ -109,7 +109,6 @@ import {
   getAvailableModelEntries,
   getStringPref,
   getAgentModeEnabled,
-  getClaudeCodeModeEnabled,
   getSelectedModelEntryForItem,
   applyPanelFontScale,
   getAdvancedModelParamsForEntry,
@@ -260,13 +259,6 @@ import {
   resolveNoteFocusSystemSwitch,
   resolveShortcutMode,
 } from "./portalScope";
-import {
-  RUNTIME_CONVERSATION_SYSTEMS,
-  resolveRuntimeSystemToggleTarget,
-  syncRuntimeSystemControls,
-  type RuntimeConversationSystem,
-  type RuntimeSystemControls,
-} from "./runtimeSystemControls";
 import { shouldCompactHeaderClearButton } from "./headerClearPresentation";
 import { getPanelDomRefs } from "./setupHandlers/domRefs";
 import {
@@ -355,29 +347,6 @@ import {
 } from "./setupHandlers/controllers/paperSourceOptionsController";
 
 import { renderShortcuts } from "./shortcuts";
-import {
-  buildCodexRuntimeModelEntries,
-  getClaudeReasoningModePref,
-  getClaudeRuntimeModelEntries,
-  getSelectedClaudeRuntimeEntry,
-  listClaudeEfforts,
-  getCodexAppServerReasoningChoices,
-  getCodexReasoningModePref,
-  getCodexRuntimeModelPref,
-  getConfiguredCodexAppServerBinaryPath,
-  isCodexAppServerModeEnabled,
-  loadCodexAppServerModelCatalog,
-  refreshClaudeSlashCommands,
-  retainClaudeRuntimeForBody,
-  setClaudeReasoningModePref,
-  setClaudeRuntimeModelPref,
-  setCodexReasoningModePref,
-  setCodexRuntimeModelPref,
-  touchClaudeConversationTitle,
-  touchCodexConversationTitle,
-  resolveCodexAppServerReasoningSelection,
-  type CodexAppServerModelCatalogEntry,
-} from "../../utils/removedBackends";
 
 import { resolveConversationStorageSystem } from "../../shared/conversationStorageRouting";
 import { validateConversationScope } from "../../shared/conversationRegistry";
@@ -435,13 +404,9 @@ export function setupHandlers(
   }
   disposeSetupHandlers(body);
   const preferredConversationSystem =
-    existingPanelRoot?.dataset?.conversationSystem === "claude_code"
-      ? "claude_code"
-      : existingPanelRoot?.dataset?.conversationSystem === "codex"
-        ? "codex"
-        : existingPanelRoot?.dataset?.conversationSystem === "upstream"
-          ? "upstream"
-          : resolveConversationSystemForItem(initialItem);
+    existingPanelRoot?.dataset?.conversationSystem === "upstream"
+      ? "upstream"
+      : resolveConversationSystemForItem(initialItem);
   const preferredConversationMode =
     existingPanelRoot?.dataset?.conversationKind === "global"
       ? "global"
@@ -504,9 +469,6 @@ export function setupHandlers(
     historyUndoText,
     historyUndoBtn,
     topToast,
-    runtimeSystemControls,
-    codexSystemToggleBtn,
-    claudeSystemToggleBtn,
     selectTextBtn,
     screenshotBtn,
     uploadBtn,
@@ -670,27 +632,12 @@ export function setupHandlers(
   };
   const isGlobalMode = () => resolveDisplayConversationKind(item) === "global";
   const isPaperMode = () => resolveDisplayConversationKind(item) === "paper";
-  const initialConversationSystem: ConversationSystem =
-    panelRoot.dataset.conversationSystem === "claude_code"
-      ? "claude_code"
-      : panelRoot.dataset.conversationSystem === "codex"
-        ? "codex"
-        : resolvePreferredConversationSystem({ item });
-  let currentConversationSystem: ConversationSystem =
-    resolvePreferredConversationSystem({
-      item,
-      preferredSystem: initialConversationSystem,
-    });
+  let currentConversationSystem: ConversationSystem = "upstream";
   const getConversationSystem = (): ConversationSystem =>
     currentConversationSystem;
-  const isClaudeConversationSystem = () =>
-    getConversationSystem() === "claude_code";
-  const isCodexConversationSystem = () => getConversationSystem() === "codex";
-  const isRuntimeConversationSystem = () =>
-    isClaudeConversationSystem() || isCodexConversationSystem();
-  const isClaudeModeAvailable = () => getClaudeCodeModeEnabled();
-  const isCodexModeAvailable = () => isCodexAppServerModeEnabled();
-
+  const switchConversationSystem = async (
+    _nextSystem: ConversationSystem,
+  ): Promise<void> => {};
   const shouldRenderDynamicSlashMenuForCurrentConversation = () =>
     shouldRenderDynamicSlashMenu({
       itemPresent: Boolean(item),
@@ -706,98 +653,6 @@ export function setupHandlers(
   panelRoot.dataset.conversationSystem = currentConversationSystem;
   syncQueuedFollowUpRegistration();
 
-  let codexModelCatalogStatus: "idle" | "loading" | "ready" | "error" = "idle";
-  let codexModelCatalogError = "";
-  let codexModelCatalogModels: CodexAppServerModelCatalogEntry[] = [];
-  let codexModelCatalogInFlight: Promise<void> | null = null;
-  let codexModelCatalogPath = "";
-  const resolveCurrentCodexReasoningSelection = () =>
-    resolveCodexAppServerReasoningSelection({
-      mode: getCodexReasoningModePref(),
-      choices: getCodexAppServerReasoningChoices({
-        models: codexModelCatalogModels,
-        selectedModel: getCodexRuntimeModelPref(),
-      }),
-      catalogReady: codexModelCatalogStatus === "ready",
-    });
-  const getCodexReasoningChoices = (): Array<{
-    value: string;
-    label: string;
-  }> => resolveCurrentCodexReasoningSelection().choices;
-  const reconcileSelectedCodexReasoningMode = () => {
-    const currentMode = getCodexReasoningModePref();
-    const reconciledMode = resolveCurrentCodexReasoningSelection().mode;
-    if (codexModelCatalogStatus === "ready" && reconciledMode !== currentMode) {
-      setCodexReasoningModePref(reconciledMode);
-    }
-    return reconciledMode;
-  };
-  const refreshOpenCodexModelMenu = () => {
-    updateModelButton();
-    updateReasoningButton();
-    if (reasoningMenu && reasoningBtn && isFloatingMenuOpen(reasoningMenu)) {
-      rebuildReasoningMenu();
-      positionFloatingMenu(body, reasoningMenu, reasoningBtn);
-    }
-    if (!modelMenu || !modelBtn || !isFloatingMenuOpen(modelMenu)) return;
-    rebuildModelMenu();
-    if (!modelMenu.childElementCount) {
-      closeModelMenu();
-      return;
-    }
-    positionFloatingMenu(body, modelMenu, modelBtn);
-  };
-  const ensureCodexModelCatalogLoaded = (): Promise<void> => {
-    if (!isCodexConversationSystem()) return Promise.resolve();
-    const codexPath = getConfiguredCodexAppServerBinaryPath();
-    if (
-      codexModelCatalogStatus === "ready" &&
-      codexPath === codexModelCatalogPath
-    ) {
-      return Promise.resolve();
-    }
-    if (codexModelCatalogInFlight) return codexModelCatalogInFlight;
-    codexModelCatalogStatus = "loading";
-    codexModelCatalogError = "";
-    codexModelCatalogPath = codexPath;
-    refreshOpenCodexModelMenu();
-    codexModelCatalogInFlight = loadCodexAppServerModelCatalog({ codexPath })
-      .then((catalog) => {
-        codexModelCatalogModels = catalog.models;
-        codexModelCatalogStatus = "ready";
-        codexModelCatalogError = "";
-        reconcileSelectedCodexReasoningMode();
-      })
-      .catch((error: unknown) => {
-        codexModelCatalogModels = [];
-        codexModelCatalogStatus = "error";
-        codexModelCatalogError =
-          error instanceof Error ? error.message : String(error);
-        ztoolkit.log("Codex app-server: failed to load model catalog", error);
-      })
-      .finally(() => {
-        codexModelCatalogInFlight = null;
-        refreshOpenCodexModelMenu();
-      });
-    return codexModelCatalogInFlight;
-  };
-  const getCodexRuntimeModelEntries = (): RuntimeModelEntry[] => {
-    const model = getCodexRuntimeModelPref();
-    return buildCodexRuntimeModelEntries({
-      models: codexModelCatalogModels,
-      selectedModel: model,
-      codexPath: getConfiguredCodexAppServerBinaryPath(),
-    });
-  };
-  const getSelectedCodexRuntimeEntry = (): RuntimeModelEntry => {
-    const selectedModel = getCodexRuntimeModelPref().toLowerCase();
-    const entries = getCodexRuntimeModelEntries();
-    return (
-      entries.find((entry) => entry.model.toLowerCase() === selectedModel) ||
-      entries[0]!
-    );
-  };
-
   const getCurrentLibraryID = (): number => {
     const fromItem =
       item && Number.isFinite(item.libraryID) && item.libraryID > 0
@@ -812,8 +667,6 @@ export function setupHandlers(
     const noteSession = resolveCurrentNoteSession();
     return resolveRuntimeModeForConversation({
       cachedMode: selectedRuntimeModeCache.get(key) || null,
-      isRuntimeConversationSystem: isRuntimeConversationSystem(),
-      runtimeConversationSystem: getConversationSystem(),
       agentModeEnabled: getAgentModeEnabled(),
       displayConversationKind: resolveDisplayConversationKind(item),
       noteKind: noteSession?.noteKind || null,
@@ -858,47 +711,13 @@ export function setupHandlers(
     panelRoot.dataset.runtimeMode = mode;
   };
   const setCurrentRuntimeMode = (mode: ChatRuntimeMode) => {
-    if (!item || isRuntimeConversationSystem()) {
+    if (!item) {
       updateRuntimeModeButton();
       return;
     }
     selectedRuntimeModeCache.set(getConversationKey(item), mode);
     updateRuntimeModeButton();
   };
-  const panelRuntimeSystemControls: RuntimeSystemControls = {
-    group: runtimeSystemControls,
-    buttons: {
-      codex: codexSystemToggleBtn,
-      claude_code: claudeSystemToggleBtn,
-    },
-  };
-  let runtimeSystemSwitchInFlight = false;
-  const updateRuntimeSystemToggles = () => {
-    syncRuntimeSystemControls(panelRuntimeSystemControls, {
-      activeSystem: getConversationSystem(),
-      busy: runtimeSystemSwitchInFlight,
-    });
-  };
-  let claudeWarmupInFlight: Promise<void> | null = null;
-  const warmClaudeModeCaches = () => {
-    if (!isClaudeModeAvailable()) return;
-    if (claudeWarmupInFlight) return;
-    claudeWarmupInFlight = initAgentSubsystem()
-      .then((coreRuntime) =>
-        Promise.allSettled([
-          refreshClaudeSlashCommands(coreRuntime, false),
-          listClaudeEfforts(coreRuntime, getSelectedClaudeRuntimeEntry().model),
-        ]),
-      )
-      .catch((err: unknown) => {
-        ztoolkit.log("LLM: Failed to warm Claude mode caches", err);
-      })
-      .finally(() => {
-        claudeWarmupInFlight = null;
-      })
-      .then(() => undefined);
-  };
-  let resetComposePreviewUI = () => {};
   let updateModelButton = () => {};
   let updateReasoningButton = () => {};
   let getSelectedModelInfo: () => {
@@ -950,113 +769,6 @@ export function setupHandlers(
     false;
   let closePaperPicker = () => {};
   let clearForcedSkill = () => {};
-  const switchConversationSystem = async (
-    nextSystem: ConversationSystem,
-    options?: { forceFresh?: boolean },
-  ) => {
-    if (!item) return;
-    const noteSession = resolveCurrentNoteSession();
-    if (noteSession) {
-      const resolvedNextSystem = resolveNoteFocusSystemSwitch({
-        nextSystem,
-      });
-      if (!resolvedNextSystem) return;
-      if (resolvedNextSystem === getConversationSystem()) return;
-      persistDraftInputForCurrentConversation();
-      currentConversationSystem = resolvedNextSystem;
-      syncConversationIdentity();
-      syncQueuedFollowUpRegistration();
-      if (resolvedNextSystem === "claude_code") {
-        warmClaudeModeCaches();
-      }
-      updateRuntimeModeButton();
-      updateRuntimeSystemToggles();
-      if (options?.forceFresh === true) {
-        if (noteSession.conversationKind === "global") {
-          await createAndSwitchGlobalConversation(true);
-        } else {
-          await createAndSwitchPaperConversation(true);
-        }
-        return;
-      }
-      await ensureConversationLoaded(item);
-      restoreDraftInputForCurrentConversation();
-      refreshChatPreservingScroll();
-      resetComposePreviewUI();
-      updateModelButton();
-      updateReasoningButton();
-      return;
-    }
-    if (nextSystem === getConversationSystem()) return;
-    const libraryID = getCurrentLibraryID();
-    if (!libraryID) return;
-    const forceFresh = options?.forceFresh === true;
-    persistDraftInputForCurrentConversation();
-    currentConversationSystem = nextSystem;
-    panelRoot.dataset.conversationSystem = nextSystem;
-    syncQueuedFollowUpRegistration();
-    updateRuntimeSystemToggles();
-
-    if (isGlobalMode()) {
-      if (forceFresh) {
-        await createAndSwitchGlobalConversation(true);
-        return;
-      }
-      const nextConversationKey = (() => {
-        const lockedKey = getLockedGlobalConversationKey(libraryID);
-        if (lockedKey !== null) return lockedKey;
-        const activeKey = Number(
-          activeGlobalConversationByLibrary.get(libraryID) || 0,
-        );
-        if (!isUpstreamGlobalConversationKey(activeKey)) return 0;
-        return activeKey === GLOBAL_CONVERSATION_KEY_BASE
-          ? buildDefaultUpstreamGlobalConversationKey(libraryID)
-          : Math.floor(activeKey);
-      })();
-      if (nextConversationKey > 0) {
-        await switchGlobalConversation(nextConversationKey);
-      } else {
-        await createAndSwitchGlobalConversation();
-      }
-      return;
-    }
-    if (forceFresh) {
-      const rawBaseItem = resolveCurrentPaperBaseItem();
-      if (!rawBaseItem) return;
-      const resolvedState = resolveInitialPanelItemState(rawBaseItem, {
-        conversationSystem: nextSystem,
-      });
-      item = resolvedState.item || item;
-      basePaperItem = resolvedState.basePaperItem || basePaperItem;
-      syncConversationIdentity();
-      await createAndSwitchPaperConversation(true);
-      return;
-    }
-    const rawBaseItem = resolveCurrentPaperBaseItem();
-    if (!rawBaseItem) return;
-    const resolvedState = resolveInitialPanelItemState(rawBaseItem, {
-      conversationSystem: nextSystem,
-    });
-    item = resolvedState.item || item;
-    basePaperItem = resolvedState.basePaperItem || basePaperItem;
-    syncConversationIdentity();
-    if (nextSystem === "claude_code") {
-      warmClaudeModeCaches();
-    }
-    await ensureConversationLoaded(item as Zotero.Item);
-    await renderShortcuts(
-      body,
-      item as Zotero.Item,
-      resolveShortcutMode(item as Zotero.Item),
-    );
-    restoreDraftInputForCurrentConversation();
-    refreshChatPreservingScroll();
-    resetComposePreviewUI();
-    updateModelButton();
-    updateReasoningButton();
-    updateRuntimeSystemToggles();
-    void refreshGlobalHistoryHeader();
-  };
   const resolveCurrentNoteParentItem = (): Zotero.Item | null => {
     const noteSession = resolveCurrentNoteSession();
     if (!noteSession?.parentItemId) return null;
@@ -1119,7 +831,6 @@ export function setupHandlers(
   const syncConversationIdentity = () => {
     conversationKey = item ? getConversationKey(item) : null;
     activeContextPanels.set(body, () => item);
-    void retainClaudeRuntimeForBody(body, item);
     if ((body as HTMLElement).dataset?.standalone === "true") {
       activeContextPanelRawItems.set(body, item || null);
     }
@@ -1254,13 +965,8 @@ export function setupHandlers(
           : t("Ask about this paper... Type / for actions, @ to add papers");
     }
     updateRuntimeModeButton();
-    updateRuntimeSystemToggles();
   };
   syncConversationIdentity();
-  if (getConversationSystem() === "claude_code") {
-    warmClaudeModeCaches();
-  }
-
   // Keep the agent mode toggle in sync when the preference is changed in the
   // Preferences window (which runs in a separate window context).
   let cleanupPrefObservers: (() => void) | null = null;
@@ -1268,8 +974,6 @@ export function setupHandlers(
   {
     const agentPrefKey = `${config.prefsPrefix}.enableAgentMode`;
     let agentObserverId: symbol | undefined;
-    let claudeObserverId: symbol | undefined;
-    let codexObserverId: symbol | undefined;
     const unregister = (observerId: symbol | undefined) => {
       if (observerId === undefined) return;
       try {
@@ -1280,11 +984,7 @@ export function setupHandlers(
     };
     cleanupPrefObservers = () => {
       unregister(agentObserverId);
-      unregister(claudeObserverId);
-      unregister(codexObserverId);
       agentObserverId = undefined;
-      claudeObserverId = undefined;
-      codexObserverId = undefined;
     };
     const isPanelUnavailable = () =>
       !(body as Element).isConnected ||
@@ -2381,8 +2081,6 @@ export function setupHandlers(
         selectedProfile?.apiBase,
         inputMode,
       ),
-      isClaudeCode: isClaudeConversationSystem(),
-      isCodex: isCodexConversationSystem(),
     });
   };
 
@@ -4070,7 +3768,7 @@ export function setupHandlers(
     refreshConversationPanels(body, item);
   };
 
-  resetComposePreviewUI = () => {
+  const resetComposePreviewUI = () => {
     updatePaperPreviewPreservingScroll();
     updateFilePreviewPreservingScroll();
     updateImagePreviewPreservingScroll();
@@ -4106,9 +3804,6 @@ export function setupHandlers(
       basePaperItem = nextItem;
     },
     getConversationSystem,
-    isClaudeConversationSystem,
-    isCodexConversationSystem,
-    isRuntimeConversationSystem,
     isNoteSession,
     isGlobalMode,
     isPaperMode,
@@ -4151,7 +3846,6 @@ export function setupHandlers(
     closeSlashMenu: () => closeSlashMenu(),
     getSelectedModelInfo: () => getSelectedModelInfo(),
     updateImagePreviewPreservingScroll,
-    switchConversationSystem,
     setActiveEditSession: (value) => {
       activeEditSession = value;
     },
@@ -4186,49 +3880,8 @@ export function setupHandlers(
   hasPendingTurnDeletionForConversation =
     historyLifecycleController.hasPendingTurnDeletionForConversation;
 
-  const switchRuntimeSystemFromControl = async (
-    clickedSystem: RuntimeConversationSystem,
-  ) => {
-    if (
-      runtimeSystemSwitchInFlight ||
-      !item ||
-      (clickedSystem === "codex"
-        ? !isCodexModeAvailable()
-        : !isClaudeModeAvailable())
-    ) {
-      return;
-    }
-    runtimeSystemSwitchInFlight = true;
-    updateRuntimeSystemToggles();
-    try {
-      const nextSystem = resolveRuntimeSystemToggleTarget(
-        getConversationSystem(),
-        clickedSystem,
-      );
-      await switchConversationSystem(nextSystem, { forceFresh: true });
-    } catch (err) {
-      ztoolkit.log("LLM: Failed to switch conversation runtime", err);
-    } finally {
-      runtimeSystemSwitchInFlight = false;
-      updateRuntimeSystemToggles();
-    }
-  };
-  for (const system of RUNTIME_CONVERSATION_SYSTEMS) {
-    const button = panelRuntimeSystemControls.buttons[system];
-    if (!button) continue;
-    button.addEventListener("click", (event: Event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      void switchRuntimeSystemFromControl(system);
-    });
-  }
-
   const getModelChoices = () => {
-    const choices = isClaudeConversationSystem()
-      ? getClaudeRuntimeModelEntries()
-      : isCodexConversationSystem()
-        ? getCodexRuntimeModelEntries()
-        : getAvailableModelEntries();
+    const choices = getAvailableModelEntries();
     const groupedChoices: Array<{
       providerLabel: string;
       entries: RuntimeModelEntry[];
@@ -4254,13 +3907,7 @@ export function setupHandlers(
 
   getSelectedModelInfo = () => {
     const { choices, groupedChoices } = getModelChoices();
-    const selectedEntry = isClaudeConversationSystem()
-      ? getSelectedClaudeRuntimeEntry()
-      : isCodexConversationSystem()
-        ? getSelectedCodexRuntimeEntry()
-        : item
-          ? getSelectedModelEntryForItem(item.id)
-          : null;
+    const selectedEntry = item ? getSelectedModelEntryForItem(item.id) : null;
     const currentModel =
       selectedEntry?.model ||
       choices[0]?.model ||
@@ -4373,39 +4020,6 @@ export function setupHandlers(
     menu.appendChild(action);
   };
 
-  const appendCodexModelCatalogStatus = (menu: HTMLDivElement) => {
-    if (!isCodexConversationSystem()) return;
-    if (codexModelCatalogStatus === "loading") {
-      appendModelMenuEmptyState(menu, t("Loading Codex models…"));
-      return;
-    }
-    if (codexModelCatalogStatus === "error") {
-      const message = appendModelMenuEmptyState(
-        menu,
-        t("Could not load Codex models. Showing current model only."),
-      );
-      if (codexModelCatalogError) message.title = codexModelCatalogError;
-      appendModelMenuAction(menu, t("Retry loading Codex models"), (event) => {
-        if (!isPrimaryPointerEvent(event)) return;
-        event.preventDefault();
-        event.stopPropagation();
-        codexModelCatalogStatus = "idle";
-        codexModelCatalogError = "";
-        void ensureCodexModelCatalogLoaded();
-      });
-      return;
-    }
-    if (
-      codexModelCatalogStatus === "ready" &&
-      !codexModelCatalogModels.length
-    ) {
-      appendModelMenuEmptyState(
-        menu,
-        t("Codex did not return any available models."),
-      );
-    }
-  };
-
   const rebuildModelMenu = () => {
     if (!item || !modelMenu) return;
     const { groupedChoices, selectedEntryId } = getSelectedModelInfo();
@@ -4416,7 +4030,6 @@ export function setupHandlers(
       t("Select model"),
       "paperpilotmodel-menu-hint",
     );
-    appendCodexModelCatalogStatus(modelMenu);
     if (!groupedChoices.length) {
       appendModelMenuEmptyState(modelMenu, t("No models configured yet."));
       return;
@@ -4443,32 +4056,6 @@ export function setupHandlers(
           e.preventDefault();
           e.stopPropagation();
           if (!item) return;
-          if (isClaudeConversationSystem()) {
-            clearClaudeReasoningDisplayOverride();
-            setClaudeRuntimeModelPref(entry.model);
-            setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
-            setFloatingMenuOpen(
-              reasoningMenu,
-              REASONING_MENU_OPEN_CLASS,
-              false,
-            );
-            updateModelButton();
-            updateReasoningButton();
-            return;
-          }
-          if (isCodexConversationSystem()) {
-            setCodexRuntimeModelPref(entry.model);
-            reconcileSelectedCodexReasoningMode();
-            setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
-            setFloatingMenuOpen(
-              reasoningMenu,
-              REASONING_MENU_OPEN_CLASS,
-              false,
-            );
-            updateModelButton();
-            updateReasoningButton();
-            return;
-          }
           setSelectedModelEntryForItem(item.id, entry.entryId);
           setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
           setFloatingMenuOpen(reasoningMenu, REASONING_MENU_OPEN_CLASS, false);
@@ -4484,8 +4071,6 @@ export function setupHandlers(
               entry.apiBase,
               entry.advanced.inputMode,
             ),
-            isClaudeCode: isClaudeConversationSystem(),
-            isCodex: isCodexConversationSystem(),
           });
           if (shouldDowngrade) {
             const papers = getManualPaperContextsForItem(
@@ -4611,44 +4196,6 @@ export function setupHandlers(
     }
   };
 
-  const getClaudeReasoningDisplayScopeKey = () => {
-    const { selectedEntryId, currentModel } = getSelectedModelInfo();
-    return `${selectedEntryId || "claude-runtime"}::${currentModel}`;
-  };
-
-  type ClaudeReasoningDisplayMode =
-    "auto" | "low" | "medium" | "high" | "xhigh" | "max";
-  let claudeReasoningDisplayOverride: {
-    mode: ClaudeReasoningDisplayMode;
-    modelKey: string;
-  } | null = null;
-  const getClaudeReasoningDisplayMode = (): ClaudeReasoningDisplayMode => {
-    if (claudeReasoningDisplayOverride) {
-      if (
-        claudeReasoningDisplayOverride.modelKey ===
-        getClaudeReasoningDisplayScopeKey()
-      ) {
-        return claudeReasoningDisplayOverride.mode;
-      }
-      claudeReasoningDisplayOverride = null;
-    }
-    return getClaudeReasoningModePref();
-  };
-  const getClaudeReasoningDisplayLabel = (
-    mode: ClaudeReasoningDisplayMode,
-  ): string => {
-    if (mode === "auto") return "Auto";
-    if (mode === "xhigh") return "XHigh";
-    if (mode === "max") return "Max";
-    if (mode === "high") return "High";
-    if (mode === "medium") return "Medium";
-    if (mode === "low") return "Low";
-    return "Auto";
-  };
-  const clearClaudeReasoningDisplayOverride = () => {
-    claudeReasoningDisplayOverride = null;
-  };
-
   const getReasoningState = () => {
     if (!item) {
       return {
@@ -4713,31 +4260,17 @@ export function setupHandlers(
       const { provider, currentModel, options, enabledLevels, selectedLevel } =
         getReasoningState();
       const available = enabledLevels.length > 0;
-      const resolvedReasoningLabel = isClaudeConversationSystem()
-        ? (() => {
-            return getClaudeReasoningDisplayLabel(
-              getClaudeReasoningDisplayMode(),
-            );
-          })()
-        : isCodexConversationSystem()
-          ? (() => {
-              const mode = getCodexReasoningModePref();
-              return (
-                getCodexReasoningChoices().find(
-                  (choice) => choice.value.toLowerCase() === mode.toLowerCase(),
-                )?.label || "Auto"
-              );
-            })()
-          : selectedLevel === "none"
-            ? "off"
-            : available
-              ? getReasoningLevelDisplayLabel(
-                  selectedLevel as LLMReasoningLevel,
-                  provider,
-                  currentModel,
-                  options,
-                )
-              : "off";
+      const resolvedReasoningLabel =
+        selectedLevel === "none"
+          ? "off"
+          : available
+            ? getReasoningLevelDisplayLabel(
+                selectedLevel as LLMReasoningLevel,
+                provider,
+                currentModel,
+                options,
+              )
+            : "off";
       const active =
         available && isReasoningDisplayLabelActive(resolvedReasoningLabel);
       const reasoningLabel = resolvedReasoningLabel;
@@ -5126,7 +4659,6 @@ export function setupHandlers(
       shouldRenderDynamicSlashMenuForCurrentConversation,
     shouldRenderSkillSlashMenu:
       shouldRenderSkillSlashMenuForCurrentConversation,
-    isClaudeConversationSystem,
     getCurrentRuntimeMode,
     setCurrentRuntimeMode,
     getCurrentLibraryID,
@@ -5444,8 +4976,6 @@ export function setupHandlers(
           apiBase,
           inputMode,
         ),
-        isClaudeCode: isClaudeConversationSystem(),
-        isCodex: isCodexConversationSystem(),
       }),
     uploadPdfForProvider: pdfPaperResolver.uploadPdfForProvider,
     resolvePdfBytes: pdfPaperResolver.resolvePdfBytes,
@@ -5456,12 +4986,8 @@ export function setupHandlers(
     buildModelPromptWithFileContext,
     isAgentMode: () => getCurrentRuntimeMode() === "agent",
     isGlobalMode,
-    isClaudeConversationSystem,
-    isCodexConversationSystem,
     normalizeConversationTitleSeed,
     getConversationKey,
-    touchClaudeConversationTitle,
-    touchCodexConversationTitle,
     touchGlobalConversationTitle,
     touchPaperConversationTitle,
     getSelectedProfile,
@@ -5483,9 +5009,6 @@ export function setupHandlers(
       }
       await sendQuestion(opts);
     },
-    retainClaudeRuntime: async (sendBody, sendItem) => {
-      await retainClaudeRuntimeForBody(sendBody, sendItem);
-    },
     retainPinnedImageState,
     retainPaperState,
     consumePaperModeState,
@@ -5501,7 +5024,6 @@ export function setupHandlers(
     },
     persistDraftInput: persistDraftInputForCurrentConversation,
     autoLockGlobalChat: () => {
-      if (isRuntimeConversationSystem()) return;
       if (!item || !isGlobalMode() || isNoteSession()) return;
       const ck = conversationKey;
       if (ck === null) return;
@@ -5513,7 +5035,6 @@ export function setupHandlers(
       syncConversationIdentity();
     },
     autoUnlockGlobalChat: () => {
-      if (isRuntimeConversationSystem()) return;
       const ck = conversationKey;
       if (ck === null || !isAutoLockedGlobalConversation(ck)) return;
       removeAutoLockedGlobalConversationKey(ck);
@@ -5656,7 +5177,6 @@ export function setupHandlers(
         currentItem.id,
         currentItem.id === item?.id ? resolveAutoLoadedPaperContext() : null,
       );
-      // The original plugin agent keeps text/MinerU behavior; Claude Code can
       // explicitly receive raw PDF paths.
       const isAgent = getCurrentRuntimeMode() === "agent";
       const pdfModePapers = isAgent
@@ -5713,8 +5233,6 @@ export function setupHandlers(
                 apiBase,
                 inputMode,
               ),
-              isClaudeCode: isClaudeConversationSystem(),
-              isCodex: isCodexConversationSystem(),
             }),
           resolvePdfPaperAttachments:
             pdfPaperResolver.resolvePdfPaperAttachments,
@@ -6418,12 +5936,9 @@ export function setupHandlers(
     unregisterQueuedFollowUpBody(registeredQueuedFollowUpThreadKey, body);
     queuedFollowUpBody.__paperpilotQueuedFollowUpRegisteredThreadKey = null;
     activeContextPanelStateSync.delete(body);
-    delete (body as any).__paperpilotApplyResolvedClaudeEffort;
     delete (body as any).__paperpilotRefreshContextSourceForCurrentItem;
     delete (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_DRAIN_PROPERTY];
     delete (body as any)[SCHEDULE_QUEUED_FOLLOW_UP_THREAD_DRAIN_PROPERTY];
-    delete (body as any).__paperpilotScheduleClaudeQueueDrain;
-    delete (body as any).__paperpilotScheduleClaudeThreadQueueDrain;
     unregisterContextSurfaceActions();
 
     if (setupHandlersCleanupByBody.get(body) === cleanupSetupHandlers) {

@@ -62,20 +62,6 @@ import {
 } from "./workflowTestHooks";
 import { dispatchZoteroItemsAsContext } from "./zoteroItemContextMenu";
 import { appendMessage } from "../../utils/chatStore";
-import {
-  appendClaudeMessage,
-  appendCodexMessage,
-} from "../../utils/removedBackends";
-import {
-  activeClaudeConversationModeByLibrary,
-  activeClaudeGlobalConversationByLibrary,
-  activeClaudePaperConversationByPaper,
-} from "../../utils/removedBackends";
-import {
-  activeCodexConversationModeByLibrary,
-  activeCodexGlobalConversationByLibrary,
-  activeCodexPaperConversationByPaper,
-} from "../../utils/removedBackends";
 
 import {
   ensureMarkedReaderSelectionTrackingListener,
@@ -83,10 +69,10 @@ import {
   type ReaderSelectionTrackingReader,
 } from "./readerSelectionTracking";
 import { config } from "./constants";
-import type { RuntimeConversationSystem } from "./runtimeSystemControls";
 import { collectReaderSelectionDocuments } from "./readerSelection";
 import { getReaderContextPanelForTab } from "./readerPopupPanelRouting";
 import type { ConversationSystem } from "../../shared/types";
+type RuntimeConversationSystem = ConversationSystem;
 
 import {
   removeLastUsedUpstreamConversationMode,
@@ -98,45 +84,14 @@ async function appendWorkflowStoredMessage(
   conversationKey: number,
   message: Parameters<typeof appendMessage>[1],
 ): Promise<void> {
-  if (system === "codex") {
-    await appendCodexMessage(conversationKey, message);
-    return;
-  }
-  if (system === "claude_code") {
-    await appendClaudeMessage(conversationKey, message);
-    return;
-  }
   await appendMessage(conversationKey, message);
 }
 
 function readRuntimeSystemToggles(
-  root: ParentNode | null | undefined,
-  groupSelector: string,
+  _root: ParentNode | null | undefined,
+  _groupSelector: string,
 ): WorkflowTestRuntimeSystemToggle[] {
-  const group = root?.querySelector(groupSelector) as HTMLElement | null;
-  if (!group) return [];
-  const groupVisible = group.style.display !== "none";
-  return (
-    Array.from(
-      group.querySelectorAll(
-        ".paperpilotruntime-system-toggle[data-conversation-system]",
-      ),
-    ) as HTMLButtonElement[]
-  )
-    .map((button) => {
-      const system = button.dataset.conversationSystem;
-      if (system !== "codex" && system !== "claude_code") return null;
-      return {
-        system,
-        visible: groupVisible && button.style.display !== "none",
-        active: button.dataset.active === "true",
-        disabled: button.disabled,
-        ariaPressed: button.getAttribute("aria-pressed") === "true",
-      };
-    })
-    .filter(
-      (state): state is WorkflowTestRuntimeSystemToggle => state !== null,
-    );
+  return [];
 }
 
 type GeometryRect = Pick<
@@ -531,12 +486,6 @@ function clearWorkflowConversationRuntimeState(): void {
   activeConversationModeByLibrary.clear();
   activeGlobalConversationByLibrary.clear();
   activePaperConversationByPaper.clear();
-  activeClaudeConversationModeByLibrary.clear();
-  activeClaudeGlobalConversationByLibrary.clear();
-  activeClaudePaperConversationByPaper.clear();
-  activeCodexConversationModeByLibrary.clear();
-  activeCodexGlobalConversationByLibrary.clear();
-  activeCodexPaperConversationByPaper.clear();
 }
 
 async function renderPanelForItemInternal(
@@ -713,16 +662,7 @@ async function seedPanelStoredUserMessage(
     text,
     timestamp: Date.now(),
   };
-  const conversationSystem =
-    (panel.body.querySelector("#paperpilot-main") as HTMLElement | null)
-      ?.dataset.conversationSystem || "upstream";
-  await appendWorkflowStoredMessage(
-    conversationSystem === "codex" || conversationSystem === "claude_code"
-      ? conversationSystem
-      : "upstream",
-    conversationKey,
-    message,
-  );
+  await appendWorkflowStoredMessage("upstream", conversationKey, message);
   const existing = chatHistory.get(conversationKey) || [];
   chatHistory.set(conversationKey, [...existing, message]);
   loadedConversationKeys.add(conversationKey);
@@ -1480,16 +1420,7 @@ async function seedStandaloneUserMessage(
     text,
     timestamp: Date.now(),
   };
-  const conversationSystem =
-    (contentArea.querySelector("#paperpilot-main") as HTMLElement | null)
-      ?.dataset.conversationSystem || "upstream";
-  await appendWorkflowStoredMessage(
-    conversationSystem === "codex" || conversationSystem === "claude_code"
-      ? conversationSystem
-      : "upstream",
-    conversationKey,
-    message,
-  );
+  await appendWorkflowStoredMessage("upstream", conversationKey, message);
   chatHistory.set(conversationKey, [message]);
   loadedConversationKeys.add(conversationKey);
   refreshChat(contentArea, item);

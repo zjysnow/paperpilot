@@ -30,13 +30,7 @@ function hasNoProviderThreadState(summary: ConversationDraftSummary): boolean {
   );
 }
 
-const GENERATED_DRAFT_TITLES = new Set([
-  "new chat",
-  "new claude chat",
-  "new claude paper chat",
-  "new codex chat",
-  "new codex paper chat",
-]);
+const GENERATED_DRAFT_TITLES = new Set(["new chat"]);
 
 function hasMeaningfulConversationTitle(
   summary: ConversationDraftSummary,

@@ -32,8 +32,7 @@ export type ModelProviderModel = AdvancedModelConfig & {
   providerProtocol?: ProviderProtocol;
 };
 
-export type ModelProviderAuthMode =
-  "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+export type ModelProviderAuthMode = "api_key" | "copilot_auth";
 
 export type ModelProviderGroup = {
   id: string;
@@ -135,8 +134,6 @@ function normalizeApiBase(apiBase: string): string {
 }
 
 function normalizeProviderAuthMode(value: unknown): ModelProviderAuthMode {
-  if (value === "codex_auth") return "codex_auth";
-  if (value === "codex_app_server") return "codex_app_server";
   if (value === "copilot_auth") return "copilot_auth";
   return "api_key";
 }
@@ -320,11 +317,7 @@ function normalizeGroupModel(
 }
 
 function resolveStoredPresetId(group: ModelProviderGroup): ProviderPresetId {
-  if (
-    group.authMode === "codex_auth" ||
-    group.authMode === "codex_app_server" ||
-    group.authMode === "copilot_auth"
-  ) {
+  if (group.authMode === "copilot_auth") {
     return "customized";
   }
   return group.presetIdOverride ?? detectProviderPreset(group.apiBase);
@@ -554,35 +547,6 @@ export function setModelProviderGroups(groups: ModelProviderGroup[]): void {
   storeModelProviderGroups(normalizeModelProviderGroups(groups));
 }
 
-// The `apiBase` field is repurposed as a local "Codex CLI Path" under
-// `codex_app_server`. When toggling between that mode and the others, drop
-// the stored value if it doesn't fit the new role so the user never sees a
-// stale URL under the path label, or a Windows path under the API URL label.
-export function migrateApiBaseForAuthModeChange(
-  previousAuthMode: ModelProviderAuthMode,
-  nextAuthMode: ModelProviderAuthMode,
-  apiBase: string,
-): string {
-  const trimmed = apiBase.trim();
-  if (!trimmed) return apiBase;
-  const looksLikeUrl = /^https?:\/\//i.test(trimmed);
-  if (
-    nextAuthMode === "codex_app_server" &&
-    previousAuthMode !== "codex_app_server" &&
-    looksLikeUrl
-  ) {
-    return "";
-  }
-  if (
-    previousAuthMode === "codex_app_server" &&
-    nextAuthMode !== "codex_app_server" &&
-    !looksLikeUrl
-  ) {
-    return "";
-  }
-  return apiBase;
-}
-
 export function createEmptyProviderGroup(): ModelProviderGroup {
   return {
     id: createId("provider"),
@@ -623,13 +587,7 @@ export function getRuntimeModelEntries(): RuntimeModelEntry[] {
       const duplicateCount = (normalizedCounts.get(normalizedModel) || 0) + 1;
       normalizedCounts.set(normalizedModel, duplicateCount);
       const baseModelLabel =
-        authMode === "codex_auth"
-          ? `codex/${modelName}`
-          : authMode === "codex_app_server"
-            ? `codex-app/${modelName}`
-            : authMode === "copilot_auth"
-              ? `copilot/${modelName}`
-              : modelName;
+        authMode === "copilot_auth" ? `copilot/${modelName}` : modelName;
       entries.push({
         entryId: modelEntry.id,
         groupId: group.id,
@@ -661,10 +619,6 @@ export function getProviderDisplayName(
 
   const baseProviderLabel = deriveProviderLabel(group.apiBase, providerIndex);
   switch (normalizeProviderAuthMode(group.authMode)) {
-    case "codex_auth":
-      return `${baseProviderLabel} (codex auth, legacy)`;
-    case "codex_app_server":
-      return `${baseProviderLabel} (app server)`;
     case "copilot_auth":
       return `${baseProviderLabel} (copilot auth)`;
     default:

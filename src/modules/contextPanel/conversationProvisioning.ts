@@ -8,12 +8,6 @@ import { resolveConversationStorageSystem } from "../../shared/conversationStora
 import type { ConversationSystem } from "../../shared/types";
 import { getConversationKey } from "./conversationIdentity";
 import {
-  buildDefaultClaudeGlobalConversationKey,
-  buildDefaultClaudePaperConversationKey,
-  buildDefaultCodexGlobalConversationKey,
-  buildDefaultCodexPaperConversationKey,
-} from "../../utils/removedBackends";
-import {
   resolveActiveNoteSession,
   resolveConversationBaseItem,
   resolveConversationKeyForNoteFocus,

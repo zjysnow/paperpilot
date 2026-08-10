@@ -113,7 +113,6 @@ type ActionCommandControllerDeps = {
   persistDraftInputForCurrentConversation: () => void;
   shouldRenderDynamicSlashMenu: () => boolean;
   shouldRenderSkillSlashMenu: () => boolean;
-  isClaudeConversationSystem: () => boolean;
   getCurrentRuntimeMode: () => string;
   setCurrentRuntimeMode: (mode: "chat" | "agent") => void;
   getCurrentLibraryID: () => number;
@@ -1317,7 +1316,6 @@ export function createActionCommandController(
   const handleNaturalLanguageActionIntent = async (
     text: string,
   ): Promise<boolean> => {
-    if (deps.isClaudeConversationSystem()) return false;
     const requestContext = buildActionRequestContext();
     if (requestContext.mode !== "library") return false;
     try {
@@ -1383,13 +1381,7 @@ export function createActionCommandController(
     clearForcedSkill();
     clearCommandChip();
     forcedSkillId = skill.id;
-    const isCodexAppServerSkill =
-      deps.getSelectedProfile()?.authMode === "codex_app_server";
-    if (
-      !isCodexAppServerSkill &&
-      deps.getCurrentRuntimeMode() !== "agent" &&
-      getAgentModeEnabled()
-    ) {
+    if (deps.getCurrentRuntimeMode() !== "agent" && getAgentModeEnabled()) {
       deps.setCurrentRuntimeMode("agent");
     }
     activateCommandRowState({
@@ -1479,13 +1471,6 @@ export function createActionCommandController(
     actionName: string,
     params: string,
   ): Promise<void> => {
-    if (deps.isClaudeConversationSystem()) {
-      inputBox.value = params.trim()
-        ? `/${actionName} ${params.trim()}`
-        : `/${actionName}`;
-      await deps.getDoSend()?.();
-      return;
-    }
     if (actionName === "compact") {
       if (deps.getCurrentRuntimeMode() !== "agent" && getAgentModeEnabled()) {
         deps.setCurrentRuntimeMode("agent");
@@ -1560,7 +1545,6 @@ export function createActionCommandController(
     slashMenu,
     getItem: deps.getItem,
     getSelectedProfile: deps.getSelectedProfile,
-    isClaudeConversationSystem: deps.isClaudeConversationSystem,
     clearAgentSlashItems,
     clearSkillSlashItems,
     consumeActiveActionToken,

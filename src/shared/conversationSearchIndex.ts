@@ -1,9 +1,4 @@
 import {
-  CLAUDE_GLOBAL_CONVERSATION_KEY_BASE,
-  CLAUDE_PAPER_CONVERSATION_KEY_BASE,
-  CODEX_GLOBAL_CONVERSATION_KEY_BASE,
-  CODEX_PAPER_CONVERSATION_KEY_BASE,
-  RUNTIME_CONVERSATION_KEY_END,
   UPSTREAM_GLOBAL_CONVERSATION_KEY_BASE,
   UPSTREAM_RUNTIME_CONVERSATION_KEY_END,
   isConversationKeyForKind,
@@ -87,9 +82,7 @@ function normalizeText(value: unknown, maxLength = 2_000_000): string {
 }
 
 function normalizeSystem(value: unknown): ConversationSystem | null {
-  return value === "upstream" || value === "claude_code" || value === "codex"
-    ? value
-    : null;
+  return value === "upstream" ? value : null;
 }
 
 function normalizeKind(value: unknown): "global" | "paper" | null {
@@ -137,7 +130,7 @@ function parseCanonicalConversationID(
   conversationID: string,
 ): ParsedCanonicalConversationID | null {
   const match =
-    /^lfz:([^:]+):(upstream|claude_code|codex):(global|paper):lib-(\d+):paper-(\d+):legacy-(\d+)$/.exec(
+    /^lfz:([^:]+):(upstream):(global|paper):lib-(\d+):paper-(\d+):legacy-(\d+)$/.exec(
       conversationID,
     );
   if (!match) return null;
@@ -234,7 +227,7 @@ export async function initConversationSearchIndexStore(): Promise<boolean> {
       search_key TEXT PRIMARY KEY,
       conversation_id TEXT NOT NULL,
       legacy_conversation_key INTEGER NOT NULL,
-      system TEXT NOT NULL CHECK(system IN ('upstream', 'claude_code', 'codex')),
+      system TEXT NOT NULL CHECK(system IN ('upstream')),
       kind TEXT NOT NULL CHECK(kind IN ('global', 'paper')),
       library_id INTEGER NOT NULL,
       paper_item_id INTEGER,
@@ -360,42 +353,6 @@ const UPSTREAM_PAPER_VALIDITY_SQL = [
   "c.session_version > 0",
 ].join(" AND ");
 
-const CLAUDE_VALIDITY_SQL = [
-  "(",
-  "  (",
-  "    c.kind = 'global'",
-  `    AND c.conversation_key >= ${CLAUDE_GLOBAL_CONVERSATION_KEY_BASE}`,
-  `    AND c.conversation_key < ${CLAUDE_PAPER_CONVERSATION_KEY_BASE}`,
-  "  )",
-  "  OR",
-  "  (",
-  "    c.kind = 'paper'",
-  `    AND c.conversation_key >= ${CLAUDE_PAPER_CONVERSATION_KEY_BASE}`,
-  `    AND c.conversation_key < ${CODEX_GLOBAL_CONVERSATION_KEY_BASE}`,
-  "    AND c.paper_item_id IS NOT NULL",
-  "    AND c.paper_item_id > 0",
-  "  )",
-  ")",
-].join("\n");
-
-const CODEX_VALIDITY_SQL = [
-  "(",
-  "  (",
-  "    c.kind = 'global'",
-  `    AND c.conversation_key >= ${CODEX_GLOBAL_CONVERSATION_KEY_BASE}`,
-  `    AND c.conversation_key < ${CODEX_PAPER_CONVERSATION_KEY_BASE}`,
-  "  )",
-  "  OR",
-  "  (",
-  "    c.kind = 'paper'",
-  `    AND c.conversation_key >= ${CODEX_PAPER_CONVERSATION_KEY_BASE}`,
-  `    AND c.conversation_key < ${RUNTIME_CONVERSATION_KEY_END}`,
-  "    AND c.paper_item_id IS NOT NULL",
-  "    AND c.paper_item_id > 0",
-  "  )",
-  ")",
-].join("\n");
-
 function getCoverageCatalogDescriptors(
   system: ConversationSystem,
 ): SearchIndexCatalogDescriptor[] {
@@ -411,20 +368,7 @@ function getCoverageCatalogDescriptors(
       },
     ];
   }
-  if (system === "claude_code") {
-    return [
-      {
-        tableName: "llm_for_zotero_claude_conversations",
-        validitySql: CLAUDE_VALIDITY_SQL,
-      },
-    ];
-  }
-  return [
-    {
-      tableName: "llm_for_zotero_codex_conversations",
-      validitySql: CODEX_VALIDITY_SQL,
-    },
-  ];
+  return [];
 }
 
 async function getExistingCatalogDescriptors(
@@ -554,31 +498,7 @@ export async function refreshConversationSearchIndexForSystem(
     });
     return true;
   }
-  const catalogTable =
-    system === "claude_code"
-      ? "llm_for_zotero_claude_conversations"
-      : "llm_for_zotero_codex_conversations";
-  const messageTable =
-    system === "claude_code"
-      ? "llm_for_zotero_claude_messages"
-      : "llm_for_zotero_codex_messages";
-  await refreshCatalogIntoSearchIndex({
-    system,
-    catalogTable,
-    messageTable,
-    kindSql: "c.kind",
-    paperItemIDSql: "c.paper_item_id",
-    activitySql: "COALESCE(MAX(m.timestamp), c.updated_at, c.created_at)",
-    groupBySql:
-      "c.conversation_id, c.conversation_key, c.library_id, c.kind, c.paper_item_id, c.created_at, c.updated_at, c.title",
-    validitySql:
-      system === "claude_code" ? CLAUDE_VALIDITY_SQL : CODEX_VALIDITY_SQL,
-  });
-  await pruneStaleSearchRows({
-    system,
-    catalogs: getCoverageCatalogDescriptors(system),
-  });
-  return true;
+  return false;
 }
 
 export async function refreshConversationSearchIndexForConversation(params: {
@@ -619,28 +539,7 @@ export async function refreshConversationSearchIndexForConversation(params: {
     });
     return true;
   }
-  const catalogTable =
-    system === "claude_code"
-      ? "llm_for_zotero_claude_conversations"
-      : "llm_for_zotero_codex_conversations";
-  const messageTable =
-    system === "claude_code"
-      ? "llm_for_zotero_claude_messages"
-      : "llm_for_zotero_codex_messages";
-  await refreshCatalogIntoSearchIndex({
-    system,
-    catalogTable,
-    messageTable,
-    kindSql: "c.kind",
-    paperItemIDSql: "c.paper_item_id",
-    activitySql: "COALESCE(MAX(m.timestamp), c.updated_at, c.created_at)",
-    groupBySql:
-      "c.conversation_id, c.conversation_key, c.library_id, c.kind, c.paper_item_id, c.created_at, c.updated_at, c.title",
-    validitySql:
-      system === "claude_code" ? CLAUDE_VALIDITY_SQL : CODEX_VALIDITY_SQL,
-    ...filter,
-  });
-  return true;
+  return false;
 }
 
 export async function deleteConversationSearchIndexRow(params: {
@@ -688,8 +587,6 @@ export async function refreshConversationSearchIndex(): Promise<boolean> {
   const initialized = await initConversationSearchIndexStore();
   if (!initialized) return false;
   await refreshConversationSearchIndexForSystem("upstream");
-  await refreshConversationSearchIndexForSystem("claude_code");
-  await refreshConversationSearchIndexForSystem("codex");
   return true;
 }
 

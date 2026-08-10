@@ -49,15 +49,6 @@ import {
   loadConversationHistoryScope,
 } from "../../historyLoader";
 import type { AgentRuntime } from "../../../../agent/runtime";
-import {
-  getConversationSystemPref,
-  setConversationSystemPref,
-  setLastUsedCodexGlobalConversationKey,
-  activeClaudeGlobalConversationByLibrary,
-  buildClaudeLibraryStateKey,
-  activeCodexGlobalConversationByLibrary,
-  buildCodexLibraryStateKey,
-} from "../../../../utils/removedBackends";
 
 import {
   createGlobalPortalItem,
@@ -190,9 +181,6 @@ export type HistoryLifecycleControllerDeps = {
   getBasePaperItem: () => Zotero.Item | null;
   setBasePaperItem: (item: Zotero.Item | null) => void;
   getConversationSystem: () => ConversationSystem;
-  isClaudeConversationSystem: () => boolean;
-  isCodexConversationSystem: () => boolean;
-  isRuntimeConversationSystem: () => boolean;
   isNoteSession: () => boolean;
   isGlobalMode: () => boolean;
   isPaperMode: () => boolean;
@@ -239,10 +227,6 @@ export type HistoryLifecycleControllerDeps = {
     currentModel: string;
   };
   updateImagePreviewPreservingScroll: () => void;
-  switchConversationSystem: (
-    nextSystem: ConversationSystem,
-    options?: { forceFresh?: boolean },
-  ) => Promise<void>;
   runExplicitNewChatAction?: (action: () => Promise<void>) => Promise<void>;
   setActiveEditSession: (value: any) => void;
   getCoreAgentRuntime: () => AgentRuntime | Promise<AgentRuntime>;
@@ -273,13 +257,9 @@ export function createHistoryLifecycleController(
     switch (reason) {
       case "pending_response":
         return t("Wait for the current response to finish before forking");
-      case "claude_code":
-        return t("Fork is not supported for Claude Code conversations");
-      case "codex_older_turn":
-        return t("Codex fork is only supported for the latest response");
       case "missing_provider_session":
         return t(
-          "Cannot fork this Codex conversation because it has no native thread",
+          "Cannot fork this conversation because its provider session is missing",
         );
       case "compact_marker":
       case "unsupported_system":
@@ -1936,7 +1916,6 @@ export function createHistoryLifecycleController(
     }
 
     if (getConversationSystem() !== link.sourceSystem) {
-      await deps.switchConversationSystem(link.sourceSystem);
       syncStateFromDeps();
     }
 
@@ -2370,7 +2349,6 @@ export function createHistoryLifecycleController(
         conversationSystem: pending.conversationSystem,
         libraryID: pending.libraryID,
         paperItemID,
-        providerSessionId: pending.providerSessionId,
       },
       {
         clearTransientComposeStateForItem,
@@ -2569,19 +2547,7 @@ export function createHistoryLifecycleController(
       libraryID: pending.libraryID,
       title: pending.title,
     });
-    const originalSystem = getConversationSystemPref();
-    const targetSystem = pending.conversationSystem;
-    if (originalSystem !== targetSystem) {
-      setConversationSystemPref(targetSystem);
-    }
-    let deleted: boolean;
-    try {
-      deleted = await finalizeConversationDeletionForPending(pending);
-    } finally {
-      if (originalSystem !== targetSystem) {
-        setConversationSystemPref(originalSystem);
-      }
-    }
+    const deleted = await finalizeConversationDeletionForPending(pending);
     pendingHistoryDeletionKeys.delete(pending.conversationKey);
     if (!deleted && pending.wasActive) {
       await switchToHistoryTarget({
@@ -2939,24 +2905,8 @@ export function createHistoryLifecycleController(
       return false;
     }
 
-    if (system === "claude_code") {
-      activeClaudeGlobalConversationByLibrary.set(
-        buildClaudeLibraryStateKey(libraryID),
-        targetConversationKey,
-      );
-    } else if (system === "codex") {
-      activeCodexGlobalConversationByLibrary.set(
-        buildCodexLibraryStateKey(libraryID),
-        targetConversationKey,
-      );
-      setLastUsedCodexGlobalConversationKey(libraryID, targetConversationKey);
-    } else {
-      activeGlobalConversationByLibrary.set(libraryID, targetConversationKey);
-      setLastUsedUpstreamGlobalConversationKey(
-        libraryID,
-        targetConversationKey,
-      );
-    }
+    activeGlobalConversationByLibrary.set(libraryID, targetConversationKey);
+    setLastUsedUpstreamGlobalConversationKey(libraryID, targetConversationKey);
 
     ztoolkit.log("LLM: + conversation action", {
       libraryID,

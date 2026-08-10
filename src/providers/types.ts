@@ -3,7 +3,7 @@ import type { ModelInputMode } from "../shared/types";
 export type PdfSupport = "native" | "local_path" | "upload" | "vision" | "none";
 
 export type ProviderTier =
-  "native" | "server_upload" | "third_party" | "copilot" | "codex";
+  "native" | "server_upload" | "third_party" | "copilot";
 
 export type ProviderCapabilities = {
   tier: ProviderTier;
@@ -32,7 +32,6 @@ export type ProviderPromptCacheProvider =
   | "minimax"
   | "gemini"
   | "kimi"
-  | "codex"
   | "unknown";
 
 export type ProviderPromptCacheTelemetry =

@@ -13,7 +13,7 @@ export type PdfPaperModelInputProfile = {
   model?: string;
   apiBase?: string;
   apiKey?: string;
-  authMode?: "api_key" | "codex_auth" | "codex_app_server" | "copilot_auth";
+  authMode?: "api_key" | "copilot_auth";
   providerProtocol?: ProviderProtocol;
   inputMode?: ModelInputMode;
 } | null;
