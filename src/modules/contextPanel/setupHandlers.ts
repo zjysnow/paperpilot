@@ -3745,7 +3745,60 @@ export function setupHandlers(
     schedulePanelStateRefresh();
   };
   cleanupMineruPaperSourceObservers = (() => {
+    const previousStatuses = new Map<
+      number,
+      "idle" | "processing" | "failed" | "cached" | undefined
+    >();
     const unsubscribeProcessing = onProcessingStatusChange(() => {
+      const autoLoadedPaperContext = resolveAutoLoadedPaperContext();
+      const selectedPapers = item
+        ? getManualPaperContextsForItem(item.id, autoLoadedPaperContext)
+        : [];
+      const paperContexts = [
+        ...(autoLoadedPaperContext ? [autoLoadedPaperContext] : []),
+        ...selectedPapers,
+      ];
+      let nextStatusMessage: {
+        message: string;
+        level: "ready" | "error";
+      } | null = null;
+      for (const paperContext of paperContexts) {
+        const attachmentId = paperContext.contextItemId;
+        const currentStatus = getItemStatus(attachmentId)?.status;
+        const previousStatus = previousStatuses.get(attachmentId);
+        previousStatuses.set(attachmentId, currentStatus);
+        if (!currentStatus) {
+          if (previousStatus === "processing") {
+            nextStatusMessage = { message: "", level: "ready" };
+          }
+          continue;
+        }
+        if (currentStatus === "processing" && previousStatus !== "processing") {
+          nextStatusMessage = {
+            message: t("MinerU parsing…"),
+            level: "ready",
+          };
+        } else if (
+          previousStatus === "processing" &&
+          currentStatus === "cached"
+        ) {
+          nextStatusMessage = {
+            message: t("MinerU parsing complete"),
+            level: "ready",
+          };
+        } else if (
+          previousStatus === "processing" &&
+          currentStatus === "failed"
+        ) {
+          nextStatusMessage = {
+            message: t("MinerU parsing failed"),
+            level: "error",
+          };
+        }
+      }
+      if (status && nextStatusMessage) {
+        setStatus(status, nextStatusMessage.message, nextStatusMessage.level);
+      }
       syncMineruPaperSourceState();
       updatePaperPreviewPreservingScroll();
       refreshOpenPaperChipMenu();
@@ -3754,6 +3807,7 @@ export function setupHandlers(
       refreshOpenPaperChipMenu();
     });
     return () => {
+      previousStatuses.clear();
       unsubscribeProcessing();
       unsubscribeBatch();
     };

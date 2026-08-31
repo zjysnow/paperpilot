@@ -93,7 +93,7 @@ export function resolveMineruSourceOptionState(input: {
     return {
       state: "processing",
       action: "pause",
-      hideTextSource: hasUsableMineru,
+      hideTextSource: false,
     };
   }
 
@@ -101,7 +101,7 @@ export function resolveMineruSourceOptionState(input: {
     return {
       state: "failed",
       action: "retry",
-      hideTextSource: hasUsableMineru,
+      hideTextSource: false,
     };
   }
 
@@ -109,7 +109,7 @@ export function resolveMineruSourceOptionState(input: {
     return {
       state: "cached",
       action: "select",
-      hideTextSource: true,
+      hideTextSource: false,
     };
   }
 
@@ -274,7 +274,7 @@ function resolveMineruOptionState(
     hasUsableMineru,
     itemStatus,
   });
-  if (state.hideTextSource) {
+  if (state.state === "cached") {
     params.mineruAvailableIds.add(paperContext.contextItemId);
   }
   return state;

@@ -4,6 +4,10 @@ import {
   getProviderPreset,
   providerSupportsResponsesEndpoint,
 } from "../src/utils/providerPresets";
+import {
+  resolveMineruSourceOptionState,
+  resolvePaperPdfSupportForConversation,
+} from "../src/modules/contextPanel/setupHandlers/controllers/paperSourceOptionsController";
 
 describe("local OpenAI-compatible provider preset", function () {
   it("provides an OpenAI-compatible default", function () {
@@ -42,6 +46,29 @@ describe("GitHub Copilot provider preset", function () {
     assert.equal(
       getProviderPreset("copilot").defaultProtocol,
       "openai_chat_compat",
+    );
+  });
+});
+
+describe("MinerU paper source selection", function () {
+  it("keeps MinerU as an explicit source choice instead of changing PDF support globally", function () {
+    assert.equal(
+      resolvePaperPdfSupportForConversation({ basePdfSupport: "none" }),
+      "none",
+    );
+    assert.deepEqual(
+      resolveMineruSourceOptionState({
+        hasUsableMineru: false,
+        itemStatus: { status: "idle" },
+      }),
+      { state: "idle", action: "start", hideTextSource: false },
+    );
+    assert.deepEqual(
+      resolveMineruSourceOptionState({
+        hasUsableMineru: false,
+        itemStatus: { status: "cached" },
+      }),
+      { state: "cached", action: "select", hideTextSource: false },
     );
   });
 });

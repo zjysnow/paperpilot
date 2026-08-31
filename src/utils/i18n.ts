@@ -401,6 +401,8 @@ const zhCN: Record<string, string> = {
   "No MinerU cache available.": "没有可用的 MinerU 缓存。",
   "Click to do MinerU parsing": "点击进行 MinerU 解析",
   "MinerU parsing…": "MinerU 解析中…",
+  "MinerU parsing complete": "MinerU 解析完成",
+  "MinerU parsing failed": "MinerU 解析失败",
   "Click to stop MinerU parsing": "点击停止 MinerU 解析",
   "MinerU parsing failed. Click to retry": "MinerU 解析失败。点击重试",
   "⚠️ enable MinerU to start PDF parsing": "⚠️ 请启用 MinerU 以开始 PDF 解析",
