@@ -73,6 +73,38 @@ import { formatDisplayModelName } from "../../utils/modelDisplayLabel";
 import type { ProviderProtocol } from "../../utils/providerProtocol";
 import { inferLegacyProviderProtocol } from "../../utils/providerProtocol";
 import {
+  DifyClient,
+  getDifyConfig,
+  getDifyConversationId,
+  isDifyChatEntryId as isDifyChatEntry,
+  resolveDifyChatApiKey,
+  setDifyConversationId,
+} from "../../utils/dify";
+
+async function callDifyChat(
+  question: string,
+  conversationKey: number,
+  signal: AbortSignal | undefined,
+  onDelta: (text: string) => void,
+  entryId?: string,
+): Promise<string> {
+  const config = getDifyConfig();
+  const client = new DifyClient(config);
+  const apiKey = resolveDifyChatApiKey(entryId, config);
+  const response = await client.invokeChat(question, {
+    apiKey: apiKey || undefined,
+    conversationId: getDifyConversationId(conversationKey) || undefined,
+    signal,
+    responseMode: "blocking",
+  });
+  if (response.conversation_id) {
+    setDifyConversationId(conversationKey, response.conversation_id);
+  }
+  const answer = typeof response.answer === "string" ? response.answer : "";
+  if (answer) onDelta(answer);
+  return answer;
+}
+import {
   PERSISTED_HISTORY_LIMIT,
   MAX_FULL_TEXT_PAPER_CONTEXTS,
   MAX_SELECTED_IMAGES,
@@ -7062,64 +7094,72 @@ export async function retryLatestAssistantResponse(
       contextCache: contextPlan.contextCache,
       fallbackContextWindow: finalPrepared.inputCap.limitTokens,
     });
-    const answer = isCodexNativeTurn
-      ? (
-          await runCodexAppServerNativeTurn({
-            scope: await enrichCodexNativeConversationScopeWithMineruCache(
-              resolveCodexNativeConversationScope({
-                item,
-                conversationKey,
-                title: question,
-              }),
-            ),
-            model: effectiveRequestConfig.model,
-            messages: finalPrepared.messages,
-            reasoning: effectiveRequestConfig.reasoning,
-            signal: getAbortController(conversationKey)?.signal,
-            codexPath: getEffectiveCodexAppServerBinaryPath(
-              effectiveRequestConfig.apiBase,
-            ),
-            skillContext: buildCodexNativeSkillContext({
-              forcedSkillIds: retryPair.userMessage.forcedSkillIds,
-              selectedTextContexts: retrySelectedTextContexts,
-              resolvedSelectedTextAnchors: retryResolvedSelectedTextAnchors,
-              selectedTexts: retryPair.userMessage.selectedTexts,
-              selectedTextSources: retryPair.userMessage.selectedTextSources,
-              selectedTextPaperContexts:
-                retryPair.userMessage.selectedTextPaperContexts,
-              selectedTextNoteContexts:
-                retryPair.userMessage.selectedTextNoteContexts,
-              paperContexts: contextPlan.paperContexts,
-              pdfPaperContexts: retryPair.userMessage.pdfPaperContexts,
-              localDocuments: retryLocalDocuments,
-              fullTextPaperContexts: contextPlan.fullTextPaperContexts,
-              pinnedPaperContexts: retryPair.userMessage.pinnedPaperContexts,
-              selectedCollectionContexts,
-              selectedTagContexts,
-              screenshots: allImages,
-              attachments,
-            }),
-            ...buildCodexNativeTurnCallbacks({
-              body,
-              assistantMessage,
-              codexActivityTrace,
-              flushResponseStream,
-              setStatusSafely,
-              handleDelta,
-              handleReasoning,
-              handleUsage,
-            }),
-          })
-        ).text
-      : await callLLMStream(
-          {
-            ...requestParams,
-            systemMessages,
-          },
+    const answer = isDifyChatEntry(effectiveRequestConfig.modelEntryId)
+      ? await callDifyChat(
+          question,
+          conversationKey,
+          getAbortController(conversationKey)?.signal,
           handleDelta,
-          handleReasoning,
-          handleUsage,
-        );
+          effectiveRequestConfig.modelEntryId,
+        )
+      : isCodexNativeTurn
+        ? (
+            await runCodexAppServerNativeTurn({
+              scope: await enrichCodexNativeConversationScopeWithMineruCache(
+                resolveCodexNativeConversationScope({
+                  item,
+                  conversationKey,
+                  title: question,
+                }),
+              ),
+              model: effectiveRequestConfig.model,
+              messages: finalPrepared.messages,
+              reasoning: effectiveRequestConfig.reasoning,
+              signal: getAbortController(conversationKey)?.signal,
+              codexPath: getEffectiveCodexAppServerBinaryPath(
+                effectiveRequestConfig.apiBase,
+              ),
+              skillContext: buildCodexNativeSkillContext({
+                forcedSkillIds: retryPair.userMessage.forcedSkillIds,
+                selectedTextContexts: retrySelectedTextContexts,
+                resolvedSelectedTextAnchors: retryResolvedSelectedTextAnchors,
+                selectedTexts: retryPair.userMessage.selectedTexts,
+                selectedTextSources: retryPair.userMessage.selectedTextSources,
+                selectedTextPaperContexts:
+                  retryPair.userMessage.selectedTextPaperContexts,
+                selectedTextNoteContexts:
+                  retryPair.userMessage.selectedTextNoteContexts,
+                paperContexts: contextPlan.paperContexts,
+                pdfPaperContexts: retryPair.userMessage.pdfPaperContexts,
+                localDocuments: retryLocalDocuments,
+                fullTextPaperContexts: contextPlan.fullTextPaperContexts,
+                pinnedPaperContexts: retryPair.userMessage.pinnedPaperContexts,
+                selectedCollectionContexts,
+                selectedTagContexts,
+                screenshots: allImages,
+                attachments,
+              }),
+              ...buildCodexNativeTurnCallbacks({
+                body,
+                assistantMessage,
+                codexActivityTrace,
+                flushResponseStream,
+                setStatusSafely,
+                handleDelta,
+                handleReasoning,
+                handleUsage,
+              }),
+            })
+          ).text
+        : await callLLMStream(
+            {
+              ...requestParams,
+              systemMessages,
+            },
+            handleDelta,
+            handleReasoning,
+            handleUsage,
+          );
 
     if (
       getCancelledRequestId(conversationKey) >= thisRequestId ||
@@ -9058,63 +9098,72 @@ export async function sendQuestion(
       contextCache: contextPlan.contextCache,
       fallbackContextWindow: finalPrepared.inputCap.limitTokens,
     });
-    const answer = isCodexNativeTurn
-      ? (
-          await runCodexAppServerNativeTurn({
-            scope: await enrichCodexNativeConversationScopeWithMineruCache(
-              resolveCodexNativeConversationScope({
-                item,
-                contextSource,
-                conversationKey,
-                title: shownQuestion,
-              }),
-            ),
-            model: effectiveRequestConfig.model,
-            messages: finalPrepared.messages,
-            reasoning: effectiveRequestConfig.reasoning,
-            signal: getAbortController(conversationKey)?.signal,
-            codexPath: getEffectiveCodexAppServerBinaryPath(
-              effectiveRequestConfig.apiBase,
-            ),
-            skillContext: buildCodexNativeSkillContext({
-              forcedSkillIds: opts.forcedSkillIds,
-              selectedTextContexts: selectedTextContextsForMessage,
-              resolvedSelectedTextAnchors,
-              selectedTexts: selectedTextsForMessage,
-              selectedTextSources: selectedTextSourcesForMessage,
-              selectedTextPaperContexts: selectedTextPaperContextsForMessage,
-              selectedTextNoteContexts: selectedTextNoteContextsForMessage,
-              paperContexts: contextPlan.paperContexts,
-              pdfPaperContexts: normalizedPdfPaperContexts,
-              localDocuments,
-              fullTextPaperContexts: contextPlan.fullTextPaperContexts,
-              pinnedPaperContexts: userMessage.pinnedPaperContexts,
-              selectedCollectionContexts: selectedCollectionContextsForMessage,
-              selectedTagContexts: selectedTagContextsForMessage,
-              screenshots: allSendImages,
-              attachments,
-            }),
-            ...buildCodexNativeTurnCallbacks({
-              body,
-              assistantMessage,
-              codexActivityTrace,
-              flushResponseStream,
-              setStatusSafely,
-              handleDelta,
-              handleReasoning,
-              handleUsage,
-            }),
-          })
-        ).text
-      : await callLLMStream(
-          {
-            ...requestParams,
-            systemMessages,
-          },
+    const answer = isDifyChatEntry(effectiveRequestConfig.modelEntryId)
+      ? await callDifyChat(
+          question,
+          conversationKey,
+          getAbortController(conversationKey)?.signal,
           handleDelta,
-          handleReasoning,
-          handleUsage,
-        );
+          effectiveRequestConfig.modelEntryId,
+        )
+      : isCodexNativeTurn
+        ? (
+            await runCodexAppServerNativeTurn({
+              scope: await enrichCodexNativeConversationScopeWithMineruCache(
+                resolveCodexNativeConversationScope({
+                  item,
+                  contextSource,
+                  conversationKey,
+                  title: shownQuestion,
+                }),
+              ),
+              model: effectiveRequestConfig.model,
+              messages: finalPrepared.messages,
+              reasoning: effectiveRequestConfig.reasoning,
+              signal: getAbortController(conversationKey)?.signal,
+              codexPath: getEffectiveCodexAppServerBinaryPath(
+                effectiveRequestConfig.apiBase,
+              ),
+              skillContext: buildCodexNativeSkillContext({
+                forcedSkillIds: opts.forcedSkillIds,
+                selectedTextContexts: selectedTextContextsForMessage,
+                resolvedSelectedTextAnchors,
+                selectedTexts: selectedTextsForMessage,
+                selectedTextSources: selectedTextSourcesForMessage,
+                selectedTextPaperContexts: selectedTextPaperContextsForMessage,
+                selectedTextNoteContexts: selectedTextNoteContextsForMessage,
+                paperContexts: contextPlan.paperContexts,
+                pdfPaperContexts: normalizedPdfPaperContexts,
+                localDocuments,
+                fullTextPaperContexts: contextPlan.fullTextPaperContexts,
+                pinnedPaperContexts: userMessage.pinnedPaperContexts,
+                selectedCollectionContexts:
+                  selectedCollectionContextsForMessage,
+                selectedTagContexts: selectedTagContextsForMessage,
+                screenshots: allSendImages,
+                attachments,
+              }),
+              ...buildCodexNativeTurnCallbacks({
+                body,
+                assistantMessage,
+                codexActivityTrace,
+                flushResponseStream,
+                setStatusSafely,
+                handleDelta,
+                handleReasoning,
+                handleUsage,
+              }),
+            })
+          ).text
+        : await callLLMStream(
+            {
+              ...requestParams,
+              systemMessages,
+            },
+            handleDelta,
+            handleReasoning,
+            handleUsage,
+          );
 
     if (
       getCancelledRequestId(conversationKey) >= thisRequestId ||

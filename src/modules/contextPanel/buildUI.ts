@@ -986,7 +986,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     buttonId: "paperpilotmodel-toggle",
     buttonClassName:
       "paperpilotshortcut-btn paperpilotaction-btn paperpilotaction-btn-secondary paperpilotmodel-btn",
-    buttonText: "Model: ...",
+    buttonText: "Select AI",
     menuId: "paperpilotmodel-menu",
     menuClassName: "paperpilotmodel-menu",
     disabled: !hasItem,

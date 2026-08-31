@@ -104,6 +104,21 @@
           "
           >MinerU</html:button
         >
+        <html:button
+          data-pref-tab="dify"
+          type="button"
+          style="
+            flex: 1;
+            padding: 6px 0;
+            font-size: 12px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--fill-secondary, #888);
+            cursor: pointer;
+          "
+          >AI Backends</html:button
+        >
       </html:div>
 
       <!-- ═══ Tab 1: AI Providers ═══ -->
@@ -1128,7 +1143,100 @@
         </html:div>
       </html:div>
 
-      <!-- ═══ Tab 4: MinerU ═══ -->
+      <!-- ═══ Tab: AI backend applications (Dify implementation) ═══ -->
+      <html:div
+        id="__addonRef__-pref-panel-dify"
+        data-pref-panel="dify"
+        style="display: none; flex-direction: column; gap: 10px"
+      >
+        <html:span style="font-size: 14px; font-weight: 800"
+          >AI Backend Applications</html:span
+        >
+        <html:span style="font-size: 11.5px; color: var(--fill-secondary, #888)"
+          >Connect to published Dify applications and sync Markdown notes to a
+          Dataset.</html:span
+        >
+        <html:label
+          >Base URL<html:input
+            id="__addonRef__-dify-base-url"
+            type="url"
+            style="width: 100%"
+        /></html:label>
+        <html:label
+          >API Key<html:input
+            id="__addonRef__-dify-api-key"
+            type="password"
+            style="width: 100%"
+        /></html:label>
+        <html:label
+          >User<html:input
+            id="__addonRef__-dify-user"
+            type="text"
+            style="width: 100%"
+        /></html:label>
+        <html:div
+          style="
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 4px;
+          "
+        >
+          <html:span style="font-size: 12.5px; font-weight: 700"
+            >Chat robots</html:span
+          >
+          <html:span style="font-size: 11px; color: var(--fill-secondary, #888)"
+            >Each chat robot uses its own Dify Chat App Key and appears as a
+            separate AI option in the chat model menu.</html:span
+          >
+          <html:div
+            id="__addonRef__-dify-chat-apps"
+            style="display: flex; flex-direction: column; gap: 8px"
+          ></html:div>
+        </html:div>
+        <html:label
+          >Completion App Key<html:input
+            id="__addonRef__-dify-completion-key"
+            type="password"
+            style="width: 100%" /></html:label
+        ><html:span
+          id="__addonRef__-dify-completion-name"
+          style="font-size: 11px; color: var(--fill-secondary, #888)"
+        ></html:span>
+        <html:label
+          >Workflow App Key<html:input
+            id="__addonRef__-dify-workflow-key"
+            type="password"
+            style="width: 100%" /></html:label
+        ><html:span
+          id="__addonRef__-dify-workflow-name"
+          style="font-size: 11px; color: var(--fill-secondary, #888)"
+        ></html:span>
+        <html:label
+          >Dataset ID<html:input
+            id="__addonRef__-dify-dataset-id"
+            type="text"
+            style="width: 100%"
+        /></html:label>
+        <html:div style="display: flex; gap: 8px; align-items: center">
+          <html:button id="__addonRef__-dify-refresh-metadata" type="button"
+            >Refresh app names</html:button
+          >
+          <html:span
+            id="__addonRef__-dify-metadata-status"
+            style="font-size: 11.5px; display: none"
+          ></html:span>
+          <html:button id="__addonRef__-dify-test" type="button"
+            >Test Connection</html:button
+          >
+          <html:span
+            id="__addonRef__-dify-test-status"
+            style="font-size: 11.5px; display: none"
+          ></html:span>
+        </html:div>
+      </html:div>
+
+      <!-- ═══ Tab 5: MinerU ═══ -->
       <html:div
         id="__addonRef__-pref-panel-mineru"
         data-pref-panel="mineru"

@@ -3,6 +3,7 @@ import { t } from "../../utils/i18n";
 import { revealLocalPath } from "../../utils/revealLocalPath";
 import type { RuntimeModelEntry } from "../../utils/modelProviders";
 import type { ConversationSystem } from "../../shared/types";
+import { isDifyChatEntryId } from "../../utils/dify";
 import {
   getLastUsedModelEntryId,
   getModelEntryById,
@@ -663,6 +664,9 @@ export function setupHandlers(
   };
   const getCurrentRuntimeMode = (): ChatRuntimeMode => {
     if (!item) return "chat";
+    if (isDifyChatEntryId(getSelectedModelEntryForItem(item.id)?.entryId)) {
+      return "chat";
+    }
     const key = getConversationKey(item);
     const noteSession = resolveCurrentNoteSession();
     return resolveRuntimeModeForConversation({
@@ -690,6 +694,14 @@ export function setupHandlers(
       panelRoot.dataset.runtimeMode = "chat";
       return;
     }
+    const difySelected =
+      Boolean(item) &&
+      isDifyChatEntryId(getSelectedModelEntryForItem(item!.id)?.entryId);
+    runtimeModeBtn.disabled = difySelected;
+    runtimeModeBtn.setAttribute(
+      "aria-disabled",
+      difySelected ? "true" : "false",
+    );
     const mode = getCurrentRuntimeMode();
     const enabled = mode === "agent";
     const label = runtimeModeBtn.querySelector(
@@ -700,9 +712,11 @@ export function setupHandlers(
     }
     runtimeModeBtn.classList.toggle("paperpilotagent-toggle-enabled", enabled);
     runtimeModeBtn.dataset.mode = mode;
-    runtimeModeBtn.title = enabled
-      ? t("Agent mode ON. Click to switch to Chat mode")
-      : t("Agent mode OFF. Click to switch to Agent mode");
+    runtimeModeBtn.title = difySelected
+      ? t("Agent mode is unavailable for Dify apps")
+      : enabled
+        ? t("Agent mode ON. Click to switch to Chat mode")
+        : t("Agent mode OFF. Click to switch to Agent mode");
     runtimeModeBtn.setAttribute(
       "aria-label",
       mode === "agent" ? t("Switch to Chat mode") : t("Switch to Agent mode"),
@@ -4074,6 +4088,27 @@ export function setupHandlers(
     menu.appendChild(action);
   };
 
+  const createModelOption = (entry: RuntimeModelEntry, isSelected: boolean) => {
+    const option = createElement(
+      body.ownerDocument as Document,
+      "button",
+      "paperpilotresponse-menu-item paperpilotmodel-option",
+      {
+        type: "button",
+        title: `${entry.providerLabel} · ${entry.model}`,
+      },
+    );
+    const check = body.ownerDocument.createElement("span");
+    check.className = "paperpilotmodel-check";
+    check.setAttribute("aria-hidden", "true");
+    check.textContent = isSelected ? "\u2713" : "";
+    const label = body.ownerDocument.createElement("span");
+    label.className = "paperpilotmodel-label";
+    label.textContent = entry.displayModelLabel || "default";
+    option.append(check, label);
+    return option;
+  };
+
   const rebuildModelMenu = () => {
     if (!item || !modelMenu) return;
     const { groupedChoices, selectedEntryId } = getSelectedModelInfo();
@@ -4081,7 +4116,7 @@ export function setupHandlers(
     modelMenu.innerHTML = "";
     appendDropdownInstruction(
       modelMenu,
-      t("Select model"),
+      t("Select AI"),
       "paperpilotmodel-menu-hint",
     );
     if (!groupedChoices.length) {
@@ -4093,18 +4128,7 @@ export function setupHandlers(
       appendModelProviderSection(modelMenu, group.providerLabel);
       for (const entry of group.entries) {
         const isSelected = entry.entryId === selectedEntryId;
-        const option = createElement(
-          body.ownerDocument as Document,
-          "button",
-          "paperpilotresponse-menu-item paperpilotmodel-option",
-          {
-            type: "button",
-            textContent: isSelected
-              ? `\u2713 ${entry.displayModelLabel || "default"}`
-              : entry.displayModelLabel || "default",
-            title: `${entry.providerLabel} · ${entry.model}`,
-          },
-        );
+        const option = createModelOption(entry, isSelected);
         const applyModelSelection = (e: Event) => {
           if (!isPrimaryPointerEvent(e)) return;
           e.preventDefault();
@@ -4158,6 +4182,7 @@ export function setupHandlers(
           }
 
           updateModelButton();
+          updateRuntimeModeButton();
           updateReasoningButton();
         };
         option.addEventListener("pointerdown", applyModelSelection);
@@ -4203,18 +4228,7 @@ export function setupHandlers(
                 ? entry.providerLabel === latestAssistantProviderLabel
                 : matchingLegacyEntries.length === 1)
             : false;
-        const option = createElement(
-          body.ownerDocument as Document,
-          "button",
-          "paperpilotresponse-menu-item paperpilotmodel-option",
-          {
-            type: "button",
-            textContent: isSelected
-              ? `\u2713 ${entry.displayModelLabel || "default"}`
-              : entry.displayModelLabel || "default",
-            title: `${entry.providerLabel} · ${entry.model}`,
-          },
-        );
+        const option = createModelOption(entry, isSelected);
         const runRetry = async (e: Event) => {
           if (!isPrimaryPointerEvent(e)) return;
           e.preventDefault();

@@ -31,6 +31,28 @@ The Preferences page intentionally keeps the provider list small:
 The provider implementation also supports the protocols needed by compatible
 chat and Responses API endpoints. API keys are optional for local servers.
 
+## Dify integration
+
+Dify is configured separately from model providers because Paper Pilot selects a
+published Dify application rather than a model. Open `Preferences -> paperpilot
+-> Dify` to configure the Dify base URL, API keys, default user, published app
+keys, and an optional Dataset ID.
+
+- **Chat robots** invoke published Dify Chat applications. Add as many as you
+  need — each has its own display name and App Key and shows up as an
+  independently selectable AI entry in the chat model menu (using its display
+  name, or the Dify app name once fetched via "Refresh app names"). Configs
+  created before this feature (a single `Chat App Key`) are migrated
+  automatically into one chat robot entry.
+- **Completion App Key** invokes a published Dify Completion application.
+- **Workflow App Key** invokes a published Dify Workflow application.
+- **Dataset ID** identifies the Dify knowledge base used for Markdown document
+  create, update, and delete operations.
+
+The Dify client keeps app invocation and Dataset document operations separate
+from the LLM provider/model configuration. Dify controls the model and
+retrieval settings inside each published application.
+
 ### Local OpenAI-Compatible
 
 Start Ollama and configure the following in `Preferences -> paperpilot`:
@@ -117,16 +139,16 @@ For example:
 
 The built-in Skill IDs are:
 
-| Skill | Typical use |
-| --- | --- |
-| `simple-paper-qa` | General questions and summaries about one paper |
+| Skill               | Typical use                                              |
+| ------------------- | -------------------------------------------------------- |
+| `simple-paper-qa`   | General questions and summaries about one paper          |
 | `evidence-based-qa` | Locate methods, parameters, results, and source passages |
-| `analyze-figures` | Explain figures, tables, charts, and diagrams |
-| `compare-papers` | Compare selected papers or their methods and findings |
-| `literature-review` | Produce a structured review or thematic synthesis |
-| `library-analysis` | Analyze a library or collection |
-| `write-note` | Create a Zotero note or Markdown file note |
-| `import-to-library` | Import cited papers or references into Zotero |
+| `analyze-figures`   | Explain figures, tables, charts, and diagrams            |
+| `compare-papers`    | Compare selected papers or their methods and findings    |
+| `literature-review` | Produce a structured review or thematic synthesis        |
+| `library-analysis`  | Analyze a library or collection                          |
+| `write-note`        | Create a Zotero note or Markdown file note               |
+| `import-to-library` | Import cited papers or references into Zotero            |
 
 Skills provide workflow instructions; registered Agent tools perform the actual
 operations. For example, `write-note` uses `paper_read` and `library_read` to

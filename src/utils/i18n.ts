@@ -230,6 +230,7 @@ const zhCN: Record<string, string> = {
     "Agent 模式已开启。点击切换到对话模式",
   "Agent mode OFF. Click to switch to Agent mode":
     "Agent 模式已关闭。点击切换到 Agent 模式",
+  "Agent mode is unavailable for Dify apps": "Dify 应用不支持 Agent 模式",
   "Switch to Chat mode": "切换到对话模式",
   "Paper mode only accepts text from this paper":
     "论文模式仅接受来自此论文的文本",
@@ -238,6 +239,9 @@ const zhCN: Record<string, string> = {
   "Deleted one turn": "已删除一轮对话",
   "No models configured yet.": "尚未配置模型。",
   "Select model": "选择模型",
+  "Select AI": "选择 AI",
+  "Refreshing…": "刷新中…",
+  "✓ Metadata refreshed": "✓ 元数据已刷新",
   "Reasoning level": "推理级别",
   "Expand files panel": "展开文件面板",
   "Collapse files panel": "收起文件面板",
@@ -553,6 +557,15 @@ const zhCN: Record<string, string> = {
   "Complete the empty provider first": "请先完善空白的服务商",
   "Add provider": "添加服务商",
   "+ Add Provider": "+ 添加服务商",
+  "No chat robot configured yet. Add one to select it from the model menu.":
+    "尚未配置任何聊天机器人，添加一个即可在模型菜单中选择。",
+  "Chat robot %n": "聊天机器人 %n",
+  "Remove chat robot": "移除聊天机器人",
+  "+ Add chat robot": "+ 添加聊天机器人",
+  "Display name": "显示名称",
+  "App Key": "App Key",
+  "Optional; falls back to the Dify app name once fetched.":
+    "可选；获取后将回退到 Dify 应用名称。",
   "API URL is required": "API URL 为必填项",
   "API Key is required": "API 密钥为必填项",
   "codex token missing. Run `codex login` first.":
