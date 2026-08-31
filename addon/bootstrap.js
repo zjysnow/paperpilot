@@ -7,6 +7,47 @@
 
 var chromeHandle;
 
+/**
+ * Zotero can preserve an add-on entry while marking it disabled during an
+ * application upgrade. Re-enable the current add-on before loading its code.
+ * This is intentionally best-effort: older Zotero builds do not expose the
+ * AddonManager ES module, and the normal startup path must still work there.
+ */
+async function migrateAfterApplicationUpgrade(id) {
+  var currentVersion = Services.appinfo?.version;
+  var migrationPref = `extensions.zotero.${id}.lastApplicationVersion`;
+  var previousVersion = Zotero.Prefs.get(migrationPref, true);
+  if (
+    typeof currentVersion !== "string" ||
+    (typeof previousVersion === "string" &&
+      previousVersion.trim() === currentVersion)
+  ) {
+    return;
+  }
+  Zotero.Prefs.set(migrationPref, currentVersion, true);
+
+  // The first run after installation is not an application migration.
+  if (typeof previousVersion !== "string" || !previousVersion.trim()) {
+    return;
+  }
+
+  var addonManager = globalThis.AddonManager;
+  if (!addonManager && globalThis.ChromeUtils?.importESModule) {
+    addonManager = globalThis.ChromeUtils.importESModule(
+      "resource://gre/modules/AddonManager.sys.mjs",
+    ).AddonManager;
+  }
+  if (!addonManager?.getAddonByID) {
+    return;
+  }
+
+  var addon = await addonManager.getAddonByID(id);
+  if (addon?.userDisabled) {
+    await addon.enable();
+    Zotero.debug(`[${id}] re-enabled after Zotero application upgrade`);
+  }
+}
+
 function install(data, reason) {}
 
 async function startup({ id, version, resourceURI, rootURI }, reason) {
@@ -31,6 +72,7 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
     `${rootURI}/content/scripts/__addonRef__.js`,
     ctx,
   );
+  await migrateAfterApplicationUpgrade(id);
   await Zotero.__addonInstance__.hooks.onStartup();
 }
 

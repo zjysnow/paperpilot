@@ -292,6 +292,16 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+function preparePreferenceSelect(select: HTMLSelectElement): HTMLSelectElement {
+  // Preference panes are hosted in XUL. Keep native HTML select popup events
+  // from being intercepted by the surrounding XUL panel.
+  select.style.setProperty("pointer-events", "auto");
+  select.style.setProperty("appearance", "auto");
+  select.addEventListener("mousedown", (event) => event.stopPropagation());
+  select.addEventListener("pointerdown", (event) => event.stopPropagation());
+  return select;
+}
+
 function iconBtn(
   doc: Document,
   label: string,
@@ -810,11 +820,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         "display: flex; flex-direction: column;",
       );
       const authModeLabel = el(doc, "label", LABEL_STYLE, t("Auth Mode"));
-      const authModeSelect = el(
-        doc,
-        "select",
-        INPUT_STYLE,
-      ) as HTMLSelectElement;
+      const authModeSelect = preparePreferenceSelect(
+        el(doc, "select", INPUT_STYLE) as HTMLSelectElement,
+      );
       authModeSelect.id = `${config.addonRef}-auth-mode-${group.id}`;
       authModeLabel.setAttribute("for", authModeSelect.id);
       const apiKeyOption = el(doc, "option") as HTMLOptionElement;
@@ -880,11 +888,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           LABEL_STYLE,
           t("Provider"),
         );
-        const providerPresetSelect = el(
-          doc,
-          "select",
-          INPUT_STYLE,
-        ) as HTMLSelectElement;
+        const providerPresetSelect = preparePreferenceSelect(
+          el(doc, "select", INPUT_STYLE) as HTMLSelectElement,
+        );
         providerPresetSelect.id = `${config.addonRef}-provider-preset-${group.id}`;
         providerPresetLabel.setAttribute("for", providerPresetSelect.id);
 
@@ -1535,11 +1541,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
             "font-size: 10.5px; font-weight: 600; color: var(--fill-primary, inherit);",
             t("Input mode"),
           );
-          inputModeSelect = el(
-            doc,
-            "select",
-            INPUT_MODE_SELECT_SM_STYLE,
-          ) as HTMLSelectElement;
+          inputModeSelect = preparePreferenceSelect(
+            el(doc, "select", INPUT_MODE_SELECT_SM_STYLE) as HTMLSelectElement,
+          );
           for (const mode of inputModeOptions) {
             const opt = el(doc, "option") as HTMLOptionElement;
             opt.value = mode;
@@ -1567,11 +1571,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           "font-size: 10.5px; font-weight: 600; color: var(--fill-primary, inherit);",
           t("API protocol override"),
         );
-        const protocolFieldSelect = el(
-          doc,
-          "select",
-          PROTOCOL_SELECT_SM_STYLE,
-        ) as HTMLSelectElement;
+        const protocolFieldSelect = preparePreferenceSelect(
+          el(doc, "select", PROTOCOL_SELECT_SM_STYLE) as HTMLSelectElement,
+        );
         const autoOption = el(doc, "option") as HTMLOptionElement;
         autoOption.value = "";
         autoOption.textContent = t("auto");
@@ -2386,11 +2388,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         "display: flex; flex-direction: column;",
       );
       providerWrap.appendChild(el(doc, "label", LABEL_STYLE, t("Provider")));
-      const providerSelect = el(
-        doc,
-        "select",
-        INPUT_STYLE,
-      ) as HTMLSelectElement;
+      const providerSelect = preparePreferenceSelect(
+        el(doc, "select", INPUT_STYLE) as HTMLSelectElement,
+      );
       const providerOptions: [string, string][] = [
         ["local_openai_compatible", "Local OpenAI-Compatible"],
         ["custom", t("Customized")],
@@ -2549,11 +2549,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
 
       if (preset && !isLocal) {
         // Dropdown for known providers
-        const modelSelect = el(
-          doc,
-          "select",
-          INLINE_INPUT_STYLE,
-        ) as HTMLSelectElement;
+        const modelSelect = preparePreferenceSelect(
+          el(doc, "select", INLINE_INPUT_STYLE) as HTMLSelectElement,
+        );
         const currentModel =
           readEmbPref("embeddingModel") || preset.defaultModel;
         for (const opt of preset.models) {
