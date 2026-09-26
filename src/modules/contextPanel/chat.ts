@@ -78,6 +78,7 @@ import {
   getDifyConversationId,
   isDifyChatEntryId as isDifyChatEntry,
   resolveDifyChatApiKey,
+  resolveDifyChatBackend,
   setDifyConversationId,
 } from "../../utils/dify";
 
@@ -89,16 +90,18 @@ async function callDifyChat(
   entryId?: string,
 ): Promise<string> {
   const config = getDifyConfig();
-  const client = new DifyClient(config);
+  const backend = resolveDifyChatBackend(entryId, config);
+  const client = new DifyClient(backend);
   const apiKey = resolveDifyChatApiKey(entryId, config);
   const response = await client.invokeChat(question, {
     apiKey: apiKey || undefined,
-    conversationId: getDifyConversationId(conversationKey) || undefined,
+    conversationId:
+      getDifyConversationId(conversationKey, backend.id) || undefined,
     signal,
     responseMode: "blocking",
   });
   if (response.conversation_id) {
-    setDifyConversationId(conversationKey, response.conversation_id);
+    setDifyConversationId(conversationKey, response.conversation_id, backend.id);
   }
   const answer = typeof response.answer === "string" ? response.answer : "";
   if (answer) onDelta(answer);

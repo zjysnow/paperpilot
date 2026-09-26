@@ -48,6 +48,25 @@
           >AI Providers</html:button
         >
         <html:button
+          data-pref-tab="dify"
+          type="button"
+          style="
+            flex: 1;
+            padding: 6px 0;
+            font-size: 12px;
+            font-weight: 500;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--fill-secondary, #888);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          "
+          >AI Backend</html:button
+        >
+        <html:button
           data-pref-tab="customization"
           type="button"
           style="
@@ -92,32 +111,13 @@
             flex: 1;
             padding: 6px 0;
             font-size: 12px;
-            font-weight: 500;
             border: none;
             border-radius: 6px;
             background: transparent;
             color: var(--fill-secondary, #888);
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
           "
           >MinerU</html:button
-        >
-        <html:button
-          data-pref-tab="dify"
-          type="button"
-          style="
-            flex: 1;
-            padding: 6px 0;
-            font-size: 12px;
-            border: none;
-            border-radius: 6px;
-            background: transparent;
-            color: var(--fill-secondary, #888);
-            cursor: pointer;
-          "
-          >AI Backends</html:button
         >
       </html:div>
 
@@ -1149,90 +1149,321 @@
         data-pref-panel="dify"
         style="display: none; flex-direction: column; gap: 10px"
       >
-        <html:span style="font-size: 14px; font-weight: 800"
-          >AI Backend Applications</html:span
+        <html:div
+          style="display: flex; flex-direction: column; gap: 2px; margin-bottom: 2px"
         >
-        <html:span style="font-size: 11.5px; color: var(--fill-secondary, #888)"
-          >Connect to published Dify applications and sync Markdown notes to a
-          Dataset.</html:span
-        >
-        <html:label
-          >Base URL<html:input
-            id="__addonRef__-dify-base-url"
-            type="url"
-            style="width: 100%"
-        /></html:label>
-        <html:label
-          >API Key<html:input
-            id="__addonRef__-dify-api-key"
-            type="password"
-            style="width: 100%"
-        /></html:label>
-        <html:label
-          >User<html:input
-            id="__addonRef__-dify-user"
-            type="text"
-            style="width: 100%"
-        /></html:label>
+          <html:span
+            style="
+              font-size: 14px;
+              font-weight: 800;
+              color: var(--fill-primary, inherit);
+            "
+            >AI Backend</html:span
+          >
+          <html:span
+            style="font-size: 11.5px; color: var(--fill-secondary, #888)"
+            >Connect Dify applications for chat, completion, workflows, and
+            dataset synchronization.</html:span
+          >
+        </html:div>
+
         <html:div
           style="
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            margin-top: 4px;
+            border: 1px solid var(--stroke-secondary, #c8c8c8);
+            border-radius: 8px;
+            overflow: hidden;
           "
         >
-          <html:span style="font-size: 12.5px; font-weight: 700"
-            >Chat robots</html:span
-          >
-          <html:span style="font-size: 11px; color: var(--fill-secondary, #888)"
-            >Each chat robot uses its own Dify Chat App Key and appears as a
-            separate AI option in the chat model menu.</html:span
-          >
           <html:div
-            id="__addonRef__-dify-chat-apps"
-            style="display: flex; flex-direction: column; gap: 8px"
-          ></html:div>
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 8px 12px;
+              background: Field;
+              color: FieldText;
+              border-bottom: 1px solid var(--stroke-secondary, #c8c8c8);
+            "
+          >
+            <html:span style="font-weight: 700; font-size: 13px"
+              >Dify Connection</html:span
+            >
+          </html:div>
+          <html:div
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+              padding: 14px;
+            "
+          >
+            <html:div style="display: flex; flex-direction: column">
+              <html:label
+                for="__addonRef__-dify-base-url"
+                style="
+                  display: block;
+                  font-weight: 600;
+                  font-size: 12px;
+                  color: var(--fill-primary, inherit);
+                  margin-bottom: 4px;
+                "
+                >Base URL</html:label
+              >
+              <html:input
+                id="__addonRef__-dify-base-url"
+                type="url"
+                placeholder="https://api.dify.ai/v1"
+                style="
+                  width: 100%;
+                  padding: 6px 10px;
+                  font-size: 13px;
+                  border: 1px solid var(--stroke-secondary, #c8c8c8);
+                  border-radius: 6px;
+                  box-sizing: border-box;
+                  background: Field;
+                  color: FieldText;
+                "
+              />
+              <html:span
+                style="font-size: 11px; color: var(--fill-secondary, #888); margin-top: 3px"
+                >Use your Dify instance URL, including its API version path.</html:span
+              >
+            </html:div>
+            <html:div style="display: flex; flex-direction: column">
+              <html:label
+                for="__addonRef__-dify-api-key"
+                style="
+                  display: block;
+                  font-weight: 600;
+                  font-size: 12px;
+                  color: var(--fill-primary, inherit);
+                  margin-bottom: 4px;
+                "
+                >API Key</html:label
+              >
+              <html:input
+                id="__addonRef__-dify-api-key"
+                type="password"
+                style="
+                  width: 100%;
+                  padding: 6px 10px;
+                  font-size: 13px;
+                  border: 1px solid var(--stroke-secondary, #c8c8c8);
+                  border-radius: 6px;
+                  box-sizing: border-box;
+                  background: Field;
+                  color: FieldText;
+                "
+              />
+            </html:div>
+            <html:div style="display: flex; flex-direction: column">
+              <html:label
+                for="__addonRef__-dify-user"
+                style="
+                  display: block;
+                  font-weight: 600;
+                  font-size: 12px;
+                  color: var(--fill-primary, inherit);
+                  margin-bottom: 4px;
+                "
+                >User</html:label
+              >
+              <html:input
+                id="__addonRef__-dify-user"
+                type="text"
+                style="
+                  width: 100%;
+                  padding: 6px 10px;
+                  font-size: 13px;
+                  border: 1px solid var(--stroke-secondary, #c8c8c8);
+                  border-radius: 6px;
+                  box-sizing: border-box;
+                  background: Field;
+                  color: FieldText;
+                "
+              />
+              <html:span
+                style="font-size: 11px; color: var(--fill-secondary, #888); margin-top: 3px"
+                >Identifier sent with requests to your Dify applications.</html:span
+              >
+            </html:div>
+            <html:div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+              <html:button
+                id="__addonRef__-dify-test"
+                type="button"
+                style="
+                  padding: 4px 10px;
+                  font-size: 12px;
+                  font-weight: 500;
+                  white-space: nowrap;
+                  background: transparent;
+                  color: var(--color-accent, #2563eb);
+                  border: 1px solid var(--color-accent, #2563eb);
+                  border-radius: 5px;
+                  cursor: pointer;
+                "
+                >Test Connection</html:button
+              >
+              <html:span
+                id="__addonRef__-dify-test-status"
+                style="font-size: 11.5px; display: none"
+              ></html:span>
+            </html:div>
+          </html:div>
         </html:div>
-        <html:label
-          >Completion App Key<html:input
-            id="__addonRef__-dify-completion-key"
-            type="password"
-            style="width: 100%" /></html:label
-        ><html:span
-          id="__addonRef__-dify-completion-name"
-          style="font-size: 11px; color: var(--fill-secondary, #888)"
-        ></html:span>
-        <html:label
-          >Workflow App Key<html:input
-            id="__addonRef__-dify-workflow-key"
-            type="password"
-            style="width: 100%" /></html:label
-        ><html:span
-          id="__addonRef__-dify-workflow-name"
-          style="font-size: 11px; color: var(--fill-secondary, #888)"
-        ></html:span>
-        <html:label
-          >Dataset ID<html:input
-            id="__addonRef__-dify-dataset-id"
-            type="text"
-            style="width: 100%"
-        /></html:label>
-        <html:div style="display: flex; gap: 8px; align-items: center">
-          <html:button id="__addonRef__-dify-refresh-metadata" type="button"
-            >Refresh app names</html:button
+
+        <html:div
+          style="
+            border: 1px solid var(--stroke-secondary, #c8c8c8);
+            border-radius: 8px;
+            overflow: hidden;
+          "
+        >
+          <html:div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 8px 12px;
+              background: Field;
+              color: FieldText;
+              border-bottom: 1px solid var(--stroke-secondary, #c8c8c8);
+            "
           >
-          <html:span
-            id="__addonRef__-dify-metadata-status"
-            style="font-size: 11.5px; display: none"
-          ></html:span>
-          <html:button id="__addonRef__-dify-test" type="button"
-            >Test Connection</html:button
+            <html:span style="font-weight: 700; font-size: 13px"
+              >Applications</html:span
+            >
+            <html:button
+              id="__addonRef__-dify-refresh-metadata"
+              type="button"
+              style="
+                padding: 2px 8px;
+                font-size: 11px;
+                font-weight: 500;
+                white-space: nowrap;
+                background: transparent;
+                color: var(--color-accent, #2563eb);
+                border: 1px solid var(--color-accent, #2563eb);
+                border-radius: 5px;
+                cursor: pointer;
+              "
+              >Refresh app names</html:button
+            >
+          </html:div>
+          <html:div
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+              padding: 14px;
+            "
           >
-          <html:span
-            id="__addonRef__-dify-test-status"
-            style="font-size: 11.5px; display: none"
-          ></html:span>
+            <html:span
+              style="font-size: 11px; color: var(--fill-secondary, #888)"
+              >Configure published Dify applications for each supported task.</html:span
+            >
+            <html:div
+              id="__addonRef__-dify-chat-apps"
+              style="display: flex; flex-direction: column; gap: 8px"
+            ></html:div>
+            <html:div style="display: flex; flex-direction: column">
+              <html:label
+                for="__addonRef__-dify-completion-key"
+                style="
+                  display: block;
+                  font-weight: 600;
+                  font-size: 12px;
+                  color: var(--fill-primary, inherit);
+                  margin-bottom: 4px;
+                "
+                >Completion App Key</html:label
+              >
+              <html:input
+                id="__addonRef__-dify-completion-key"
+                type="password"
+                style="
+                  width: 100%;
+                  padding: 6px 10px;
+                  font-size: 13px;
+                  border: 1px solid var(--stroke-secondary, #c8c8c8);
+                  border-radius: 6px;
+                  box-sizing: border-box;
+                  background: Field;
+                  color: FieldText;
+                "
+              />
+              <html:span
+                id="__addonRef__-dify-completion-name"
+                style="font-size: 11px; color: var(--fill-secondary, #888); margin-top: 3px"
+              ></html:span>
+            </html:div>
+            <html:div style="display: flex; flex-direction: column">
+              <html:label
+                for="__addonRef__-dify-workflow-key"
+                style="
+                  display: block;
+                  font-weight: 600;
+                  font-size: 12px;
+                  color: var(--fill-primary, inherit);
+                  margin-bottom: 4px;
+                "
+                >Workflow App Key</html:label
+              >
+              <html:input
+                id="__addonRef__-dify-workflow-key"
+                type="password"
+                style="
+                  width: 100%;
+                  padding: 6px 10px;
+                  font-size: 13px;
+                  border: 1px solid var(--stroke-secondary, #c8c8c8);
+                  border-radius: 6px;
+                  box-sizing: border-box;
+                  background: Field;
+                  color: FieldText;
+                "
+              />
+              <html:span
+                id="__addonRef__-dify-workflow-name"
+                style="font-size: 11px; color: var(--fill-secondary, #888); margin-top: 3px"
+              ></html:span>
+            </html:div>
+            <html:div style="display: flex; flex-direction: column">
+              <html:label
+                for="__addonRef__-dify-dataset-id"
+                style="
+                  display: block;
+                  font-weight: 600;
+                  font-size: 12px;
+                  color: var(--fill-primary, inherit);
+                  margin-bottom: 4px;
+                "
+                >Dataset ID</html:label
+              >
+              <html:input
+                id="__addonRef__-dify-dataset-id"
+                type="text"
+                style="
+                  width: 100%;
+                  padding: 6px 10px;
+                  font-size: 13px;
+                  border: 1px solid var(--stroke-secondary, #c8c8c8);
+                  border-radius: 6px;
+                  box-sizing: border-box;
+                  background: Field;
+                  color: FieldText;
+                "
+              />
+              <html:span
+                style="font-size: 11px; color: var(--fill-secondary, #888); margin-top: 3px"
+                >Optional Dify dataset used when syncing Markdown notes.</html:span
+              >
+            </html:div>
+            <html:span
+              id="__addonRef__-dify-metadata-status"
+              style="font-size: 11.5px; display: none"
+            ></html:span>
+          </html:div>
         </html:div>
       </html:div>
 

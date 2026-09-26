@@ -91,13 +91,14 @@ import { openSkillManagerWindow } from "./skillManagerWindow";
 import {
   DifyClient,
   discoverDifyAppMetadata,
+  createDifyBackendId,
+  getDifyBackends,
   getDifyConfig,
-  getDifyChatApps,
   createDifyChatAppId,
   setDifyConfig,
   DEFAULT_DIFY_BASE_URL,
+  type DifyBackendConfig,
   type DifyChatAppConfig,
-  type DifyConfig,
 } from "../utils/dify";
 
 import { joinLocalPath } from "../utils/localPath";
@@ -673,273 +674,281 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   openSkillManagementButton?.addEventListener("click", () => {
     openSkillManagerWindow();
   });
-  let difyConfig = getDifyConfig();
-  const difyFields = {
-    baseUrl: doc.querySelector(
-      `#${config.addonRef}-dify-base-url`,
-    ) as HTMLInputElement | null,
-    apiKey: doc.querySelector(
-      `#${config.addonRef}-dify-api-key`,
-    ) as HTMLInputElement | null,
-    user: doc.querySelector(
-      `#${config.addonRef}-dify-user`,
-    ) as HTMLInputElement | null,
-    completion: doc.querySelector(
-      `#${config.addonRef}-dify-completion-key`,
-    ) as HTMLInputElement | null,
-    workflow: doc.querySelector(
-      `#${config.addonRef}-dify-workflow-key`,
-    ) as HTMLInputElement | null,
-    datasetId: doc.querySelector(
-      `#${config.addonRef}-dify-dataset-id`,
-    ) as HTMLInputElement | null,
-  };
-  if (difyFields.baseUrl)
-    difyFields.baseUrl.value = difyConfig.baseUrl || DEFAULT_DIFY_BASE_URL;
-  if (difyFields.apiKey) difyFields.apiKey.value = difyConfig.apiKey;
-  if (difyFields.user) difyFields.user.value = difyConfig.user;
-  if (difyFields.completion)
-    difyFields.completion.value = difyConfig.appKeys?.completion || "";
-  if (difyFields.workflow)
-    difyFields.workflow.value = difyConfig.appKeys?.workflow || "";
-  if (difyFields.datasetId)
-    difyFields.datasetId.value = difyConfig.datasetId || "";
-
-  // ── Chat robots ──────────────────────────────────────────────────
-  // Each configured chat robot is a published Dify Chat application with its
-  // own App Key. Every robot shows up as an independently selectable AI
-  // entry in the chat model menu (see modelProviders.getRuntimeModelEntries).
-  let difyChatApps: DifyChatAppConfig[] = getDifyChatApps(difyConfig).map(
-    (chatApp) => ({ ...chatApp }),
-  );
-  const difyChatAppsContainer = doc.querySelector(
-    `#${config.addonRef}-dify-chat-apps`,
+  const difyPanel = doc.querySelector(
+    `#${config.addonRef}-pref-panel-dify`,
   ) as HTMLDivElement | null;
+  let difyBackends: DifyBackendConfig[] = getDifyBackends(
+    getDifyConfig(),
+  ).map((backend) => ({
+    ...backend,
+    chatApps: backend.chatApps?.map((chatApp) => ({ ...chatApp })),
+  }));
 
-  const readDifyConfig = (): DifyConfig => ({
-    baseUrl: difyFields.baseUrl?.value || DEFAULT_DIFY_BASE_URL,
-    apiKey: difyFields.apiKey?.value || "",
-    user: difyFields.user?.value || "paperpilot",
-    appKeys: {
-      chat: difyConfig.appKeys?.chat || "",
-      completion: difyFields.completion?.value || "",
-      workflow: difyFields.workflow?.value || "",
-    },
-    chatApps: difyChatApps.map((chatApp) => ({ ...chatApp })),
-    chatAppMetadata: difyConfig.chatAppMetadata,
-    datasetId: difyFields.datasetId?.value || "",
-    appMetadata: difyConfig.appMetadata,
-  });
-  const persistDifyConfig = () => setDifyConfig(readDifyConfig());
+  const persistDifyBackends = () => {
+    const primary = difyBackends[0] || {
+      id: "legacy",
+      baseUrl: DEFAULT_DIFY_BASE_URL,
+      apiKey: "",
+      user: "paperpilot",
+    };
+    setDifyConfig({ ...primary, backends: difyBackends });
+  };
 
-  const renderDifyChatApps = () => {
-    if (!difyChatAppsContainer) return;
-    difyChatAppsContainer.innerHTML = "";
+  const renderDifyBackends = () => {
+    if (!difyPanel) return;
+    difyPanel.innerHTML = "";
     const wrap = el(
       doc,
       "div",
       "display: flex; flex-direction: column; gap: 10px;",
     );
-
-    if (!difyChatApps.length) {
-      wrap.appendChild(
-        el(
-          doc,
-          "span",
-          HELPER_STYLE,
-          t(
-            "No chat robot configured yet. Add one to select it from the model menu.",
-          ),
+    const heading = el(
+      doc,
+      "div",
+      "display: flex; flex-direction: column; gap: 2px; margin-bottom: 2px;",
+    );
+    heading.append(
+      el(
+        doc,
+        "span",
+        "font-size: 14px; font-weight: 800; color: var(--fill-primary, inherit);",
+        t("AI Backend"),
+      ),
+      el(
+        doc,
+        "span",
+        "font-size: 11.5px; color: var(--fill-secondary, #888);",
+        t(
+          "Each backend connects to one Dify instance and can contain multiple chat robot modules.",
         ),
-      );
-    }
+      ),
+    );
+    wrap.appendChild(heading);
 
-    difyChatApps.forEach((chatApp, chatAppIndex) => {
-      const fallbackName = t("Chat robot %n").replace(
-        "%n",
-        String(chatAppIndex + 1),
-      );
+    const appendField = (
+      body: HTMLElement,
+      label: string,
+      value: string,
+      onChange: (value: string) => void,
+      options: { type?: string; helper?: string; placeholder?: string } = {},
+    ) => {
+      const field = el(doc, "div", "display: flex; flex-direction: column;");
+      const fieldLabel = el(doc, "label", LABEL_STYLE, t(label));
+      const input = el(doc, "input", INPUT_STYLE) as HTMLInputElement;
+      input.type = options.type || "text";
+      input.value = value;
+      if (options.placeholder) input.placeholder = options.placeholder;
+      const id = `${config.addonRef}-dify-${Math.random().toString(36).slice(2)}`;
+      input.id = id;
+      fieldLabel.setAttribute("for", id);
+      input.addEventListener("change", () => {
+        onChange(input.value.trim());
+        persistDifyBackends();
+      });
+      field.append(fieldLabel, input);
+      if (options.helper) field.appendChild(el(doc, "span", HELPER_STYLE, t(options.helper)));
+      body.appendChild(field);
+    };
+
+    difyBackends.forEach((backend, backendIndex) => {
       const card = el(doc, "div", CARD_STYLE);
-      const cardHeader = el(doc, "div", CARD_HEADER_STYLE);
-      const titleSpan = el(
+      const header = el(doc, "div", CARD_HEADER_STYLE);
+      const title = el(
         doc,
         "span",
         "font-weight: 700; font-size: 13px;",
-        chatApp.name?.trim() ||
-          difyConfig.chatAppMetadata?.[chatApp.id]?.name ||
-          fallbackName,
+        backend.name?.trim() || t("Dify Backend %n").replace("%n", String(backendIndex + 1)),
       );
-      cardHeader.appendChild(titleSpan);
-      const removeBtn = iconBtn(doc, "×", t("Remove chat robot"));
-      removeBtn.addEventListener("click", () => {
-        difyChatApps = difyChatApps.filter((item) => item.id !== chatApp.id);
-        persistDifyConfig();
-        renderDifyChatApps();
+      header.appendChild(title);
+      const removeBackend = iconBtn(doc, "×", t("Remove backend"));
+      removeBackend.addEventListener("click", () => {
+        difyBackends = difyBackends.filter((item) => item.id !== backend.id);
+        persistDifyBackends();
+        renderDifyBackends();
       });
-      cardHeader.appendChild(removeBtn);
+      header.appendChild(removeBackend);
 
-      const cardBody = el(doc, "div", CARD_BODY_STYLE);
-
-      const nameWrap = el(doc, "div", "display: flex; flex-direction: column;");
-      const nameLabel = el(doc, "label", LABEL_STYLE, t("Display name"));
-      const nameInput = el(doc, "input", INPUT_STYLE) as HTMLInputElement;
-      nameInput.id = `${config.addonRef}-dify-chat-app-name-${chatApp.id}`;
-      nameLabel.setAttribute("for", nameInput.id);
-      nameInput.type = "text";
-      nameInput.placeholder =
-        difyConfig.chatAppMetadata?.[chatApp.id]?.name || fallbackName;
-      nameInput.value = chatApp.name || "";
-      nameInput.addEventListener("input", () => {
-        chatApp.name = nameInput.value.trim() || undefined;
-        persistDifyConfig();
-        titleSpan.textContent =
-          chatApp.name ||
-          difyConfig.chatAppMetadata?.[chatApp.id]?.name ||
-          fallbackName;
+      const body = el(doc, "div", CARD_BODY_STYLE);
+      appendField(
+        body,
+        "Backend name",
+        backend.name || "",
+        (value) => {
+          backend.name = value || undefined;
+          title.textContent =
+            backend.name || t("Dify Backend %n").replace("%n", String(backendIndex + 1));
+        },
+        { helper: "Optional; shown as the provider name in model selection." },
+      );
+      appendField(body, "Base URL", backend.baseUrl, (value) => {
+        backend.baseUrl = value || DEFAULT_DIFY_BASE_URL;
+      }, {
+        type: "url",
+        placeholder: DEFAULT_DIFY_BASE_URL,
+        helper: "Use your Dify instance URL, including its API version path.",
       });
-      nameWrap.append(
-        nameLabel,
-        nameInput,
-        el(
+      appendField(body, "API Key", backend.apiKey, (value) => {
+        backend.apiKey = value;
+      }, { type: "password" });
+      appendField(body, "User", backend.user, (value) => {
+        backend.user = value || "paperpilot";
+      }, { helper: "Identifier sent with requests to this Dify backend." });
+
+      const modulesHeader = el(doc, "span", SECTION_LABEL_STYLE, t("Modules"));
+      body.appendChild(modulesHeader);
+      const chatApps = backend.chatApps || (backend.chatApps = []);
+      if (!chatApps.length) {
+        body.appendChild(
+          el(
+            doc,
+            "span",
+            HELPER_STYLE,
+            t("No chat robot modules configured yet."),
+          ),
+        );
+      }
+      chatApps.forEach((chatApp, moduleIndex) => {
+        const moduleCard = el(
+          doc,
+          "div",
+          "border: 1px solid var(--stroke-secondary, #c8c8c8); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px;",
+        );
+        const moduleHeader = el(
+          doc,
+          "div",
+          "display: flex; align-items: center; justify-content: space-between;",
+        );
+        const moduleTitle = el(
           doc,
           "span",
-          HELPER_STYLE,
-          t("Optional; falls back to the Dify app name once fetched."),
-        ),
-      );
-
-      const keyWrap = el(doc, "div", "display: flex; flex-direction: column;");
-      const keyLabel = el(doc, "label", LABEL_STYLE, t("App Key"));
-      const keyInput = el(doc, "input", INPUT_STYLE) as HTMLInputElement;
-      keyInput.id = `${config.addonRef}-dify-chat-app-key-${chatApp.id}`;
-      keyLabel.setAttribute("for", keyInput.id);
-      keyInput.type = "password";
-      keyInput.value = chatApp.appKey;
-      keyInput.addEventListener("change", () => {
-        chatApp.appKey = keyInput.value.trim();
-        persistDifyConfig();
+          "font-size: 12px; font-weight: 700;",
+          chatApp.name ||
+            backend.chatAppMetadata?.[chatApp.id]?.name ||
+            t("Chat robot %n").replace("%n", String(moduleIndex + 1)),
+        );
+        const removeModule = iconBtn(doc, "×", t("Remove chat robot module"));
+        removeModule.addEventListener("click", () => {
+          backend.chatApps = chatApps.filter((item) => item.id !== chatApp.id);
+          persistDifyBackends();
+          renderDifyBackends();
+        });
+        moduleHeader.append(moduleTitle, removeModule);
+        moduleCard.appendChild(moduleHeader);
+        appendField(moduleCard, "Module name", chatApp.name || "", (value) => {
+          chatApp.name = value || undefined;
+          moduleTitle.textContent =
+            chatApp.name ||
+            backend.chatAppMetadata?.[chatApp.id]?.name ||
+            t("Chat robot %n").replace("%n", String(moduleIndex + 1));
+        }, { helper: "Optional; falls back to the Dify app name once fetched." });
+        appendField(moduleCard, "Chat App Key", chatApp.appKey, (value) => {
+          chatApp.appKey = value;
+        }, { type: "password" });
+        body.appendChild(moduleCard);
       });
-      keyWrap.append(keyLabel, keyInput);
 
-      cardBody.append(nameWrap, keyWrap);
-      card.append(cardHeader, cardBody);
+      const addModule = el(
+        doc,
+        "button",
+        OUTLINE_BTN_STYLE,
+        t("+ Add Module"),
+      ) as HTMLButtonElement;
+      addModule.type = "button";
+      addModule.addEventListener("click", () => {
+        chatApps.push({ id: createDifyChatAppId(), appKey: "" });
+        persistDifyBackends();
+        renderDifyBackends();
+      });
+      body.appendChild(addModule);
+
+      const advanced = el(doc, "details", "margin-top: 2px;");
+      advanced.appendChild(el(doc, "summary", "font-size: 12px; cursor: pointer;", t("Additional Dify applications")));
+      const advancedBody = el(doc, "div", "display: flex; flex-direction: column; gap: 10px; margin-top: 10px;");
+      appendField(advancedBody, "Completion App Key", backend.appKeys?.completion || "", (value) => {
+        backend.appKeys = { ...backend.appKeys, completion: value };
+      }, { type: "password" });
+      appendField(advancedBody, "Workflow App Key", backend.appKeys?.workflow || "", (value) => {
+        backend.appKeys = { ...backend.appKeys, workflow: value };
+      }, { type: "password" });
+      appendField(advancedBody, "Dataset ID", backend.datasetId || "", (value) => {
+        backend.datasetId = value || undefined;
+      }, { helper: "Optional Dify dataset used when syncing Markdown notes." });
+      advanced.appendChild(advancedBody);
+      body.appendChild(advanced);
+
+      const actions = el(doc, "div", "display: flex; align-items: center; gap: 8px; flex-wrap: wrap;");
+      const testButton = el(doc, "button", OUTLINE_BTN_STYLE, t("Test Connection")) as HTMLButtonElement;
+      testButton.type = "button";
+      const status = el(doc, "span", "font-size: 11.5px; display: none;");
+      testButton.addEventListener("click", async () => {
+        persistDifyBackends();
+        testButton.disabled = true;
+        status.style.display = "inline";
+        status.style.color = "var(--fill-secondary, #888)";
+        status.textContent = t("Testing…");
+        try {
+          await new DifyClient(backend).testConnection();
+          status.textContent = t("✓ Connection successful");
+          status.style.color = "green";
+        } catch (error) {
+          status.textContent = `✗ ${(error as Error).message}`;
+          status.style.color = "red";
+        } finally {
+          testButton.disabled = false;
+        }
+      });
+      const refreshButton = el(doc, "button", OUTLINE_BTN_STYLE, t("Refresh app names")) as HTMLButtonElement;
+      refreshButton.type = "button";
+      refreshButton.addEventListener("click", async () => {
+        persistDifyBackends();
+        refreshButton.disabled = true;
+        status.style.display = "inline";
+        status.style.color = "var(--fill-secondary, #888)";
+        status.textContent = t("Refreshing…");
+        try {
+          const refreshed = await discoverDifyAppMetadata(
+            new DifyClient(backend),
+            backend,
+          );
+          Object.assign(backend, refreshed);
+          persistDifyBackends();
+          renderDifyBackends();
+        } catch (error) {
+          status.textContent = `✗ ${(error as Error).message}`;
+          status.style.color = "red";
+        } finally {
+          refreshButton.disabled = false;
+        }
+      });
+      actions.append(testButton, refreshButton, status);
+      body.appendChild(actions);
+      card.append(header, body);
       wrap.appendChild(card);
     });
 
-    const addChatAppBtn = el(
+    const addBackend = el(
       doc,
       "button",
-      PRIMARY_BTN_STYLE +
-        " margin-top: 2px; font-size: 12.5px; text-align: center;",
-      t("+ Add chat robot"),
+      PRIMARY_BTN_STYLE + " margin-top: 2px; font-size: 12.5px; text-align: center;",
+      t("+ Add Backend"),
     ) as HTMLButtonElement;
-    addChatAppBtn.type = "button";
-    addChatAppBtn.addEventListener("click", () => {
-      difyChatApps.push({ id: createDifyChatAppId(), appKey: "" });
-      persistDifyConfig();
-      renderDifyChatApps();
-    });
-    wrap.appendChild(addChatAppBtn);
-
-    difyChatAppsContainer.appendChild(wrap);
-  };
-  renderDifyChatApps();
-
-  Object.values(difyFields).forEach((field) =>
-    field?.addEventListener("change", () => persistDifyConfig()),
-  );
-  const difyTestButton = doc.querySelector(
-    `#${config.addonRef}-dify-test`,
-  ) as HTMLButtonElement | null;
-  const difyTestStatus = doc.querySelector(
-    `#${config.addonRef}-dify-test-status`,
-  ) as HTMLElement | null;
-  difyTestButton?.addEventListener("click", async () => {
-    if (!difyTestStatus) return;
-    const current = readDifyConfig();
-    setDifyConfig(current);
-    difyTestButton.disabled = true;
-    difyTestStatus.style.display = "inline";
-    difyTestStatus.textContent = t("Testing…");
-    try {
-      const client = new DifyClient(current);
-      const hasAnyAppKey =
-        Object.values(current.appKeys || {}).some((key) =>
-          Boolean(key?.trim()),
-        ) ||
-        getDifyChatApps(current).some((chatApp) =>
-          Boolean(chatApp.appKey.trim()),
-        );
-      const refreshed = hasAnyAppKey
-        ? await discoverDifyAppMetadata(client, current)
-        : current;
-      if (refreshed !== current) {
-        difyConfig = refreshed;
-        (["completion", "workflow"] as const).forEach((kind) => {
-          const name = refreshed.appMetadata?.[kind]?.name;
-          if (name && metadataLabels[kind])
-            metadataLabels[kind]!.textContent = name;
-        });
-        renderDifyChatApps();
-      } else {
-        await client.testConnection();
-      }
-      difyTestStatus.textContent = t("✓ Connection successful");
-      difyTestStatus.style.color = "green";
-    } catch (error) {
-      difyTestStatus.textContent = `✗ ${(error as Error).message}`;
-      difyTestStatus.style.color = "red";
-    } finally {
-      difyTestButton.disabled = false;
-    }
-  });
-  const difyRefreshButton = doc.querySelector(
-    `#${config.addonRef}-dify-refresh-metadata`,
-  ) as HTMLButtonElement | null;
-  const difyMetadataStatus = doc.querySelector(
-    `#${config.addonRef}-dify-metadata-status`,
-  ) as HTMLElement | null;
-  const metadataLabels = {
-    completion: doc.querySelector(
-      `#${config.addonRef}-dify-completion-name`,
-    ) as HTMLElement | null,
-    workflow: doc.querySelector(
-      `#${config.addonRef}-dify-workflow-name`,
-    ) as HTMLElement | null,
-  };
-  (["completion", "workflow"] as const).forEach((kind) => {
-    const name = difyConfig.appMetadata?.[kind]?.name;
-    if (name && metadataLabels[kind]) metadataLabels[kind]!.textContent = name;
-  });
-  difyRefreshButton?.addEventListener("click", async () => {
-    const current = readDifyConfig();
-    setDifyConfig(current);
-    if (difyMetadataStatus) {
-      difyMetadataStatus.style.display = "inline";
-      difyMetadataStatus.textContent = t("Refreshing…");
-    }
-    difyRefreshButton.disabled = true;
-    try {
-      const refreshed = await discoverDifyAppMetadata(
-        new DifyClient(current),
-        current,
-      );
-      difyConfig = refreshed;
-      (["completion", "workflow"] as const).forEach((kind) => {
-        const name = refreshed.appMetadata?.[kind]?.name;
-        if (name && metadataLabels[kind])
-          metadataLabels[kind]!.textContent = name;
+    addBackend.type = "button";
+    addBackend.addEventListener("click", () => {
+      difyBackends.push({
+        id: createDifyBackendId(),
+        baseUrl: DEFAULT_DIFY_BASE_URL,
+        apiKey: "",
+        user: "paperpilot",
+        chatApps: [],
       });
-      renderDifyChatApps();
-      if (difyMetadataStatus)
-        difyMetadataStatus.textContent = t("✓ Metadata refreshed");
-    } catch (error) {
-      if (difyMetadataStatus)
-        difyMetadataStatus.textContent = `✗ ${(error as Error).message}`;
-    } finally {
-      difyRefreshButton.disabled = false;
-    }
-  });
+      persistDifyBackends();
+      renderDifyBackends();
+    });
+    wrap.appendChild(addBackend);
+    difyPanel.appendChild(wrap);
+  };
+  renderDifyBackends();
+
   if (!modelSections) return;
 
   const storedGroupsRaw = Zotero.Prefs.get(

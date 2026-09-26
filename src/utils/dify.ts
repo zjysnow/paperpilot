@@ -21,7 +21,9 @@ export type DifyChatAppConfig = {
   appKey: string;
 };
 
-export type DifyConfig = {
+export type DifyBackendConfig = {
+  id: string;
+  name?: string;
   baseUrl: string;
   apiKey: string;
   user: string;
@@ -39,6 +41,15 @@ export type DifyConfig = {
   /** /info metadata for each chat app, keyed by `DifyChatAppConfig.id`. */
   chatAppMetadata?: Record<string, DifyAppMetadata>;
   datasetId?: string;
+};
+
+export type DifyConfig = Omit<DifyBackendConfig, "id"> & {
+  id?: string;
+  /**
+   * Configured Dify instances. Configurations without this field are treated
+   * as one legacy backend so existing preferences and model ids still work.
+   */
+  backends?: DifyBackendConfig[];
 };
 
 export type DifyInvocationOptions = {
@@ -171,15 +182,26 @@ export const DEFAULT_DIFY_BASE_URL = "https://api.dify.ai/v1";
 export const LEGACY_DIFY_CHAT_APP_ID = "legacy";
 export const LEGACY_DIFY_CHAT_ENTRY_ID = "dify-chat";
 export const DIFY_CHAT_ENTRY_PREFIX = "dify-chat-";
+export const LEGACY_DIFY_BACKEND_ID = "legacy";
 
 export function createDifyChatAppId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export function buildDifyChatEntryId(chatAppId: string): string {
-  return chatAppId === LEGACY_DIFY_CHAT_APP_ID
+export function createDifyBackendId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+export function buildDifyChatEntryId(
+  chatAppId: string,
+  backendId = LEGACY_DIFY_BACKEND_ID,
+): string {
+  return backendId === LEGACY_DIFY_BACKEND_ID &&
+    chatAppId === LEGACY_DIFY_CHAT_APP_ID
     ? LEGACY_DIFY_CHAT_ENTRY_ID
-    : `${DIFY_CHAT_ENTRY_PREFIX}${chatAppId}`;
+    : backendId === LEGACY_DIFY_BACKEND_ID
+      ? `${DIFY_CHAT_ENTRY_PREFIX}${chatAppId}`
+      : `${DIFY_CHAT_ENTRY_PREFIX}${backendId}--${chatAppId}`;
 }
 
 export function isDifyChatEntryId(
@@ -204,6 +226,12 @@ export function getDifyChatApps(config: DifyConfig): DifyChatAppConfig[] {
   return config.chatApps || [];
 }
 
+export function getDifyBackends(config: DifyConfig): DifyBackendConfig[] {
+  if (config.backends) return config.backends;
+  const { backends: _backends, ...legacyBackend } = config;
+  return [{ ...legacyBackend, id: LEGACY_DIFY_BACKEND_ID }];
+}
+
 export function getDifyChatAppDisplayName(
   chatApp: DifyChatAppConfig,
   config: DifyConfig,
@@ -220,12 +248,35 @@ export function resolveDifyChatApiKey(
   entryId: string | undefined | null,
   config: DifyConfig = getDifyConfig(),
 ): string {
-  const chatAppId = entryId ? getDifyChatAppIdFromEntryId(entryId) : null;
-  if (chatAppId) {
-    const app = getDifyChatApps(config).find((item) => item.id === chatAppId);
+  const backend = resolveDifyChatBackend(entryId, config);
+  if (entryId) {
+    const app = getDifyChatApps(backend).find(
+      (item) => buildDifyChatEntryId(item.id, backend.id) === entryId,
+    );
     if (app?.appKey.trim()) return app.appKey.trim();
   }
-  return config.appKeys?.chat?.trim() || "";
+  return backend.appKeys?.chat?.trim() || "";
+}
+
+export function resolveDifyChatBackend(
+  entryId: string | undefined | null,
+  config: DifyConfig = getDifyConfig(),
+): DifyBackendConfig {
+  const backends = getDifyBackends(config);
+  if (entryId) {
+    const matched = backends.find((backend) =>
+      getDifyChatApps(backend).some(
+        (app) => buildDifyChatEntryId(app.id, backend.id) === entryId,
+      ),
+    );
+    if (matched) return matched;
+  }
+  return backends[0] || {
+    id: LEGACY_DIFY_BACKEND_ID,
+    baseUrl: DEFAULT_DIFY_BASE_URL,
+    apiKey: "",
+    user: "paperpilot",
+  };
 }
 
 function normalizeBaseUrl(value: unknown): string {
@@ -298,7 +349,10 @@ function normalizeChatAppMetadata(
   return entries.length ? Object.fromEntries(entries) : undefined;
 }
 
-function normalizeConfig(value: unknown): DifyConfig {
+function normalizeBackend(
+  value: unknown,
+  fallbackId = LEGACY_DIFY_BACKEND_ID,
+): DifyBackendConfig {
   const raw =
     value && typeof value === "object"
       ? (value as Record<string, unknown>)
@@ -345,6 +399,13 @@ function normalizeConfig(value: unknown): DifyConfig {
       : undefined);
 
   return {
+    id:
+      typeof raw.id === "string" && raw.id.trim()
+        ? raw.id.trim()
+        : fallbackId,
+    ...(typeof raw.name === "string" && raw.name.trim()
+      ? { name: raw.name.trim() }
+      : {}),
     baseUrl: normalizeBaseUrl(raw.baseUrl),
     apiKey: typeof raw.apiKey === "string" ? raw.apiKey.trim() : "",
     user: typeof raw.user === "string" ? raw.user.trim() : "paperpilot",
@@ -364,6 +425,21 @@ function normalizeConfig(value: unknown): DifyConfig {
     ...(typeof raw.datasetId === "string" && raw.datasetId.trim()
       ? { datasetId: raw.datasetId.trim() }
       : {}),
+  };
+}
+
+function normalizeConfig(value: unknown): DifyConfig {
+  const { id: _id, ...legacyConfig } = normalizeBackend(value);
+  const raw =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
+  const backends = Array.isArray(raw.backends)
+    ? raw.backends.map((backend) => normalizeBackend(backend, createDifyBackendId()))
+    : undefined;
+  return {
+    ...legacyConfig,
+    ...(backends !== undefined ? { backends } : {}),
   };
 }
 
@@ -389,7 +465,14 @@ export function setDifyConfig(value: DifyConfig): void {
   );
 }
 
-export function getDifyConversationId(conversationKey: number): string {
+function buildConversationMapKey(conversationKey: number, backendId?: string): string {
+  return backendId ? `${backendId}:${conversationKey}` : String(conversationKey);
+}
+
+export function getDifyConversationId(
+  conversationKey: number,
+  backendId?: string,
+): string {
   const raw = (
     globalThis as { Zotero?: { Prefs?: { get?: Function } } }
   ).Zotero?.Prefs?.get?.(CONVERSATION_PREF_KEY, true);
@@ -399,13 +482,14 @@ export function getDifyConversationId(conversationKey: number): string {
   } catch {
     map = {};
   }
-  const value = map[String(conversationKey)];
+  const value = map[buildConversationMapKey(conversationKey, backendId)];
   return typeof value === "string" ? value : "";
 }
 
 export function setDifyConversationId(
   conversationKey: number,
   conversationId: string,
+  backendId?: string,
 ): void {
   if (!conversationId.trim()) return;
   const prefs = (
@@ -419,7 +503,7 @@ export function setDifyConversationId(
   } catch {
     // Keep an empty map when preferences contain invalid JSON.
   }
-  map[String(conversationKey)] = conversationId.trim();
+  map[buildConversationMapKey(conversationKey, backendId)] = conversationId.trim();
   prefs.set(CONVERSATION_PREF_KEY, JSON.stringify(map), true);
 }
 

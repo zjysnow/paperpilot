@@ -16,6 +16,7 @@ import type { ProviderPresetId } from "./providerPresets";
 import type { ModelInputMode } from "../shared/types";
 import {
   buildDifyChatEntryId,
+  getDifyBackends,
   getDifyChatAppDisplayName,
   getDifyChatApps,
   getDifyConfig,
@@ -614,22 +615,25 @@ export function getRuntimeModelEntries(): RuntimeModelEntry[] {
   }
 
   const difyConfig = getDifyConfig();
-  getDifyChatApps(difyConfig).forEach((chatApp, chatAppIndex) => {
-    const apiKey = chatApp.appKey.trim();
-    if (!apiKey) return;
-    const entryId = buildDifyChatEntryId(chatApp.id);
-    entries.push({
-      entryId,
-      groupId: "dify",
-      model: entryId,
-      apiBase: normalizeApiBase(difyConfig.baseUrl),
-      apiKey,
-      authMode: "api_key",
-      providerProtocol: "openai_chat_compat",
-      providerLabel: "Dify",
-      providerOrder: groups.length + chatAppIndex,
-      displayModelLabel: getDifyChatAppDisplayName(chatApp, difyConfig),
-      advanced: normalizeAdvancedModelConfig(undefined, entryId),
+  let difyChatAppIndex = 0;
+  getDifyBackends(difyConfig).forEach((backend) => {
+    getDifyChatApps(backend).forEach((chatApp) => {
+      const apiKey = chatApp.appKey.trim();
+      if (!apiKey) return;
+      const entryId = buildDifyChatEntryId(chatApp.id, backend.id);
+      entries.push({
+        entryId,
+        groupId: `dify-${backend.id}`,
+        model: entryId,
+        apiBase: normalizeApiBase(backend.baseUrl),
+        apiKey,
+        authMode: "api_key",
+        providerProtocol: "openai_chat_compat",
+        providerLabel: backend.name?.trim() || "Dify",
+        providerOrder: groups.length + difyChatAppIndex++,
+        displayModelLabel: getDifyChatAppDisplayName(chatApp, backend),
+        advanced: normalizeAdvancedModelConfig(undefined, entryId),
+      });
     });
   });
   return entries;

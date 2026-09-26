@@ -4,8 +4,10 @@ import {
   discoverDifyAppMetadata,
   extractDifyAppMetadata,
   getDifyConfig,
+  getDifyBackends,
   getDifyChatApps,
   isDifyChatEntryId,
+  resolveDifyChatBackend,
   resolveDifyChatApiKey,
   setDifyConfig,
   syncDifyMarkdownNote,
@@ -175,6 +177,7 @@ describe("Dify integration", function () {
       ],
       chatAppMetadata: { "bot-b": { name: "Fetched Bot Name" } },
     });
+
     const entries = getRuntimeModelEntries().filter(
       (entry) => entry.providerLabel === "Dify",
     );
@@ -197,6 +200,62 @@ describe("Dify integration", function () {
     assert.equal(botB?.apiKey, "key-b");
     // No user-set name: falls back to the /info-fetched Dify app name.
     assert.equal(botB?.displayModelLabel, "Fetched Bot Name");
+  });
+
+  it("keeps chat robots isolated by backend at runtime", function () {
+    useFakeZoteroPrefs();
+    setDifyConfig({
+      baseUrl: "https://primary.example/v1",
+      apiKey: "",
+      user: "paperpilot",
+      backends: [
+        {
+          id: "primary",
+          name: "Primary Dify",
+          baseUrl: "https://primary.example/v1",
+          apiKey: "",
+          user: "paperpilot",
+          chatApps: [{ id: "research", appKey: "primary-key" }],
+        },
+        {
+          id: "secondary",
+          name: "Secondary Dify",
+          baseUrl: "https://secondary.example/v1",
+          apiKey: "",
+          user: "paperpilot",
+          chatApps: [{ id: "research", appKey: "secondary-key" }],
+        },
+      ],
+    });
+
+    const entries = getRuntimeModelEntries().filter(
+      (entry) =>
+        entry.entryId === "dify-chat-primary--research" ||
+        entry.entryId === "dify-chat-secondary--research",
+    );
+    assert.equal(entries.length, 2);
+    assert.deepEqual(
+      entries.map((entry) => [entry.entryId, entry.apiBase, entry.apiKey]),
+      [
+        [
+          "dify-chat-primary--research",
+          "https://primary.example/v1",
+          "primary-key",
+        ],
+        [
+          "dify-chat-secondary--research",
+          "https://secondary.example/v1",
+          "secondary-key",
+        ],
+      ],
+    );
+    assert.equal(entries[0]?.providerLabel, "Primary Dify");
+    assert.equal(entries[1]?.providerLabel, "Secondary Dify");
+    assert.equal(
+      resolveDifyChatBackend("dify-chat-secondary--research").baseUrl,
+      "https://secondary.example/v1",
+    );
+    assert.equal(getDifyBackends(getDifyConfig()).length, 2);
   });
 
   it("keeps an explicitly emptied chat robot list empty instead of re-migrating the legacy chat key", function () {
