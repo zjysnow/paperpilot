@@ -1,5 +1,10 @@
 import { createElement } from "../../utils/domHelpers";
 import { t } from "../../utils/i18n";
+import {
+  getAgentApprovalMode,
+  setAgentApprovalMode,
+  type AgentApprovalMode,
+} from "../../utils/agentApprovalConfig";
 import { revealLocalPath } from "../../utils/revealLocalPath";
 import type { RuntimeModelEntry } from "../../utils/modelProviders";
 import type { ConversationSystem } from "../../shared/types";
@@ -441,6 +446,8 @@ export function setupHandlers(
     modelBtn,
     modelSlot,
     modelMenu,
+    approvalBtn,
+    approvalMenu,
     reasoningBtn,
     runtimeModeBtn,
     reasoningSlot,
@@ -1234,6 +1241,9 @@ export function setupHandlers(
   let openModelMenu: () => void;
   let closeModelMenu = () => {
     setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
+  };
+  let closeApprovalMenu = () => {
+    setFloatingMenuOpen(approvalMenu, MODEL_MENU_OPEN_CLASS, false);
   };
   let openReasoningMenu: () => void;
   let closeReasoningMenu = () => {
@@ -4475,8 +4485,75 @@ export function setupHandlers(
     }
   };
 
+  const updateApprovalButton = () => {
+    if (!approvalBtn) return;
+    const mode = getAgentApprovalMode();
+    const label = mode === "allow_all" ? "Allow all" : "Default";
+    approvalBtn.textContent = `Approval: ${label}`;
+    approvalBtn.title =
+      mode === "allow_all"
+        ? "Approval mode: Allow all"
+        : "Approval mode: Default";
+    approvalBtn.dataset.approvalMode = mode;
+  };
+
+  const rebuildApprovalMenu = () => {
+    if (!approvalMenu) return;
+    approvalMenu.innerHTML = "";
+    appendDropdownInstruction(
+      approvalMenu,
+      "Approval mode",
+      "paperpilotapproval-menu-section",
+    );
+    const currentMode = getAgentApprovalMode();
+    const choices: Array<{
+      mode: AgentApprovalMode;
+      label: string;
+      title: string;
+    }> = [
+      {
+        mode: "default",
+        label: "Default",
+        title: "Ask before each Agent action that requires approval.",
+      },
+      {
+        mode: "allow_all",
+        label: "Allow all",
+        title:
+          "Automatically approve Agent actions. Review and edit cards still require your input.",
+      },
+    ];
+    for (const choice of choices) {
+      const option = createElement(
+        body.ownerDocument as Document,
+        "button",
+        "paperpilotresponse-menu-item paperpilotapproval-option",
+        {
+          type: "button",
+          textContent:
+            currentMode === choice.mode
+              ? `\u2713 ${choice.label}`
+              : choice.label,
+          title: choice.title,
+        },
+      );
+      const applySelection = (event: Event) => {
+        if (!isPrimaryPointerEvent(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setAgentApprovalMode(choice.mode);
+        updateApprovalButton();
+        closeApprovalMenu();
+      };
+      option.addEventListener("pointerdown", applySelection);
+      option.addEventListener("click", applySelection);
+      approvalMenu.appendChild(option);
+    }
+  };
+
   const syncModelFromPrefs = () => {
     updateModelButton();
+    updateApprovalButton();
     updateReasoningButton();
     if (isFloatingMenuOpen(modelMenu)) {
       rebuildModelMenu();
@@ -5711,6 +5788,7 @@ export function setupHandlers(
     closeSlashMenu();
     closeRetryModelMenu();
     closeReasoningMenu();
+    closeApprovalMenu();
     closePromptMenu();
     closeHistoryNewMenu();
     closeHistoryMenu();
@@ -5731,12 +5809,37 @@ export function setupHandlers(
     setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
   };
 
+  const openApprovalMenu = () => {
+    if (!approvalMenu || !approvalBtn || approvalBtn.disabled) return;
+    closeSlashMenu();
+    closeRetryModelMenu();
+    closeModelMenu();
+    closeReasoningMenu();
+    closePromptMenu();
+    closeHistoryNewMenu();
+    closeHistoryMenu();
+    updateApprovalButton();
+    rebuildApprovalMenu();
+    positionFloatingMenu(body, approvalMenu, approvalBtn);
+    setFloatingMenuOpen(approvalMenu, MODEL_MENU_OPEN_CLASS, true);
+  };
+  approvalBtn?.addEventListener("click", (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (isFloatingMenuOpen(approvalMenu)) {
+      closeApprovalMenu();
+    } else {
+      openApprovalMenu();
+    }
+  });
+
   // eslint-disable-next-line prefer-const
   openReasoningMenu = () => {
     if (!reasoningMenu || !reasoningBtn) return;
     closeSlashMenu();
     closeRetryModelMenu();
     closeModelMenu();
+    closeApprovalMenu();
     closePromptMenu();
     closeHistoryNewMenu();
     closeHistoryMenu();

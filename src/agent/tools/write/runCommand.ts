@@ -253,7 +253,7 @@ async function executeCommand(params: {
 
 /** Patterns that indicate a command has destructive or privileged risk. */
 const DESTRUCTIVE_COMMANDS =
-  /(?:^|\||;|&&)\s*(?:(?:rm|rmdir|mv|rename|chmod|chown|sudo|mkfs|dd)\b|(?:npm|pnpm|yarn)\s+(?:install|add|remove|uninstall|update|upgrade)\b|(?:pip|pip3)\s+install\b|python3?\s+-m\s+pip\s+install\b|uv\s+pip\s+install\b|brew\s+(?:install|upgrade|update|uninstall)\b|(?:apt|apt-get|dnf|yum|pacman|conda|mamba)\s+(?:install|remove|update|upgrade)\b|cargo\s+install\b|gem\s+install\b|git\s+(?:push|reset|checkout|switch|clean|rebase|filter-branch|rm|branch\s+-D|tag\s+-d)\b|date\s+(?:-s|--set)\b|timedatectl\b|systemsetup\s+-set(?:date|time|timezone)\b)/i;
+  /(?:^|\||;|&&)\s*(?:(?:rm|rmdir|mv|rename|chmod|chown|sudo|mkfs|dd)\b|(?:npm|pnpm|yarn)\s+(?:install|add|remove|uninstall|update|upgrade)\b|(?:pip|pip3)\s+install\b|python3?\s+-m\s+pip\s+install\b|uv\s+pip\s+install\b|brew\s+(?:install|upgrade|update|uninstall)\b|(?:apt|apt-get|dnf|yum|pacman|conda|mamba)\s+(?:install|remove|update|upgrade)\b|cargo\s+install\b|gem\s+install\b|git\s+(?:init|add|commit|push|reset|checkout|switch|clean|rebase|filter-branch|rm|branch\s+-D|tag\s+-d)\b|date\s+(?:-s|--set)\b|timedatectl\b|systemsetup\s+-set(?:date|time|timezone)\b)/i;
 
 /** Downloading code and handing it directly to a shell should never auto-run. */
 const NETWORK_TO_SHELL_PATTERN =
@@ -631,7 +631,17 @@ export function createRunCommandTool(): AgentToolDefinition<
       if (!validateObject<Record<string, unknown>>(args)) {
         return fail("Expected an object with a 'command' string");
       }
-      if (typeof args.command !== "string" || !args.command.trim()) {
+      const command =
+        typeof args.command === "string"
+          ? args.command
+          : typeof args.cmd === "string"
+            ? args.cmd
+            : typeof args.shell_command === "string"
+              ? args.shell_command
+              : typeof args.shellCommand === "string"
+                ? args.shellCommand
+                : "";
+      if (!command.trim()) {
         return fail("command is required: the full shell command to run");
       }
       const timeoutRaw =
@@ -641,7 +651,7 @@ export function createRunCommandTool(): AgentToolDefinition<
       const timeoutMs = Math.min(timeoutRaw, 300000);
 
       return ok<RunCommandInput>({
-        command: args.command.trim(),
+        command: command.trim(),
         cwd:
           typeof args.cwd === "string" && args.cwd.trim()
             ? args.cwd.trim()

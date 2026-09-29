@@ -152,10 +152,12 @@ export function normalizeProviderProtocolForAuthMode(params: {
   const fallback = params.fallback || inferred;
   const normalized = normalizeProviderProtocol(params.protocol, fallback);
   if (params.authMode === "copilot_auth") {
-    // Copilot supports both responses_api and openai_chat_compat
-    return normalized === "openai_chat_compat" || normalized === "responses_api"
-      ? normalized
-      : "openai_chat_compat";
+    // Copilot's online model catalog is served through the Responses API.
+    // Persisted older profiles may still name chat/completions, but that
+    // endpoint rejects some models and cannot reliably continue tool calls.
+    // Normalize at the provider boundary so every Copilot model, including
+    // future catalog entries and subagent calls, uses one tool protocol.
+    return "responses_api";
   }
   return normalized;
 }

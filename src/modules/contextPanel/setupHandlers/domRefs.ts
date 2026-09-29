@@ -6,6 +6,9 @@ export type PanelDomRefs = {
   modelBtn: HTMLButtonElement | null;
   modelSlot: HTMLDivElement | null;
   modelMenu: HTMLDivElement | null;
+  approvalBtn: HTMLButtonElement | null;
+  approvalSlot: HTMLDivElement | null;
+  approvalMenu: HTMLDivElement | null;
   reasoningBtn: HTMLButtonElement | null;
   runtimeModeBtn: HTMLButtonElement | null;
   reasoningSlot: HTMLDivElement | null;
@@ -105,6 +108,15 @@ export function getPanelDomRefs(body: Element): PanelDomRefs {
     ) as HTMLDivElement | null,
     modelMenu: body.querySelector(
       "#paperpilotmodel-menu",
+    ) as HTMLDivElement | null,
+    approvalBtn: body.querySelector(
+      "#paperpilotapproval-toggle",
+    ) as HTMLButtonElement | null,
+    approvalSlot: body.querySelector(
+      "#paperpilotapproval-dropdown",
+    ) as HTMLDivElement | null,
+    approvalMenu: body.querySelector(
+      "#paperpilotapproval-menu",
     ) as HTMLDivElement | null,
     reasoningBtn: body.querySelector(
       "#paperpilotreasoning-toggle",

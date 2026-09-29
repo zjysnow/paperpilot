@@ -44,6 +44,7 @@ import {
   buildToolResultTraceInfo,
   type ToolResultTraceInfo,
 } from "./toolResultTraceInfo";
+import { openSubagentDetailWindow } from "../subagentDetailWindow";
 
 type AgentTraceSummaryKind = "plan" | "tool" | "ok" | "skip" | "done";
 
@@ -74,6 +75,7 @@ type AgentTraceDisplayItem =
       chips?: AgentTraceChip[];
       details?: AgentTraceDetail[];
       detailKey?: string;
+      subagentTaskId?: string;
     }
   | {
       type: "card_list";
@@ -3455,7 +3457,93 @@ function appendLegacyAgentTraceEvent(
       });
       return true;
     }
+    case "subagent_started":
+      ctx.items.push({
+        type: "action",
+        row: {
+          kind: "tool",
+          icon: "↳",
+          text: `Subagent started: ${entry.payload.task}`,
+        },
+        chips: [
+          {
+            label: entry.payload.model,
+          },
+        ],
+        detailKey: `subagent:${entry.payload.taskId}`,
+        subagentTaskId: entry.payload.taskId,
+      });
+      return true;
+    case "subagent_completed": {
+      const taskId = entry.payload.taskId;
+      const existing = ctx.items.find(
+        (item): item is Extract<AgentTraceDisplayItem, { type: "action" }> =>
+          item.type === "action" && item.subagentTaskId === taskId,
+      );
+      if (existing) {
+        existing.row = {
+          kind: "ok",
+          icon: "✓",
+          text: `Subagent completed: ${entry.payload.task}`,
+        };
+        return true;
+      }
+      ctx.items.push({
+        type: "action",
+        row: {
+          kind: "ok",
+          icon: "✓",
+          text: `Subagent completed: ${entry.payload.task}`,
+        },
+        detailKey: `subagent:${entry.payload.taskId}`,
+        subagentTaskId: entry.payload.taskId,
+      });
+      return true;
+    }
+    case "subagent_failed": {
+      const taskId = entry.payload.taskId;
+      const existing = ctx.items.find(
+        (item): item is Extract<AgentTraceDisplayItem, { type: "action" }> =>
+          item.type === "action" && item.subagentTaskId === taskId,
+      );
+      if (existing) {
+        existing.row = {
+          kind: "skip",
+          icon: "!",
+          text: `Subagent failed: ${entry.payload.task}`,
+        };
+        return true;
+      }
+      ctx.items.push({
+        type: "action",
+        row: {
+          kind: "skip",
+          icon: "!",
+          text: `Subagent failed: ${entry.payload.task}`,
+        },
+        detailKey: `subagent:${entry.payload.taskId}`,
+        subagentTaskId: entry.payload.taskId,
+      });
+      return true;
+    }
     case "tool_call": {
+      const isEmptyFileIOCall =
+        entry.payload.name === "file_io" &&
+        entry.payload.args !== null &&
+        typeof entry.payload.args === "object" &&
+        !Array.isArray(entry.payload.args) &&
+        Object.keys(entry.payload.args).length === 0;
+      if (isEmptyFileIOCall) {
+        ctx.items.push({
+          type: "action",
+          row: {
+            kind: "plan",
+            icon: "…",
+            text: "Correcting an incomplete File I/O request",
+          },
+        });
+        return true;
+      }
       const resultInfo = buildToolResultTraceInfo(
         entry.payload.name,
         ctx.toolResultsByCallId.get(entry.payload.callId),
@@ -3487,6 +3575,20 @@ function appendLegacyAgentTraceEvent(
       appendReasoningTraceItem(ctx, entry.payload);
       return true;
     case "tool_result": {
+      const isEmptyFileIOResult =
+        entry.payload.name === "file_io" &&
+        !entry.payload.ok &&
+        entry.payload.content !== null &&
+        typeof entry.payload.content === "object" &&
+        !Array.isArray(entry.payload.content) &&
+        typeof (entry.payload.content as { error?: unknown }).error ===
+          "string" &&
+        (
+          entry.payload.content as {
+            error: string;
+          }
+        ).error.includes("file_io received empty tool arguments");
+      if (isEmptyFileIOResult) return true;
       const row = summarizeAgentTraceToolResult(
         entry.payload.name,
         entry.payload.ok,
@@ -3833,8 +3935,7 @@ function renderAgentTraceDetailsBody(
 
     if (detail.kind === "code" || detail.kind === "json") {
       const pre = doc.createElement("pre") as HTMLPreElement;
-      pre.className =
-        `paperpilotagent-process-detail-value paperpilotagent-process-detail-value-${detail.kind}`;
+      pre.className = `paperpilotagent-process-detail-value paperpilotagent-process-detail-value-${detail.kind}`;
       const code = doc.createElement("code") as HTMLElement;
       code.textContent = detail.value;
       pre.appendChild(code);
@@ -3928,8 +4029,7 @@ export function renderAgentTrace({
 
     if (itemEntry.type === "message") {
       const messageEl = doc.createElement("div");
-      messageEl.className =
-        `paperpilotagent-process-message paperpilotagent-process-message-${itemEntry.tone}`;
+      messageEl.className = `paperpilotagent-process-message paperpilotagent-process-message-${itemEntry.tone}`;
       if (itemEntry.markdown) {
         messageEl.classList.add("paperpilotagent-process-message-markdown");
         const markdownText = buildAgentTraceMarkdownForRender(
@@ -4035,10 +4135,23 @@ export function renderAgentTrace({
       isExpandable ? " paperpilotagent-process-action-expandable" : ""
     }`;
     const expansionKey = `${runId}:action:${itemEntry.detailKey || itemIndex}`;
+    const appendSubagentDetailsButton = (target: HTMLElement) => {
+      if (!itemEntry.subagentTaskId) return;
+      const openButton = doc.createElement("button") as HTMLButtonElement;
+      openButton.type = "button";
+      openButton.className = "paperpilotagent-subagent-details-btn";
+      openButton.textContent = "Open details";
+      openButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openSubagentDetailWindow(doc, itemEntry.subagentTaskId!);
+      });
+      target.appendChild(openButton);
+    };
     if (isExpandable) {
-      (actionWrap as HTMLDetailsElement).open = Boolean(
-        agentTraceActionExpandedCache.get(expansionKey),
-      );
+      (actionWrap as HTMLDetailsElement).open =
+        Boolean(agentTraceActionExpandedCache.get(expansionKey)) ||
+        itemEntry.detailKey?.startsWith("subagent:") === true;
     }
     const row = doc.createElement("div");
     row.className = `paperpilotat-row paperpilotat-row-${itemEntry.row.kind}`;
@@ -4046,8 +4159,7 @@ export function renderAgentTrace({
     icon.className = "paperpilotat-icon";
     icon.textContent = itemEntry.row.icon;
     const text = doc.createElement("span");
-    text.className =
-      `paperpilotat-text paperpilotat-${itemEntry.row.kind}-text`;
+    text.className = `paperpilotat-text paperpilotat-${itemEntry.row.kind}-text`;
     text.textContent = itemEntry.row.text;
     if (isExpandable) {
       row.append(icon, text);
@@ -4057,6 +4169,7 @@ export function renderAgentTrace({
       summary.appendChild(row);
       const chips = renderAgentTraceChips(doc, itemEntry.chips);
       if (chips) summary.appendChild(chips);
+      appendSubagentDetailsButton(summary);
       actionWrap.appendChild(summary);
       actionWrap.appendChild(renderAgentTraceDetailsBody(doc, actionDetails));
       actionWrap.addEventListener("toggle", () => {
@@ -4065,6 +4178,7 @@ export function renderAgentTrace({
       });
     } else {
       row.append(icon, text);
+      appendSubagentDetailsButton(row);
       actionWrap.appendChild(row);
       const chips = renderAgentTraceChips(doc, itemEntry.chips);
       if (chips) {

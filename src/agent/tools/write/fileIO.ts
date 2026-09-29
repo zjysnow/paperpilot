@@ -368,6 +368,19 @@ async function readFile(filePath: string, encoding: string): Promise<string> {
   throw new Error("File I/O is not available in this Zotero environment");
 }
 
+async function fileExistsForWriteConfirmation(
+  filePath: string,
+): Promise<boolean | null> {
+  const exists = await fileExists(filePath);
+  if (exists !== false) return exists;
+  try {
+    await readFile(filePath, "utf-8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Write a file using Gecko-compatible I/O APIs.
  */
@@ -618,7 +631,9 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
         input,
         _context,
       );
-      const exists = await fileExists(effectiveInput.filePath);
+      const exists = await fileExistsForWriteConfirmation(
+        effectiveInput.filePath,
+      );
       // New file writes are reversible by deleting the created file, so they
       // can run directly. Unknown existence is treated like an overwrite.
       if (exists === false) return false;
@@ -745,12 +760,9 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
       try {
         const existedBeforeWrite = await fileExists(input.filePath);
         if (existedBeforeWrite === true && !input.allowOverwrite) {
-          return {
-            action: "write",
-            filePath: input.filePath,
-            error:
-              "Refusing to overwrite an existing file without confirmation",
-          };
+          throw new Error(
+            "Refusing to overwrite an existing file without confirmation. Retry this same file_io write so the overwrite confirmation can be shown.",
+          );
         }
         const previousContent =
           existedBeforeWrite === true
@@ -796,11 +808,7 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
           bytesWritten: (input.content || "").length,
         };
       } catch (error) {
-        return {
-          action: "write",
-          filePath: input.filePath,
-          error: error instanceof Error ? error.message : String(error),
-        };
+        throw error;
       }
     },
   };

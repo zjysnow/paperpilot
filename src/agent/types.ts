@@ -282,6 +282,43 @@ export type AgentEvent =
     }
   | { type: "status"; text: string }
   | {
+      type: "subagent_started";
+      taskId: string;
+      task: string;
+      model: string;
+      paperContexts: Array<{
+        title: string;
+        citationKey?: string;
+        firstCreator?: string;
+        year?: string;
+        contentSourceMode?: PaperContentSourceMode;
+        source: "selected" | "full_text" | "pinned";
+      }>;
+    }
+  | {
+      type: "subagent_completed";
+      taskId: string;
+      task: string;
+      model: string;
+      summary: string;
+      rounds: number;
+    }
+  | {
+      type: "subagent_failed";
+      taskId: string;
+      task: string;
+      error: string;
+    }
+  | { type: "subagent_output_delta"; taskId: string; text: string }
+  | {
+      type: "subagent_tool_activity";
+      taskId: string;
+      phase: "started" | "completed";
+      name?: string;
+      args?: unknown;
+      ok?: boolean;
+    }
+  | {
       type: "reasoning";
       round: number;
       stepId?: string;

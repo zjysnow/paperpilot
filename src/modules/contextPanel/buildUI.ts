@@ -992,6 +992,18 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     disabled: !hasItem,
   });
 
+  const { slot: approvalDropdown } = createActionDropdown(doc, {
+    slotId: "paperpilotapproval-dropdown",
+    slotClassName: "paperpilotapproval-dropdown",
+    buttonId: "paperpilotapproval-toggle",
+    buttonClassName:
+      "paperpilotshortcut-btn paperpilotaction-btn paperpilotaction-btn-secondary paperpilotapproval-btn",
+    buttonText: t("Approval: Default"),
+    menuId: "paperpilotapproval-menu",
+    menuClassName: "paperpilotmodel-menu paperpilotapproval-menu",
+    disabled: !hasItem,
+  });
+
   const { slot: reasoningDropdown } = createActionDropdown(doc, {
     slotId: "paperpilotreasoning-dropdown",
     slotClassName: "paperpilotreasoning-dropdown",
@@ -1049,6 +1061,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     selectTextSlot,
     screenshotSlot,
     modelDropdown,
+    approvalDropdown,
     reasoningDropdown,
   );
   // Hide PDF-reader-specific buttons in standalone library chat

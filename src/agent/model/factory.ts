@@ -19,13 +19,14 @@ import { GeminiNativeAgentAdapter } from "./geminiNative";
 export function resolveRequestProviderProtocol(
   request: Pick<
     AgentRuntimeRequest,
-    "providerProtocol" | "authMode" | "apiBase"
+    "providerProtocol" | "authMode" | "apiBase" | "model"
   >,
 ): ProviderProtocol {
   return normalizeProviderProtocolForAuthMode({
     protocol: request.providerProtocol,
     authMode: request.authMode,
     apiBase: request.apiBase,
+    model: request.model,
   });
 }
 

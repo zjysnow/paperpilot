@@ -29,6 +29,7 @@ import {
   createBlockStreamCoalescer,
   type BlockStreamFlushReason,
 } from "../blockStreamCoalescer";
+import { recordSubagentDetailEvent } from "../subagentDetailWindow";
 
 function buildPendingAgentTraceEvents(body?: Element): AgentRunEventRecord[] {
   const now = Date.now();
@@ -247,6 +248,7 @@ function createAgentTurnEventHandler(
     uiRelease,
   } = ctx;
   return async (event: AgentEvent): Promise<void> => {
+    recordSubagentDetailEvent(event);
     if (assistantMessage.agentRunId) {
       pushTraceEvent(assistantMessage.agentRunId, event);
     }
@@ -398,6 +400,25 @@ function createAgentTurnEventHandler(
         }
         break;
       }
+      case "subagent_started":
+        setStatusSafely(
+          `Subagent is working: ${event.task.slice(0, 96)}`,
+          "sending",
+        );
+        queueRefresh();
+        return;
+      case "subagent_completed":
+        setStatusSafely("Subagent completed", "sending");
+        queueRefresh();
+        return;
+      case "subagent_failed":
+        setStatusSafely("Subagent failed", "sending");
+        queueRefresh();
+        return;
+      case "subagent_output_delta":
+      case "subagent_tool_activity":
+        queueRefresh();
+        return;
       case "reasoning": {
         if (event.summary) {
           assistantMessage.reasoningSummary = deps.appendReasoningPart(

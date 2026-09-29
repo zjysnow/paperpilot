@@ -187,7 +187,7 @@ export class AgentToolRegistry {
     };
 
     const runConfirmedExecution = async (resolutionData?: unknown) => {
-      if (resolutionData !== undefined && tool.applyConfirmation) {
+      if (tool.applyConfirmation) {
         const resolved = tool.applyConfirmation(
           validation.value,
           resolutionData,

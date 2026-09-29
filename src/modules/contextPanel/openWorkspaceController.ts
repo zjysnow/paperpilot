@@ -2,6 +2,7 @@ import { t } from "../../utils/i18n";
 import {
   getWorkspaceDirectory,
   getWorkspaceFolderPath,
+  getPaperWorkspaceFolderPath,
   isValidWorkspaceFolderName,
   getVSCodeExecutablePath,
 } from "../../utils/workspaceDirectoryConfig";
@@ -121,7 +122,9 @@ export async function openWorkspaceInVSCode(options: {
     return;
   }
 
-  const workspacePath = getWorkspaceFolderPath(folderName);
+  const workspacePath =
+    getPaperWorkspaceFolderPath(options.item) ||
+    getWorkspaceFolderPath(folderName);
   const io = getIOUtils();
   if (!io?.makeDirectory) {
     options.setStatus(t("File I/O is not available"), "error");

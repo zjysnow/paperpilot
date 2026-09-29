@@ -1,4 +1,11 @@
 import { AgentToolRegistry } from "./tools/registry";
+import { getAgentApprovalMode } from "../utils/agentApprovalConfig";
+import {
+  createSubagentTaskTool,
+  SUBAGENT_TASK_TOOL_NAME,
+  validateSubagentTaskInput,
+} from "./tools/subagentTask";
+import { isSubagentsEnabled } from "../utils/subagentConfig";
 import { readAttachmentBytes } from "../modules/contextPanel/attachmentStorage";
 import { encodeBytesBase64 } from "./model/shared";
 import { recordAgentTurn } from "./store/conversationMemory";
@@ -56,8 +63,17 @@ import {
 import {
   buildNotesDirectoryWritePolicy,
   getNotesDirectoryNickname,
+  isLocalPathInsideOrEqual,
   isNotesDirectoryConfigured,
 } from "../utils/notesDirectoryConfig";
+import {
+  getPaperWorkspaceFolderPath,
+  getWorkspaceDirectory,
+} from "../utils/workspaceDirectoryConfig";
+import {
+  getReplicationPythonExecutable,
+  rewritePythonCommandForReplication,
+} from "../utils/replicationEnvironmentConfig";
 import {
   buildAgentContextBudgetState,
   resolveAgentContextBudgetPolicy,
@@ -585,6 +601,47 @@ function isWriteNoteFileRequest(
   );
 }
 
+function isPaperReplicationPreparationRequest(
+  request: AgentRuntimeRequest,
+  matchedSkills: ReadonlyArray<string>,
+): boolean {
+  const activeSkillIds = new Set([
+    ...matchedSkills,
+    ...(request.forcedSkillIds || []),
+  ]);
+  if (!activeSkillIds.has("paper-replication")) return false;
+  if (!getPaperWorkspaceFolderPath(request.item)) return false;
+  return !isPaperReplicationContinuationRequest(request);
+}
+
+function isPaperReplicationContinuationRequest(
+  request: AgentRuntimeRequest,
+): boolean {
+  return (
+    /\b(continue|resume|next (?:step|experiment)|status|progress|prerequisites? (?:are )?ready|data (?:is )?ready)\b/i.test(
+      request.userText || "",
+    ) ||
+    /(继续|下一步|进展|状态|准备好了|数据.*(?:准备好|就绪)|前置条件.*完成)/.test(
+      request.userText || "",
+    )
+  );
+}
+
+function isPaperReplicationContinuationWorkflow(
+  request: AgentRuntimeRequest,
+  matchedSkills: ReadonlyArray<string>,
+): boolean {
+  const activeSkillIds = new Set([
+    ...matchedSkills,
+    ...(request.forcedSkillIds || []),
+  ]);
+  return (
+    activeSkillIds.has("paper-replication") &&
+    Boolean(getPaperWorkspaceFolderPath(request.item)) &&
+    isPaperReplicationContinuationRequest(request)
+  );
+}
+
 function isSuccessfulFileIoWrite(record: {
   name: string;
   ok: boolean;
@@ -601,6 +658,147 @@ function isSuccessfulFileIoWrite(record: {
   );
 }
 
+function isSuccessfulFileIoRead(
+  record: {
+    name: string;
+    ok: boolean;
+    input?: unknown;
+    content?: unknown;
+  },
+  filePathSuffix: string,
+): boolean {
+  if (record.name !== "file_io" || !record.ok) return false;
+  if (!record.input || typeof record.input !== "object") return false;
+  const input = record.input as { action?: unknown; filePath?: unknown };
+  if (input.action !== "read" || typeof input.filePath !== "string") {
+    return false;
+  }
+  return input.filePath.replace(/\\/g, "/").endsWith(filePathSuffix);
+}
+
+const IMPLEMENTATION_SOURCE_FILE_PATTERN =
+  /\.(?:py|js|mjs|cjs|ts|tsx|jsx|r|R|jl|java|c|cc|cpp|cxx|h|hpp|cs|go|rs|sh)$/;
+
+function isSuccessfulWorkspaceFileWrite(
+  record: {
+    name: string;
+    ok: boolean;
+    input?: unknown;
+    content?: unknown;
+  },
+  workspaceDirectory: string,
+): boolean {
+  if (!isSuccessfulFileIoWrite(record)) return false;
+  const input = record.input as { filePath?: unknown };
+  return (
+    typeof input.filePath === "string" &&
+    isLocalPathInsideOrEqual(input.filePath, workspaceDirectory)
+  );
+}
+
+function isSuccessfulImplementationSourceWrite(
+  record: {
+    name: string;
+    ok: boolean;
+    input?: unknown;
+    content?: unknown;
+  },
+  projectDirectory: string,
+): boolean {
+  if (!isSuccessfulWorkspaceFileWrite(record, projectDirectory)) return false;
+  const input = record.input as { filePath?: unknown };
+  return (
+    typeof input.filePath === "string" &&
+    IMPLEMENTATION_SOURCE_FILE_PATTERN.test(input.filePath)
+  );
+}
+
+function isSuccessfulGitCommit(record: {
+  name: string;
+  ok: boolean;
+  input?: unknown;
+  content?: unknown;
+}): boolean {
+  if (record.name !== "run_command" || !record.ok) return false;
+  if (!record.input || typeof record.input !== "object") return false;
+  const command = (record.input as { command?: unknown }).command;
+  if (
+    typeof command !== "string" ||
+    !/\bgit\b[\s\S]*\bcommit\b/i.test(command)
+  ) {
+    return false;
+  }
+  const result = record.content;
+  if (!result || typeof result !== "object") return false;
+  return (result as { exitCode?: unknown }).exitCode === 0;
+}
+
+function isSuccessfulPaperReplicationProjectInspection(
+  record: {
+    name: string;
+    ok: boolean;
+    input?: unknown;
+    content?: unknown;
+  },
+  projectDirectory: string,
+): boolean {
+  if (
+    !isRunCommandMatching(record, /\b(?:find|ls|dir)\b/i, {
+      requireSuccess: true,
+    })
+  ) {
+    return false;
+  }
+  const input = record.input as { cwd?: unknown };
+  return (
+    typeof input.cwd === "string" &&
+    isLocalPathInsideOrEqual(input.cwd, projectDirectory) &&
+    isLocalPathInsideOrEqual(projectDirectory, input.cwd)
+  );
+}
+
+function isRunCommandMatching(
+  record: {
+    name: string;
+    ok: boolean;
+    input?: unknown;
+    content?: unknown;
+  },
+  pattern: RegExp,
+  options: { requireSuccess?: boolean } = {},
+): boolean {
+  if (record.name !== "run_command" || !record.ok) return false;
+  if (!record.input || typeof record.input !== "object") return false;
+  const command = (record.input as { command?: unknown }).command;
+  if (typeof command !== "string" || !pattern.test(command)) return false;
+  if (!options.requireSuccess) return true;
+  const content = record.content;
+  return (
+    Boolean(content) &&
+    typeof content === "object" &&
+    (content as { exitCode?: unknown }).exitCode === 0
+  );
+}
+
+function isSuccessfulExperimentResultsWrite(
+  record: {
+    name: string;
+    ok: boolean;
+    input?: unknown;
+    content?: unknown;
+  },
+  projectDirectory: string,
+): boolean {
+  if (!isSuccessfulWorkspaceFileWrite(record, projectDirectory)) return false;
+  const input = record.input as { filePath?: unknown };
+  return (
+    typeof input.filePath === "string" &&
+    /\/docs\/(?:EXPERIMENT_RESULTS|DATA_VALIDATION)\.md$/i.test(
+      input.filePath.replace(/\\/g, "/"),
+    )
+  );
+}
+
 export class AgentRuntime {
   private readonly registry: AgentToolRegistry;
   private readonly adapterFactory: AgentRuntimeDeps["adapterFactory"];
@@ -612,6 +810,9 @@ export class AgentRuntime {
 
   constructor(deps: AgentRuntimeDeps) {
     this.registry = deps.registry;
+    if (!this.registry.getTool(SUBAGENT_TASK_TOOL_NAME)) {
+      this.registry.register(createSubagentTaskTool());
+    }
     this.adapterFactory = deps.adapterFactory;
     this.now = deps.now || (() => Date.now());
   }
@@ -852,6 +1053,28 @@ export class AgentRuntime {
         request,
         matchedSkills,
       );
+      const requiresPaperReplicationProjectWrite =
+        isPaperReplicationPreparationRequest(request, matchedSkills);
+      const requiresPaperReplicationContinuation =
+        isPaperReplicationContinuationWorkflow(request, matchedSkills);
+      const requiresPaperReplicationSubagentOrchestration =
+        isSubagentsEnabled() &&
+        (requiresPaperReplicationProjectWrite ||
+          requiresPaperReplicationContinuation);
+      const requiredPaperReplicationSubtasks =
+        requiresPaperReplicationProjectWrite
+          ? 3
+          : requiresPaperReplicationContinuation
+            ? 2
+            : 0;
+      const replicationPythonExecutable = getReplicationPythonExecutable();
+      const shouldUseReplicationPython =
+        Boolean(replicationPythonExecutable) &&
+        (requiresPaperReplicationProjectWrite ||
+          requiresPaperReplicationContinuation);
+      const workspaceDirectory = getWorkspaceDirectory().trim();
+      const paperWorkspaceDirectory = getPaperWorkspaceFolderPath(request.item);
+      const replicationProjectDirectory = paperWorkspaceDirectory || "";
       const noteWritePolicy = requiresFileNoteWrite
         ? buildNotesDirectoryWritePolicy({ userText: request.userText })
         : null;
@@ -954,9 +1177,75 @@ export class AgentRuntime {
         intent.isBulkOperation,
       );
       let noteWriteCorrectionUsed = false;
+      let paperReplicationCompletionCorrections = 0;
+      let paperReplicationContinuationCorrections = 0;
+      let replicationWorkspaceApproval: "unknown" | "approved" | "denied" =
+        "unknown";
       let fullReadCorrectionUsed = false;
       const hasSuccessfulFileWrite = () =>
         toolExecutionRecords.some((record) => isSuccessfulFileIoWrite(record));
+      const hasSuccessfulPaperReplicationProjectWrite = () =>
+        toolExecutionRecords.some((record) =>
+          isSuccessfulWorkspaceFileWrite(
+            record,
+            replicationProjectDirectory || workspaceDirectory,
+          ),
+        );
+      const hasSuccessfulPaperReplicationImplementationSource = () =>
+        Boolean(replicationProjectDirectory) &&
+        toolExecutionRecords.some((record) =>
+          isSuccessfulImplementationSourceWrite(
+            record,
+            replicationProjectDirectory,
+          ),
+        );
+      const hasSuccessfulPaperReplicationGitCommit = () =>
+        toolExecutionRecords.some((record) => isSuccessfulGitCommit(record));
+      const hasSuccessfulPaperReplicationProjectInspection = () =>
+        Boolean(replicationProjectDirectory) &&
+        toolExecutionRecords.some((record) =>
+          isSuccessfulPaperReplicationProjectInspection(
+            record,
+            replicationProjectDirectory,
+          ),
+        );
+      const completedPaperReplicationSubtasks = () =>
+        toolExecutionRecords.filter(
+          (record) => record.name === SUBAGENT_TASK_TOOL_NAME && record.ok,
+        ).length;
+      const hasCompletedPaperReplicationSubtasks = () =>
+        !requiresPaperReplicationSubagentOrchestration ||
+        completedPaperReplicationSubtasks() >= requiredPaperReplicationSubtasks;
+      const hasReadPaperReplicationState = () =>
+        toolExecutionRecords.some((record) =>
+          isSuccessfulFileIoRead(record, "/paperpilot-replication.json"),
+        );
+      const hasAttemptedPaperReplicationDataValidation = () =>
+        toolExecutionRecords.some((record) =>
+          isRunCommandMatching(record, /validate[_ -]?data|data[_ -]?check/i),
+        );
+      const hasSuccessfulPaperReplicationDataValidation = () =>
+        toolExecutionRecords.some((record) =>
+          isRunCommandMatching(record, /validate[_ -]?data|data[_ -]?check/i, {
+            requireSuccess: true,
+          }),
+        );
+      const hasSuccessfulPaperReplicationExperiment = () =>
+        toolExecutionRecords.some((record) =>
+          isRunCommandMatching(
+            record,
+            /\b(train|run[_ -]?experiment|evaluate|eval)\b/i,
+            { requireSuccess: true },
+          ),
+        );
+      const hasPaperReplicationOutcomeReport = () =>
+        Boolean(replicationProjectDirectory) &&
+        toolExecutionRecords.some((record) =>
+          isSuccessfulExperimentResultsWrite(
+            record,
+            replicationProjectDirectory,
+          ),
+        );
       const hasFullReadAttempt = () =>
         toolExecutionRecords.some(
           (record) =>
@@ -1321,6 +1610,26 @@ export class AgentRuntime {
         resolution: AgentConfirmationResolution;
       }> => {
         const requestId = createConfirmationRequestId();
+        if (
+          getAgentApprovalMode() === "allow_all" &&
+          action.mode !== "review"
+        ) {
+          const resolution: AgentConfirmationResolution = {
+            approved: true,
+            actionId: "allow_all",
+          };
+          await emit({
+            type: "status",
+            text: `Automatically approved: ${action.title}`,
+          });
+          await emit({
+            type: "confirmation_resolved",
+            requestId,
+            approved: true,
+            actionId: resolution.actionId,
+          });
+          return { requestId, resolution };
+        }
         let abortListener: (() => void) | undefined;
         const resolution = new Promise<AgentConfirmationResolution>(
           (resolve) => {
@@ -1359,6 +1668,425 @@ export class AgentRuntime {
           resolution: settled,
         };
       };
+      const requestReplicationWorkspaceApproval =
+        async (): Promise<boolean> => {
+          if (replicationWorkspaceApproval === "approved") return true;
+          if (replicationWorkspaceApproval === "denied") return false;
+          const { resolution } = await requestActionResolution({
+            toolName: "paper_replication_workspace",
+            title: "Prepare paper-replication workspace",
+            mode: "approval",
+            description:
+              "Allow Paper Pilot to create or update the replication project in this paper's workspace. Git initialization and commits will still request their own confirmation.",
+            confirmLabel: "Approve project preparation",
+            cancelLabel: "Cancel",
+            fields: [
+              {
+                type: "text",
+                id: "workspacePath",
+                label: "Project workspace",
+                value: replicationProjectDirectory,
+              },
+              {
+                type: "checklist",
+                id: "plannedChanges",
+                label: "Planned changes",
+                items: [
+                  {
+                    id: "implementation",
+                    label: "Create or update implementation source code",
+                    checked: true,
+                  },
+                  {
+                    id: "documentation",
+                    label: "Create or update reproduction documentation",
+                    checked: true,
+                  },
+                  {
+                    id: "dataContract",
+                    label:
+                      "Create data validation and experiment configuration",
+                    checked: true,
+                  },
+                ],
+              },
+            ],
+          });
+          replicationWorkspaceApproval = resolution.approved
+            ? "approved"
+            : "denied";
+          return resolution.approved;
+        };
+      const runSubagentTask = async (
+        call: AgentToolCall,
+      ): Promise<ExecutedToolCall> => {
+        const validation = validateSubagentTaskInput(call.arguments);
+        if (!validation.ok) {
+          return {
+            input: call.arguments,
+            toolResult: {
+              callId: call.id,
+              name: call.name,
+              ok: false,
+              content: { error: validation.error },
+            },
+          };
+        }
+
+        const subagentRequest: AgentRuntimeRequest = {
+          ...request,
+          userText: validation.value.task,
+          history: [],
+        };
+        const paperContexts = [
+          ...(request.selectedPaperContexts || []).map((paper) => ({
+            ...paper,
+            source: "selected" as const,
+          })),
+          ...(request.fullTextPaperContexts || []).map((paper) => ({
+            ...paper,
+            source: "full_text" as const,
+          })),
+          ...(request.pinnedPaperContexts || []).map((paper) => ({
+            ...paper,
+            source: "pinned" as const,
+          })),
+        ].filter(
+          (paper, index, all) =>
+            all.findIndex(
+              (candidate) =>
+                candidate.contextItemId === paper.contextItemId &&
+                candidate.source === paper.source,
+            ) === index,
+        );
+        const subagentModel = request.model || "unknown";
+        await emit({
+          type: "subagent_started",
+          taskId: call.id,
+          task: validation.value.task,
+          model: subagentModel,
+          paperContexts,
+        });
+        const failSubagentTask = async (
+          error: string,
+        ): Promise<ExecutedToolCall> => {
+          await emit({
+            type: "subagent_failed",
+            taskId: call.id,
+            task: validation.value.task,
+            error,
+          });
+          return {
+            input: validation.value,
+            toolResult: {
+              callId: call.id,
+              name: call.name,
+              ok: false,
+              content: { error },
+            },
+          };
+        };
+        const subagent = this.adapterFactory(subagentRequest);
+        if (!subagent.supportsTools(subagentRequest)) {
+          return failSubagentTask(
+            "The currently selected model does not support tools, so it cannot run a subagent task.",
+          );
+        }
+        const readOnlyToolDefinitions = this.registry
+          .listToolDefinitionsForRequest(subagentRequest)
+          .filter(
+            (tool) =>
+              tool.spec.mutability === "read" &&
+              tool.spec.name !== SUBAGENT_TASK_TOOL_NAME,
+          );
+        const readOnlyTools = readOnlyToolDefinitions.map((tool) => tool.spec);
+        const initialSubagentMessages = await buildAgentInitialMessages(
+          subagentRequest,
+          readOnlyToolDefinitions,
+          matchedSkills,
+          undefined,
+          { transcriptMessages: [] },
+        );
+        const subagentUserMessage =
+          initialSubagentMessages[initialSubagentMessages.length - 1];
+        const subagentMessages: AgentModelMessage[] = [
+          ...initialSubagentMessages.slice(0, -1),
+          {
+            role: "system",
+            content:
+              "You are a focused subagent. Complete only the delegated task using the available read-only tools when needed. Do not propose or attempt edits, commands, or other side effects. Return a concise, evidence-based summary with concrete findings, uncertainties, and recommended next steps. You have a fresh conversation history: do not assume access to the parent conversation. Any active skill instructions that require writing files, running commands, Git operations, or user confirmations apply only to the orchestrating main Agent; perform only the evidence-gathering and read-only portions.",
+          },
+          ...(paperContexts.length
+            ? [
+                {
+                  role: "system" as const,
+                  content:
+                    "The parent chat passed these paper contexts to you: " +
+                    paperContexts
+                      .map(
+                        (paper) =>
+                          `${paper.title} (${paper.source.replace("_", " ")})`,
+                      )
+                      .join("; ") +
+                    ". Use paper_read to inspect the relevant sections or full text instead of assuming details from the parent conversation.",
+                },
+              ]
+            : []),
+          {
+            ...subagentUserMessage,
+            content: [
+              typeof subagentUserMessage?.content === "string"
+                ? subagentUserMessage.content
+                : `Delegated task:\n${validation.value.task}`,
+              validation.value.context
+                ? `Essential context:\n${validation.value.context}`
+                : "",
+            ]
+              .filter(Boolean)
+              .join("\n\n"),
+          },
+        ];
+        let summary = "";
+        const maxRounds = 6;
+        try {
+          for (
+            let subagentRound = 1;
+            subagentRound <= maxRounds;
+            subagentRound++
+          ) {
+            const step = await subagent.runStep({
+              request: subagentRequest,
+              messages: subagentMessages,
+              tools: readOnlyTools,
+              signal: params.signal,
+              onTextDelta: (delta) => {
+                summary += delta;
+                void emit({
+                  type: "subagent_output_delta",
+                  taskId: call.id,
+                  text: delta,
+                });
+              },
+              onToolCall: async (subagentCall) => {
+                await emit({
+                  type: "subagent_tool_activity",
+                  taskId: call.id,
+                  phase: "started",
+                  name: subagentCall.name,
+                  args: subagentCall.arguments,
+                });
+                const prepared = await this.registry.prepareExecution(
+                  subagentCall,
+                  {
+                    ...context,
+                    request: subagentRequest,
+                    currentAnswerText: "",
+                  },
+                );
+                if (prepared.kind === "confirmation") {
+                  await emit({
+                    type: "subagent_tool_activity",
+                    taskId: call.id,
+                    phase: "completed",
+                    name: subagentCall.name,
+                    args: subagentCall.arguments,
+                    ok: false,
+                  });
+                  return {
+                    success: false,
+                    contentItems: [
+                      {
+                        type: "inputText",
+                        text: "This subagent is restricted to read-only tools that do not require confirmation.",
+                      },
+                    ],
+                  };
+                }
+                await emit({
+                  type: "subagent_tool_activity",
+                  taskId: call.id,
+                  phase: "completed",
+                  name: subagentCall.name,
+                  args: subagentCall.arguments,
+                  ok: prepared.execution.result.ok,
+                });
+                return {
+                  success: prepared.execution.result.ok,
+                  contentItems: [
+                    {
+                      type: "inputText",
+                      text: stringifyToolDeliveryContent(
+                        prepared.execution.result.content,
+                      ),
+                    },
+                  ],
+                };
+              },
+            });
+            if (step.kind === "final") {
+              summary = step.text || summary;
+              if (summary.trim()) {
+                const completedSummary = summary.trim().slice(0, 12000);
+                await emit({
+                  type: "subagent_completed",
+                  taskId: call.id,
+                  task: validation.value.task,
+                  model: subagentModel,
+                  summary: completedSummary,
+                  rounds: subagentRound,
+                });
+                return {
+                  input: validation.value,
+                  toolResult: {
+                    callId: call.id,
+                    name: call.name,
+                    ok: true,
+                    content: {
+                      task: validation.value.task,
+                      summary: completedSummary,
+                      model: subagentModel,
+                      rounds: subagentRound,
+                    },
+                  },
+                };
+              }
+              break;
+            }
+            subagentMessages.push(
+              step.assistantMessage ?? {
+                role: "assistant",
+                content: "",
+                tool_calls: step.calls,
+              },
+            );
+            for (const toolCall of step.calls) {
+              const toolDefinition = this.registry.getTool(toolCall.name);
+              if (
+                !toolDefinition ||
+                toolDefinition.spec.mutability !== "read" ||
+                toolCall.name === SUBAGENT_TASK_TOOL_NAME
+              ) {
+                await emit({
+                  type: "subagent_tool_activity",
+                  taskId: call.id,
+                  phase: "completed",
+                  name: toolCall.name,
+                  ok: false,
+                });
+                subagentMessages.push({
+                  role: "tool",
+                  tool_call_id: toolCall.id,
+                  name: toolCall.name,
+                  content:
+                    "This subagent can execute only registered read-only tools.",
+                });
+                continue;
+              }
+              await emit({
+                type: "subagent_tool_activity",
+                taskId: call.id,
+                phase: "started",
+                name: toolCall.name,
+                args: toolCall.arguments,
+              });
+              const prepared = await this.registry.prepareExecution(toolCall, {
+                ...context,
+                request: subagentRequest,
+                currentAnswerText: "",
+              });
+              const result =
+                prepared.kind === "result"
+                  ? prepared.execution.result
+                  : {
+                      callId: toolCall.id,
+                      name: toolCall.name,
+                      ok: false,
+                      content: {
+                        error:
+                          "Subagents cannot execute tools that require confirmation.",
+                      },
+                    };
+              await emit({
+                type: "subagent_tool_activity",
+                taskId: call.id,
+                phase: "completed",
+                name: toolCall.name,
+                args: toolCall.arguments,
+                ok: result.ok,
+              });
+              subagentMessages.push({
+                role: "tool",
+                tool_call_id: toolCall.id,
+                name: toolCall.name,
+                content: stringifyToolDeliveryContent(result.content),
+              });
+            }
+          }
+        } catch (error) {
+          return failSubagentTask(
+            error instanceof Error
+              ? `Subagent task failed: ${error.message}`
+              : `Subagent task failed: ${String(error)}`,
+          );
+        }
+        return failSubagentTask(
+          "Subagent did not return a final summary within the six-round limit.",
+        );
+      };
+      const runPaperReplicationSubagents = async (): Promise<void> => {
+        if (!requiresPaperReplicationSubagentOrchestration) return;
+        const tasks = requiresPaperReplicationProjectWrite
+          ? [
+              "Extract the paper's confirmed method, architecture, loss functions, optimization details, and implementation-critical hyperparameters. Distinguish evidence from assumptions.",
+              "Derive the complete data contract and experiment protocol: required data layout, schema, preprocessing, splits, metrics, baselines, and reproducibility controls.",
+              "Inspect the current paper-replication project context for compatibility when available; otherwise propose a minimal but complete implementation module structure, CLI/configuration layout, and verification plan.",
+            ]
+          : [
+              "Inspect the replication state and identify the exact data-validation checks, expected artifacts, and blockers before the next experiment.",
+              "Analyze the next bounded experiment: required command, metrics, acceptance criteria, likely failure modes, and the result/conclusion content that must be recorded.",
+            ];
+        const summaries: string[] = [];
+        await emit({
+          type: "status",
+          text: `Delegating ${tasks.length} paper-replication subtasks…`,
+        });
+        for (const [index, task] of tasks.entries()) {
+          const call = buildSyntheticToolCall(SUBAGENT_TASK_TOOL_NAME, {
+            task,
+          });
+          const executed = await runSubagentTask(call);
+          const result = executed.toolResult;
+          toolsUsedThisTurn.push(result.name);
+          toolExecutionRecords.push({
+            name: result.name,
+            ok: result.ok,
+            input: executed.input,
+            content: result.content,
+          });
+          if (
+            result.ok &&
+            result.content &&
+            typeof result.content === "object" &&
+            typeof (result.content as { summary?: unknown }).summary ===
+              "string"
+          ) {
+            summaries.push(
+              `Subagent ${index + 1} report:\n${(
+                result.content as { summary: string }
+              ).summary.slice(0, 4000)}`,
+            );
+          }
+        }
+        if (summaries.length) {
+          messages.push({
+            role: "user",
+            content:
+              "Use the following isolated subagent reports as your working evidence. Integrate them, resolve conflicts against tool evidence, and do not repeat their full investigation in the main context.\n\n" +
+              summaries.join("\n\n"),
+          });
+        }
+      };
+      await runPaperReplicationSubagents();
       const executePreparedToolCall = async (
         call: AgentToolCall,
         round: number,
@@ -1366,46 +2094,169 @@ export class AgentRuntime {
           inheritedApproval?: AgentInheritedApproval;
         } = {},
       ): Promise<ExecutedToolCall> => {
+        const commandArguments =
+          call.name === "run_command" &&
+          call.arguments &&
+          typeof call.arguments === "object"
+            ? (call.arguments as Record<string, unknown>)
+            : null;
+        const command =
+          typeof commandArguments?.command === "string"
+            ? commandArguments.command
+            : typeof commandArguments?.cmd === "string"
+              ? commandArguments.cmd
+              : typeof commandArguments?.shell_command === "string"
+                ? commandArguments.shell_command
+                : typeof commandArguments?.shellCommand === "string"
+                  ? commandArguments.shellCommand
+                  : null;
+        const resolvedCall =
+          command !== null
+            ? {
+                ...call,
+                arguments: {
+                  ...commandArguments,
+                  command: shouldUseReplicationPython
+                    ? rewritePythonCommandForReplication(
+                        command,
+                        replicationPythonExecutable,
+                      )
+                    : command,
+                },
+              }
+            : call;
         await emit({
           type: "tool_call",
-          callId: call.id,
-          name: call.name,
-          args: call.arguments,
+          callId: resolvedCall.id,
+          name: resolvedCall.name,
+          args: resolvedCall.arguments,
         });
-        toolsUsedThisTurn.push(call.name);
-        const execution = await this.registry.prepareExecution(
-          call,
-          {
-            ...context,
-            currentAnswerText,
-          },
-          {
-            inheritedApproval: options.inheritedApproval,
-          },
-        );
+        toolsUsedThisTurn.push(resolvedCall.name);
         let executedCall: {
           toolResult: AgentToolResult;
           toolDefinition?: import("./types").AgentToolDefinition<any, any>;
           input?: unknown;
         };
-        if (execution.kind === "confirmation") {
-          const { resolution } = await requestActionResolution(
-            execution.action,
-          );
-          const confirmedExecution = resolution.approved
-            ? await execution.execute(resolution.data)
-            : execution.deny(resolution.data);
-          executedCall = {
-            toolResult: confirmedExecution.result,
-            toolDefinition: confirmedExecution.tool,
-            input: confirmedExecution.input,
-          };
+        if (resolvedCall.name === SUBAGENT_TASK_TOOL_NAME) {
+          executedCall = await runSubagentTask(resolvedCall);
         } else {
-          executedCall = {
-            toolResult: execution.execution.result,
-            toolDefinition: execution.execution.tool,
-            input: execution.execution.input,
-          };
+          const resolvedCommand =
+            resolvedCall.name === "run_command" &&
+            resolvedCall.arguments &&
+            typeof resolvedCall.arguments === "object" &&
+            typeof (resolvedCall.arguments as { command?: unknown }).command ===
+              "string"
+              ? (resolvedCall.arguments as { command: string }).command
+              : "";
+          const blocksExperimentForInvalidData =
+            requiresPaperReplicationContinuation &&
+            hasAttemptedPaperReplicationDataValidation() &&
+            !hasSuccessfulPaperReplicationDataValidation() &&
+            /\b(train|run[_ -]?experiment|evaluate|eval)\b/i.test(
+              resolvedCommand,
+            );
+          const isReplicationFileWrite =
+            (requiresPaperReplicationProjectWrite ||
+              requiresPaperReplicationContinuation) &&
+            resolvedCall.name === "file_io" &&
+            resolvedCall.arguments &&
+            typeof resolvedCall.arguments === "object" &&
+            (resolvedCall.arguments as { action?: unknown }).action === "write";
+          const blocksProjectWriteBeforeInspection =
+            requiresPaperReplicationProjectWrite &&
+            isReplicationFileWrite &&
+            !hasSuccessfulPaperReplicationProjectInspection();
+          const blocksProjectWriteBeforeSubtasks =
+            isReplicationFileWrite && !hasCompletedPaperReplicationSubtasks();
+          const requiresReplicationWorkspaceApproval =
+            requiresPaperReplicationProjectWrite &&
+            isReplicationFileWrite &&
+            replicationWorkspaceApproval !== "approved";
+          if (blocksProjectWriteBeforeSubtasks) {
+            executedCall = {
+              input: resolvedCall.arguments,
+              toolResult: {
+                callId: resolvedCall.id,
+                name: resolvedCall.name,
+                ok: false,
+                content: {
+                  error: `Paper-replication orchestration requires ${requiredPaperReplicationSubtasks} successful subagent task summaries before writing project files. Delegate narrow evidence, implementation/data, and evaluation/project-inspection tasks with subagent_task, then integrate their concise results.`,
+                },
+              },
+            };
+          } else if (blocksProjectWriteBeforeInspection) {
+            executedCall = {
+              input: resolvedCall.arguments,
+              toolResult: {
+                callId: resolvedCall.id,
+                name: resolvedCall.name,
+                ok: false,
+                content: {
+                  error:
+                    "Refusing to write a paper-replication project before its workspace directory has been inspected. Enumerate the project directory and inspect Git status first; if existing content is unrelated to the current paper, ask the user how to proceed.",
+                },
+              },
+            };
+          } else if (
+            requiresReplicationWorkspaceApproval &&
+            !(await requestReplicationWorkspaceApproval())
+          ) {
+            executedCall = {
+              input: resolvedCall.arguments,
+              toolResult: {
+                callId: resolvedCall.id,
+                name: resolvedCall.name,
+                ok: false,
+                content: {
+                  error:
+                    "User did not approve paper-replication workspace preparation.",
+                },
+              },
+            };
+          } else if (blocksExperimentForInvalidData) {
+            executedCall = {
+              input: resolvedCall.arguments,
+              toolResult: {
+                callId: resolvedCall.id,
+                name: resolvedCall.name,
+                ok: false,
+                content: {
+                  error:
+                    "Refusing to run an experiment because the paper-replication data validation command did not succeed. Write the data validation report and fix the reported data issues first.",
+                },
+              },
+            };
+          } else {
+            const execution = await this.registry.prepareExecution(
+              resolvedCall,
+              {
+                ...context,
+                currentAnswerText,
+              },
+              {
+                inheritedApproval: options.inheritedApproval,
+              },
+            );
+            if (execution.kind === "confirmation") {
+              const { resolution } = await requestActionResolution(
+                execution.action,
+              );
+              const confirmedExecution = resolution.approved
+                ? await execution.execute(resolution.data)
+                : execution.deny(resolution.data);
+              executedCall = {
+                toolResult: confirmedExecution.result,
+                toolDefinition: confirmedExecution.tool,
+                input: confirmedExecution.input,
+              };
+            } else {
+              executedCall = {
+                toolResult: execution.execution.result,
+                toolDefinition: execution.execution.tool,
+                input: execution.execution.input,
+              };
+            }
+          }
         }
         const { toolResult } = executedCall;
         toolExecutionRecords.push({
@@ -1430,8 +2281,21 @@ export class AgentRuntime {
             timestamp: this.now(),
           });
         } else {
-          consecutiveToolErrors += 1;
           const rawError = readToolError(toolResult);
+          const isEmptyRunCommandCall =
+            toolResult.name === "run_command" &&
+            (!executedCall.input ||
+              typeof executedCall.input !== "object" ||
+              typeof (executedCall.input as { command?: unknown }).command !==
+                "string" ||
+              !(executedCall.input as { command: string }).command.trim());
+          const isEmptyFileIOCall =
+            toolResult.name === "file_io" &&
+            rawError?.includes("file_io received empty tool arguments") ===
+              true;
+          if (!isEmptyRunCommandCall && !isEmptyFileIOCall) {
+            consecutiveToolErrors += 1;
+          }
           if (rawError && rawError.toLowerCase() !== "user denied action") {
             await emit({
               type: "tool_error",
@@ -1707,6 +2571,138 @@ export class AgentRuntime {
             const targetLabel = nickname ? `${nickname} note` : "note";
             return completeRun(
               `I could not complete the ${targetLabel} write because the model did not call \`file_io({ action:'write', filePath, content })\` after being corrected.`,
+              "failed",
+            );
+          }
+          if (
+            requiresPaperReplicationProjectWrite &&
+            (!hasSuccessfulPaperReplicationProjectInspection() ||
+              !hasSuccessfulPaperReplicationProjectWrite() ||
+              !hasSuccessfulPaperReplicationImplementationSource() ||
+              !hasSuccessfulPaperReplicationGitCommit())
+          ) {
+            await rollbackCommittedStreamedText(stepStreamedText);
+            if (replicationWorkspaceApproval === "unknown") {
+              if (!(await requestReplicationWorkspaceApproval())) {
+                return completeRun(
+                  "Paper-replication project preparation was cancelled. No project files were created or changed.",
+                );
+              }
+              const approvalMessage: AgentModelMessage = {
+                role: "user",
+                content:
+                  "The user explicitly approved paper-replication workspace preparation. Inspect the workspace first, then call the required tools to create the implementation, documentation, and initial Git commit. Do not only describe those actions in chat.",
+              };
+              messages.push(approvalMessage);
+              newTranscriptMessages.push(approvalMessage);
+              continue;
+            }
+            if (paperReplicationCompletionCorrections < 3) {
+              paperReplicationCompletionCorrections += 1;
+              const missing: string[] = [];
+              if (!hasSuccessfulPaperReplicationProjectInspection()) {
+                missing.push(
+                  "a successful project-directory inspection before writing",
+                );
+              }
+              if (!hasSuccessfulPaperReplicationProjectWrite()) {
+                missing.push("a project file write");
+              }
+              if (!hasSuccessfulPaperReplicationImplementationSource()) {
+                missing.push("a runnable implementation source-file write");
+              }
+              if (!hasSuccessfulPaperReplicationGitCommit()) {
+                missing.push("a successful Git commit");
+              }
+              const assistantCorrectionMessage: AgentModelMessage =
+                step.assistantMessage ?? {
+                  role: "assistant",
+                  content: stepStreamedText,
+                };
+              const userCorrectionMessage: AgentModelMessage = {
+                role: "user",
+                content:
+                  "Correction for this turn: this paper-replication preparation request is not complete. Missing: " +
+                  `${missing.join(", ")}. ` +
+                  `Use the exact paper workspace directory opened by the UI: ${replicationProjectDirectory}. ` +
+                  "Call `file_io` to write actual implementation source code (not only documentation), then call `run_command` in that directory to initialize Git when needed and create a commit for the generated files. " +
+                  "Do not claim completion in chat before all missing actions are confirmed. If an action is impossible, report its specific tool or setup error.",
+              };
+              messages.push(assistantCorrectionMessage, userCorrectionMessage);
+              newTranscriptMessages.push(
+                assistantCorrectionMessage,
+                userCorrectionMessage,
+              );
+              continue;
+            }
+            return completeRun(
+              "I could not prepare the paper-replication project because it did not complete the required workspace file write, runnable implementation source write, and successful Git commit after repeated corrections.",
+              "failed",
+            );
+          }
+          if (
+            requiresPaperReplicationContinuation &&
+            (!hasReadPaperReplicationState() ||
+              !hasAttemptedPaperReplicationDataValidation() ||
+              (hasSuccessfulPaperReplicationDataValidation() &&
+                (!hasSuccessfulPaperReplicationExperiment() ||
+                  !hasPaperReplicationOutcomeReport() ||
+                  !hasSuccessfulPaperReplicationGitCommit())) ||
+              (!hasSuccessfulPaperReplicationDataValidation() &&
+                hasAttemptedPaperReplicationDataValidation() &&
+                !hasPaperReplicationOutcomeReport()))
+          ) {
+            await rollbackCommittedStreamedText(stepStreamedText);
+            if (paperReplicationContinuationCorrections < 3) {
+              paperReplicationContinuationCorrections += 1;
+              const missing: string[] = [];
+              if (!hasReadPaperReplicationState()) {
+                missing.push("a read of paperpilot-replication.json");
+              }
+              if (!hasAttemptedPaperReplicationDataValidation()) {
+                missing.push("a data-validation command attempt");
+              }
+              if (hasSuccessfulPaperReplicationDataValidation()) {
+                if (!hasSuccessfulPaperReplicationExperiment()) {
+                  missing.push("a successful bounded experiment command");
+                }
+                if (!hasPaperReplicationOutcomeReport()) {
+                  missing.push("docs/EXPERIMENT_RESULTS.md");
+                }
+                if (!hasSuccessfulPaperReplicationGitCommit()) {
+                  missing.push(
+                    "a Git commit for generated experiment artifacts",
+                  );
+                }
+              }
+              const validationFailed =
+                hasAttemptedPaperReplicationDataValidation() &&
+                !hasSuccessfulPaperReplicationDataValidation();
+              const assistantCorrectionMessage: AgentModelMessage =
+                step.assistantMessage ?? {
+                  role: "assistant",
+                  content: stepStreamedText,
+                };
+              const userCorrectionMessage: AgentModelMessage = {
+                role: "user",
+                content: validationFailed
+                  ? "Correction for this turn: the data-validation command did not succeed. Do not run training or evaluation. " +
+                    `Write ${replicationProjectDirectory}/docs/DATA_VALIDATION.md with the validator output, the exact data-format or path fixes needed, and update paperpilot-replication.json. ` +
+                    "Then explain that the data is not yet accepted."
+                  : "Correction for this turn: this continuation is not complete. Missing: " +
+                    `${missing.join(", ")}. ` +
+                    `Work in ${replicationProjectDirectory}. Read the persisted state first, validate the prepared data, and only after successful validation run one bounded experiment. ` +
+                    "Write the validation/result report and commit generated artifacts before claiming success.",
+              };
+              messages.push(assistantCorrectionMessage, userCorrectionMessage);
+              newTranscriptMessages.push(
+                assistantCorrectionMessage,
+                userCorrectionMessage,
+              );
+              continue;
+            }
+            return completeRun(
+              "I could not complete the paper-replication continuation because it did not read project state, validate the prepared data, and complete the required experiment/report actions after repeated corrections.",
               "failed",
             );
           }

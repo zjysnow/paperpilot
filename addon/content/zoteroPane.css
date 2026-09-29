@@ -4390,6 +4390,28 @@
   display: none;
 }
 
+.paperpilotagent-subagent-details-btn {
+  margin-left: auto;
+  align-self: stretch;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border: 1px solid var(--stroke-secondary);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: var(--paperpilotfs-10);
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.paperpilotagent-subagent-details-btn:hover,
+.paperpilotagent-subagent-details-btn:focus-visible {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
 .paperpilotagent-process-chips {
   display: flex;
   flex-wrap: wrap;
@@ -9312,8 +9334,15 @@ label.paperpilotsearch-results-item:hover {
   max-width: calc(160px * var(--paperpilotfont-scale));
 }
 
+.paperpilotaction-slot.paperpilotapproval-dropdown {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: calc(150px * var(--paperpilotfont-scale));
+}
+
 .paperpilotaction-slot.paperpilotmodel-dropdown > button,
-.paperpilotaction-slot.paperpilotreasoning-dropdown > button {
+.paperpilotaction-slot.paperpilotreasoning-dropdown > button,
+.paperpilotaction-slot.paperpilotapproval-dropdown > button {
   width: auto;
   max-width: 100%;
 }

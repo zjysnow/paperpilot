@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { AgentRuntime } from "../src/agent/runtime";
 import { AgentToolRegistry } from "../src/agent/tools/registry";
+import { createFileIOTool } from "../src/agent/tools/write/fileIO";
 import type {
   AgentModelCapabilities,
   AgentModelStep,
@@ -87,6 +88,20 @@ function runtime(
 }
 
 describe("AgentRuntime outcomes", function () {
+  beforeEach(function () {
+    const preferences = new Map<string, unknown>();
+    (globalThis as Record<string, unknown>).Zotero = {
+      DB: db,
+      Prefs: {
+        get: (key: string) => preferences.get(key),
+        set: (key: string, value: unknown) => preferences.set(key, value),
+      },
+    };
+    (globalThis as Record<string, unknown>).ztoolkit = {
+      log: () => undefined,
+    };
+  });
+
   it("returns a failed outcome when the prompt budget cannot be satisfied", async function () {
     const result = await runtime(
       adapter(async () => ({ kind: "final", text: "unused" })),
@@ -133,6 +148,44 @@ describe("AgentRuntime outcomes", function () {
     assert.match(result.text, /tool errors/i);
   });
 
+  it("lets the model recover from repeated empty file_io calls", async function () {
+    const steps: AgentModelStep[] = [
+      ...Array.from({ length: 3 }, (_, index) => ({
+        kind: "tool_calls" as const,
+        calls: [
+          {
+            id: `empty-file-io-${index}`,
+            name: "file_io",
+            arguments: {},
+          },
+        ],
+        assistantMessage: {
+          role: "assistant" as const,
+          content: "",
+          tool_calls: [
+            {
+              id: `empty-file-io-${index}`,
+              name: "file_io",
+              arguments: {},
+            },
+          ],
+        },
+      })),
+      { kind: "final" as const, text: "recovered" },
+    ];
+    const result = await runtime(
+      adapter(async () => {
+        const step = steps.shift();
+        if (!step) throw new Error("Unexpected model step");
+        return step;
+      }),
+      createFileIOTool(),
+    ).runTurn({ request: request() });
+
+    assert.equal(result.kind, "completed");
+    assert.equal(result.text, "recovered");
+  });
+
   it("releases a pending confirmation when the turn is aborted", async function () {
     let confirmationRequestId = "";
     let resolved = false;
@@ -175,5 +228,73 @@ describe("AgentRuntime outcomes", function () {
     await assert.rejects(run, /Aborted/);
     assert.notEqual(confirmationRequestId, "");
     assert.equal(resolved, true);
+  });
+
+  it("automatically approves non-review actions in allow-all mode", async function () {
+    (
+      globalThis as unknown as {
+        Zotero: { Prefs: { set: (key: string, value: unknown) => void } };
+      }
+    ).Zotero.Prefs.set(
+      "extensions.zotero.paperpilot.agentApprovalMode",
+      "allow_all",
+    );
+    let executed = false;
+    let confirmationApplied = false;
+    let confirmationRequested = false;
+    const tool: AgentToolDefinition = {
+      spec: {
+        name: "write_test",
+        description: "test",
+        inputSchema: { type: "object" },
+        mutability: "write",
+        requiresConfirmation: true,
+      },
+      validate: () => ({ ok: true, value: { allowWrite: false } }),
+      createPendingAction: async () => action(),
+      applyConfirmation: () => {
+        confirmationApplied = true;
+        return { ok: true, value: { allowWrite: true } };
+      },
+      execute: async (input) => {
+        assert.equal(input.allowWrite, true);
+        executed = true;
+        return { ok: true };
+      },
+    };
+    const steps: AgentModelStep[] = [
+      {
+        kind: "tool_calls",
+        calls: [{ id: "call-allow-all", name: "write_test", arguments: {} }],
+        assistantMessage: {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            { id: "call-allow-all", name: "write_test", arguments: {} },
+          ],
+        },
+      },
+      { kind: "final", text: "done" },
+    ];
+    const result = await runtime(
+      adapter(async () => {
+        const step = steps.shift();
+        if (!step) throw new Error("Unexpected model step");
+        return step;
+      }),
+      tool,
+    ).runTurn({
+      request: request(),
+      onEvent: (event) => {
+        if (event.type === "confirmation_required") {
+          confirmationRequested = true;
+        }
+      },
+    });
+
+    assert.equal(result.kind, "completed");
+    assert.equal(executed, true);
+    assert.equal(confirmationApplied, true);
+    assert.equal(confirmationRequested, false);
   });
 });

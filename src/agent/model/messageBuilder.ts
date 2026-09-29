@@ -16,6 +16,11 @@ import {
   buildNotesDirectoryConfigSection,
   getNotesDirectoryNickname,
 } from "../../utils/notesDirectoryConfig";
+import {
+  getPaperWorkspaceFolderPath,
+  getWorkspaceDirectory,
+} from "../../utils/workspaceDirectoryConfig";
+import { getReplicationPythonExecutable } from "../../utils/replicationEnvironmentConfig";
 import { NOTE_EDITING_QUOTE_BLOCK_GUIDANCE } from "../../shared/quoteGuidance";
 import { buildRuntimePlatformGuidanceText } from "../../utils/runtimePlatform";
 import { formatPaperSourceLabel } from "../../modules/contextPanel/paperAttribution";
@@ -522,6 +527,90 @@ function buildRuntimePlatformSection(): string {
   return buildRuntimePlatformGuidanceText();
 }
 
+function buildWorkspaceDirectorySection(): string {
+  const workspaceDirectory = getWorkspaceDirectory().trim();
+  if (!workspaceDirectory) {
+    return (
+      "WORKSPACE DIRECTORY: Not configured. Do not claim that a workspace-based " +
+      "project was created; ask the user to configure it in Paper Pilot preferences."
+    );
+  }
+  return (
+    `WORKSPACE DIRECTORY: ${workspaceDirectory}\n` +
+    "For paper-replication projects, create all project files beneath this " +
+    "directory and report the exact project path. Do not write a replication " +
+    "project elsewhere unless the user explicitly changes the configured directory."
+  );
+}
+
+function getReplicationWorkspacePath(
+  request: AgentRuntimeRequest,
+): string | null {
+  return getPaperWorkspaceFolderPath(request.item);
+}
+
+function isPaperReplicationContinuationRequest(
+  request: AgentRuntimeRequest,
+): boolean {
+  return (
+    /\b(continue|resume|next (?:step|experiment)|status|progress|prerequisites? (?:are )?ready|data (?:is )?ready)\b/i.test(
+      request.userText || "",
+    ) ||
+    /(继续|下一步|进展|状态|准备好了|数据.*(?:准备好|就绪)|前置条件.*完成)/.test(
+      request.userText || "",
+    )
+  );
+}
+
+function buildPaperReplicationWriteInstruction(
+  request: AgentRuntimeRequest,
+  matchedSkillIds: ReadonlyArray<string>,
+): string {
+  const activeSkillIds = new Set([
+    ...matchedSkillIds,
+    ...(request.forcedSkillIds || []),
+  ]);
+  if (!activeSkillIds.has("paper-replication")) return "";
+  const workspaceDirectory = getWorkspaceDirectory().trim();
+  if (!workspaceDirectory) return "";
+  const projectDirectory = getReplicationWorkspacePath(request);
+  if (!projectDirectory) {
+    return (
+      "TURN RULE: The current paper has no valid short title, so its shared " +
+      "workspace path cannot be resolved. Do not create a replication project " +
+      "in the workspace root. Ask the user to set the paper short title or use " +
+      "the Open workspace in VS Code button once to choose and save the folder name."
+    );
+  }
+  const pythonExecutable = getReplicationPythonExecutable();
+  const environmentInstruction = pythonExecutable
+    ? ` Use the configured replication Python executable \`${pythonExecutable}\` for every Python validation, setup, training, and evaluation command; the runtime also rewrites ordinary python invocations to this executable.`
+    : " No replication Python environment is configured, so Python commands use the system command. Tell the user to configure one in Agent settings when the project requires an isolated environment.";
+  if (isPaperReplicationContinuationRequest(request)) {
+    return (
+      "TURN RULE: This is a paper-replication continuation request. First read " +
+      `\`${projectDirectory}/paperpilot-replication.json\`, the experiment log, and the generated data contract. ` +
+      `Then run the project's data validator (normally \`scripts/validate_data\`) against the documented data folder. ` +
+      "If validation fails, do not start an experiment: write a data-validation report with concrete fixes and update project state. " +
+      "If validation passes, run the next bounded experiment, write `docs/EXPERIMENT_RESULTS.md` with the exact command, metrics, comparison with paper targets, and evidence-based conclusion, update state/logs, then commit only generated files. " +
+      "Do not claim data is valid, an experiment ran, or results exist until the relevant tools confirm each action." +
+      environmentInstruction
+    );
+  }
+  return (
+    "TURN RULE: This is a paper-replication preparation request. Before creating or changing any file, inspect the exact project directory with `run_command` using it as cwd and enumerate its contents (for example `find . -maxdepth 2 -print` on macOS/Linux or `dir /s /b` on Windows), then inspect Git status. " +
+    "When Subagents are enabled, the main Agent must first delegate focused, read-only `subagent_task` calls and work from their concise results rather than retaining the whole paper/project in its own context. For preparation, delegate at least: (1) method and implementation evidence, (2) data contract and training/evaluation requirements, and (3) existing-project compatibility or experiment design. For a continuation, delegate at least two relevant validation/experiment-analysis tasks before writing results. " +
+    "If files already exist, read `paperpilot-replication.json`, README, plan, and relevant source/configuration files before deciding what to do. Only continue when those files identify the same current paper; otherwise do not write, initialize Git, or overwrite anything. Explain the mismatch and ask the user whether to use the existing project, select another workspace, or clear it. " +
+    "Successful completion requires at least one successful " +
+    `\`file_io({ action:"write", filePath, content })\` call to a file beneath this exact project directory: ${projectDirectory}. ` +
+    "Use this exact directory because it is also opened by Open workspace in VS Code; do not invent a slug or another subdirectory. " +
+    "Before completion, write at least one runnable implementation source file (not only Markdown, JSON, YAML, or configuration), then use `run_command` in this directory to initialize Git when needed and commit the generated project. " +
+    "For a new directory, run `git init`, stage generated files, and create an initial commit. For an existing repository, inspect its status and stage only files generated for this project. " +
+    "Do not claim that code, documentation, or a project was created until the tools confirm the writes and Git command." +
+    environmentInstruction
+  );
+}
+
 function buildTextOnlyModelInstruction(request: AgentRuntimeRequest): string {
   if (isMultimodalRequestSupported(request)) return "";
   const modelLabel = (request.model || "selected model").trim();
@@ -548,6 +637,7 @@ export async function buildAgentInitialMessages(
   const workflowParityInstructions = [
     buildFigureMineruInstruction(request, matchedSkillIds),
     buildWriteNoteFileInstruction(request, matchedSkillIds),
+    buildPaperReplicationWriteInstruction(request, matchedSkillIds),
     buildForcedSkillWholeLibraryInstruction(request),
   ].filter(Boolean);
   const turnGuidanceBlock = buildTurnGuidanceBlock([
@@ -585,6 +675,10 @@ export async function buildAgentInitialMessages(
     {
       id: "notes-directory-config",
       lines: [buildNotesDirectoryConfigSection()],
+    },
+    {
+      id: "workspace-directory-config",
+      lines: [buildWorkspaceDirectorySection()],
     },
   ];
   const stableResourceBlock =

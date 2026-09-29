@@ -290,11 +290,12 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     id: "copilot",
     label: "GitHub Copilot",
     defaultApiBase: "https://api.githubcopilot.com",
-    defaultProtocol: "openai_chat_compat",
+    defaultProtocol: "responses_api",
     supportedProtocols: ["openai_chat_compat", "responses_api"],
     helperText:
-      "Uses GitHub Copilot via device login. Requires an active Copilot subscription.",
+      "Uses GitHub Copilot via device login and its Responses API. Requires an active Copilot subscription.",
     matches: makeHostAndPathMatcher(["api.githubcopilot.com"], COPILOT_PATHS),
+    supportsResponsesEndpoint: true,
     supportsEmbeddings: false,
   },
   {

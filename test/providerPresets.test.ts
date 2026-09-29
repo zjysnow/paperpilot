@@ -4,6 +4,8 @@ import {
   getProviderPreset,
   providerSupportsResponsesEndpoint,
 } from "../src/utils/providerPresets";
+import { normalizeProviderProtocolForAuthMode } from "../src/utils/providerProtocol";
+import { resolveProviderTransportEndpoint } from "../src/utils/providerTransport";
 import {
   resolveMineruSourceOptionState,
   resolvePaperPdfSupportForConversation,
@@ -38,14 +40,35 @@ describe("local OpenAI-compatible provider preset", function () {
 });
 
 describe("GitHub Copilot provider preset", function () {
-  it("detects the Copilot API and keeps it on the chat-compatible protocol", function () {
+  it("routes all Copilot models through the Responses API", function () {
     assert.equal(
       detectProviderPreset("https://api.githubcopilot.com"),
       "copilot",
     );
+    assert.equal(getProviderPreset("copilot").defaultProtocol, "responses_api");
     assert.equal(
-      getProviderPreset("copilot").defaultProtocol,
-      "openai_chat_compat",
+      providerSupportsResponsesEndpoint("https://api.githubcopilot.com"),
+      true,
+    );
+    for (const model of ["gpt-5.6-luna", "gpt-4.1", "claude-sonnet-4.5"]) {
+      assert.equal(
+        normalizeProviderProtocolForAuthMode({
+          authMode: "copilot_auth",
+          apiBase: "https://api.githubcopilot.com",
+          protocol: "openai_chat_compat",
+          model,
+        }),
+        "responses_api",
+      );
+    }
+    assert.equal(
+      resolveProviderTransportEndpoint({
+        authMode: "copilot_auth",
+        apiBase: "https://api.githubcopilot.com",
+        protocol: "responses_api",
+        model: "gpt-5.6-luna",
+      }),
+      "https://api.githubcopilot.com/responses",
     );
   });
 });

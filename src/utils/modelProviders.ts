@@ -345,6 +345,7 @@ function resolveRuntimeProviderProtocol(
       protocol: modelEntry.providerProtocol,
       authMode,
       apiBase: group.apiBase,
+      model: modelEntry.model,
       ...(fallback ? { fallback } : {}),
     });
   }
@@ -353,6 +354,7 @@ function resolveRuntimeProviderProtocol(
       protocol: fallback,
       authMode,
       apiBase: group.apiBase,
+      model: modelEntry?.model,
       fallback,
     });
   }
@@ -365,6 +367,7 @@ function resolveRuntimeProviderProtocol(
       : group.providerProtocol,
     authMode,
     apiBase: group.apiBase,
+    model: modelEntry?.model,
   });
 }
 

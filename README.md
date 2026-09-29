@@ -83,6 +83,10 @@ Agent Mode can use the local provider or another model exposed through Customize
 model must support tool calling for the full agent workflow; models without
 tool-calling support can still be used for ordinary chat.
 
+GitHub Copilot online models use the Copilot **Responses API** automatically.
+Existing saved Copilot model entries are normalized away from Chat Completions
+at runtime, so all Copilot models use the same supported tool-calling protocol.
+
 ## Skills
 
 Skills are Markdown instructions that describe reusable research workflows.
@@ -149,11 +153,128 @@ The built-in Skill IDs are:
 | `library-analysis`  | Analyze a library or collection                          |
 | `write-note`        | Create a Zotero note or Markdown file note               |
 | `import-to-library` | Import cited papers or references into Zotero            |
+| `paper-replication` | Prepare and continue a local paper-replication project   |
 
 Skills provide workflow instructions; registered Agent tools perform the actual
 operations. For example, `write-note` uses `paper_read` and `library_read` to
 collect evidence, then uses `note_write` for a Zotero note or `file_io` for a
 Markdown file.
+
+### Agent approval mode
+
+The **Approval: Default** button beside the model selector controls how Agent
+Mode handles confirmation cards. **Default** prompts before each approved
+action. **Allow all** automatically approves ordinary Agent actions, including
+workspace file changes and local commands, until you switch back to Default.
+Use it only for workspaces and commands you trust. Cards that require edited
+input, review, or a user choice remain interactive in both modes.
+
+### Subagents
+
+Enable **Agent -> Enable Subagents (Beta)** to let Agent Mode delegate a narrow
+inspection or evidence-gathering task to a fresh context. Every subagent uses
+the exact model, provider, authentication, and advanced model configuration
+currently selected for the parent chat; it never selects or falls back to a
+different model.
+
+Subagents receive only their focused objective and optional essential context,
+not the full parent conversation. They can use read-only Agent tools and return
+a concise evidence summary to the parent Agent. They cannot write files,
+modify Zotero data, run shell commands, initialize Git, or bypass the normal
+approval flow. The parent Agent remains responsible for integrating the result
+and performing any later mutation through the existing confirmation cards.
+The Agent activity panel shows each subagent's started, completed, or failed
+state and an **Open details** button from the moment it starts. The main chat
+does not duplicate subagent output. Open details opens a live task window
+showing the selected model, streamed model output, read-only tool activity, and
+the final result or error. Model providers—local or online—never receive filesystem permission:
+file and command tools execute in the local Paper Pilot runtime and are subject
+to the configured Workspace access checks and approval policy.
+
+When Subagents are enabled, paper replication is explicitly and automatically
+orchestrated this way: before project files are written, the runtime starts
+three separate summaries covering method/implementation evidence, data and
+evaluation requirements, and project compatibility or implementation structure.
+Continuing a replication starts two focused validation or experiment-analysis
+summaries. The runtime blocks replication file writes until those summaries are
+available, so the main Agent can synthesize compact evidence rather than
+carrying the entire paper and project exploration in one context. This does not
+depend on the selected model deciding to issue a subagent tool call.
+
+### Paper replication projects
+
+Set **Workspace Directory** in `Preferences -> paperpilot` before asking Agent
+Mode to reproduce a paper. Then, in a paper chat with the paper available as
+context, ask for example:
+
+```text
+Please reproduce this paper and prepare the implementation in my workspace.
+```
+
+Optionally set **Agent -> Replication Environment -> Python Virtual
+Environment** to a virtual-environment root (for example,
+`/projects/.venv`) or its Python executable. All Python validation, training,
+and evaluation commands for paper replication use that configured interpreter;
+leave it empty to use the system Python command.
+
+The same setting provides a refreshable environment picker. It shallowly scans
+the Workspace plus common virtualenv, pyenv, Conda, Miniconda, Miniforge, and
+Mamba locations, and only lists environments whose Python executable exists.
+Use the manual field when an environment is stored outside those locations.
+
+The `paper-replication` Skill reads the paper first, then creates a
+paper-specific project in the exact folder opened by **Open workspace in VS
+Code**: `{Workspace Directory}/{paper short title}`. It generates runnable
+implementation/configuration files together with:
+
+- at least one implementation source file and a smoke-test entry point;
+- `README.md` for quick start and expected outputs;
+- `docs/REPRODUCTION_PLAN.md` for evidence, implementation choices, and
+  assumptions;
+- `docs/REQUIREMENTS.md` for data, credentials, hardware, and setup work the
+  user must complete;
+- `docs/DATA_CONTRACT.md` for the exact data directory, file layout, schema,
+  examples, and validation requirements;
+- `docs/EXPERIMENT_LOG.md` for commands, results, failures, and next steps;
+- `paperpilot-replication.json` for resumable project state.
+
+Before creating or changing a project, the agent enumerates this directory,
+checks its Git state, and reads its saved replication metadata and key files.
+It continues an existing project only when that evidence identifies the same
+paper. If the directory contains unrelated or ambiguous content, the agent
+does not overwrite it; it summarizes the conflict and asks you whether to
+reuse it, choose another workspace, or clear the directory.
+
+Before it creates a new replication project, Paper Pilot presents a
+**Prepare paper-replication workspace** approval card listing the exact target
+directory and planned code, documentation, data-validation, and experiment
+configuration changes. Git initialization and commits have separate command
+confirmation cards. A successfully saved Workspace Directory has already
+passed directory creation, write, read-back, and cleanup verification; any
+later filesystem error is reported only if the attempted operation actually
+fails.
+
+For a new project folder, the agent initializes Git and creates an initial
+commit for generated files. For an existing repository, it inspects the status
+and stages only files created by the reproduction workflow, preserving other
+uncommitted work. Git commits and other local mutations use the normal Agent
+Mode confirmation flow.
+
+After completing the listed prerequisites, continue in the same or a later
+chat with a request such as:
+
+```text
+The reproduction prerequisites are ready. Read the project state and run the
+next smoke test.
+```
+
+The agent reads the project state and experiment log before it proposes or runs
+the next bounded step. It first runs the generated data validator against the
+documented data folder. A failed validation produces a remediation report and
+does not start training; a successful validation permits one bounded experiment
+and creates `docs/EXPERIMENT_RESULTS.md` with metrics and conclusions. Package
+installation, downloads, destructive commands, and overwriting existing files
+remain subject to Agent Mode confirmation.
 
 ### Creating a Custom Skill
 

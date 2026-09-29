@@ -149,7 +149,17 @@ import {
   setWorkspaceDirectory,
   getVSCodeExecutablePath,
   setVSCodeExecutablePath,
+  verifyWorkspaceDirectoryAccess,
 } from "../utils/workspaceDirectoryConfig";
+import {
+  discoverReplicationPythonEnvironments,
+  getReplicationPythonEnvironment,
+  setReplicationPythonEnvironment,
+} from "../utils/replicationEnvironmentConfig";
+import {
+  isSubagentsEnabled,
+  setSubagentsEnabled,
+} from "../utils/subagentConfig";
 import {
   testMineruConnection,
   testMineruLocalConnection,
@@ -668,6 +678,9 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   const enableAgentModeInput = doc.querySelector(
     `#${config.addonRef}-enable-agent-mode`,
   ) as HTMLInputElement | null;
+  const enableSubagentsInput = doc.querySelector(
+    `#${config.addonRef}-enable-subagents`,
+  ) as HTMLInputElement | null;
   const openSkillManagementButton = doc.querySelector(
     `#${config.addonRef}-open-skill-management`,
   ) as HTMLButtonElement | null;
@@ -677,12 +690,12 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
   const difyPanel = doc.querySelector(
     `#${config.addonRef}-pref-panel-dify`,
   ) as HTMLDivElement | null;
-  let difyBackends: DifyBackendConfig[] = getDifyBackends(
-    getDifyConfig(),
-  ).map((backend) => ({
-    ...backend,
-    chatApps: backend.chatApps?.map((chatApp) => ({ ...chatApp })),
-  }));
+  let difyBackends: DifyBackendConfig[] = getDifyBackends(getDifyConfig()).map(
+    (backend) => ({
+      ...backend,
+      chatApps: backend.chatApps?.map((chatApp) => ({ ...chatApp })),
+    }),
+  );
 
   const persistDifyBackends = () => {
     const primary = difyBackends[0] || {
@@ -746,7 +759,8 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         persistDifyBackends();
       });
       field.append(fieldLabel, input);
-      if (options.helper) field.appendChild(el(doc, "span", HELPER_STYLE, t(options.helper)));
+      if (options.helper)
+        field.appendChild(el(doc, "span", HELPER_STYLE, t(options.helper)));
       body.appendChild(field);
     };
 
@@ -757,7 +771,8 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         doc,
         "span",
         "font-weight: 700; font-size: 13px;",
-        backend.name?.trim() || t("Dify Backend %n").replace("%n", String(backendIndex + 1)),
+        backend.name?.trim() ||
+          t("Dify Backend %n").replace("%n", String(backendIndex + 1)),
       );
       header.appendChild(title);
       const removeBackend = iconBtn(doc, "×", t("Remove backend"));
@@ -776,23 +791,42 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         (value) => {
           backend.name = value || undefined;
           title.textContent =
-            backend.name || t("Dify Backend %n").replace("%n", String(backendIndex + 1));
+            backend.name ||
+            t("Dify Backend %n").replace("%n", String(backendIndex + 1));
         },
         { helper: "Optional; shown as the provider name in model selection." },
       );
-      appendField(body, "Base URL", backend.baseUrl, (value) => {
-        backend.baseUrl = value || DEFAULT_DIFY_BASE_URL;
-      }, {
-        type: "url",
-        placeholder: DEFAULT_DIFY_BASE_URL,
-        helper: "Use your Dify instance URL, including its API version path.",
-      });
-      appendField(body, "API Key", backend.apiKey, (value) => {
-        backend.apiKey = value;
-      }, { type: "password" });
-      appendField(body, "User", backend.user, (value) => {
-        backend.user = value || "paperpilot";
-      }, { helper: "Identifier sent with requests to this Dify backend." });
+      appendField(
+        body,
+        "Base URL",
+        backend.baseUrl,
+        (value) => {
+          backend.baseUrl = value || DEFAULT_DIFY_BASE_URL;
+        },
+        {
+          type: "url",
+          placeholder: DEFAULT_DIFY_BASE_URL,
+          helper: "Use your Dify instance URL, including its API version path.",
+        },
+      );
+      appendField(
+        body,
+        "API Key",
+        backend.apiKey,
+        (value) => {
+          backend.apiKey = value;
+        },
+        { type: "password" },
+      );
+      appendField(
+        body,
+        "User",
+        backend.user,
+        (value) => {
+          backend.user = value || "paperpilot";
+        },
+        { helper: "Identifier sent with requests to this Dify backend." },
+      );
 
       const modulesHeader = el(doc, "span", SECTION_LABEL_STYLE, t("Modules"));
       body.appendChild(modulesHeader);
@@ -834,16 +868,28 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         });
         moduleHeader.append(moduleTitle, removeModule);
         moduleCard.appendChild(moduleHeader);
-        appendField(moduleCard, "Module name", chatApp.name || "", (value) => {
-          chatApp.name = value || undefined;
-          moduleTitle.textContent =
-            chatApp.name ||
-            backend.chatAppMetadata?.[chatApp.id]?.name ||
-            t("Chat robot %n").replace("%n", String(moduleIndex + 1));
-        }, { helper: "Optional; falls back to the Dify app name once fetched." });
-        appendField(moduleCard, "Chat App Key", chatApp.appKey, (value) => {
-          chatApp.appKey = value;
-        }, { type: "password" });
+        appendField(
+          moduleCard,
+          "Module name",
+          chatApp.name || "",
+          (value) => {
+            chatApp.name = value || undefined;
+            moduleTitle.textContent =
+              chatApp.name ||
+              backend.chatAppMetadata?.[chatApp.id]?.name ||
+              t("Chat robot %n").replace("%n", String(moduleIndex + 1));
+          },
+          { helper: "Optional; falls back to the Dify app name once fetched." },
+        );
+        appendField(
+          moduleCard,
+          "Chat App Key",
+          chatApp.appKey,
+          (value) => {
+            chatApp.appKey = value;
+          },
+          { type: "password" },
+        );
         body.appendChild(moduleCard);
       });
 
@@ -862,22 +908,60 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       body.appendChild(addModule);
 
       const advanced = el(doc, "details", "margin-top: 2px;");
-      advanced.appendChild(el(doc, "summary", "font-size: 12px; cursor: pointer;", t("Additional Dify applications")));
-      const advancedBody = el(doc, "div", "display: flex; flex-direction: column; gap: 10px; margin-top: 10px;");
-      appendField(advancedBody, "Completion App Key", backend.appKeys?.completion || "", (value) => {
-        backend.appKeys = { ...backend.appKeys, completion: value };
-      }, { type: "password" });
-      appendField(advancedBody, "Workflow App Key", backend.appKeys?.workflow || "", (value) => {
-        backend.appKeys = { ...backend.appKeys, workflow: value };
-      }, { type: "password" });
-      appendField(advancedBody, "Dataset ID", backend.datasetId || "", (value) => {
-        backend.datasetId = value || undefined;
-      }, { helper: "Optional Dify dataset used when syncing Markdown notes." });
+      advanced.appendChild(
+        el(
+          doc,
+          "summary",
+          "font-size: 12px; cursor: pointer;",
+          t("Additional Dify applications"),
+        ),
+      );
+      const advancedBody = el(
+        doc,
+        "div",
+        "display: flex; flex-direction: column; gap: 10px; margin-top: 10px;",
+      );
+      appendField(
+        advancedBody,
+        "Completion App Key",
+        backend.appKeys?.completion || "",
+        (value) => {
+          backend.appKeys = { ...backend.appKeys, completion: value };
+        },
+        { type: "password" },
+      );
+      appendField(
+        advancedBody,
+        "Workflow App Key",
+        backend.appKeys?.workflow || "",
+        (value) => {
+          backend.appKeys = { ...backend.appKeys, workflow: value };
+        },
+        { type: "password" },
+      );
+      appendField(
+        advancedBody,
+        "Dataset ID",
+        backend.datasetId || "",
+        (value) => {
+          backend.datasetId = value || undefined;
+        },
+        { helper: "Optional Dify dataset used when syncing Markdown notes." },
+      );
       advanced.appendChild(advancedBody);
       body.appendChild(advanced);
 
-      const actions = el(doc, "div", "display: flex; align-items: center; gap: 8px; flex-wrap: wrap;");
-      const testButton = el(doc, "button", OUTLINE_BTN_STYLE, t("Test Connection")) as HTMLButtonElement;
+      const actions = el(
+        doc,
+        "div",
+        "display: flex; align-items: center; gap: 8px; flex-wrap: wrap;",
+      );
+      const testButton = el(
+        doc,
+        "button",
+        OUTLINE_BTN_STYLE,
+        t("Test Connection"),
+      ) as HTMLButtonElement;
       testButton.type = "button";
       const status = el(doc, "span", "font-size: 11.5px; display: none;");
       testButton.addEventListener("click", async () => {
@@ -897,7 +981,12 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
           testButton.disabled = false;
         }
       });
-      const refreshButton = el(doc, "button", OUTLINE_BTN_STYLE, t("Refresh app names")) as HTMLButtonElement;
+      const refreshButton = el(
+        doc,
+        "button",
+        OUTLINE_BTN_STYLE,
+        t("Refresh app names"),
+      ) as HTMLButtonElement;
       refreshButton.type = "button";
       refreshButton.addEventListener("click", async () => {
         persistDifyBackends();
@@ -929,7 +1018,8 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     const addBackend = el(
       doc,
       "button",
-      PRIMARY_BTN_STYLE + " margin-top: 2px; font-size: 12.5px; text-align: center;",
+      PRIMARY_BTN_STYLE +
+        " margin-top: 2px; font-size: 12.5px; text-align: center;",
       t("+ Add Backend"),
     ) as HTMLButtonElement;
     addBackend.type = "button";
@@ -2404,6 +2494,12 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
       );
     });
   }
+  if (enableSubagentsInput) {
+    enableSubagentsInput.checked = isSubagentsEnabled();
+    enableSubagentsInput.addEventListener("change", () => {
+      setSubagentsEnabled(enableSubagentsInput.checked);
+    });
+  }
 
   const copyTextToClipboard = async (text: string) => {
     const value = text.trim();
@@ -2434,10 +2530,39 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     const workspaceDirectoryInput = doc.querySelector(
       `#${config.addonRef}-workspace-directory`,
     ) as HTMLInputElement | null;
-    if (workspaceDirectoryInput) {
+    const workspaceDirectoryTestButton = doc.querySelector(
+      `#${config.addonRef}-test-workspace-directory`,
+    ) as HTMLButtonElement | null;
+    const workspaceDirectoryTestStatus = doc.querySelector(
+      `#${config.addonRef}-workspace-directory-test-status`,
+    ) as HTMLSpanElement | null;
+    if (
+      workspaceDirectoryInput &&
+      workspaceDirectoryTestButton &&
+      workspaceDirectoryTestStatus
+    ) {
       workspaceDirectoryInput.value = getWorkspaceDirectory();
-      workspaceDirectoryInput.addEventListener("input", () => {
-        setWorkspaceDirectory(workspaceDirectoryInput.value);
+      workspaceDirectoryTestButton.addEventListener("click", async () => {
+        const path = workspaceDirectoryInput.value.trim();
+        workspaceDirectoryTestButton.disabled = true;
+        workspaceDirectoryTestStatus.style.color =
+          "var(--fill-secondary, #888)";
+        workspaceDirectoryTestStatus.textContent = t("Testing…");
+        try {
+          await verifyWorkspaceDirectoryAccess(path);
+          setWorkspaceDirectory(path);
+          workspaceDirectoryInput.value = path;
+          workspaceDirectoryTestStatus.style.color = "#16a34a";
+          workspaceDirectoryTestStatus.textContent = t(
+            "Workspace directory is readable and writable",
+          );
+        } catch (error) {
+          workspaceDirectoryTestStatus.style.color = "#dc2626";
+          workspaceDirectoryTestStatus.textContent =
+            error instanceof Error ? error.message : String(error);
+        } finally {
+          workspaceDirectoryTestButton.disabled = false;
+        }
       });
     }
     const vscodeExecutablePathInput = doc.querySelector(
@@ -2449,6 +2574,103 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
         setVSCodeExecutablePath(vscodeExecutablePathInput.value);
       });
     }
+    const replicationPythonEnvironmentInput = doc.querySelector(
+      `#${config.addonRef}-replication-python-environment`,
+    ) as HTMLInputElement | null;
+    const replicationPythonEnvironmentSelect = doc.querySelector(
+      `#${config.addonRef}-replication-python-environment-select`,
+    ) as HTMLSelectElement | null;
+    const refreshReplicationPythonEnvironmentsButton = doc.querySelector(
+      `#${config.addonRef}-refresh-replication-python-environments`,
+    ) as HTMLButtonElement | null;
+    const replicationPythonEnvironmentStatus = doc.querySelector(
+      `#${config.addonRef}-replication-python-environment-status`,
+    ) as HTMLSpanElement | null;
+    const populateReplicationPythonEnvironments = async () => {
+      if (!replicationPythonEnvironmentSelect) return;
+      const configuredEnvironment = getReplicationPythonEnvironment();
+      replicationPythonEnvironmentSelect.disabled = true;
+      if (refreshReplicationPythonEnvironmentsButton) {
+        refreshReplicationPythonEnvironmentsButton.disabled = true;
+      }
+      if (replicationPythonEnvironmentStatus) {
+        replicationPythonEnvironmentStatus.textContent = t("Detecting…");
+      }
+      try {
+        const environments = await discoverReplicationPythonEnvironments();
+        replicationPythonEnvironmentSelect.replaceChildren();
+        const systemOption = doc.createElement("option");
+        systemOption.value = "";
+        systemOption.textContent = t("System Python (no virtual environment)");
+        replicationPythonEnvironmentSelect.appendChild(systemOption);
+        for (const environment of environments) {
+          const option = doc.createElement("option");
+          option.value = environment.environmentPath;
+          option.textContent = `${environment.label} — ${environment.executablePath}`;
+          replicationPythonEnvironmentSelect.appendChild(option);
+        }
+        let hasConfiguredOption = false;
+        for (
+          let index = 0;
+          index < replicationPythonEnvironmentSelect.options.length;
+          index += 1
+        ) {
+          if (
+            replicationPythonEnvironmentSelect.options[index]?.value ===
+            configuredEnvironment
+          ) {
+            hasConfiguredOption = true;
+            break;
+          }
+        }
+        if (configuredEnvironment && !hasConfiguredOption) {
+          const option = doc.createElement("option");
+          option.value = configuredEnvironment;
+          option.textContent = `${t("Custom path")} — ${configuredEnvironment}`;
+          replicationPythonEnvironmentSelect.appendChild(option);
+        }
+        replicationPythonEnvironmentSelect.value = configuredEnvironment;
+        if (replicationPythonEnvironmentStatus) {
+          replicationPythonEnvironmentStatus.textContent = t(
+            "Detected %n environments",
+          ).replace("%n", String(environments.length));
+        }
+      } catch (error) {
+        if (replicationPythonEnvironmentStatus) {
+          replicationPythonEnvironmentStatus.textContent =
+            error instanceof Error ? error.message : String(error);
+          replicationPythonEnvironmentStatus.style.color = "red";
+        }
+      } finally {
+        replicationPythonEnvironmentSelect.disabled = false;
+        if (refreshReplicationPythonEnvironmentsButton) {
+          refreshReplicationPythonEnvironmentsButton.disabled = false;
+        }
+      }
+    };
+    if (replicationPythonEnvironmentInput) {
+      replicationPythonEnvironmentInput.value =
+        getReplicationPythonEnvironment();
+      replicationPythonEnvironmentInput.addEventListener("input", () => {
+        setReplicationPythonEnvironment(
+          replicationPythonEnvironmentInput.value,
+        );
+      });
+    }
+    replicationPythonEnvironmentSelect?.addEventListener("change", () => {
+      const value = replicationPythonEnvironmentSelect.value;
+      setReplicationPythonEnvironment(value);
+      if (replicationPythonEnvironmentInput) {
+        replicationPythonEnvironmentInput.value = value;
+      }
+    });
+    refreshReplicationPythonEnvironmentsButton?.addEventListener(
+      "click",
+      () => {
+        void populateReplicationPythonEnvironments();
+      },
+    );
+    void populateReplicationPythonEnvironments();
 
     const notesDirNicknameInput = doc.querySelector(
       `#${config.addonRef}-notes-dir-nickname`,

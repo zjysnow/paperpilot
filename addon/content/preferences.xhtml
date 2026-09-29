@@ -701,6 +701,37 @@
           </html:span>
         </html:div>
 
+        <html:div style="display: flex; flex-direction: column; gap: 4px">
+          <html:label
+            style="
+              display: inline-flex;
+              align-items: center;
+              gap: 8px;
+              font-weight: 600;
+              font-size: 12px;
+              color: var(--fill-primary, inherit);
+            "
+          >
+            <html:input
+              id="__addonRef__-enable-subagents"
+              type="checkbox"
+            ></html:input>
+            Enable Subagents (Beta)
+          </html:label>
+          <html:span
+            style="
+              font-size: 11px;
+              color: var(--fill-secondary, #888);
+              margin-top: 1px;
+              display: block;
+            "
+          >
+            Lets Agent Mode delegate focused read-only tasks to fresh contexts
+            using the currently selected model. This helps keep long replication
+            and research workflows grounded.
+          </html:span>
+        </html:div>
+
         <html:div
           style="
             display: flex;
@@ -821,8 +852,30 @@
                   margin-top: 1px;
                 "
               >
-                Absolute path to the directory used as the workspace root
+                Enter a path, then test and save it. The path is saved only
+                after a directory create, write, read-back, and cleanup test
+                succeeds.
               </html:span>
+              <html:div
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-top: 5px;
+                "
+              >
+                <html:button
+                  id="__addonRef__-test-workspace-directory"
+                  type="button"
+                  style="padding: 4px 9px; font-size: 11px"
+                >
+                  Test &amp; Save Workspace
+                </html:button>
+                <html:span
+                  id="__addonRef__-workspace-directory-test-status"
+                  style="font-size: 10.5px; color: var(--fill-secondary, #888)"
+                ></html:span>
+              </html:div>
             </html:div>
             <html:div style="display: flex; flex-direction: column; gap: 2px">
               <html:label
@@ -861,6 +914,150 @@
               >
                 Optional path to VS Code or VS Code Insiders; the platform
                 default is used when empty
+              </html:span>
+            </html:div>
+          </html:div>
+        </html:div>
+
+        <!-- ── Replication Environment ── -->
+        <html:div
+          style="
+            border: 1px solid var(--stroke-secondary, #c8c8c8);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 6px;
+          "
+        >
+          <html:div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 8px 12px;
+              background: Field;
+              color: FieldText;
+              border-bottom: 1px solid var(--stroke-secondary, #c8c8c8);
+            "
+          >
+            <html:span style="font-weight: 700; font-size: 13px"
+              >Replication Environment</html:span
+            >
+          </html:div>
+          <html:div
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              padding: 14px;
+            "
+          >
+            <html:span
+              style="
+                font-size: 11.5px;
+                color: var(--fill-secondary, #888);
+                line-height: 1.5;
+              "
+            >
+              Choose the Python virtual environment used by paper-replication
+              validation, training, and evaluation commands.
+            </html:span>
+            <html:div style="display: flex; flex-direction: column; gap: 2px">
+              <html:div
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  flex-wrap: wrap;
+                "
+              >
+                <html:label
+                  for="__addonRef__-replication-python-environment-select"
+                  style="
+                    display: block;
+                    font-weight: 600;
+                    font-size: 12px;
+                    color: var(--fill-primary, inherit);
+                  "
+                >
+                  Detected Environments
+                </html:label>
+                <html:button
+                  id="__addonRef__-refresh-replication-python-environments"
+                  type="button"
+                  style="padding: 3px 8px; font-size: 11px"
+                >
+                  Refresh
+                </html:button>
+                <html:span
+                  id="__addonRef__-replication-python-environment-status"
+                  style="font-size: 10.5px; color: var(--fill-secondary, #888)"
+                ></html:span>
+              </html:div>
+              <html:select
+                id="__addonRef__-replication-python-environment-select"
+                style="
+                  width: 100%;
+                  padding: 6px 10px;
+                  font-size: 13px;
+                  border: 1px solid var(--stroke-secondary, #c8c8c8);
+                  border-radius: 6px;
+                  box-sizing: border-box;
+                  background: Field;
+                  color: FieldText;
+                "
+              ></html:select>
+              <html:span
+                style="
+                  font-size: 10.5px;
+                  color: var(--fill-secondary, #888);
+                  margin-top: 1px;
+                "
+              >
+                Detects common Workspace, virtualenv, pyenv, Conda, Miniconda,
+                Miniforge, and Mamba environments. Refresh after creating an
+                environment.
+              </html:span>
+            </html:div>
+            <html:div style="display: flex; flex-direction: column; gap: 2px">
+              <html:label
+                for="__addonRef__-replication-python-environment"
+                style="
+                  display: block;
+                  font-weight: 600;
+                  font-size: 12px;
+                  color: var(--fill-primary, inherit);
+                  margin-bottom: 2px;
+                "
+              >
+                Python Virtual Environment
+              </html:label>
+              <html:input
+                id="__addonRef__-replication-python-environment"
+                type="text"
+                placeholder="/path/to/.venv or /path/to/.venv/bin/python"
+                style="
+                  width: 100%;
+                  padding: 6px 10px;
+                  font-size: 13px;
+                  border: 1px solid var(--stroke-secondary, #c8c8c8);
+                  border-radius: 6px;
+                  box-sizing: border-box;
+                  background: Field;
+                  color: FieldText;
+                "
+              ></html:input>
+              <html:span
+                style="
+                  font-size: 10.5px;
+                  color: var(--fill-secondary, #888);
+                  margin-top: 1px;
+                "
+              >
+                Choose a detected environment above, or enter a venv root or
+                Python executable manually. The plugin resolves venv roots to
+                <html:code>bin/python</html:code> on macOS/Linux and
+                <html:code>Scripts\python.exe</html:code> on Windows. Leave
+                empty to use the system Python command.
               </html:span>
             </html:div>
           </html:div>
@@ -1150,7 +1347,12 @@
         style="display: none; flex-direction: column; gap: 10px"
       >
         <html:div
-          style="display: flex; flex-direction: column; gap: 2px; margin-bottom: 2px"
+          style="
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-bottom: 2px;
+          "
         >
           <html:span
             style="
@@ -1225,8 +1427,13 @@
                 "
               />
               <html:span
-                style="font-size: 11px; color: var(--fill-secondary, #888); margin-top: 3px"
-                >Use your Dify instance URL, including its API version path.</html:span
+                style="
+                  font-size: 11px;
+                  color: var(--fill-secondary, #888);
+                  margin-top: 3px;
+                "
+                >Use your Dify instance URL, including its API version
+                path.</html:span
               >
             </html:div>
             <html:div style="display: flex; flex-direction: column">
@@ -1283,11 +1490,23 @@
                 "
               />
               <html:span
-                style="font-size: 11px; color: var(--fill-secondary, #888); margin-top: 3px"
-                >Identifier sent with requests to your Dify applications.</html:span
+                style="
+                  font-size: 11px;
+                  color: var(--fill-secondary, #888);
+                  margin-top: 3px;
+                "
+                >Identifier sent with requests to your Dify
+                applications.</html:span
               >
             </html:div>
-            <html:div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+            <html:div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+              "
+            >
               <html:button
                 id="__addonRef__-dify-test"
                 type="button"
@@ -1360,7 +1579,8 @@
           >
             <html:span
               style="font-size: 11px; color: var(--fill-secondary, #888)"
-              >Configure published Dify applications for each supported task.</html:span
+              >Configure published Dify applications for each supported
+              task.</html:span
             >
             <html:div
               id="__addonRef__-dify-chat-apps"
@@ -1394,7 +1614,11 @@
               />
               <html:span
                 id="__addonRef__-dify-completion-name"
-                style="font-size: 11px; color: var(--fill-secondary, #888); margin-top: 3px"
+                style="
+                  font-size: 11px;
+                  color: var(--fill-secondary, #888);
+                  margin-top: 3px;
+                "
               ></html:span>
             </html:div>
             <html:div style="display: flex; flex-direction: column">
@@ -1425,7 +1649,11 @@
               />
               <html:span
                 id="__addonRef__-dify-workflow-name"
-                style="font-size: 11px; color: var(--fill-secondary, #888); margin-top: 3px"
+                style="
+                  font-size: 11px;
+                  color: var(--fill-secondary, #888);
+                  margin-top: 3px;
+                "
               ></html:span>
             </html:div>
             <html:div style="display: flex; flex-direction: column">
@@ -1455,8 +1683,13 @@
                 "
               />
               <html:span
-                style="font-size: 11px; color: var(--fill-secondary, #888); margin-top: 3px"
-                >Optional Dify dataset used when syncing Markdown notes.</html:span
+                style="
+                  font-size: 11px;
+                  color: var(--fill-secondary, #888);
+                  margin-top: 3px;
+                "
+                >Optional Dify dataset used when syncing Markdown
+                notes.</html:span
               >
             </html:div>
             <html:span

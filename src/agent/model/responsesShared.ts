@@ -353,6 +353,50 @@ function extractToolCallsFromOutputs(outputs: unknown): AgentToolCall[] {
   return calls;
 }
 
+function isEmptyFunctionCallArguments(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value === "string") return !value.trim();
+  return (
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value as Record<string, unknown>).length === 0
+  );
+}
+
+function filterEmptyDuplicateFunctionCalls(outputs: unknown[]): unknown[] {
+  const functionNamesWithArguments = new Set<string>();
+  for (const output of outputs) {
+    if (!output || typeof output !== "object") continue;
+    const row = output as ResponsesOutputItem;
+    const typeValue =
+      typeof row.type === "string" ? row.type.toLowerCase() : "";
+    const name =
+      typeof row.name === "string" && row.name.trim() ? row.name.trim() : "";
+    if (
+      typeValue === "function_call" &&
+      name &&
+      !isEmptyFunctionCallArguments(row.arguments)
+    ) {
+      functionNamesWithArguments.add(name);
+    }
+  }
+  if (!functionNamesWithArguments.size) return outputs;
+  return outputs.filter((output) => {
+    if (!output || typeof output !== "object") return true;
+    const row = output as ResponsesOutputItem;
+    const typeValue =
+      typeof row.type === "string" ? row.type.toLowerCase() : "";
+    const name =
+      typeof row.name === "string" && row.name.trim() ? row.name.trim() : "";
+    return !(
+      typeValue === "function_call" &&
+      name &&
+      functionNamesWithArguments.has(name) &&
+      isEmptyFunctionCallArguments(row.arguments)
+    );
+  });
+}
+
 function extractOutputText(outputs: unknown): string {
   if (!Array.isArray(outputs)) return "";
   return outputs
@@ -430,7 +474,9 @@ function mergeResponseOutputItems(
 export function normalizeResponsesStepFromPayload(
   data: ResponsesPayload,
 ): NormalizedResponsesStep {
-  const outputs = Array.isArray(data.output) ? data.output : [];
+  const outputs = filterEmptyDuplicateFunctionCalls(
+    Array.isArray(data.output) ? data.output : [],
+  );
   const responseId =
     typeof data.id === "string" && data.id.trim() ? data.id.trim() : undefined;
   const toolCalls = extractToolCallsFromOutputs(outputs);
@@ -844,9 +890,8 @@ export async function parseResponsesStepStream(
 
   if (latestPayload) {
     const normalized = normalizeResponsesStepFromPayload(latestPayload);
-    const outputItems = mergeResponseOutputItems(
-      normalized.outputItems,
-      streamedOutputs,
+    const outputItems = filterEmptyDuplicateFunctionCalls(
+      mergeResponseOutputItems(normalized.outputItems, streamedOutputs),
     );
     const finalText =
       normalized.text ||
@@ -881,10 +926,11 @@ export async function parseResponsesStepStream(
     };
   }
 
-  const toolCalls = extractToolCallsFromOutputs(streamedOutputs);
+  const outputItems = filterEmptyDuplicateFunctionCalls(streamedOutputs);
+  const toolCalls = extractToolCallsFromOutputs(outputItems);
   const finalText =
-    streamedText.trim() || extractOutputText(streamedOutputs).trim();
-  if (!finalText && (streamedOutputs.length || eventTypesSeen.size > 0)) {
+    streamedText.trim() || extractOutputText(outputItems).trim();
+  if (!finalText && (outputItems.length || eventTypesSeen.size > 0)) {
     logEmptyResponse(
       "LLM Agent: Empty responses step without completed payload",
       {
@@ -900,6 +946,6 @@ export async function parseResponsesStepStream(
     responseId,
     text: finalText,
     toolCalls,
-    outputItems: streamedOutputs,
+    outputItems,
   };
 }
