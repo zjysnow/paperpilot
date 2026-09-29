@@ -742,18 +742,42 @@ function isSuccessfulPaperReplicationProjectInspection(
   },
   projectDirectory: string,
 ): boolean {
-  if (
-    !isRunCommandMatching(record, /\b(?:find|ls|dir)\b/i, {
-      requireSuccess: true,
-    })
-  ) {
+  if (!isRunCommandMatching(record, /\b(?:find|ls|dir)\b/i)) {
     return false;
   }
-  const input = record.input as { cwd?: unknown };
-  return (
+  const input = record.input as { cwd?: unknown; command?: unknown };
+  if (typeof input.command !== "string") return false;
+  if (!/\bgit\b[\s\S]*\b(?:status|rev-parse)\b/i.test(input.command)) {
+    return false;
+  }
+  const result = record.content;
+  if (!result || typeof result !== "object") return false;
+  const { exitCode, stdout, stderr } = result as {
+    exitCode?: unknown;
+    stdout?: unknown;
+    stderr?: unknown;
+  };
+  const isConfirmedNonRepository =
+    exitCode === 128 &&
+    [stdout, stderr]
+      .filter((value): value is string => typeof value === "string")
+      .join("\n")
+      .toLowerCase()
+      .includes("not a git repository");
+  if (exitCode !== 0 && !isConfirmedNonRepository) return false;
+  const exactWorkingDirectory =
     typeof input.cwd === "string" &&
     isLocalPathInsideOrEqual(input.cwd, projectDirectory) &&
-    isLocalPathInsideOrEqual(projectDirectory, input.cwd)
+    isLocalPathInsideOrEqual(projectDirectory, input.cwd);
+  if (exactWorkingDirectory) return true;
+
+  const normalizedProjectDirectory = projectDirectory
+    .replace(/\\/g, "/")
+    .replace(/\/+$/g, "");
+  const normalizedCommand = input.command.replace(/\\/g, "/");
+  return (
+    normalizedProjectDirectory.length > 0 &&
+    normalizedCommand.includes(normalizedProjectDirectory)
   );
 }
 
@@ -1179,6 +1203,7 @@ export class AgentRuntime {
       let noteWriteCorrectionUsed = false;
       let paperReplicationCompletionCorrections = 0;
       let paperReplicationContinuationCorrections = 0;
+      let paperReplicationStatePreflightUsed = false;
       let replicationWorkspaceApproval: "unknown" | "approved" | "denied" =
         "unknown";
       let fullReadCorrectionUsed = false;
@@ -2491,14 +2516,100 @@ export class AgentRuntime {
           text: stepStreamedText,
         });
       };
-      for (let round = 1; round <= maxRounds; round += 1) {
+      const readPaperReplicationStateBeforeContinuation = async (
+        round: number,
+      ): Promise<{
+        stopRun: boolean;
+        finalText?: string;
+      }> => {
+        paperReplicationStatePreflightUsed = true;
+        const call = buildSyntheticToolCall("file_io", {
+          action: "read",
+          filePath: `${replicationProjectDirectory}/paperpilot-replication.json`,
+        });
+        const assistantToolMessage: AgentModelMessage = {
+          role: "assistant",
+          content: "",
+          tool_calls: [call],
+        };
+        messages.push(assistantToolMessage);
+        newTranscriptMessages.push(assistantToolMessage);
+        const outcome = await executeToolWorkflow(call, round, {
+          modelCallId: call.id,
+        });
+        if (outcome.delivery) {
+          const toolMessage: AgentModelMessage = {
+            role: "tool",
+            tool_call_id: outcome.delivery.callId,
+            name: outcome.delivery.name,
+            content: JSON.stringify(outcome.delivery.content ?? {}, null, 2),
+          };
+          messages.push(toolMessage);
+          newTranscriptMessages.push(toolMessage);
+          for (const followupMessage of outcome.delivery.followupMessages) {
+            messages.push(followupMessage);
+            newTranscriptMessages.push(followupMessage);
+          }
+        }
+        return {
+          stopRun: Boolean(outcome.stopRun),
+          finalText: outcome.finalText,
+        };
+      };
+      const continuationRounds =
+        requiresPaperReplicationProjectWrite ||
+        requiresPaperReplicationContinuation
+          ? 8
+          : 4;
+      const totalRoundLimit = maxRounds + continuationRounds;
+      let continuationCheckpointCreated = false;
+      const createContinuationCheckpoint = async (): Promise<void> => {
+        if (continuationCheckpointCreated) return;
+        continuationCheckpointCreated = true;
+        await emit({
+          type: "status",
+          text: "Checkpointing progress and continuing agent…",
+        });
+        const compacted = compactAgentTranscript({
+          messages,
+          budget: budgetState,
+          force: true,
+          conversationKey: request.conversationKey,
+          resourceSignature: resourceContextPlan.resourceSignature,
+        });
+        if (compacted.compacted) {
+          const systemMessages = messages.filter(
+            (message) => message.role === "system",
+          );
+          messages.splice(
+            0,
+            messages.length,
+            ...systemMessages,
+            ...compacted.messages,
+          );
+          await upsertAgentToolResultHandles(compacted.handleRecords);
+          if (compacted.handleRecords.length) toolResultReadAvailable = true;
+          await emit({ type: "context_compacted", automatic: true });
+        }
+        const continuationMessage: AgentModelMessage = {
+          role: "user",
+          content:
+            "Execution checkpoint reached. Continue from the completed tool results and preserved context. Complete the next bounded necessary actions, then return a concise final answer with completed work, remaining blockers, and the exact next step. Do not repeat completed inspections or tool calls unless new evidence requires it.",
+        };
+        messages.push(continuationMessage);
+        newTranscriptMessages.push(continuationMessage);
+      };
+      for (let round = 1; round <= totalRoundLimit; round += 1) {
+        if (round === maxRounds + 1) {
+          await createContinuationCheckpoint();
+        }
         let stepResult: { step: AgentModelStep; stepStreamedText: string };
         try {
           stepResult = await runModelStep(
             round,
             round === 1
               ? "Running agent"
-              : `Continuing agent (${round}/${maxRounds})`,
+              : `Continuing agent (${round}/${totalRoundLimit})`,
           );
         } catch (err) {
           if (err instanceof AgentPromptBudgetError) {
@@ -2642,6 +2753,25 @@ export class AgentRuntime {
           }
           if (
             requiresPaperReplicationContinuation &&
+            !hasReadPaperReplicationState() &&
+            !paperReplicationStatePreflightUsed &&
+            toolExecutionRecords.length === 0 &&
+            this.registry.getTool("file_io")
+          ) {
+            await rollbackCommittedStreamedText(stepStreamedText);
+            const preflight = await readPaperReplicationStateBeforeContinuation(
+              round,
+            );
+            if (preflight.stopRun) {
+              return completeRun(
+                preflight.finalText || currentAnswerText,
+                "completed",
+              );
+            }
+            continue;
+          }
+          if (
+            requiresPaperReplicationContinuation &&
             (!hasReadPaperReplicationState() ||
               !hasAttemptedPaperReplicationDataValidation() ||
               (hasSuccessfulPaperReplicationDataValidation() &&
@@ -2653,7 +2783,7 @@ export class AgentRuntime {
                 !hasPaperReplicationOutcomeReport()))
           ) {
             await rollbackCommittedStreamedText(stepStreamedText);
-            if (paperReplicationContinuationCorrections < 3) {
+            if (paperReplicationContinuationCorrections < 5) {
               paperReplicationContinuationCorrections += 1;
               const missing: string[] = [];
               if (!hasReadPaperReplicationState()) {
@@ -2764,7 +2894,7 @@ export class AgentRuntime {
 
       const finalText =
         currentAnswerText ||
-        "Agent stopped before reaching a final answer. Try narrowing the request.";
+        "Agent reached its bounded execution limit before producing a final answer. Progress was checkpointed; ask it to continue to resume from the completed work.";
       return completeRun(finalText, "failed");
     } finally {
       pathLease.release();

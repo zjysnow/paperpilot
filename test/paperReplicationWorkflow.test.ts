@@ -126,7 +126,12 @@ test`),
       validate: (value) => ({ ok: true, value: value as { command: string } }),
       execute: async (input) => {
         commands.push(input.command);
-        return { exitCode: 0 };
+        return input.command.includes("find")
+          ? {
+              exitCode: 128,
+              stderr: "fatal: not a git repository (or any of the parent directories): .git",
+            }
+          : { exitCode: 0 };
       },
     });
 
@@ -142,8 +147,8 @@ test`),
                 id: "inspect-project",
                 name: "run_command",
                 arguments: {
-                  command: "find . -maxdepth 2 -print && git status --short",
-                  cwd: "/workspace/Paper Workspace",
+                  command:
+                    'find "/workspace/Paper Workspace" -maxdepth 2 -print && git -C "/workspace/Paper Workspace" status --short 2>&1 || true',
                 },
               },
               {
@@ -172,8 +177,8 @@ test`),
                   id: "inspect-project",
                   name: "run_command",
                   arguments: {
-                    command: "find . -maxdepth 2 -print && git status --short",
-                    cwd: "/workspace/Paper Workspace",
+                    command:
+                      'find "/workspace/Paper Workspace" -maxdepth 2 -print && git -C "/workspace/Paper Workspace" status --short 2>&1 || true',
                   },
                 },
                 {
@@ -216,7 +221,7 @@ test`),
     assert.equal(approvalRequested, true);
     assert.deepEqual(writes, ["/workspace/Paper Workspace/src/main.py"]);
     assert.deepEqual(commands, [
-      "find . -maxdepth 2 -print && git status --short",
+      'find "/workspace/Paper Workspace" -maxdepth 2 -print && git -C "/workspace/Paper Workspace" status --short 2>&1 || true',
       "git init && git add src/main.py && git commit -m 'Initial paper replication'",
     ]);
   });
@@ -495,6 +500,10 @@ test`),
         filePath: "/workspace/Paper Workspace/paperpilot-replication.json",
       },
       {
+        action: "read",
+        filePath: "/workspace/Paper Workspace/paperpilot-replication.json",
+      },
+      {
         action: "write",
         filePath: "/workspace/Paper Workspace/docs/EXPERIMENT_RESULTS.md",
       },
@@ -650,5 +659,130 @@ test`),
     assert.deepEqual(writes, [
       "/workspace/Paper Workspace/docs/DATA_VALIDATION.md",
     ]);
+  });
+
+  it("reads persisted state before correcting a continuation that ends early", async function () {
+    const fileCalls: Array<{ action: string; filePath: string }> = [];
+    const commands: string[] = [];
+    const registry = new AgentToolRegistry();
+    registry.register({
+      spec: {
+        name: "file_io",
+        description: "read and write files",
+        inputSchema: { type: "object" },
+        mutability: "write",
+        requiresConfirmation: false,
+      },
+      validate: (value) =>
+        ({
+          ok: true,
+          value: value as {
+            action: string;
+            filePath: string;
+            content?: string;
+          },
+        }) as const,
+      execute: async (input) => {
+        fileCalls.push({ action: input.action, filePath: input.filePath });
+        return {
+          action: input.action,
+          filePath: input.filePath,
+          ...(input.action === "read"
+            ? { text: '{"phase":"awaiting_data"}' }
+            : {}),
+        };
+      },
+    });
+    registry.register({
+      spec: {
+        name: "run_command",
+        description: "run command",
+        inputSchema: { type: "object" },
+        mutability: "write",
+        requiresConfirmation: false,
+      },
+      validate: (value) => ({ ok: true, value: value as { command: string } }),
+      execute: async (input) => {
+        commands.push(input.command);
+        return { exitCode: 1, stderr: "data directory is missing" };
+      },
+    });
+    const runtime = new AgentRuntime({
+      registry,
+      adapterFactory: () =>
+        adapter([
+          { kind: "final", text: "I will continue." },
+          {
+            kind: "tool_calls",
+            calls: [
+              {
+                id: "validate-data",
+                name: "run_command",
+                arguments: {
+                  command: "python scripts/validate_data.py --data data",
+                },
+              },
+              {
+                id: "write-validation",
+                name: "file_io",
+                arguments: {
+                  action: "write",
+                  filePath:
+                    "/workspace/Paper Workspace/docs/DATA_VALIDATION.md",
+                  content: "# Data validation failed",
+                },
+              },
+            ],
+            assistantMessage: {
+              role: "assistant",
+              content: "",
+              tool_calls: [
+                {
+                  id: "validate-data",
+                  name: "run_command",
+                  arguments: {
+                    command: "python scripts/validate_data.py --data data",
+                  },
+                },
+                {
+                  id: "write-validation",
+                  name: "file_io",
+                  arguments: {
+                    action: "write",
+                    filePath:
+                      "/workspace/Paper Workspace/docs/DATA_VALIDATION.md",
+                    content: "# Data validation failed",
+                  },
+                },
+              ],
+            },
+          },
+          {
+            kind: "final",
+            text: "The persisted state is awaiting data; validation failed.",
+          },
+        ]),
+    });
+
+    const result = await runtime.runTurn({
+      request: request("数据已经准备好，请继续复现实验。"),
+    });
+
+    assert.equal(result.kind, "completed");
+    assert.equal(
+      result.text,
+      "The persisted state is awaiting data; validation failed.",
+    );
+    assert.deepEqual(fileCalls, [
+      {
+        action: "read",
+        filePath: "/workspace/Paper Workspace/paperpilot-replication.json",
+      },
+      {
+        action: "write",
+        filePath: "/workspace/Paper Workspace/docs/DATA_VALIDATION.md",
+      },
+    ]);
+    assert.deepEqual(commands, ["python scripts/validate_data.py --data data"]);
   });
 });

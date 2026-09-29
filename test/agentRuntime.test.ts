@@ -148,6 +148,66 @@ describe("AgentRuntime outcomes", function () {
     assert.match(result.text, /tool errors/i);
   });
 
+  it("checkpoints and continues after reaching the initial round limit", async function () {
+    const steps: AgentModelStep[] = [
+      ...Array.from({ length: 25 }, (_, index) => ({
+        kind: "tool_calls" as const,
+        calls: [
+          {
+            id: `inspect-${index}`,
+            name: "inspect",
+            arguments: {},
+          },
+        ],
+        assistantMessage: {
+          role: "assistant" as const,
+          content: "",
+          tool_calls: [
+            {
+              id: `inspect-${index}`,
+              name: "inspect",
+              arguments: {},
+            },
+          ],
+        },
+      })),
+      { kind: "final" as const, text: "completed after checkpoint" },
+    ];
+    const statuses: string[] = [];
+    const tool: AgentToolDefinition = {
+      spec: {
+        name: "inspect",
+        description: "test",
+        inputSchema: { type: "object" },
+        mutability: "read",
+        requiresConfirmation: false,
+      },
+      validate: () => ({ ok: true, value: {} }),
+      execute: async () => ({ ok: true }),
+    };
+    const result = await runtime(
+      adapter(async () => {
+        const step = steps.shift();
+        if (!step) throw new Error("Unexpected model step");
+        return step;
+      }),
+      tool,
+    ).runTurn({
+      request: request(),
+      onEvent: (event) => {
+        if (event.type === "status") statuses.push(event.text);
+      },
+    });
+
+    assert.equal(result.kind, "completed");
+    assert.equal(result.text, "completed after checkpoint");
+    assert.ok(
+      statuses.some((status) =>
+        status.includes("Checkpointing progress and continuing"),
+      ),
+    );
+  });
+
   it("lets the model recover from repeated empty file_io calls", async function () {
     const steps: AgentModelStep[] = [
       ...Array.from({ length: 3 }, (_, index) => ({
