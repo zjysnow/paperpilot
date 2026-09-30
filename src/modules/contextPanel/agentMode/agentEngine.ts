@@ -248,7 +248,11 @@ function createAgentTurnEventHandler(
     uiRelease,
   } = ctx;
   return async (event: AgentEvent): Promise<void> => {
-    recordSubagentDetailEvent(event);
+    recordSubagentDetailEvent(
+      event,
+      assistantMessage.agentRunId,
+      conversationKey,
+    );
     if (assistantMessage.agentRunId) {
       pushTraceEvent(assistantMessage.agentRunId, event);
     }

@@ -76,6 +76,7 @@ type AgentTraceDisplayItem =
       details?: AgentTraceDetail[];
       detailKey?: string;
       subagentTaskId?: string;
+      subagentCallId?: string;
     }
   | {
       type: "card_list";
@@ -2822,7 +2823,12 @@ function buildAgentTraceArgsDetails(
       }
     }
     if (isMalformedToolArgumentsDiagnostic(record)) {
-      pushTraceDetail(details, "Malformed input", record.rawPreview, "code");
+      pushTraceDetail(
+        details,
+        "Malformed model input",
+        `The model sent ${record.rawLength.toLocaleString()} characters that were not valid JSON. The command was not executed; the agent can retry with a valid tool call.`,
+      );
+      return details;
     }
   }
 
@@ -2870,6 +2876,13 @@ function summarizeAgentTraceToolCall(
   const label = toolLabelFromName(name);
   const a =
     args && typeof args === "object" ? (args as Record<string, unknown>) : {};
+  if (isMalformedToolArgumentsDiagnostic(a)) {
+    return {
+      kind: "skip",
+      icon: "!",
+      text: `Malformed input for ${label}`,
+    };
+  }
   const skillName =
     name === "Skill" && typeof a.skill === "string" && a.skill.trim()
       ? a.skill.trim()
@@ -3424,6 +3437,48 @@ function appendLegacyAgentTraceEvent(
   ctx: AgentTraceAdapterContext,
   entry: AgentRunEventRecord,
 ): boolean {
+  const findSubagentAction = (taskId: string, callId?: string) =>
+    ctx.items.find(
+      (item): item is Extract<AgentTraceDisplayItem, { type: "action" }> =>
+        item.type === "action" &&
+        (item.subagentTaskId === taskId ||
+          (callId !== undefined && item.subagentCallId === callId)),
+    );
+  const upsertSubagentAction = (params: {
+    taskId: string;
+    callId?: string;
+    task: string;
+    kind: AgentTraceSummaryKind;
+    icon: string;
+    prefix: string;
+    model?: string;
+  }) => {
+    const existing = findSubagentAction(params.taskId, params.callId);
+    const row = {
+      kind: params.kind,
+      icon: params.icon,
+      text: `${params.prefix}: ${params.task}`,
+    };
+    if (existing) {
+      existing.row = row;
+      if (params.model) {
+        existing.chips = [{ label: params.model }];
+      }
+      existing.subagentTaskId = params.taskId;
+      existing.subagentCallId =
+        existing.subagentTaskId === params.callId ? params.callId : undefined;
+      existing.detailKey = `subagent:${params.taskId}`;
+      return;
+    }
+    ctx.items.push({
+      type: "action",
+      row,
+      chips: params.model ? [{ label: params.model }] : undefined,
+      detailKey: `subagent:${params.taskId}`,
+      subagentTaskId: params.taskId,
+      subagentCallId: params.callId,
+    });
+  };
   switch (entry.payload.type) {
     case "status": {
       const statusText = readAgentTraceText(entry.payload.text);
@@ -3458,75 +3513,55 @@ function appendLegacyAgentTraceEvent(
       return true;
     }
     case "subagent_started":
-      ctx.items.push({
-        type: "action",
-        row: {
+      upsertSubagentAction({
+        taskId: entry.payload.taskId,
+        callId: entry.payload.callId,
+        task: entry.payload.title,
+        kind: "tool",
+        icon: "↳",
+        prefix: "Subagent started",
+        model: entry.payload.model,
+      });
+      return true;
+    case "subagent_completed":
+      upsertSubagentAction({
+        taskId: entry.payload.taskId,
+        callId: entry.payload.callId,
+        task: entry.payload.title,
+        kind: "ok",
+        icon: "✓",
+        prefix: "Subagent completed",
+      });
+      return true;
+    case "subagent_failed":
+      upsertSubagentAction({
+        taskId: entry.payload.taskId,
+        callId: entry.payload.callId,
+        task: entry.payload.title,
+        kind: "skip",
+        icon: "!",
+        prefix: "Subagent failed",
+      });
+      return true;
+    case "tool_call": {
+      if (entry.payload.name === "subagent_task") {
+        const task =
+          entry.payload.args &&
+          typeof entry.payload.args === "object" &&
+          !Array.isArray(entry.payload.args) &&
+          typeof (entry.payload.args as { task?: unknown }).task === "string"
+            ? (entry.payload.args as { task: string }).task
+            : "Subagent task";
+        upsertSubagentAction({
+          taskId: entry.payload.callId,
+          callId: entry.payload.callId,
+          task,
           kind: "tool",
           icon: "↳",
-          text: `Subagent started: ${entry.payload.task}`,
-        },
-        chips: [
-          {
-            label: entry.payload.model,
-          },
-        ],
-        detailKey: `subagent:${entry.payload.taskId}`,
-        subagentTaskId: entry.payload.taskId,
-      });
-      return true;
-    case "subagent_completed": {
-      const taskId = entry.payload.taskId;
-      const existing = ctx.items.find(
-        (item): item is Extract<AgentTraceDisplayItem, { type: "action" }> =>
-          item.type === "action" && item.subagentTaskId === taskId,
-      );
-      if (existing) {
-        existing.row = {
-          kind: "ok",
-          icon: "✓",
-          text: `Subagent completed: ${entry.payload.task}`,
-        };
+          prefix: "Subagent started",
+        });
         return true;
       }
-      ctx.items.push({
-        type: "action",
-        row: {
-          kind: "ok",
-          icon: "✓",
-          text: `Subagent completed: ${entry.payload.task}`,
-        },
-        detailKey: `subagent:${entry.payload.taskId}`,
-        subagentTaskId: entry.payload.taskId,
-      });
-      return true;
-    }
-    case "subagent_failed": {
-      const taskId = entry.payload.taskId;
-      const existing = ctx.items.find(
-        (item): item is Extract<AgentTraceDisplayItem, { type: "action" }> =>
-          item.type === "action" && item.subagentTaskId === taskId,
-      );
-      if (existing) {
-        existing.row = {
-          kind: "skip",
-          icon: "!",
-          text: `Subagent failed: ${entry.payload.task}`,
-        };
-        return true;
-      }
-      ctx.items.push({
-        type: "action",
-        row: {
-          kind: "skip",
-          icon: "!",
-          text: `Subagent failed: ${entry.payload.task}`,
-        },
-        detailKey: `subagent:${entry.payload.taskId}`,
-        subagentTaskId: entry.payload.taskId,
-      });
-      return true;
-    }
-    case "tool_call": {
       const isEmptyFileIOCall =
         entry.payload.name === "file_io" &&
         entry.payload.args !== null &&
@@ -3575,6 +3610,25 @@ function appendLegacyAgentTraceEvent(
       appendReasoningTraceItem(ctx, entry.payload);
       return true;
     case "tool_result": {
+      if (entry.payload.name === "subagent_task") {
+        const existing = findSubagentAction(entry.payload.callId);
+        if (existing) {
+          existing.row = {
+            kind: entry.payload.ok ? "ok" : "skip",
+            icon: entry.payload.ok ? "✓" : "!",
+            text: entry.payload.ok
+              ? existing.row.text.replace(
+                  /^Subagent started:/,
+                  "Subagent completed:",
+                )
+              : existing.row.text.replace(
+                  /^Subagent started:/,
+                  "Subagent failed:",
+                ),
+          };
+        }
+        return true;
+      }
       const isEmptyFileIOResult =
         entry.payload.name === "file_io" &&
         !entry.payload.ok &&
@@ -3589,12 +3643,33 @@ function appendLegacyAgentTraceEvent(
           }
         ).error.includes("file_io received empty tool arguments");
       if (isEmptyFileIOResult) return true;
-      const row = summarizeAgentTraceToolResult(
+      let row = summarizeAgentTraceToolResult(
         entry.payload.name,
         entry.payload.ok,
         entry.payload.content,
         ctx.requestSummary,
       );
+      const callId = entry.payload.callId;
+      const callAction = ctx.items.find(
+        (item): item is Extract<AgentTraceDisplayItem, { type: "action" }> =>
+          item.type === "action" && item.detailKey === `tool-call:${callId}`,
+      );
+      if (callAction) {
+        callAction.row = {
+          ...callAction.row,
+          kind: entry.payload.ok ? "ok" : "skip",
+          icon: entry.payload.ok ? "✓" : "!",
+        };
+        const resultInfo = buildToolResultTraceInfo(
+          entry.payload.name,
+          entry.payload,
+        );
+        callAction.details = dedupeAgentTraceDetails([
+          ...(callAction.details || []),
+          ...(resultInfo?.details || []),
+        ]);
+        row = null;
+      }
       if (row) {
         ctx.items.push({
           type: "action",
@@ -4144,7 +4219,7 @@ export function renderAgentTrace({
       openButton.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        openSubagentDetailWindow(doc, itemEntry.subagentTaskId!);
+        openSubagentDetailWindow(doc, itemEntry.subagentTaskId!, runId);
       });
       target.appendChild(openButton);
     };

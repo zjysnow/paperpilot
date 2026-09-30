@@ -35,7 +35,10 @@ import {
 } from "./shared";
 import { resolveContentParts } from "./adapterUtils";
 import type { AnthropicPromptCacheControl } from "../../contextCache/manager";
-import { createMalformedToolArgumentsDiagnostic } from "../toolArgumentDiagnostics";
+import {
+  createMalformedToolArgumentsDiagnostic,
+  parseToolArgumentsJson,
+} from "../toolArgumentDiagnostics";
 
 type AnthropicContentBlock = {
   type: string;
@@ -687,13 +690,9 @@ async function parseAnthropicStepStream(
     .map(([, state]) => {
       const block = cloneAnthropicContentBlock(state.block);
       if (block.type.toLowerCase() === "tool_use" && state.partialJson) {
-        try {
-          block.input = JSON.parse(state.partialJson);
-        } catch (_error) {
-          block.input = createMalformedToolArgumentsDiagnostic(
-            state.partialJson,
-          );
-        }
+        block.input =
+          parseToolArgumentsJson(state.partialJson) ??
+          createMalformedToolArgumentsDiagnostic(state.partialJson);
       }
       return block;
     });

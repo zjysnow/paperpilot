@@ -4,7 +4,10 @@ import type {
   AgentToolCall,
   ToolSpec,
 } from "../types";
-import { createMalformedToolArgumentsDiagnostic } from "../toolArgumentDiagnostics";
+import {
+  createMalformedToolArgumentsDiagnostic,
+  parseToolArgumentsJson,
+} from "../toolArgumentDiagnostics";
 export { parseDataUrl } from "../../shared/dataUrl";
 
 export function getFetch(): typeof fetch {
@@ -14,11 +17,9 @@ export function getFetch(): typeof fetch {
 export function parseToolCallArguments(raw: unknown): unknown {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw;
   if (typeof raw !== "string" || !raw.trim()) return {};
-  try {
-    return JSON.parse(raw);
-  } catch (_error) {
-    return createMalformedToolArgumentsDiagnostic(raw);
-  }
+  return (
+    parseToolArgumentsJson(raw) ?? createMalformedToolArgumentsDiagnostic(raw)
+  );
 }
 
 export function createFallbackToolCallId(

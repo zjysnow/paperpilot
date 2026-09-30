@@ -559,7 +559,7 @@ export function createRunCommandTool(): AgentToolDefinition<
       name: "run_command",
       description:
         "Run a shell command on the local machine. The command string is passed directly to the native shell (cmd.exe on Windows, zsh on macOS, bash on Linux). " +
-        "Use this for explicit shell tasks, data analysis scripts, conversion, or CLI tools. Not for ordinary Zotero paper/library reading when semantic Zotero tools can answer. Returns stdout, stderr, and exit code.",
+        "Use this for explicit shell tasks, data analysis scripts, conversion, or CLI tools. Before calling, inspect prior tool results and do not repeat an identical command in the same working directory after it has completed unless relevant state changed. Not for ordinary Zotero paper/library reading when semantic Zotero tools can answer. Returns stdout, stderr, and exit code.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -597,7 +597,8 @@ export function createRunCommandTool(): AgentToolDefinition<
         "Do not use run_command for ordinary Zotero paper/library reading when semantic Zotero tools can answer. " +
         "Use native shell syntax for the current OS: for example `dir %USERPROFILE%\\\\Desktop` on Windows or `ls ~/Desktop` on macOS/Linux. " +
         "Pass the complete command as a single string — pipes, redirects, globbing, and all shell features work. " +
-        "Do NOT split the command into separate command/args fields.",
+        "Do NOT split the command into separate command/args fields. " +
+        "Read the prior command result before choosing the next action; do not submit the same command in the same cwd twice unless an intervening tool changed its relevant state.",
     },
 
     presentation: {
@@ -706,19 +707,25 @@ export function createRunCommandTool(): AgentToolDefinition<
       const noteWriteRefusal = getNoteWriteBypassRefusal(input, context);
       if (noteWriteRefusal) {
         return {
-          exitCode: -1,
-          stdout: "",
-          stderr: noteWriteRefusal,
-          command: input.command,
+          ok: false,
+          content: {
+            exitCode: -1,
+            stdout: "",
+            stderr: noteWriteRefusal,
+            command: input.command,
+          },
         };
       }
       const confirmationReason = await getRunCommandConfirmationReason(input);
       if (confirmationReason && !input.allowUnsafe) {
         return {
-          exitCode: -1,
-          stdout: "",
-          stderr: confirmationReason,
-          command: input.command,
+          ok: false,
+          content: {
+            exitCode: -1,
+            stdout: "",
+            stderr: confirmationReason,
+            command: input.command,
+          },
         };
       }
       const result = await executeCommand({
@@ -756,10 +763,13 @@ export function createRunCommandTool(): AgentToolDefinition<
           : result.stderr;
 
       return {
-        exitCode: result.exitCode,
-        stdout,
-        stderr,
-        command: input.command,
+        ok: result.exitCode === 0,
+        content: {
+          exitCode: result.exitCode,
+          stdout,
+          stderr,
+          command: input.command,
+        },
       };
     },
   };

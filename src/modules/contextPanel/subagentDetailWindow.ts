@@ -12,18 +12,30 @@ type SubagentDetailEvent = Extract<
 >;
 
 type SubagentDetailState = {
-  detailsByTaskId: Map<string, SubagentDetailEvent[]>;
+  detailsByTaskKey: Map<string, SubagentDetailEvent[]>;
+  taskRunIdsByKey: Map<string, string>;
+  runConversationKeys: Map<string, number>;
   detailWindow: Window | null;
-  activeTaskId: string | null;
+  activeTaskKey: string | null;
+  activeRunId: string | null;
+  activeConversationKey: number | null;
 };
 
 const DETAIL_STATE_KEY = "__paperpilotSubagentDetailState";
 
 let state: SubagentDetailState = {
-  detailsByTaskId: new Map<string, SubagentDetailEvent[]>(),
+  detailsByTaskKey: new Map<string, SubagentDetailEvent[]>(),
+  taskRunIdsByKey: new Map<string, string>(),
+  runConversationKeys: new Map<string, number>(),
   detailWindow: null,
-  activeTaskId: null,
+  activeTaskKey: null,
+  activeRunId: null,
+  activeConversationKey: null,
 };
+
+function getTaskKey(runId: string, taskId: string): string {
+  return JSON.stringify([runId, taskId]);
+}
 
 function connectStateToMainWindow(sourceDocument: Document): void {
   const sourceWindow = sourceDocument.defaultView as
@@ -31,9 +43,22 @@ function connectStateToMainWindow(sourceDocument: Document): void {
   if (!sourceWindow) return;
   const existing = sourceWindow[DETAIL_STATE_KEY];
   if (existing) {
-    for (const [taskId, events] of state.detailsByTaskId) {
-      if (!existing.detailsByTaskId.has(taskId)) {
-        existing.detailsByTaskId.set(taskId, events);
+    existing.detailsByTaskKey ||= new Map<string, SubagentDetailEvent[]>();
+    existing.taskRunIdsByKey ||= new Map<string, string>();
+    existing.runConversationKeys ||= new Map<string, number>();
+    for (const [taskKey, events] of state.detailsByTaskKey) {
+      if (!existing.detailsByTaskKey.has(taskKey)) {
+        existing.detailsByTaskKey.set(taskKey, events);
+      }
+    }
+    for (const [taskKey, runId] of state.taskRunIdsByKey) {
+      if (!existing.taskRunIdsByKey.has(taskKey)) {
+        existing.taskRunIdsByKey.set(taskKey, runId);
+      }
+      for (const [runId, conversationKey] of state.runConversationKeys) {
+        if (!existing.runConversationKeys.has(runId)) {
+          existing.runConversationKeys.set(runId, conversationKey);
+        }
       }
     }
     state = existing;
@@ -42,19 +67,29 @@ function connectStateToMainWindow(sourceDocument: Document): void {
   sourceWindow[DETAIL_STATE_KEY] = state;
 }
 
-function taskLabel(taskId: string): string {
-  const started = (state.detailsByTaskId.get(taskId) || []).find(
+function visibleTaskKeys(): string[] {
+  if (!state.activeRunId) {
+    return [...state.detailsByTaskKey.keys()];
+  }
+  return [...state.detailsByTaskKey.keys()].filter((taskKey) => {
+    const runId = state.taskRunIdsByKey.get(taskKey);
+    return runId === state.activeRunId;
+  });
+}
+
+function taskLabel(taskKey: string): string {
+  const started = (state.detailsByTaskKey.get(taskKey) || []).find(
     (
       event,
     ): event is Extract<SubagentDetailEvent, { type: "subagent_started" }> =>
       event.type === "subagent_started",
   );
-  const task = started?.task || "Subagent task";
+  const task = started?.title || "Subagent task";
   return task.length > 44 ? `${task.slice(0, 43)}…` : task;
 }
 
-function taskStatus(taskId: string): "working" | "completed" | "failed" {
-  const events = state.detailsByTaskId.get(taskId) || [];
+function taskStatus(taskKey: string): "working" | "completed" | "failed" {
+  const events = state.detailsByTaskKey.get(taskKey) || [];
   if (events.some((event) => event.type === "subagent_failed")) {
     return "failed";
   }
@@ -84,14 +119,15 @@ function formatToolArguments(args: unknown): string {
 function render(win: Window): void {
   const root = win.document.getElementById("paperpilot-subagent-detail-root");
   if (!root) return;
-  const taskId =
-    state.activeTaskId && state.detailsByTaskId.has(state.activeTaskId)
-      ? state.activeTaskId
-      : state.detailsByTaskId.keys().next().value;
-  if (!taskId) {
+  const taskKeys = visibleTaskKeys();
+  const taskKey =
+    state.activeTaskKey && taskKeys.includes(state.activeTaskKey)
+      ? state.activeTaskKey
+      : taskKeys[0];
+  if (!taskKey) {
     return;
   }
-  const events = state.detailsByTaskId.get(taskId) || [];
+  const events = state.detailsByTaskKey.get(taskKey) || [];
   const started = events.find(
     (
       event,
@@ -99,30 +135,46 @@ function render(win: Window): void {
       event.type === "subagent_started",
   );
   const doc = win.document;
-  doc.title = started ? `Subagent: ${started.task}` : "Paper Pilot Subagent";
+  doc.title = started ? `Subagent: ${started.title}` : "Paper Pilot Subagent";
   const shell = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
   shell.dataset.paperpilotSubagentShell = "true";
   shell.style.cssText =
-    "height:100%;box-sizing:border-box;padding:16px;display:flex;flex-direction:column;gap:12px;font:13px system-ui,sans-serif;color:var(--fill-primary,CanvasText);background:var(--material-background,Canvas);";
-  const tabs = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
-  tabs.style.cssText =
-    "display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;flex:0 0 auto;";
-  for (const candidateTaskId of state.detailsByTaskId.keys()) {
-    const status = taskStatus(candidateTaskId);
-    const tab = doc.createElementNS(HTML_NS, "button") as HTMLButtonElement;
-    tab.type = "button";
-    tab.textContent = `${status === "working" ? "●" : status === "completed" ? "✓" : "!"} ${taskLabel(candidateTaskId)}`;
-    tab.title = taskLabel(candidateTaskId);
-    tab.style.cssText = `flex:0 0 auto;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 8px;border:1px solid var(--stroke-secondary,GrayText);border-radius:6px;cursor:pointer;color:var(--fill-primary,CanvasText);background:${candidateTaskId === taskId ? "color-mix(in srgb, var(--color-accent, Highlight) 16%, Canvas)" : "transparent"};`;
-    tab.addEventListener("click", () => {
-      state.activeTaskId = candidateTaskId;
+    "height:100%;box-sizing:border-box;padding:16px;display:flex;gap:16px;font:13px system-ui,sans-serif;color:var(--fill-primary,CanvasText);background:var(--material-background,Canvas);";
+  const taskList = doc.createElementNS(HTML_NS, "nav") as HTMLElement;
+  taskList.setAttribute("aria-label", "Subagent tasks");
+  taskList.style.cssText =
+    "flex:0 0 210px;min-width:160px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;padding-right:10px;border-right:1px solid var(--stroke-secondary,GrayText);";
+  const taskListTitle = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+  taskListTitle.style.cssText =
+    "padding:2px 4px 6px;color:var(--fill-secondary,GrayText);font-size:11px;font-weight:700;text-transform:uppercase;";
+  taskListTitle.textContent = "Subagent tasks";
+  taskList.appendChild(taskListTitle);
+  for (const candidateTaskKey of taskKeys) {
+    const status = taskStatus(candidateTaskKey);
+    const taskButton = doc.createElementNS(
+      HTML_NS,
+      "button",
+    ) as HTMLButtonElement;
+    taskButton.type = "button";
+    taskButton.textContent = `${status === "working" ? "●" : status === "completed" ? "✓" : "!"} ${taskLabel(candidateTaskKey)}`;
+    taskButton.title = taskLabel(candidateTaskKey);
+    taskButton.setAttribute(
+      "aria-current",
+      candidateTaskKey === taskKey ? "page" : "false",
+    );
+    taskButton.style.cssText = `width:100%;overflow:hidden;text-overflow:ellipsis;text-align:left;white-space:normal;line-height:1.35;padding:7px 8px;border:1px solid var(--stroke-secondary,GrayText);border-radius:6px;cursor:pointer;color:var(--fill-primary,CanvasText);background:${candidateTaskKey === taskKey ? "color-mix(in srgb, var(--color-accent, Highlight) 16%, Canvas)" : "transparent"};`;
+    taskButton.addEventListener("click", () => {
+      state.activeTaskKey = candidateTaskKey;
       refreshDetailWindow(win);
     });
-    tabs.appendChild(tab);
+    taskList.appendChild(taskButton);
   }
+  const content = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+  content.style.cssText =
+    "min-width:0;flex:1;display:flex;flex-direction:column;gap:12px;";
   const title = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
   title.style.cssText = "font-size:16px;font-weight:700;";
-  title.textContent = started?.task || "Subagent task";
+  title.textContent = started?.title || "Subagent task";
   const meta = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
   meta.style.cssText = "color:var(--fill-secondary,GrayText);font-size:12px;";
   meta.textContent = started
@@ -230,7 +282,8 @@ function render(win: Window): void {
     "padding:9px 12px;border:1px solid var(--stroke-secondary,GrayText);border-radius:8px;color:var(--fill-secondary,GrayText);font-size:12px;";
   composer.textContent =
     "This isolated subagent session is read-only. Its findings are returned to the main chat for integration.";
-  shell.append(tabs, title, meta, transcript, composer);
+  content.append(title, meta, transcript, composer);
+  shell.append(taskList, content);
   const existingShell = root.querySelector(
     '[data-paperpilot-subagent-shell="true"]',
   );
@@ -258,7 +311,11 @@ function focusDetailWindow(win: Window): void {
   }, 0);
 }
 
-export function recordSubagentDetailEvent(event: AgentEvent): void {
+export function recordSubagentDetailEvent(
+  event: AgentEvent,
+  agentRunId?: string,
+  conversationKey?: number,
+): void {
   if (
     event.type !== "subagent_started" &&
     event.type !== "subagent_output_delta" &&
@@ -268,9 +325,31 @@ export function recordSubagentDetailEvent(event: AgentEvent): void {
   ) {
     return;
   }
-  const events = state.detailsByTaskId.get(event.taskId) || [];
+  const runId = agentRunId || "pending";
+  const taskKey = getTaskKey(runId, event.taskId);
+  const events = state.detailsByTaskKey.get(taskKey) || [];
   events.push(event);
-  state.detailsByTaskId.set(event.taskId, events);
+  state.detailsByTaskKey.set(taskKey, events);
+  state.taskRunIdsByKey.set(taskKey, runId);
+  if (typeof conversationKey === "number" && conversationKey > 0) {
+    state.runConversationKeys.set(runId, conversationKey);
+  }
+  if (
+    event.type === "subagent_started" &&
+    state.detailWindow &&
+    !state.detailWindow.closed &&
+    state.activeConversationKey === conversationKey
+  ) {
+    if (state.activeRunId !== runId) {
+      state.activeRunId = runId;
+      state.activeTaskKey = taskKey;
+    } else if (
+      !state.activeTaskKey ||
+      taskStatus(state.activeTaskKey) !== "working"
+    ) {
+      state.activeTaskKey = taskKey;
+    }
+  }
   if (state.detailWindow && !state.detailWindow.closed) {
     refreshDetailWindow(state.detailWindow);
   }
@@ -279,14 +358,23 @@ export function recordSubagentDetailEvent(event: AgentEvent): void {
 export function openSubagentDetailWindow(
   sourceDocument: Document,
   taskId: string,
+  agentRunId: string,
 ): void {
   connectStateToMainWindow(sourceDocument);
-  const activeTaskId = state.activeTaskId;
-  if (state.detailsByTaskId.has(taskId)) {
-    state.activeTaskId = taskId;
+  const activeTaskKey = state.activeTaskKey;
+  const activeRunId = state.activeRunId;
+  const taskKey = getTaskKey(agentRunId, taskId);
+  if (state.detailsByTaskKey.has(taskKey)) {
+    state.activeTaskKey = taskKey;
+    state.activeRunId = agentRunId;
+    state.activeConversationKey =
+      state.runConversationKeys.get(agentRunId) || null;
   }
   if (state.detailWindow && !state.detailWindow.closed) {
-    if (state.activeTaskId !== activeTaskId) {
+    if (
+      state.activeTaskKey !== activeTaskKey ||
+      state.activeRunId !== activeRunId
+    ) {
       refreshDetailWindow(state.detailWindow);
     }
     focusDetailWindow(state.detailWindow);
@@ -304,19 +392,26 @@ export function openSubagentDetailWindow(
   );
   if (!win) return;
   state.detailWindow = win;
-  // A XUL dialog can load an intermediate document before the target XHTML.
-  // Keep listening until the target root exists so stream events are not lost.
-  win.addEventListener("load", () => refreshDetailWindow(win));
-  refreshDetailWindow(win);
+  const initializeWindow = () => {
+    if (win.closed) return;
+    state.detailWindow = win;
+    refreshDetailWindow(win);
+    focusDetailWindow(win);
+    // Register this only after the target XHTML has loaded. XUL unloads its
+    // intermediate document during startup, which is not a user close.
+    win.addEventListener(
+      "unload",
+      () => {
+        if (state.detailWindow === win) {
+          state.detailWindow = null;
+          state.activeTaskKey = null;
+          state.activeRunId = null;
+          state.activeConversationKey = null;
+        }
+      },
+      { once: true },
+    );
+  };
+  win.addEventListener("load", initializeWindow, { once: true });
   focusDetailWindow(win);
-  win.addEventListener(
-    "unload",
-    () => {
-      if (state.detailWindow === win) {
-        state.detailWindow = null;
-        state.activeTaskId = null;
-      }
-    },
-    { once: true },
-  );
 }

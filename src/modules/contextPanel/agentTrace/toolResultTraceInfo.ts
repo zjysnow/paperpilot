@@ -190,6 +190,34 @@ export function buildToolResultTraceInfo(
   if (!result) return null;
   const details: AgentTraceDetail[] = [];
   let rowSuffix: string | undefined;
+  if (
+    toolName === "run_command" &&
+    result.content &&
+    typeof result.content === "object" &&
+    !Array.isArray(result.content)
+  ) {
+    const commandResult = result.content as {
+      exitCode?: unknown;
+      stdout?: unknown;
+      stderr?: unknown;
+    };
+    if (typeof commandResult.exitCode === "number") {
+      pushTraceDetail(details, "Exit code", String(commandResult.exitCode));
+    }
+    if (typeof commandResult.stdout === "string" && commandResult.stdout) {
+      pushTraceDetail(details, "Standard output", commandResult.stdout, "code");
+    }
+    if (typeof commandResult.stderr === "string" && commandResult.stderr) {
+      pushTraceDetail(details, "Standard error", commandResult.stderr, "code");
+    }
+    if (!result.ok && !commandResult.stdout && !commandResult.stderr) {
+      pushTraceDetail(
+        details,
+        "Diagnostic",
+        "The command failed without captured stdout or stderr.",
+      );
+    }
+  }
   if (typeof result.content === "string" && result.content.trim()) {
     const rangeLabel = formatTraceResultLineRange(
       readTraceResultLineRange(result.content),
@@ -210,7 +238,7 @@ export function buildToolResultTraceInfo(
       "Result preview",
       buildTraceResultPreview(result.content),
     );
-  } else if (!result.ok) {
+  } else if (!result.ok && !details.length) {
     pushTraceDetail(details, "Result", "Tool failed");
   }
   if (!details.length && result.content !== undefined) {

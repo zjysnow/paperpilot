@@ -419,7 +419,7 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
     spec: {
       name: "file_io",
       description:
-        "Read or write files on the local filesystem. Reads text files (Markdown, JSON, CSV, etc.) and image files (PNG, JPG, SVG — returned as visual artifacts the model can see). Supports offset/length for partial reads of large files. For ordinary paper Q&A, use paper_read; use file_io for explicit filesystem work or direct MinerU cache metadata inspection such as manifest offsets and section slices. For paper figure interpretation or figure-note embeds, use paper_read mode:'figures'.",
+        "Read or write files on the local filesystem. Reads text files (Markdown, JSON, CSV, etc.) and image files (PNG, JPG, SVG — returned as visual artifacts the model can see). Supports offset/length for partial reads of large files. Tool arguments must be one strict JSON object: when writing, encode content as a JSON string, escaping every embedded quote, backslash, newline, carriage return, and tab; never place raw multiline source code or Markdown directly in the JSON. For ordinary paper Q&A, use paper_read; use file_io for explicit filesystem work or direct MinerU cache metadata inspection such as manifest offsets and section slices. For paper figure interpretation or figure-note embeds, use paper_read mode:'figures'.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -438,7 +438,7 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
           content: {
             type: "string",
             description:
-              "For action 'write': the content to write to the file.",
+              "For action 'write': the content to write to the file. Encode it as a valid JSON string: use \\\" for quotes, \\\\ for backslashes, and \\n/\\r/\\t for control characters.",
           },
           encoding: {
             type: "string",
@@ -471,7 +471,8 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
         "Use file_io for explicit filesystem tasks or direct MinerU manifest/section cache inspection. For figure interpretation or note figure embeds, use paper_read mode:'figures' and its extracted PDF crop paths rather than MinerU source image paths. Treat paper_read mode:'figures' as the authority for figure crop cache reuse/regeneration; use returned crop paths as-is and do not inspect or validate `figure_crops` metadata before writing. If figure extraction fails or returns no crops and the user asked for a file note, switch to text-only mode: do not include figure images, rendered PDF page screenshots, MinerU source images, or extracted-image placeholders; explicitly state that extraction failed or no extracted crops are available and base explanations on captions, figure legends, and surrounding paper text. User-provided image inputs are unaffected. " +
         "Common uses: write a Python/R script before running it with run_command, read a CSV/JSON data file, " +
         "save analysis results to the user's Desktop, export formatted bibliographies. " +
-        "Always use absolute paths.",
+        "Always use absolute paths. " +
+        "When action is 'write', emit one strict JSON object. The content value must be JSON-escaped: write embedded quotes as \\\" and line breaks as \\n, rather than placing literal multiline code or Markdown inside the tool arguments.",
     },
 
     presentation: {
@@ -757,59 +758,55 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
       }
 
       // write
-      try {
-        const existedBeforeWrite = await fileExists(input.filePath);
-        if (existedBeforeWrite === true && !input.allowOverwrite) {
-          throw new Error(
-            "Refusing to overwrite an existing file without confirmation. Retry this same file_io write so the overwrite confirmation can be shown.",
-          );
-        }
-        const previousContent =
-          existedBeforeWrite === true
-            ? await readFile(input.filePath, input.encoding || "utf-8")
-            : null;
-        await writeFile(
-          input.filePath,
-          input.content || "",
-          input.encoding || "utf-8",
+      const existedBeforeWrite = await fileExists(input.filePath);
+      if (existedBeforeWrite === true && !input.allowOverwrite) {
+        throw new Error(
+          "Refusing to overwrite an existing file without confirmation. Retry this same file_io write so the overwrite confirmation can be shown.",
         );
-        if (existedBeforeWrite === false) {
-          pushUndoEntry(context.request.conversationKey, {
-            id: `file-create-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-            toolName: "file_io",
-            description: `Delete created file: ${input.filePath}`,
-            revert: async () => {
-              await removeFileIfExists(input.filePath);
-            },
-          });
-        } else if (previousContent !== null) {
-          pushUndoEntry(context.request.conversationKey, {
-            id: `file-overwrite-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-            toolName: "file_io",
-            description: `Restore overwritten file: ${input.filePath}`,
-            revert: async () => {
-              await writeFile(
-                input.filePath,
-                previousContent,
-                input.encoding || "utf-8",
-              );
-            },
-          });
-        }
-        return {
-          action: "write",
-          filePath: input.filePath,
-          ...(requestedFilePath
-            ? {
-                requestedFilePath,
-                correctedToNotesDirectory: true,
-              }
-            : {}),
-          bytesWritten: (input.content || "").length,
-        };
-      } catch (error) {
-        throw error;
       }
+      const previousContent =
+        existedBeforeWrite === true
+          ? await readFile(input.filePath, input.encoding || "utf-8")
+          : null;
+      await writeFile(
+        input.filePath,
+        input.content || "",
+        input.encoding || "utf-8",
+      );
+      if (existedBeforeWrite === false) {
+        pushUndoEntry(context.request.conversationKey, {
+          id: `file-create-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          toolName: "file_io",
+          description: `Delete created file: ${input.filePath}`,
+          revert: async () => {
+            await removeFileIfExists(input.filePath);
+          },
+        });
+      } else if (previousContent !== null) {
+        pushUndoEntry(context.request.conversationKey, {
+          id: `file-overwrite-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          toolName: "file_io",
+          description: `Restore overwritten file: ${input.filePath}`,
+          revert: async () => {
+            await writeFile(
+              input.filePath,
+              previousContent,
+              input.encoding || "utf-8",
+            );
+          },
+        });
+      }
+      return {
+        action: "write",
+        filePath: input.filePath,
+        ...(requestedFilePath
+          ? {
+              requestedFilePath,
+              correctedToNotesDirectory: true,
+            }
+          : {}),
+        bytesWritten: (input.content || "").length,
+      };
     },
   };
 }

@@ -1,4 +1,7 @@
-import { getGeminiReasoningProfile } from "../../utils/llmClient";
+import {
+  describeNetworkRequestError,
+  getGeminiReasoningProfile,
+} from "../../utils/llmClient";
 import {
   normalizeMaxTokens,
   normalizeTemperature,
@@ -818,15 +821,20 @@ export class GeminiNativeAgentAdapter implements AgentModelAdapter {
         model: request.model || "",
         stream,
       });
-      const response = await getFetch()(url, {
-        method: "POST",
-        headers: buildProviderTransportHeaders({
-          protocol: "gemini_native",
-          apiKey: request.apiKey || "",
-        }),
-        body: JSON.stringify(payload),
-        signal: params.signal,
-      });
+      let response: Response;
+      try {
+        response = await getFetch()(url, {
+          method: "POST",
+          headers: buildProviderTransportHeaders({
+            protocol: "gemini_native",
+            apiKey: request.apiKey || "",
+          }),
+          body: JSON.stringify(payload),
+          signal: params.signal,
+        });
+      } catch (error) {
+        throw describeNetworkRequestError(url, error);
+      }
       if (!response.ok) {
         throw new Error(
           `${response.status} ${response.statusText} - ${await response.text()}`,

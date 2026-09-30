@@ -1,6 +1,10 @@
 import { CONTENT_LIKE_ARGUMENT_KEYS } from "./toolArgumentFields";
 
 const CONTENT_LIKE_ARGUMENT_KEY_SET = new Set(CONTENT_LIKE_ARGUMENT_KEYS);
+const RECOVERABLE_JSON_STRING_KEYS = [
+  ...CONTENT_LIKE_ARGUMENT_KEYS,
+  "command",
+] as const;
 const CONTENT_LIKE_ARGUMENT_KEY_PATTERN = CONTENT_LIKE_ARGUMENT_KEYS.join("|");
 const CONTENT_LIKE_ASSIGNMENT_START_PATTERN = new RegExp(
   `(?:(["'])(?:${CONTENT_LIKE_ARGUMENT_KEY_PATTERN})\\1|\\b(?:${CONTENT_LIKE_ARGUMENT_KEY_PATTERN})\\b)\\s*:\\s*`,
@@ -16,6 +20,104 @@ export type MalformedToolArgumentsDiagnostic = {
   rawPreview: string;
   rawLength: number;
 };
+
+function escapeUnescapedJsonControlCharacters(raw: string): string {
+  let repaired = "";
+  let inString = false;
+  let escaped = false;
+  for (const character of raw) {
+    if (!inString) {
+      if (character === '"') inString = true;
+      repaired += character;
+      continue;
+    }
+    if (escaped) {
+      if (character === "\n") {
+        repaired += "n";
+      } else if (character === "\r") {
+        repaired += "r";
+      } else if (character === "\t") {
+        repaired += "t";
+      } else {
+        repaired += character;
+      }
+      escaped = false;
+      continue;
+    }
+    if (character === "\\") {
+      repaired += character;
+      escaped = true;
+      continue;
+    }
+    if (character === '"') {
+      repaired += character;
+      inString = false;
+      continue;
+    }
+    if (character === "\n") {
+      repaired += "\\n";
+      continue;
+    }
+    if (character === "\r") {
+      repaired += "\\r";
+      continue;
+    }
+    if (character === "\t") {
+      repaired += "\\t";
+      continue;
+    }
+    const codePoint = character.charCodeAt(0);
+    repaired +=
+      codePoint < 0x20
+        ? `\\u${codePoint.toString(16).padStart(4, "0")}`
+        : character;
+  }
+  return repaired;
+}
+
+function isEscapedCharacter(raw: string, index: number): boolean {
+  let precedingBackslashes = 0;
+  for (
+    let cursor = index - 1;
+    cursor >= 0 && raw[cursor] === "\\";
+    cursor -= 1
+  ) {
+    precedingBackslashes += 1;
+  }
+  return precedingBackslashes % 2 === 1;
+}
+
+function repairRecoverableJsonStringValue(raw: string): unknown | null {
+  const keyPattern = RECOVERABLE_JSON_STRING_KEYS.join("|");
+  const match = new RegExp(`"(${keyPattern})"\\s*:\\s*"`, "i").exec(raw);
+  if (!match || match.index === undefined) return null;
+  const valueStart = match.index + match[0].length;
+  for (let valueEnd = valueStart; valueEnd < raw.length; valueEnd += 1) {
+    if (raw[valueEnd] !== '"' || isEscapedCharacter(raw, valueEnd)) continue;
+    const value = raw.slice(valueStart, valueEnd);
+    const encodedValue = JSON.stringify(value).slice(1, -1);
+    const repaired = `${raw.slice(0, valueStart)}${encodedValue}${raw.slice(valueEnd)}`;
+    try {
+      return JSON.parse(repaired);
+    } catch {
+      // The candidate may be a quote within source content or a later field.
+    }
+  }
+  return null;
+}
+
+export function parseToolArgumentsJson(raw: string): unknown | null {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const repaired = escapeUnescapedJsonControlCharacters(raw);
+    try {
+      return JSON.parse(repaired);
+    } catch {
+      return repairRecoverableJsonStringValue(raw);
+    }
+  }
+}
 
 export function isContentLikeToolArgumentKey(key: string): boolean {
   const normalized = key

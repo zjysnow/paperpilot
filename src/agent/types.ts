@@ -284,6 +284,8 @@ export type AgentEvent =
   | {
       type: "subagent_started";
       taskId: string;
+      callId?: string;
+      title: string;
       task: string;
       model: string;
       paperContexts: Array<{
@@ -298,6 +300,8 @@ export type AgentEvent =
   | {
       type: "subagent_completed";
       taskId: string;
+      callId?: string;
+      title: string;
       task: string;
       model: string;
       summary: string;
@@ -306,6 +310,8 @@ export type AgentEvent =
   | {
       type: "subagent_failed";
       taskId: string;
+      callId?: string;
+      title: string;
       task: string;
       error: string;
     }
@@ -650,6 +656,7 @@ export type AgentToolExecutionOutput<TResult = unknown> =
   | {
       content: TResult;
       artifacts?: AgentToolArtifact[];
+      ok?: boolean;
     };
 
 export type AgentToolContext = {

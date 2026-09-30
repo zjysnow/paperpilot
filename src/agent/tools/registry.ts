@@ -48,11 +48,13 @@ function createRequestId(): string {
 function normalizeExecutionOutput(value: AgentToolExecutionOutput<any>): {
   content: unknown;
   artifacts?: AgentToolArtifact[];
+  ok: boolean;
 } {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const record = value as {
       content?: unknown;
       artifacts?: unknown;
+      ok?: unknown;
     };
     if (Object.prototype.hasOwnProperty.call(record, "content")) {
       return {
@@ -60,11 +62,13 @@ function normalizeExecutionOutput(value: AgentToolExecutionOutput<any>): {
         artifacts: Array.isArray(record.artifacts)
           ? (record.artifacts as AgentToolArtifact[])
           : undefined,
+        ok: record.ok !== false,
       };
     }
   }
   return {
     content: value,
+    ok: true,
   };
 }
 
@@ -165,7 +169,7 @@ export class AgentToolRegistry {
           result: {
             callId: call.id,
             name: call.name,
-            ok: true,
+            ok: executionOutput.ok,
             content: executionOutput.content,
             artifacts: executionOutput.artifacts,
           },

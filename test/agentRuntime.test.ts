@@ -246,6 +246,147 @@ describe("AgentRuntime outcomes", function () {
     assert.equal(result.text, "recovered");
   });
 
+  it("preserves explicit tool failures in trace results", async function () {
+    const events: import("../src/agent/types").AgentEvent[] = [];
+    const tool: AgentToolDefinition = {
+      spec: {
+        name: "run_command",
+        description: "run a command",
+        inputSchema: { type: "object" },
+        mutability: "write",
+        requiresConfirmation: false,
+      },
+      validate: () => ({ ok: true, value: {} }),
+      execute: async () => ({
+        ok: false,
+        content: { exitCode: 128, stderr: "not a git repository" },
+      }),
+    };
+    const steps: AgentModelStep[] = [
+      {
+        kind: "tool_calls",
+        calls: [{ id: "failed-command", name: "run_command", arguments: {} }],
+        assistantMessage: {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            { id: "failed-command", name: "run_command", arguments: {} },
+          ],
+        },
+      },
+      { kind: "final", text: "recovered" },
+    ];
+    const result = await runtime(
+      adapter(async () => {
+        const step = steps.shift();
+        if (!step) throw new Error("Unexpected model step");
+        return step;
+      }),
+      tool,
+    ).runTurn({
+      request: request(),
+      onEvent: (event) => events.push(event),
+    });
+
+    assert.equal(result.kind, "completed");
+    const toolResult = events.find(
+      (
+        event,
+      ): event is Extract<
+        import("../src/agent/types").AgentEvent,
+        { type: "tool_result" }
+      > => event.type === "tool_result",
+    );
+    assert.equal(toolResult?.ok, false);
+    assert.deepEqual(toolResult?.content, {
+      exitCode: 128,
+      stderr: "not a git repository",
+    });
+  });
+
+  it("executes identical run commands only once per agent run", async function () {
+    let executionCount = 0;
+    const events: import("../src/agent/types").AgentEvent[] = [];
+    const tool: AgentToolDefinition = {
+      spec: {
+        name: "run_command",
+        description: "run a command",
+        inputSchema: { type: "object" },
+        mutability: "write",
+        requiresConfirmation: false,
+      },
+      validate: (value) => ({ ok: true, value: value as { command: string } }),
+      execute: async () => {
+        executionCount += 1;
+        return { exitCode: 0, stdout: "created" };
+      },
+    };
+    const command = "mkdir -p docs scripts data results";
+    const steps: AgentModelStep[] = [
+      {
+        kind: "tool_calls",
+        calls: [
+          {
+            id: "first-command",
+            name: "run_command",
+            arguments: { command, cwd: "/workspace/project" },
+          },
+        ],
+        assistantMessage: {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "first-command",
+              name: "run_command",
+              arguments: { command, cwd: "/workspace/project" },
+            },
+          ],
+        },
+      },
+      {
+        kind: "tool_calls",
+        calls: [
+          {
+            id: "duplicate-command",
+            name: "run_command",
+            arguments: { command, cwd: "/workspace/project" },
+          },
+        ],
+        assistantMessage: {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "duplicate-command",
+              name: "run_command",
+              arguments: { command, cwd: "/workspace/project" },
+            },
+          ],
+        },
+      },
+      { kind: "final", text: "done" },
+    ];
+    const result = await runtime(
+      adapter(async () => {
+        const step = steps.shift();
+        if (!step) throw new Error("Unexpected model step");
+        return step;
+      }),
+      tool,
+    ).runTurn({
+      request: request(),
+      onEvent: (event) => events.push(event),
+    });
+
+    assert.equal(result.kind, "completed");
+    assert.equal(executionCount, 1);
+    assert.equal(
+      events.filter((event) => event.type === "tool_call").length,
+      1,
+    );
+  });
+
   it("releases a pending confirmation when the turn is aborted", async function () {
     let confirmationRequestId = "";
     let resolved = false;

@@ -2408,6 +2408,28 @@ async function refreshCopilotAuthState(
   };
 }
 
+function redactRequestUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    return `${url.protocol}//${url.host}${url.pathname}`;
+  } catch {
+    return rawUrl;
+  }
+}
+
+export function describeNetworkRequestError(
+  url: string,
+  error: unknown,
+): Error {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return error;
+  }
+  const detail = error instanceof Error ? error.message : String(error);
+  return new Error(
+    `Unable to reach the model provider at ${redactRequestUrl(url)}: ${detail}. Check the provider URL, network/proxy settings, and TLS certificate.`,
+  );
+}
+
 async function postWithTemperatureFallback(params: {
   url: string;
   auth: RequestAuthState;
@@ -2420,13 +2442,21 @@ async function postWithTemperatureFallback(params: {
     params.payload,
     "temperature",
   );
-  const send = (bodyPayload: Record<string, unknown>, auth: RequestAuthState) =>
-    getFetch()(params.url, {
-      method: "POST",
-      headers: params.headers ?? buildAuthHeaders(auth.token, auth.mode),
-      body: JSON.stringify(bodyPayload),
-      signal: params.signal,
-    });
+  const send = async (
+    bodyPayload: Record<string, unknown>,
+    auth: RequestAuthState,
+  ) => {
+    try {
+      return await getFetch()(params.url, {
+        method: "POST",
+        headers: params.headers ?? buildAuthHeaders(auth.token, auth.mode),
+        body: JSON.stringify(bodyPayload),
+        signal: params.signal,
+      });
+    } catch (error) {
+      throw describeNetworkRequestError(params.url, error);
+    }
+  };
 
   let requestPayload = params.payload;
   const cachedPolicy = temperaturePolicyCache.get(policyKey);

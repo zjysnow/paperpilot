@@ -553,6 +553,16 @@ function buildSyntheticToolCall(name: string, args: unknown): AgentToolCall {
   };
 }
 
+function deriveSubagentTitle(task: string): string {
+  const normalized = task.replace(/\s+/g, " ").trim();
+  if (!normalized) return "Subagent task";
+  const firstSentence =
+    normalized.split(/(?<=[.!?。！？])\s*/)[0] || normalized;
+  return firstSentence.length > 72
+    ? `${firstSentence.slice(0, 71).trim()}…`
+    : firstSentence;
+}
+
 function readToolError(result: AgentToolResult): string {
   return result.content &&
     typeof result.content === "object" &&
@@ -1207,6 +1217,8 @@ export class AgentRuntime {
       let replicationWorkspaceApproval: "unknown" | "approved" | "denied" =
         "unknown";
       let fullReadCorrectionUsed = false;
+      let subagentTaskNumber = 0;
+      let subagentTaskInstanceCount = 0;
       const hasSuccessfulFileWrite = () =>
         toolExecutionRecords.some((record) => isSuccessfulFileIoWrite(record));
       const hasSuccessfulPaperReplicationProjectWrite = () =>
@@ -1757,6 +1769,10 @@ export class AgentRuntime {
             },
           };
         }
+        const title = `${++subagentTaskNumber}. ${
+          validation.value.title || deriveSubagentTitle(validation.value.task)
+        }`;
+        const taskId = `subagent-${++subagentTaskInstanceCount}-${call.id}`;
 
         const subagentRequest: AgentRuntimeRequest = {
           ...request,
@@ -1787,7 +1803,9 @@ export class AgentRuntime {
         const subagentModel = request.model || "unknown";
         await emit({
           type: "subagent_started",
-          taskId: call.id,
+          taskId,
+          callId: call.id,
+          title,
           task: validation.value.task,
           model: subagentModel,
           paperContexts,
@@ -1797,7 +1815,9 @@ export class AgentRuntime {
         ): Promise<ExecutedToolCall> => {
           await emit({
             type: "subagent_failed",
-            taskId: call.id,
+            taskId,
+            callId: call.id,
+            title,
             task: validation.value.task,
             error,
           });
@@ -1888,14 +1908,14 @@ export class AgentRuntime {
                 summary += delta;
                 void emit({
                   type: "subagent_output_delta",
-                  taskId: call.id,
+                  taskId,
                   text: delta,
                 });
               },
               onToolCall: async (subagentCall) => {
                 await emit({
                   type: "subagent_tool_activity",
-                  taskId: call.id,
+                  taskId,
                   phase: "started",
                   name: subagentCall.name,
                   args: subagentCall.arguments,
@@ -1911,7 +1931,7 @@ export class AgentRuntime {
                 if (prepared.kind === "confirmation") {
                   await emit({
                     type: "subagent_tool_activity",
-                    taskId: call.id,
+                    taskId,
                     phase: "completed",
                     name: subagentCall.name,
                     args: subagentCall.arguments,
@@ -1929,7 +1949,7 @@ export class AgentRuntime {
                 }
                 await emit({
                   type: "subagent_tool_activity",
-                  taskId: call.id,
+                  taskId,
                   phase: "completed",
                   name: subagentCall.name,
                   args: subagentCall.arguments,
@@ -1954,7 +1974,9 @@ export class AgentRuntime {
                 const completedSummary = summary.trim().slice(0, 12000);
                 await emit({
                   type: "subagent_completed",
-                  taskId: call.id,
+                  taskId,
+                  callId: call.id,
+                  title,
                   task: validation.value.task,
                   model: subagentModel,
                   summary: completedSummary,
@@ -1967,6 +1989,7 @@ export class AgentRuntime {
                     name: call.name,
                     ok: true,
                     content: {
+                      title,
                       task: validation.value.task,
                       summary: completedSummary,
                       model: subagentModel,
@@ -1993,7 +2016,7 @@ export class AgentRuntime {
               ) {
                 await emit({
                   type: "subagent_tool_activity",
-                  taskId: call.id,
+                  taskId,
                   phase: "completed",
                   name: toolCall.name,
                   ok: false,
@@ -2009,7 +2032,7 @@ export class AgentRuntime {
               }
               await emit({
                 type: "subagent_tool_activity",
-                taskId: call.id,
+                taskId,
                 phase: "started",
                 name: toolCall.name,
                 args: toolCall.arguments,
@@ -2033,7 +2056,7 @@ export class AgentRuntime {
                     };
               await emit({
                 type: "subagent_tool_activity",
-                taskId: call.id,
+                taskId,
                 phase: "completed",
                 name: toolCall.name,
                 args: toolCall.arguments,
@@ -2062,13 +2085,28 @@ export class AgentRuntime {
         if (!requiresPaperReplicationSubagentOrchestration) return;
         const tasks = requiresPaperReplicationProjectWrite
           ? [
-              "Extract the paper's confirmed method, architecture, loss functions, optimization details, and implementation-critical hyperparameters. Distinguish evidence from assumptions.",
-              "Derive the complete data contract and experiment protocol: required data layout, schema, preprocessing, splits, metrics, baselines, and reproducibility controls.",
-              "Inspect the current paper-replication project context for compatibility when available; otherwise propose a minimal but complete implementation module structure, CLI/configuration layout, and verification plan.",
+              {
+                title: "Method and implementation evidence",
+                task: "Extract the paper's confirmed method, architecture, loss functions, optimization details, and implementation-critical hyperparameters. Distinguish evidence from assumptions.",
+              },
+              {
+                title: "Data and evaluation contract",
+                task: "Derive the complete data contract and experiment protocol: required data layout, schema, preprocessing, splits, metrics, baselines, and reproducibility controls.",
+              },
+              {
+                title: "Project compatibility plan",
+                task: "Inspect the current paper-replication project context for compatibility when available; otherwise propose a minimal but complete implementation module structure, CLI/configuration layout, and verification plan.",
+              },
             ]
           : [
-              "Inspect the replication state and identify the exact data-validation checks, expected artifacts, and blockers before the next experiment.",
-              "Analyze the next bounded experiment: required command, metrics, acceptance criteria, likely failure modes, and the result/conclusion content that must be recorded.",
+              {
+                title: "Data validation status",
+                task: "Inspect the replication state and identify the exact data-validation checks, expected artifacts, and blockers before the next experiment.",
+              },
+              {
+                title: "Next experiment plan",
+                task: "Analyze the next bounded experiment: required command, metrics, acceptance criteria, likely failure modes, and the result/conclusion content that must be recorded.",
+              },
             ];
         const summaries: string[] = [];
         await emit({
@@ -2077,7 +2115,8 @@ export class AgentRuntime {
         });
         for (const [index, task] of tasks.entries()) {
           const call = buildSyntheticToolCall(SUBAGENT_TASK_TOOL_NAME, {
-            task,
+            title: task.title,
+            task: task.task,
           });
           const executed = await runSubagentTask(call);
           const result = executed.toolResult;
@@ -2112,6 +2151,13 @@ export class AgentRuntime {
         }
       };
       await runPaperReplicationSubagents();
+      const completedRunCommands = new Map<
+        string,
+        {
+          toolResult: AgentToolResult;
+          toolDefinition?: import("./types").AgentToolDefinition<any, any>;
+        }
+      >();
       const executePreparedToolCall = async (
         call: AgentToolCall,
         round: number,
@@ -2150,6 +2196,30 @@ export class AgentRuntime {
                 },
               }
             : call;
+        const runCommandKey =
+          resolvedCall.name === "run_command" &&
+          resolvedCall.arguments &&
+          typeof resolvedCall.arguments === "object" &&
+          typeof (resolvedCall.arguments as { command?: unknown }).command ===
+            "string"
+            ? JSON.stringify([
+                (resolvedCall.arguments as { cwd?: unknown }).cwd || "",
+                (resolvedCall.arguments as { command: string }).command.trim(),
+              ])
+            : null;
+        if (runCommandKey) {
+          const cached = completedRunCommands.get(runCommandKey);
+          if (cached) {
+            return {
+              input: resolvedCall.arguments,
+              toolDefinition: cached.toolDefinition,
+              toolResult: {
+                ...cached.toolResult,
+                callId: resolvedCall.id,
+              },
+            };
+          }
+        }
         await emit({
           type: "tool_call",
           callId: resolvedCall.id,
@@ -2339,6 +2409,12 @@ export class AgentRuntime {
           content: toolResult.content,
           artifacts: toolResult.artifacts,
         });
+        if (runCommandKey) {
+          completedRunCommands.set(runCommandKey, {
+            toolResult,
+            toolDefinition: executedCall.toolDefinition,
+          });
+        }
         return executedCall;
       };
       const buildToolDelivery = async (
@@ -2759,9 +2835,8 @@ export class AgentRuntime {
             this.registry.getTool("file_io")
           ) {
             await rollbackCommittedStreamedText(stepStreamedText);
-            const preflight = await readPaperReplicationStateBeforeContinuation(
-              round,
-            );
+            const preflight =
+              await readPaperReplicationStateBeforeContinuation(round);
             if (preflight.stopRun) {
               return completeRun(
                 preflight.finalText || currentAnswerText,

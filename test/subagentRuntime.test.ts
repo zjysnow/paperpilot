@@ -3,6 +3,7 @@ import { AgentRuntime } from "../src/agent/runtime";
 import { AgentToolRegistry } from "../src/agent/tools/registry";
 import { BUILTIN_SKILL_FILES, setUserSkills } from "../src/agent/skills";
 import { parseSkill } from "../src/agent/skills/skillLoader";
+import { validateSubagentTaskInput } from "../src/agent/tools/subagentTask";
 import type {
   AgentModelAdapter,
   AgentStepParams,
@@ -117,6 +118,7 @@ describe("subagent runtime", function () {
                 id: "delegate-1",
                 name: "subagent_task",
                 arguments: {
+                  title: "Implementation data requirements",
                   task: "Inspect the implementation and identify data requirements.",
                 },
               },
@@ -129,6 +131,7 @@ describe("subagent runtime", function () {
                   id: "delegate-1",
                   name: "subagent_task",
                   arguments: {
+                    title: "Implementation data requirements",
                     task: "Inspect the implementation and identify data requirements.",
                   },
                 },
@@ -227,6 +230,8 @@ describe("subagent runtime", function () {
     const started = subagentEvents[0];
     assert.equal(started.type, "subagent_started");
     if (started.type === "subagent_started") {
+      assert.equal(started.title, "1. Implementation data requirements");
+      assert.equal(started.callId, "delegate-1");
       assert.deepEqual(
         started.paperContexts.map((paper) => paper.title),
         ["Selected Paper", "Full Text Paper"],
@@ -234,8 +239,109 @@ describe("subagent runtime", function () {
     }
     assert.equal(completed.type, "subagent_completed");
     if (completed.type === "subagent_completed") {
+      assert.equal(completed.title, "1. Implementation data requirements");
+      assert.equal(completed.callId, "delegate-1");
       assert.equal(completed.model, "chosen-local-model");
       assert.match(completed.summary, /AdamW/);
+    }
+  });
+
+  it("keeps separate subagent instances when a model reuses a tool call ID", async function () {
+    const events: import("../src/agent/types").AgentEvent[] = [];
+    let factoryCalls = 0;
+    const runtime = new AgentRuntime({
+      registry: new AgentToolRegistry(),
+      adapterFactory: () => {
+        factoryCalls += 1;
+        if (factoryCalls > 1) {
+          return createAdapter([
+            {
+              kind: "final",
+              text: `Subagent report ${factoryCalls - 1}`,
+            },
+          ]);
+        }
+        return createAdapter([
+          {
+            kind: "tool_calls",
+            calls: [
+              {
+                id: "reused-delegate-id",
+                name: "subagent_task",
+                arguments: {
+                  title: "First check",
+                  task: "Inspect the first requirement.",
+                },
+              },
+              {
+                id: "reused-delegate-id",
+                name: "subagent_task",
+                arguments: {
+                  title: "Second check",
+                  task: "Inspect the second requirement.",
+                },
+              },
+            ],
+            assistantMessage: {
+              role: "assistant",
+              content: "",
+              tool_calls: [],
+            },
+          },
+          { kind: "final", text: "Both checks are complete." },
+        ]);
+      },
+    });
+
+    const result = await runtime.runTurn({
+      request: {
+        conversationKey: 502,
+        mode: "agent",
+        userText: "Review these two requirements.",
+        model: "chosen-local-model",
+      },
+      onEvent: (event) => events.push(event),
+    });
+
+    assert.equal(result.kind, "completed");
+    const started = events.filter(
+      (
+        event,
+      ): event is Extract<
+        import("../src/agent/types").AgentEvent,
+        { type: "subagent_started" }
+      > => event.type === "subagent_started",
+    );
+    const completed = events.filter(
+      (
+        event,
+      ): event is Extract<
+        import("../src/agent/types").AgentEvent,
+        { type: "subagent_completed" }
+      > => event.type === "subagent_completed",
+    );
+    assert.equal(started.length, 2);
+    assert.equal(completed.length, 2);
+    assert.deepEqual(
+      started.map((event) => event.callId),
+      ["reused-delegate-id", "reused-delegate-id"],
+    );
+    assert.notEqual(started[0].taskId, started[1].taskId);
+    assert.deepEqual(
+      completed.map((event) => event.taskId),
+      started.map((event) => event.taskId),
+    );
+  });
+
+  it("rejects local workspace tasks before starting an incapable subagent", function () {
+    const result = validateSubagentTaskInput({
+      title: "Audit workspace",
+      task: "Inspect /Users/albert/Workspace/crosstalk-lcd, list its file tree, and report Git status.",
+    });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.match(result.error, /main Agent.*file_io or run_command/i);
     }
   });
 });

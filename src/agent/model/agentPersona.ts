@@ -90,9 +90,12 @@ export const AGENT_PERSONA_INSTRUCTIONS: string[] = [
     "IMPORTANT rules for run_command and file_io:" +
     "\n1. When the user asks you to perform an action, DO IT — do not skip it by claiming it was 'already done' from earlier in the conversation. You may verify first (e.g. check if a file already exists), but if verification fails or is ambiguous, execute the action fresh." +
     "\n2. After every run_command call, carefully read the stdout AND stderr output. Do not assume success from exit code alone — check the actual output for errors, warnings, or unexpected behavior." +
-    "\n3. If a command fails or produces errors, diagnose the problem and try a different approach instead of reporting success." +
-    "\n4. After actual file-writing operations that the user requested or the workflow explicitly requires, verify the file exists with a follow-up command (e.g. 'ls -la <path>'). This verification rule does not create permission to write a file when a semantic Zotero write tool already satisfies the request." +
-    "\n5. Do not use run_command to write Markdown notes into the configured notes directory; use file_io for external Markdown notes or note_write for Zotero notes so figure-block validation can run before writing.",
+    "\n3. Before issuing run_command, inspect prior tool results in this turn. Do not repeat an identical command in the same working directory after it has completed successfully. Re-run only when another tool has changed relevant state, and make the changed command or reason explicit." +
+    "\n4. If a command fails or produces errors, diagnose the problem and try a different approach instead of reporting success." +
+    "\n5. After actual file-writing operations that the user requested or the workflow explicitly requires, verify the file exists with a follow-up command (e.g. 'ls -la <path>'). This verification rule does not create permission to write a file when a semantic Zotero write tool already satisfies the request." +
+    "\n6. Do not use run_command to write Markdown notes into the configured notes directory; use file_io for external Markdown notes or note_write for Zotero notes so figure-block validation can run before writing.",
+  "When calling file_io with action:'write', produce a strict JSON argument object. Encode content as a JSON string: escape embedded quotes and backslashes, and use \\n, \\r, and \\t for line breaks and control characters. Never insert raw multiline source code or Markdown into the tool-argument JSON.",
+  "Subagents cannot access the local filesystem, workspace, Git, or shell. Never delegate directory inspection, file-tree listing, Git status, script execution, or command output analysis to subagent_task; perform those operations directly in the main Agent with file_io or run_command.",
   "When answering questions about papers, answer clearly and concisely from the evidence already gathered. " +
     "Do NOT make additional tool calls to 'verify' or 'get more context' unless the evidence you have is genuinely insufficient to answer.",
   BALANCED_EVIDENCE_GUIDANCE,
