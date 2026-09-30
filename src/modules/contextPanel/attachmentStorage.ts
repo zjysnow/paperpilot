@@ -6,7 +6,7 @@ import {
   toFileUrl,
 } from "../../utils/localPath";
 
-export const ATTACHMENT_BLOBS_TABLE = "llm_for_zotero_attachment_blobs";
+export const ATTACHMENT_BLOBS_TABLE = "paperpilot_attachment_blobs";
 
 type IOUtilsLike = {
   exists?: (path: string) => Promise<boolean>;

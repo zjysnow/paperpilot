@@ -30,14 +30,14 @@ from scipy import ndimage
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MINERU_ROOT = Path(
-    os.environ.get("LLM_FOR_ZOTERO_MINERU_ROOT", "~/Zotero/paperpilot-mineru")
+    os.environ.get("PAPERPILOT_MINERU_ROOT", "~/Zotero/paperpilot-mineru")
 ).expanduser()
 DEFAULT_ZOTERO_STORAGE = Path(
-    os.environ.get("LLM_FOR_ZOTERO_STORAGE", "~/Zotero/storage")
+    os.environ.get("PAPERPILOT_STORAGE", "~/Zotero/storage")
 ).expanduser()
 DEFAULT_OUT = REPO_ROOT / "tmp/pdfs/figure_extraction_eval"
 RESOLVED_PDFTOPPM = shutil.which("pdftoppm")
-DEFAULT_POPPLER_BIN_VALUE = os.environ.get("LLM_FOR_ZOTERO_POPPLER_BIN") or (
+DEFAULT_POPPLER_BIN_VALUE = os.environ.get("PAPERPILOT_POPPLER_BIN") or (
     str(Path(RESOLVED_PDFTOPPM).parent) if RESOLVED_PDFTOPPM else "/usr/bin"
 )
 DEFAULT_POPPLER_BIN = Path(DEFAULT_POPPLER_BIN_VALUE).expanduser()

@@ -30,11 +30,11 @@ import {
 } from "./managedBlock";
 import { joinLocalPath } from "../../utils/localPath";
 import { patchSkillFrontmatter } from "./frontmatterPatcher";
+import { migratePaperpilotSkills } from "../../utils/paperpilotNamespaceMigration";
 import {
   getCanonicalSkillDir,
   getCanonicalSkillFilePath,
   getCanonicalUserSkillsDir,
-  getLegacyUserSkillsDir,
   getZoteroAgentRuntimeRootDir,
   NATIVE_SKILL_FILE_NAME,
 } from "./nativeSkillPaths";
@@ -47,7 +47,7 @@ export { patchSkillFrontmatter } from "./frontmatterPatcher";
 // Body hash tracking — detect user modifications to skill files
 // ---------------------------------------------------------------------------
 
-const BODY_HASH_PREF_KEY = "extensions.zotero.llmForZotero.skillBodyHashes";
+const BODY_HASH_PREF_KEY = "extensions.zotero.paperpilot.skillBodyHashes";
 
 function getBodyHashes(): Record<string, string> {
   try {
@@ -242,21 +242,12 @@ export function getUserSkillsRuntimeRootDir(): string {
   return getZoteroAgentRuntimeRootDir();
 }
 
-/** Legacy flat skill folder, retained only as a migration source. */
-export function getLegacySkillsDir(): string {
-  return getLegacyUserSkillsDir();
-}
-
 function basename(path: string): string {
   return path.split(/[/\\]/).pop() || path;
 }
 
 function dirname(path: string): string {
   return path.replace(/[\\/][^\\/]*$/, "");
-}
-
-function isSafeSkillIdForPath(skillId: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(skillId);
 }
 
 function resolveBuiltinFilenameForSkillId(skillId: string): string | null {
@@ -335,75 +326,11 @@ async function normalizeCanonicalSkillFrontmatter(
   }
 }
 
-async function migrateLegacyFlatSkills(
-  io: IOUtilsLike,
-  seeded: Set<string>,
-): Promise<void> {
-  if (
-    !io.exists ||
-    !io.read ||
-    !io.write ||
-    !io.getChildren ||
-    !io.makeDirectory
-  ) {
-    return;
-  }
-  const legacyDir = getLegacySkillsDir();
-  try {
-    if (!(await io.exists(legacyDir))) return;
-  } catch {
-    return;
-  }
-
-  let entries: string[];
-  try {
-    entries = await io.getChildren(legacyDir);
-  } catch {
-    return;
-  }
-
-  for (const filePath of entries.filter((entry) => entry.endsWith(".md"))) {
-    try {
-      const loaded = await readSkillFile(io, filePath);
-      if (!loaded) continue;
-      const { raw, skill } = loaded;
-      const filename = basename(filePath);
-      if (
-        skill.id === "unknown" ||
-        !isSafeSkillIdForPath(skill.id) ||
-        OBSOLETE_SKILL_FILENAMES.has(filename) ||
-        OBSOLETE_SKILL_IDS.has(skill.id)
-      ) {
-        continue;
-      }
-      const targetFile = getCanonicalSkillFilePath(skill.id);
-      if (await io.exists(targetFile).catch(() => false)) {
-        continue;
-      }
-      await io.makeDirectory(getCanonicalSkillDir(skill.id), {
-        createAncestors: true,
-        ignoreExisting: true,
-      });
-      await io.write(targetFile, new TextEncoder().encode(raw));
-      if (BUILTIN_SKILL_FILENAMES.has(filename)) {
-        seeded.add(filename);
-      }
-      Zotero.debug?.(
-        `[Paper Pilot] Migrated skill ${filename} to ${targetFile}`,
-      );
-    } catch (err) {
-      Zotero.debug?.(
-        `[Paper Pilot] Skill migration warning for ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Seeded tracking — remember which files we've copied so user deletions stick
 // ---------------------------------------------------------------------------
 
-const SEEDED_PREF_KEY = "extensions.zotero.llmForZotero.seededBuiltinSkills";
+const SEEDED_PREF_KEY = "extensions.zotero.paperpilot.seededBuiltinSkills";
 
 function getSeededSkills(): Set<string> {
   try {
@@ -485,7 +412,13 @@ export async function initUserSkills(): Promise<void> {
   const bodyHashes = getBodyHashes();
   const encoder = new TextEncoder();
 
-  await migrateLegacyFlatSkills(io, seeded);
+  for (const filename of await migratePaperpilotSkills(
+    io,
+    OBSOLETE_SKILL_FILENAMES,
+    OBSOLETE_SKILL_IDS,
+  )) {
+    if (BUILTIN_SKILL_FILENAMES.has(filename)) seeded.add(filename);
+  }
 
   // ── Step 1: Remove obsolete canonical skill files ───────────────────────
   // Old note skills were consolidated into write-note.md. Delete only if:

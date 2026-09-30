@@ -20,9 +20,9 @@ export type ConversationForkLink = {
   createdAt: number;
 };
 
-const CONVERSATION_FORK_LINKS_TABLE = "llm_for_zotero_conversation_fork_links";
+const CONVERSATION_FORK_LINKS_TABLE = "paperpilot_conversation_fork_links";
 const CONVERSATION_FORK_LINKS_SOURCE_INDEX =
-  "llm_for_zotero_conversation_fork_links_source_idx";
+  "paperpilot_conversation_fork_links_source_idx";
 
 let initPromise: Promise<void> | null = null;
 

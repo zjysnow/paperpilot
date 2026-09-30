@@ -64,8 +64,8 @@ const MAX_RENDERED_EVIDENCE_ENTRIES = 8;
 const MAX_SNIPPETS_PER_ENTRY = 4;
 const MAX_SNIPPET_CHARS = 1200;
 const MAX_RENDERED_SNIPPET_CHARS = 900;
-const EVIDENCE_TABLE = "llm_for_zotero_agent_evidence";
-const EVIDENCE_INDEX = "llm_for_zotero_agent_evidence_conversation_idx";
+const EVIDENCE_TABLE = "paperpilot_agent_evidence";
+const EVIDENCE_INDEX = "paperpilot_agent_evidence_conversation_idx";
 
 const evidenceLedger = new Map<string, Map<string, AgentEvidenceEntry>>();
 const hydratedConversations = new Set<string>();

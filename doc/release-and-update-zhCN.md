@@ -46,7 +46,27 @@ Paper Pilot 标记为禁用，插件会在下一次启动时自动重新启用�
 仍需从 Releases 页面手动安装一次；安装完成后，后续 Zotero 升级会走上述自动迁移
 路径。
 
+### Paper Pilot 存储命名空间
+
+当前版本统一使用 `paperpilot_*` 数据库表和 `extensions.zotero.paperpilot`
+偏好键。启动时先在事务中迁移旧表及索引，保留会话、附件引用、Agent 记录和迁移
+账本，然后才初始化界面和存储。旧标识只用于隔离的升级迁移模块，不再作为运行时
+命名空间或 MCP 别名。
+
+旧技能会复制到当前配置文件对应的 `agent-runtime/<profile>/.agents/skills`，
+并更新托管块标记；已有目标文件及用户编辑不覆盖，原文件不删除。旧技能哈希和
+种子记录也会迁移，防止更新时覆盖用户定制或重新创建用户已删除的内置技能。
+
+如果数据库同时存在同名的新旧表或索引，迁移会回滚并报告冲突，不会自动合并、
+覆盖或删除任一侧数据。请先备份 Zotero 数据目录，再处理冲突后重启。
+
 ## 发布前检查
+
+`test/` 是 Node 单元测试，`test-workflows/` 是在真实 Zotero 中执行的集成
+测试，覆盖启动命名空间、数据库事务迁移、聊天面板持久化和草稿刷新。
+`npm run test:workflow` 使用 `.scaffold/test/profile` 和
+`.scaffold/test/data` 隔离测试，不使用日常文献库，也不会关闭其他 Zotero 实例。
+运行前在 `.env` 中设置 `ZOTERO_PLUGIN_ZOTERO_BIN_PATH`。
 
 ```bash
 npm run typecheck

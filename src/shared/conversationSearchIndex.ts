@@ -15,14 +15,14 @@ type ZoteroDb = {
 };
 
 export const CONVERSATION_SEARCH_INDEX_TABLE =
-  "llm_for_zotero_conversation_search_index";
+  "paperpilot_conversation_search_index";
 
 export const CONVERSATION_SEARCH_BODY_CHAR_LIMIT = 200_000;
 
 const SEARCH_INDEX_LIBRARY_INDEX =
-  "llm_for_zotero_conversation_search_index_library_idx";
+  "paperpilot_conversation_search_index_library_idx";
 const SEARCH_INDEX_LEGACY_KEY_INDEX =
-  "llm_for_zotero_conversation_search_index_legacy_key_idx";
+  "paperpilot_conversation_search_index_legacy_key_idx";
 
 const MESSAGE_JOIN_CONDITION =
   "(m.conversation_key = c.conversation_key OR m.conversation_id = c.conversation_id)";
@@ -359,11 +359,11 @@ function getCoverageCatalogDescriptors(
   if (system === "upstream") {
     return [
       {
-        tableName: "llm_for_zotero_global_conversations",
+        tableName: "paperpilot_global_conversations",
         validitySql: UPSTREAM_GLOBAL_VALIDITY_SQL,
       },
       {
-        tableName: "llm_for_zotero_paper_conversations",
+        tableName: "paperpilot_paper_conversations",
         validitySql: UPSTREAM_PAPER_VALIDITY_SQL,
       },
     ];
@@ -472,8 +472,8 @@ export async function refreshConversationSearchIndexForSystem(
   if (system === "upstream") {
     await refreshCatalogIntoSearchIndex({
       system,
-      catalogTable: "llm_for_zotero_global_conversations",
-      messageTable: "llm_for_zotero_chat_messages",
+      catalogTable: "paperpilot_global_conversations",
+      messageTable: "paperpilot_chat_messages",
       kindSql: "'global'",
       paperItemIDSql: "NULL",
       activitySql: "COALESCE(MAX(m.timestamp), c.created_at)",
@@ -483,8 +483,8 @@ export async function refreshConversationSearchIndexForSystem(
     });
     await refreshCatalogIntoSearchIndex({
       system,
-      catalogTable: "llm_for_zotero_paper_conversations",
-      messageTable: "llm_for_zotero_chat_messages",
+      catalogTable: "paperpilot_paper_conversations",
+      messageTable: "paperpilot_chat_messages",
       kindSql: "'paper'",
       paperItemIDSql: "c.paper_item_id",
       activitySql: "COALESCE(MAX(m.timestamp), c.created_at)",
@@ -515,8 +515,8 @@ export async function refreshConversationSearchIndexForConversation(params: {
   if (system === "upstream") {
     await refreshCatalogIntoSearchIndex({
       system,
-      catalogTable: "llm_for_zotero_global_conversations",
-      messageTable: "llm_for_zotero_chat_messages",
+      catalogTable: "paperpilot_global_conversations",
+      messageTable: "paperpilot_chat_messages",
       kindSql: "'global'",
       paperItemIDSql: "NULL",
       activitySql: "COALESCE(MAX(m.timestamp), c.created_at)",
@@ -527,8 +527,8 @@ export async function refreshConversationSearchIndexForConversation(params: {
     });
     await refreshCatalogIntoSearchIndex({
       system,
-      catalogTable: "llm_for_zotero_paper_conversations",
-      messageTable: "llm_for_zotero_chat_messages",
+      catalogTable: "paperpilot_paper_conversations",
+      messageTable: "paperpilot_chat_messages",
       kindSql: "'paper'",
       paperItemIDSql: "c.paper_item_id",
       activitySql: "COALESCE(MAX(m.timestamp), c.created_at)",

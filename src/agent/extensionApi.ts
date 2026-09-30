@@ -7,10 +7,12 @@
  *
  * ## Quick start
  *
- * 1. Wait for the agent to be ready (it initialises during Zotero startup):
+ * 1. Wait for the plugin to initialize (the agent starts lazily on first use):
  *
  *    ```ts
- *    await Zotero.llmForZotero.ready; // or hook into your plugin's startup
+ *    while (!Zotero.PaperPilot?.data.initialized) {
+ *      await Zotero.Promise.delay(100);
+ *    }
  *    ```
  *
  * 2. Import the types you need **(TypeScript only — types are erased at runtime)**:

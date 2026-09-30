@@ -59,11 +59,11 @@ export type PaperContextOwnershipEvidence = {
 export const AMBIGUOUS_PAPER_CONTEXT_INVALID_REASON =
   "ambiguous paper context evidence";
 
-const CONVERSATION_REGISTRY_TABLE = "llm_for_zotero_conversation_registry";
+const CONVERSATION_REGISTRY_TABLE = "paperpilot_conversation_registry";
 const CONVERSATION_REGISTRY_SCOPE_INDEX =
-  "llm_for_zotero_conversation_registry_scope_idx";
+  "paperpilot_conversation_registry_scope_idx";
 const CONVERSATION_REGISTRY_LEGACY_KEY_INDEX =
-  "llm_for_zotero_conversation_registry_legacy_key_idx";
+  "paperpilot_conversation_registry_legacy_key_idx";
 
 function normalizePositiveInt(value: unknown): number | null {
   const parsed = Number(value);

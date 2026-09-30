@@ -8,7 +8,9 @@ const child = spawn(command, args, {
   env: {
     ...process.env,
     NODE_ENV: "test",
-    LLM_FOR_ZOTERO_WORKFLOW_TESTS: "1",
+    PAPERPILOT_WORKFLOW_TESTS: "1",
+    // The scaffold already stops its own child; never kill other Zotero instances.
+    ZOTERO_PLUGIN_KILL_COMMAND: process.platform === "win32" ? "echo." : "true",
   },
 });
 

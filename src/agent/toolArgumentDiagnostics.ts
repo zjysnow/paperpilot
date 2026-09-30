@@ -12,7 +12,7 @@ const CONTENT_LIKE_ASSIGNMENT_START_PATTERN = new RegExp(
 );
 
 export const MALFORMED_TOOL_ARGUMENTS_KEY =
-  "__llmForZoteroMalformedToolArguments";
+  "__paperpilotMalformedToolArguments";
 
 export type MalformedToolArgumentsDiagnostic = {
   [MALFORMED_TOOL_ARGUMENTS_KEY]: true;

@@ -8,9 +8,9 @@ import type {
   AgentRunStatus,
 } from "../types";
 
-const AGENT_RUNS_TABLE = "llm_for_zotero_agent_runs";
-const AGENT_RUN_EVENTS_TABLE = "llm_for_zotero_agent_run_events";
-const AGENT_RUN_EVENTS_INDEX = "llm_for_zotero_agent_run_events_run_idx";
+const AGENT_RUNS_TABLE = "paperpilot_agent_runs";
+const AGENT_RUN_EVENTS_TABLE = "paperpilot_agent_run_events";
+const AGENT_RUN_EVENTS_INDEX = "paperpilot_agent_run_events_run_idx";
 const AGENT_TRACE_EXPORT_DIR_NAME = "trace-debug";
 const AGENT_TRACE_EXPORT_PREF_KEY = `${config.prefsPrefix}.agentTraceExportEnabled`;
 

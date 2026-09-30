@@ -116,28 +116,25 @@ export type StoredChatMessage = {
   modelSwitchMarkerText?: string;
 };
 
-const CHAT_MESSAGES_TABLE = "llm_for_zotero_chat_messages";
-const CHAT_MESSAGES_INDEX = "llm_for_zotero_chat_messages_conversation_idx";
-const CHAT_MESSAGES_ID_INDEX =
-  "llm_for_zotero_chat_messages_conversation_id_idx";
-const GLOBAL_CONVERSATIONS_TABLE = "llm_for_zotero_global_conversations";
+const CHAT_MESSAGES_TABLE = "paperpilot_chat_messages";
+const CHAT_MESSAGES_INDEX = "paperpilot_chat_messages_conversation_idx";
+const CHAT_MESSAGES_ID_INDEX = "paperpilot_chat_messages_conversation_id_idx";
+const GLOBAL_CONVERSATIONS_TABLE = "paperpilot_global_conversations";
 const GLOBAL_CONVERSATIONS_LIBRARY_INDEX =
-  "llm_for_zotero_global_conversations_library_idx";
+  "paperpilot_global_conversations_library_idx";
 const GLOBAL_CONVERSATIONS_ACTIVITY_INDEX =
-  "llm_for_zotero_global_conversations_activity_idx";
-const GLOBAL_CONVERSATIONS_ID_INDEX =
-  "llm_for_zotero_global_conversations_id_idx";
-const PAPER_CONVERSATIONS_TABLE = "llm_for_zotero_paper_conversations";
+  "paperpilot_global_conversations_activity_idx";
+const GLOBAL_CONVERSATIONS_ID_INDEX = "paperpilot_global_conversations_id_idx";
+const PAPER_CONVERSATIONS_TABLE = "paperpilot_paper_conversations";
 const PAPER_CONVERSATIONS_PAPER_INDEX =
-  "llm_for_zotero_paper_conversations_paper_idx";
+  "paperpilot_paper_conversations_paper_idx";
 const PAPER_CONVERSATIONS_PAPER_ACTIVITY_INDEX =
-  "llm_for_zotero_paper_conversations_paper_activity_idx";
+  "paperpilot_paper_conversations_paper_activity_idx";
 const PAPER_CONVERSATIONS_LIBRARY_ACTIVITY_INDEX =
-  "llm_for_zotero_paper_conversations_library_activity_idx";
+  "paperpilot_paper_conversations_library_activity_idx";
 const PAPER_CONVERSATIONS_CONVERSATION_INDEX =
-  "llm_for_zotero_paper_conversations_conversation_idx";
-const PAPER_CONVERSATIONS_ID_INDEX =
-  "llm_for_zotero_paper_conversations_id_idx";
+  "paperpilot_paper_conversations_conversation_idx";
+const PAPER_CONVERSATIONS_ID_INDEX = "paperpilot_paper_conversations_id_idx";
 const LEGACY_CHAT_MESSAGES_TABLE = "zoterollm_chat_messages";
 const LEGACY_CHAT_MESSAGES_INDEX = "zoterollm_chat_messages_conversation_idx";
 const CHAT_MESSAGE_SELECT_COLUMNS_SQL = `id,

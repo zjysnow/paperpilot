@@ -23,9 +23,9 @@ type ZoteroDb = {
   queryAsync: (sql: string, params?: unknown[]) => Promise<unknown>;
 };
 
-const TOOL_RESULT_HANDLE_TABLE = "llm_for_zotero_agent_tool_result_handles";
+const TOOL_RESULT_HANDLE_TABLE = "paperpilot_agent_tool_result_handles";
 const TOOL_RESULT_HANDLE_INDEX =
-  "llm_for_zotero_agent_tool_result_handles_conversation_idx";
+  "paperpilot_agent_tool_result_handles_conversation_idx";
 
 const handleStore = new Map<string, AgentToolResultHandleRecord>();
 const hydratedConversations = new Set<number>();

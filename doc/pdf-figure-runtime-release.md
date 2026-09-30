@@ -8,7 +8,7 @@ That workflow builds six ZIP files and uploads them to the fixed GitHub release 
 The plugin downloads runtime assets from this pattern:
 
 ```text
-https://github.com/yilewang/paperpilot/releases/download/pdf-figure-runtime-v1/paperpilot-pdf-figure-runtime-v1-{platform}.zip
+https://github.com/zjysnow/paperpilot/releases/download/pdf-figure-runtime-v1/paperpilot-pdf-figure-runtime-v1-{platform}.zip
 ```
 
 The current platform assets are:

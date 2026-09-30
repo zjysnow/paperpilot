@@ -54,9 +54,9 @@ type ZoteroDb = {
   queryAsync: (sql: string, params?: unknown[]) => Promise<unknown>;
 };
 
-const COVERAGE_TABLE = "llm_for_zotero_agent_coverage";
-const COVERAGE_SCOPE_INDEX = "llm_for_zotero_agent_coverage_scope_idx";
-const COVERAGE_RESOURCE_INDEX = "llm_for_zotero_agent_coverage_resource_idx";
+const COVERAGE_TABLE = "paperpilot_agent_coverage";
+const COVERAGE_SCOPE_INDEX = "paperpilot_agent_coverage_scope_idx";
+const COVERAGE_RESOURCE_INDEX = "paperpilot_agent_coverage_resource_idx";
 const MAX_COVERAGE_ENTRIES_PER_SCOPE = 40;
 const MAX_RENDERED_COVERAGE_ENTRIES = 10;
 

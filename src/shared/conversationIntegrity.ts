@@ -27,7 +27,7 @@ export type ConversationIntegrityReport = {
   issues: ConversationIntegrityIssue[];
 };
 
-const CONVERSATION_REGISTRY_TABLE = "llm_for_zotero_conversation_registry";
+const CONVERSATION_REGISTRY_TABLE = "paperpilot_conversation_registry";
 
 const CATALOG_TABLES: Array<{
   system: ConversationSystem;
@@ -35,11 +35,11 @@ const CATALOG_TABLES: Array<{
 }> = [
   {
     system: "upstream",
-    catalogTable: "llm_for_zotero_global_conversations",
+    catalogTable: "paperpilot_global_conversations",
   },
   {
     system: "upstream",
-    catalogTable: "llm_for_zotero_paper_conversations",
+    catalogTable: "paperpilot_paper_conversations",
   },
 ];
 
@@ -50,10 +50,10 @@ const MESSAGE_TABLES: Array<{
 }> = [
   {
     system: "upstream",
-    messageTable: "llm_for_zotero_chat_messages",
+    messageTable: "paperpilot_chat_messages",
     catalogTables: [
-      "llm_for_zotero_global_conversations",
-      "llm_for_zotero_paper_conversations",
+      "paperpilot_global_conversations",
+      "paperpilot_paper_conversations",
     ],
   },
 ];
@@ -66,14 +66,14 @@ const SUMMARY_TABLES: Array<{
 }> = [
   {
     system: "upstream",
-    catalogTable: "llm_for_zotero_global_conversations",
-    messageTable: "llm_for_zotero_chat_messages",
+    catalogTable: "paperpilot_global_conversations",
+    messageTable: "paperpilot_chat_messages",
     activityFallbackSql: "c.created_at",
   },
   {
     system: "upstream",
-    catalogTable: "llm_for_zotero_paper_conversations",
-    messageTable: "llm_for_zotero_chat_messages",
+    catalogTable: "paperpilot_paper_conversations",
+    messageTable: "paperpilot_chat_messages",
     activityFallbackSql: "c.created_at",
   },
 ];

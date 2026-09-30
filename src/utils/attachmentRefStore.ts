@@ -7,8 +7,8 @@ import { fileUrlToPath } from "./pathFileUrl";
 
 export type AttachmentRefOwnerType = "conversation" | "note";
 
-const ATTACHMENT_REFS_TABLE = "llm_for_zotero_attachment_refs";
-const ATTACHMENT_REFS_BLOB_INDEX = "llm_for_zotero_attachment_refs_blob_idx";
+const ATTACHMENT_REFS_TABLE = "paperpilot_attachment_refs";
+const ATTACHMENT_REFS_BLOB_INDEX = "paperpilot_attachment_refs_blob_idx";
 export const ATTACHMENT_GC_MIN_AGE_MS = 24 * 60 * 60 * 1000;
 
 let refStoreInitTask: Promise<void> | null = null;

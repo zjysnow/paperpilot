@@ -23,8 +23,8 @@ export type AgentTranscriptCompatibilityInput = {
   tools: ToolSpec[];
 };
 
-const TRANSCRIPT_TABLE = "llm_for_zotero_agent_transcript";
-const TRANSCRIPT_INDEX = "llm_for_zotero_agent_transcript_key_idx";
+const TRANSCRIPT_TABLE = "paperpilot_agent_transcript";
+const TRANSCRIPT_INDEX = "paperpilot_agent_transcript_key_idx";
 const TRANSCRIPT_SCHEMA_VERSION = 1;
 
 const transcriptByKey = new Map<string, AgentTranscriptSegment>();

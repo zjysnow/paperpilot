@@ -335,9 +335,9 @@ async function resolveInstalledManagedRuntime(
 
 function readPopplerPreference(): string {
   const preferenceKeys = [
-    "extensions.zotero.llmforzotero.pdftoppmPath",
-    "extensions.zotero.llmforzotero.popplerPdftoppmPath",
-    "llmforzotero.pdftoppmPath",
+    "extensions.zotero.paperpilot.pdftoppmPath",
+    "extensions.zotero.paperpilot.popplerPdftoppmPath",
+    "paperpilot.pdftoppmPath",
   ];
   for (const key of preferenceKeys) {
     const value = sanitizeText(readPreference(key));

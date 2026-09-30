@@ -16,6 +16,10 @@ import { resolveActiveLibraryID } from "./modules/contextPanel/portalScope";
 import { invalidatePaperSearchCache } from "./modules/contextPanel/paperSearch";
 import { registerZoteroItemContextMenu } from "./modules/contextPanel/zoteroItemContextMenu";
 import { initChatStore } from "./utils/chatStore";
+import {
+  migratePaperpilotDatabaseNamespace,
+  migratePaperpilotPreferences,
+} from "./utils/paperpilotNamespaceMigration";
 
 import {
   runDeferredLegacyMigrations,
@@ -157,6 +161,16 @@ async function onStartup() {
       Zotero.uiReadyPromise,
     ]),
   );
+
+  await measureStartupPhase("Paper Pilot namespace migration", async () => {
+    try {
+      await migratePaperpilotDatabaseNamespace();
+      migratePaperpilotPreferences();
+    } catch (error) {
+      ztoolkit.log("Paper Pilot: Namespace migration failed", error);
+      throw error;
+    }
+  });
 
   try {
     await measureStartupPhase("startup preference migrations", () => {

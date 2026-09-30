@@ -1,7 +1,7 @@
 import { defineConfig } from "zotero-plugin-scaffold";
 import pkg from "./package.json";
 
-const workflowTestsEnabled = process.env.LLM_FOR_ZOTERO_WORKFLOW_TESTS === "1";
+const workflowTestsEnabled = process.env.PAPERPILOT_WORKFLOW_TESTS === "1";
 
 export default defineConfig({
   source: ["src", "addon"],
@@ -56,6 +56,8 @@ export default defineConfig({
       : {}),
     waitForPlugin: `() => Zotero.${pkg.config.addonInstance}.data.initialized`,
   },
+
+  ...(workflowTestsEnabled ? { server: { startArgs: ["-no-remote"] } } : {}),
 
   // If you need to see a more detailed log, uncomment the following line:
   // logLevel: "trace",

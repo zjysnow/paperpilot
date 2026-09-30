@@ -53,10 +53,6 @@ export function getCanonicalUserSkillsDir(): string {
   return joinLocalPath(getZoteroAgentRuntimeRootDir(), ".agents", "skills");
 }
 
-export function getLegacyUserSkillsDir(): string {
-  return joinLocalPath(getSkillStorageBaseDir(), "llm-for-zotero", "skills");
-}
-
 export function getCanonicalSkillDir(skillId: string): string {
   return joinLocalPath(getCanonicalUserSkillsDir(), skillId);
 }

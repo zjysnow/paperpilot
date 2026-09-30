@@ -33,9 +33,6 @@ const ZOTERO_MCP_TRACE_SERVER_NAMES = new Set([
   "paperpilot",
   "paper-pilot",
   "paper pilot",
-  "llm_for_zotero",
-  "llm-for-zotero",
-  "llm for zotero",
   "claude_zotero",
   "claude-zotero",
   "claude zotero",
@@ -57,9 +54,7 @@ function normalizeZoteroMcpServerAliasForDedupe(value: string): string {
     normalized === "paper_pilot" ||
     normalized.startsWith("paperpilot_") ||
     normalized.startsWith("paper_pilot_") ||
-    normalized === "llm_for_zotero" ||
     normalized === "claude_zotero" ||
-    normalized.startsWith("llm_for_zotero_") ||
     normalized.startsWith("claude_zotero_")
   ) {
     return "paperpilot";

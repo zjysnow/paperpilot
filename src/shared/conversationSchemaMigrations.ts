@@ -3,7 +3,7 @@ type ZoteroDb = {
 };
 
 export const CONVERSATION_SCHEMA_MIGRATIONS_TABLE =
-  "llm_for_zotero_conversation_schema_migrations";
+  "paperpilot_conversation_schema_migrations";
 
 export const CONVERSATION_ID_TRANSITION_MIGRATION_ID =
   "conversation-id-transition-v1";

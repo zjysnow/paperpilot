@@ -17,7 +17,7 @@ type ZoteroDb = {
   queryAsync: (sql: string, params?: unknown[]) => Promise<unknown>;
 };
 
-const MEMORY_TABLE = "llm_for_zotero_agent_memory";
+const MEMORY_TABLE = "paperpilot_agent_memory";
 const MAX_MEMORY_TURNS = 6;
 const QUESTION_EXCERPT_LEN = 200;
 const ANSWER_EXCERPT_LEN = 350;
