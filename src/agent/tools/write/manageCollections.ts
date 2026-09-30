@@ -168,6 +168,7 @@ export function createManageCollectionsTool(
 
       return {
         toolName: "manage_collections",
+        requiresExplicitApproval: true,
         title: "Delete collection",
         description,
         confirmLabel: "Delete",

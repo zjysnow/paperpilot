@@ -238,6 +238,12 @@ export type AgentPendingAction = {
   actions?: AgentPendingActionButton[];
   defaultActionId?: string;
   cancelActionId?: string;
+  /**
+   * Requires a user decision even when the global mode is "allow all".
+   * Use for destructive changes, data disclosure to a model, shell execution,
+   * or actions whose scope and target require an explicit user choice.
+   */
+  requiresExplicitApproval?: boolean;
 };
 
 export type AgentConfirmationResolution = {

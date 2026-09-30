@@ -128,6 +128,7 @@ export function createMergeItemsTool(
 
       return {
         toolName: "merge_items",
+        requiresExplicitApproval: true,
         title: `Merge ${operation.otherItemIds.length + 1} items`,
         description: `Keep "${masterTitle}" as the master and merge ${operation.otherItemIds.length} duplicate${operation.otherItemIds.length === 1 ? "" : "s"} into it. Attachments, notes, tags, and collections will be moved to the master. Duplicates will be trashed.`,
         confirmLabel: "Merge",

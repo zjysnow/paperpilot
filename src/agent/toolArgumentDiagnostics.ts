@@ -75,25 +75,13 @@ function escapeUnescapedJsonControlCharacters(raw: string): string {
   return repaired;
 }
 
-function isEscapedCharacter(raw: string, index: number): boolean {
-  let precedingBackslashes = 0;
-  for (
-    let cursor = index - 1;
-    cursor >= 0 && raw[cursor] === "\\";
-    cursor -= 1
-  ) {
-    precedingBackslashes += 1;
-  }
-  return precedingBackslashes % 2 === 1;
-}
-
 function repairRecoverableJsonStringValue(raw: string): unknown | null {
   const keyPattern = RECOVERABLE_JSON_STRING_KEYS.join("|");
   const match = new RegExp(`"(${keyPattern})"\\s*:\\s*"`, "i").exec(raw);
   if (!match || match.index === undefined) return null;
   const valueStart = match.index + match[0].length;
   for (let valueEnd = valueStart; valueEnd < raw.length; valueEnd += 1) {
-    if (raw[valueEnd] !== '"' || isEscapedCharacter(raw, valueEnd)) continue;
+    if (raw[valueEnd] !== '"') continue;
     const value = raw.slice(valueStart, valueEnd);
     const encodedValue = JSON.stringify(value).slice(1, -1);
     const repaired = `${raw.slice(0, valueStart)}${encodedValue}${raw.slice(valueEnd)}`;
@@ -106,17 +94,29 @@ function repairRecoverableJsonStringValue(raw: string): unknown | null {
   return null;
 }
 
+function stripToolArgumentCodeFence(raw: string): string {
+  const trimmed = raw.trim();
+  const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n?```$/i.exec(trimmed);
+  return fenced ? fenced[1].trim() : raw;
+}
+
 export function parseToolArgumentsJson(raw: string): unknown | null {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    const repaired = escapeUnescapedJsonControlCharacters(raw);
+  const candidates = [raw, stripToolArgumentCodeFence(raw)];
+  for (const candidate of candidates) {
     try {
-      return JSON.parse(repaired);
+      return JSON.parse(candidate);
     } catch {
-      return repairRecoverableJsonStringValue(raw);
+      const controlCharacterRepaired =
+        escapeUnescapedJsonControlCharacters(candidate);
+      try {
+        return JSON.parse(controlCharacterRepaired);
+      } catch {
+        const valueRepaired = repairRecoverableJsonStringValue(candidate);
+        if (valueRepaired !== null) return valueRepaired;
+      }
     }
   }
+  return null;
 }
 
 export function isContentLikeToolArgumentKey(key: string): boolean {

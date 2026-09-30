@@ -259,6 +259,7 @@ export function createViewPdfPagesTool(
       });
       return {
         toolName: "view_pdf_pages",
+        requiresExplicitApproval: true,
         title:
           pages.length === 1
             ? `${preview.target.title} - p${pages[0] + 1}`

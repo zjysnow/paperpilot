@@ -604,6 +604,7 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
           : input.content || "";
       return {
         toolName: "file_io",
+        requiresExplicitApproval: true,
         title: `Write file: ${fileName}`,
         description: `Create or overwrite "${input.filePath}".`,
         confirmLabel: "Write",

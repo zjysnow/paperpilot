@@ -1,4 +1,5 @@
 import { config } from "../../../package.json";
+import { getAgentRunTrace } from "../../agent/store/traceStore";
 import { HTML_NS } from "../../utils/domHelpers";
 import type { AgentEvent } from "../../agent/types";
 
@@ -15,6 +16,7 @@ type SubagentDetailState = {
   detailsByTaskKey: Map<string, SubagentDetailEvent[]>;
   taskRunIdsByKey: Map<string, string>;
   runConversationKeys: Map<string, number>;
+  runStartedAtById: Map<string, number>;
   detailWindow: Window | null;
   activeTaskKey: string | null;
   activeRunId: string | null;
@@ -22,11 +24,13 @@ type SubagentDetailState = {
 };
 
 const DETAIL_STATE_KEY = "__paperpilotSubagentDetailState";
+const subagentDetailHydrations = new Map<string, Promise<void>>();
 
 let state: SubagentDetailState = {
   detailsByTaskKey: new Map<string, SubagentDetailEvent[]>(),
   taskRunIdsByKey: new Map<string, string>(),
   runConversationKeys: new Map<string, number>(),
+  runStartedAtById: new Map<string, number>(),
   detailWindow: null,
   activeTaskKey: null,
   activeRunId: null,
@@ -46,6 +50,7 @@ function connectStateToMainWindow(sourceDocument: Document): void {
     existing.detailsByTaskKey ||= new Map<string, SubagentDetailEvent[]>();
     existing.taskRunIdsByKey ||= new Map<string, string>();
     existing.runConversationKeys ||= new Map<string, number>();
+    existing.runStartedAtById ||= new Map<string, number>();
     for (const [taskKey, events] of state.detailsByTaskKey) {
       if (!existing.detailsByTaskKey.has(taskKey)) {
         existing.detailsByTaskKey.set(taskKey, events);
@@ -55,16 +60,31 @@ function connectStateToMainWindow(sourceDocument: Document): void {
       if (!existing.taskRunIdsByKey.has(taskKey)) {
         existing.taskRunIdsByKey.set(taskKey, runId);
       }
-      for (const [runId, conversationKey] of state.runConversationKeys) {
-        if (!existing.runConversationKeys.has(runId)) {
-          existing.runConversationKeys.set(runId, conversationKey);
-        }
+    }
+    for (const [runId, conversationKey] of state.runConversationKeys) {
+      if (!existing.runConversationKeys.has(runId)) {
+        existing.runConversationKeys.set(runId, conversationKey);
+      }
+    }
+    for (const [runId, startedAt] of state.runStartedAtById) {
+      if (!existing.runStartedAtById.has(runId)) {
+        existing.runStartedAtById.set(runId, startedAt);
       }
     }
     state = existing;
     return;
   }
   sourceWindow[DETAIL_STATE_KEY] = state;
+}
+
+function formatRunScope(runId: string): string {
+  const startedAt = state.runStartedAtById.get(runId);
+  const localTime =
+    typeof startedAt === "number" && Number.isFinite(startedAt)
+      ? new Date(startedAt).toLocaleString()
+      : "Current turn";
+  const shortRunId = runId.length > 12 ? runId.slice(-12) : runId;
+  return `${localTime} · Run ${shortRunId}`;
 }
 
 function visibleTaskKeys(): string[] {
@@ -75,6 +95,58 @@ function visibleTaskKeys(): string[] {
     const runId = state.taskRunIdsByKey.get(taskKey);
     return runId === state.activeRunId;
   });
+}
+
+function isSubagentDetailEvent(
+  event: AgentEvent,
+): event is SubagentDetailEvent {
+  return (
+    event.type === "subagent_started" ||
+    event.type === "subagent_output_delta" ||
+    event.type === "subagent_tool_activity" ||
+    event.type === "subagent_completed" ||
+    event.type === "subagent_failed"
+  );
+}
+
+async function hydrateSubagentDetailsForRun(runId: string): Promise<void> {
+  const hasRunDetails = [...state.taskRunIdsByKey.values()].some(
+    (candidateRunId) => candidateRunId === runId,
+  );
+  if (hasRunDetails) return;
+  const inFlight = subagentDetailHydrations.get(runId);
+  if (inFlight) return inFlight;
+  const hydration = (async () => {
+    const trace = await getAgentRunTrace(runId);
+    if (
+      trace.run &&
+      typeof trace.run.conversationKey === "number" &&
+      trace.run.conversationKey > 0
+    ) {
+      state.runConversationKeys.set(runId, trace.run.conversationKey);
+    }
+    if (
+      trace.run &&
+      typeof trace.run.createdAt === "number" &&
+      Number.isFinite(trace.run.createdAt)
+    ) {
+      state.runStartedAtById.set(runId, trace.run.createdAt);
+    }
+    for (const entry of trace.events) {
+      if (!isSubagentDetailEvent(entry.payload)) continue;
+      const taskKey = getTaskKey(runId, entry.payload.taskId);
+      const events = state.detailsByTaskKey.get(taskKey) || [];
+      events.push(entry.payload);
+      state.detailsByTaskKey.set(taskKey, events);
+      state.taskRunIdsByKey.set(taskKey, runId);
+    }
+  })();
+  subagentDetailHydrations.set(runId, hydration);
+  try {
+    await hydration;
+  } finally {
+    subagentDetailHydrations.delete(runId);
+  }
 }
 
 function taskLabel(taskKey: string): string {
@@ -125,6 +197,12 @@ function render(win: Window): void {
       ? state.activeTaskKey
       : taskKeys[0];
   if (!taskKey) {
+    root.replaceChildren();
+    const empty = win.document.createElementNS(HTML_NS, "div");
+    empty.style.cssText =
+      "height:100%;box-sizing:border-box;padding:16px;font:13px system-ui,sans-serif;color:var(--fill-secondary,GrayText);background:var(--material-background,Canvas);";
+    empty.textContent = "No subagent details are available for this agent run.";
+    root.appendChild(empty);
     return;
   }
   const events = state.detailsByTaskKey.get(taskKey) || [];
@@ -149,6 +227,14 @@ function render(win: Window): void {
     "padding:2px 4px 6px;color:var(--fill-secondary,GrayText);font-size:11px;font-weight:700;text-transform:uppercase;";
   taskListTitle.textContent = "Subagent tasks";
   taskList.appendChild(taskListTitle);
+  if (state.activeRunId) {
+    const runScope = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
+    runScope.style.cssText =
+      "padding:0 4px 7px;color:var(--fill-secondary,GrayText);font-size:11px;line-height:1.35;word-break:break-word;";
+    runScope.textContent = `Agent turn · ${formatRunScope(state.activeRunId)}`;
+    runScope.title = `Agent run ID: ${state.activeRunId}`;
+    taskList.appendChild(runScope);
+  }
   for (const candidateTaskKey of taskKeys) {
     const status = taskStatus(candidateTaskKey);
     const taskButton = doc.createElementNS(
@@ -178,7 +264,7 @@ function render(win: Window): void {
   const meta = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
   meta.style.cssText = "color:var(--fill-secondary,GrayText);font-size:12px;";
   meta.textContent = started
-    ? `Model: ${started.model} · Read-only isolated task`
+    ? `Agent turn: ${state.activeRunId ? formatRunScope(state.activeRunId) : "Current turn"} · Model: ${started.model} · Read-only isolated task`
     : "Waiting for task details";
   const transcript = doc.createElementNS(HTML_NS, "div") as HTMLDivElement;
   transcript.style.cssText =
@@ -334,6 +420,9 @@ export function recordSubagentDetailEvent(
   if (typeof conversationKey === "number" && conversationKey > 0) {
     state.runConversationKeys.set(runId, conversationKey);
   }
+  if (!state.runStartedAtById.has(runId)) {
+    state.runStartedAtById.set(runId, Date.now());
+  }
   if (
     event.type === "subagent_started" &&
     state.detailWindow &&
@@ -355,21 +444,28 @@ export function recordSubagentDetailEvent(
   }
 }
 
-export function openSubagentDetailWindow(
+export async function openSubagentDetailWindow(
   sourceDocument: Document,
   taskId: string,
   agentRunId: string,
-): void {
+): Promise<void> {
   connectStateToMainWindow(sourceDocument);
+  try {
+    await hydrateSubagentDetailsForRun(agentRunId);
+  } catch (error) {
+    ztoolkit.log(
+      "Paper Pilot: Failed to restore persisted subagent details",
+      agentRunId,
+      error,
+    );
+  }
   const activeTaskKey = state.activeTaskKey;
   const activeRunId = state.activeRunId;
   const taskKey = getTaskKey(agentRunId, taskId);
-  if (state.detailsByTaskKey.has(taskKey)) {
-    state.activeTaskKey = taskKey;
-    state.activeRunId = agentRunId;
-    state.activeConversationKey =
-      state.runConversationKeys.get(agentRunId) || null;
-  }
+  state.activeTaskKey = state.detailsByTaskKey.has(taskKey) ? taskKey : null;
+  state.activeRunId = agentRunId;
+  state.activeConversationKey =
+    state.runConversationKeys.get(agentRunId) || null;
   if (state.detailWindow && !state.detailWindow.closed) {
     if (
       state.activeTaskKey !== activeTaskKey ||

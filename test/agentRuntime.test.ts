@@ -148,6 +148,66 @@ describe("AgentRuntime outcomes", function () {
     assert.match(result.text, /tool errors/i);
   });
 
+  it("continues after recoverable command failures with diagnostics", async function () {
+    const steps: AgentModelStep[] = [
+      ...Array.from({ length: 3 }, (_, index) => ({
+        kind: "tool_calls" as const,
+        calls: [
+          {
+            id: `validation-${index}`,
+            name: "run_command",
+            arguments: { command: `validate-${index}` },
+          },
+        ],
+        assistantMessage: {
+          role: "assistant" as const,
+          content: "",
+          tool_calls: [
+            {
+              id: `validation-${index}`,
+              name: "run_command",
+              arguments: { command: `validate-${index}` },
+            },
+          ],
+        },
+      })),
+      { kind: "final" as const, text: "Validation failures were reviewed." },
+    ];
+    const commandTool: AgentToolDefinition<{ command: string }, unknown> = {
+      spec: {
+        name: "run_command",
+        description: "test command",
+        inputSchema: { type: "object" },
+        mutability: "write",
+        requiresConfirmation: false,
+      },
+      validate: (value) => ({
+        ok: true,
+        value: value as { command: string },
+      }),
+      execute: async (input) => ({
+        ok: false,
+        content: {
+          exitCode: 1,
+          stdout: `Validation failed for ${input.command}`,
+          stderr: "",
+        },
+      }),
+    };
+
+    const result = await runtime(
+      adapter(async () => {
+        const step = steps.shift();
+        if (!step) throw new Error("Unexpected model step");
+        return step;
+      }),
+      commandTool,
+    ).runTurn({ request: request() });
+
+    assert.equal(result.kind, "completed");
+    assert.equal(result.text, "Validation failures were reviewed.");
+  });
+
   it("checkpoints and continues after reaching the initial round limit", async function () {
     const steps: AgentModelStep[] = [
       ...Array.from({ length: 25 }, (_, index) => ({
@@ -497,5 +557,73 @@ describe("AgentRuntime outcomes", function () {
     assert.equal(executed, true);
     assert.equal(confirmationApplied, true);
     assert.equal(confirmationRequested, false);
+  });
+
+  it("requires explicit approval for protected decisions in allow-all mode", async function () {
+    (
+      globalThis as unknown as {
+        Zotero: { Prefs: { set: (key: string, value: unknown) => void } };
+      }
+    ).Zotero.Prefs.set(
+      "extensions.zotero.paperpilot.agentApprovalMode",
+      "allow_all",
+    );
+    let confirmationRequested = false;
+    let executed = false;
+    const tool: AgentToolDefinition = {
+      spec: {
+        name: "protected_write",
+        description: "test",
+        inputSchema: { type: "object" },
+        mutability: "write",
+        requiresConfirmation: true,
+      },
+      validate: () => ({ ok: true, value: {} }),
+      createPendingAction: async () => ({
+        ...action(),
+        requiresExplicitApproval: true,
+      }),
+      execute: async () => {
+        executed = true;
+        return { ok: true };
+      },
+    };
+    const steps: AgentModelStep[] = [
+      {
+        kind: "tool_calls",
+        calls: [
+          { id: "protected-call", name: "protected_write", arguments: {} },
+        ],
+        assistantMessage: {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            { id: "protected-call", name: "protected_write", arguments: {} },
+          ],
+        },
+      },
+      { kind: "final", text: "done" },
+    ];
+    const runtimeInstance = runtime(
+      adapter(async () => {
+        const step = steps.shift();
+        if (!step) throw new Error("Unexpected model step");
+        return step;
+      }),
+      tool,
+    );
+
+    const result = await runtimeInstance.runTurn({
+      request: request(),
+      onEvent: (event) => {
+        if (event.type !== "confirmation_required") return;
+        confirmationRequested = true;
+        runtimeInstance.resolveConfirmation(event.requestId, true);
+      },
+    });
+
+    assert.equal(result.kind, "completed");
+    assert.equal(confirmationRequested, true);
+    assert.equal(executed, true);
   });
 });

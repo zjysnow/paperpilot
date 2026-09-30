@@ -48,5 +48,7 @@ describe("run command Git safety", function () {
       await tool.shouldRequireConfirmation?.(validated.value, context),
       true,
     );
+    const action = await tool.createPendingAction?.(validated.value, context);
+    assert.equal(action?.requiresExplicitApproval, true);
   });
 });

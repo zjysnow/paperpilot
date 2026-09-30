@@ -130,6 +130,7 @@ export function createReadAttachmentTool(
       const mimeType = attachment?.mimeType || "application/pdf";
       return {
         toolName: "read_attachment",
+        requiresExplicitApproval: true,
         title: attachmentName,
         description:
           'Review the file details below. Click "Send to model" to let the model inspect this attachment.',

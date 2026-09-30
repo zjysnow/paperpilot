@@ -100,6 +100,7 @@ export function createTrashItemsTool(
 
       return {
         toolName: "trash_items",
+        requiresExplicitApproval: true,
         title: `Trash ${operation.itemIds.length} item${operation.itemIds.length === 1 ? "" : "s"}`,
         description: `Move ${operation.itemIds.length} item${operation.itemIds.length === 1 ? "" : "s"} to the Zotero trash. This can be undone.`,
         confirmLabel: "Trash",

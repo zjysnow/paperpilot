@@ -42,4 +42,27 @@ describe("tool argument JSON repair", function () {
       allowOverwrite: true,
     });
   });
+
+  it("repairs a malformed content value ending in a backslash", function () {
+    const raw = String.raw`{"action":"write","content":"path = 'C:\temp'\","filePath":"/tmp/example.py"}`;
+
+    assert.deepEqual(parseToolArgumentsJson(raw), {
+      action: "write",
+      content: "path = 'C:\\temp'\\",
+      filePath: "/tmp/example.py",
+    });
+  });
+
+  it("repairs content inside a fenced JSON tool argument", function () {
+    const raw = `\`\`\`json
+{"action":"write","filePath":"/tmp/example.py","content":"print("ready")
+settings = {"seed": 7}"}
+\`\`\``;
+
+    assert.deepEqual(parseToolArgumentsJson(raw), {
+      action: "write",
+      filePath: "/tmp/example.py",
+      content: 'print("ready")\nsettings = {"seed": 7}',
+    });
+  });
 });

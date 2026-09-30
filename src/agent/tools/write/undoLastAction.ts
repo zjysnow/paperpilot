@@ -49,6 +49,7 @@ export function createUndoLastActionTool(): AgentToolDefinition<
       const entry = peekUndoEntry(context.request.conversationKey);
       return {
         toolName: "undo_last_action",
+        requiresExplicitApproval: true,
         title: entry ? "Confirm undo" : "Nothing to undo",
         description: entry ? entry.description : undefined,
         confirmLabel: "Undo",

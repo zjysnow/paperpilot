@@ -571,6 +571,13 @@ function readToolError(result: AgentToolResult): string {
     : "";
 }
 
+function countsTowardToolErrorCircuitBreaker(error: string): boolean {
+  if (!error) return false;
+  if (/^Unknown tool:/i.test(error)) return true;
+  if (/\bis not available for this request\b/i.test(error)) return true;
+  return /^Invalid confirmation input for /i.test(error);
+}
+
 function isUserDeniedToolResult(result: AgentToolResult): boolean {
   return readToolError(result).toLowerCase() === "user denied action";
 }
@@ -1649,7 +1656,8 @@ export class AgentRuntime {
         const requestId = createConfirmationRequestId();
         if (
           getAgentApprovalMode() === "allow_all" &&
-          action.mode !== "review"
+          action.mode !== "review" &&
+          !action.requiresExplicitApproval
         ) {
           const resolution: AgentConfirmationResolution = {
             approved: true,
@@ -1713,6 +1721,7 @@ export class AgentRuntime {
             toolName: "paper_replication_workspace",
             title: "Prepare paper-replication workspace",
             mode: "approval",
+            requiresExplicitApproval: true,
             description:
               "Allow Paper Pilot to create or update the replication project in this paper's workspace. Git initialization and commits will still request their own confirmation.",
             confirmLabel: "Approve project preparation",
@@ -2377,19 +2386,10 @@ export class AgentRuntime {
           });
         } else {
           const rawError = readToolError(toolResult);
-          const isEmptyRunCommandCall =
-            toolResult.name === "run_command" &&
-            (!executedCall.input ||
-              typeof executedCall.input !== "object" ||
-              typeof (executedCall.input as { command?: unknown }).command !==
-                "string" ||
-              !(executedCall.input as { command: string }).command.trim());
-          const isEmptyFileIOCall =
-            toolResult.name === "file_io" &&
-            rawError?.includes("file_io received empty tool arguments") ===
-              true;
-          if (!isEmptyRunCommandCall && !isEmptyFileIOCall) {
+          if (countsTowardToolErrorCircuitBreaker(rawError)) {
             consecutiveToolErrors += 1;
+          } else {
+            consecutiveToolErrors = 0;
           }
           if (rawError && rawError.toLowerCase() !== "user denied action") {
             await emit({

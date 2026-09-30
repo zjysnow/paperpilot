@@ -144,6 +144,7 @@ export function createManageAttachmentsTool(
       if (operation.type === "delete_attachment") {
         return {
           toolName: "manage_attachments",
+          requiresExplicitApproval: true,
           title: "Delete attachment",
           description: `Move "${title}" to the Zotero trash. This can be undone.`,
           confirmLabel: "Delete",
@@ -186,6 +187,7 @@ export function createManageAttachmentsTool(
       // relink_attachment
       return {
         toolName: "manage_attachments",
+        requiresExplicitApproval: true,
         title: "Re-link attachment",
         description: `Update the file path for "${title}".`,
         confirmLabel: "Re-link",

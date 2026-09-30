@@ -4219,7 +4219,17 @@ export function renderAgentTrace({
       openButton.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        openSubagentDetailWindow(doc, itemEntry.subagentTaskId!, runId);
+        void openSubagentDetailWindow(
+          doc,
+          itemEntry.subagentTaskId!,
+          runId,
+        ).catch((error) => {
+          ztoolkit.log(
+            "Paper Pilot: Failed to open subagent details",
+            runId,
+            error,
+          );
+        });
       });
       target.appendChild(openButton);
     };

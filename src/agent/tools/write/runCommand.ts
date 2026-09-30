@@ -669,6 +669,7 @@ export function createRunCommandTool(): AgentToolDefinition<
     createPendingAction(input) {
       return {
         toolName: "run_command",
+        requiresExplicitApproval: true,
         title: "Run shell command",
         description: "Execute a command on your local machine.",
         confirmLabel: "Run",
