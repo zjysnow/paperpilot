@@ -1,5 +1,8 @@
 import { AgentToolRegistry } from "./tools/registry";
-import { getAgentApprovalMode } from "../utils/agentApprovalConfig";
+import {
+  DEFAULT_AGENT_APPROVAL_TIMEOUT_MS,
+  getAgentApprovalMode,
+} from "../utils/agentApprovalConfig";
 import {
   createSubagentTaskTool,
   SUBAGENT_TASK_TOOL_NAME,
@@ -107,6 +110,11 @@ type AgentRuntimeDeps = {
   registry: AgentToolRegistry;
   adapterFactory: (request: AgentRuntimeRequest) => AgentModelAdapter;
   now?: () => number;
+  setTimeoutFn?: (
+    callback: () => void,
+    delayMs: number,
+  ) => ReturnType<typeof setTimeout>;
+  clearTimeoutFn?: (timer: ReturnType<typeof setTimeout>) => void;
 };
 
 type PendingConfirmation = {
@@ -844,6 +852,10 @@ export class AgentRuntime {
   private readonly registry: AgentToolRegistry;
   private readonly adapterFactory: AgentRuntimeDeps["adapterFactory"];
   private readonly now: () => number;
+  private readonly setTimeoutFn: NonNullable<AgentRuntimeDeps["setTimeoutFn"]>;
+  private readonly clearTimeoutFn: NonNullable<
+    AgentRuntimeDeps["clearTimeoutFn"]
+  >;
   private readonly pendingConfirmations = new Map<
     string,
     PendingConfirmation
@@ -856,6 +868,11 @@ export class AgentRuntime {
     }
     this.adapterFactory = deps.adapterFactory;
     this.now = deps.now || (() => Date.now());
+    this.setTimeoutFn =
+      deps.setTimeoutFn ||
+      ((callback, delayMs) => setTimeout(callback, delayMs));
+    this.clearTimeoutFn =
+      deps.clearTimeoutFn || ((timer) => clearTimeout(timer));
   }
 
   listTools() {
@@ -1656,12 +1673,11 @@ export class AgentRuntime {
         const requestId = createConfirmationRequestId();
         if (
           getAgentApprovalMode() === "allow_all" &&
-          action.mode !== "review" &&
-          !action.requiresExplicitApproval
+          action.mode !== "review"
         ) {
           const resolution: AgentConfirmationResolution = {
             approved: true,
-            actionId: "allow_all",
+            actionId: action.defaultActionId || "allow_all",
           };
           await emit({
             type: "status",
@@ -1676,9 +1692,14 @@ export class AgentRuntime {
           return { requestId, resolution };
         }
         let abortListener: (() => void) | undefined;
+        let timeout: ReturnType<typeof setTimeout> | undefined;
         const resolution = new Promise<AgentConfirmationResolution>(
           (resolve) => {
             const settle = (value: AgentConfirmationResolution) => {
+              if (timeout !== undefined) {
+                this.clearTimeoutFn(timeout);
+                timeout = undefined;
+              }
               if (abortListener && params.signal) {
                 params.signal.removeEventListener("abort", abortListener);
               }
@@ -1688,6 +1709,10 @@ export class AgentRuntime {
             this.pendingConfirmations.set(requestId, { resolve: settle });
             abortListener = () =>
               settle({ approved: false, actionId: "cancel" });
+            timeout = this.setTimeoutFn(
+              () => settle({ approved: false, actionId: "timeout" }),
+              DEFAULT_AGENT_APPROVAL_TIMEOUT_MS,
+            );
             if (params.signal?.aborted) abortListener();
             else
               params.signal?.addEventListener("abort", abortListener, {
@@ -1701,6 +1726,12 @@ export class AgentRuntime {
           action,
         });
         const settled = await resolution;
+        if (settled.actionId === "timeout") {
+          await emit({
+            type: "status",
+            text: "Approval timed out and was denied. Progress was saved; ask to continue when ready.",
+          });
+        }
         await emit({
           type: "confirmation_resolved",
           requestId,

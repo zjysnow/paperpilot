@@ -457,7 +457,11 @@ function createAgentTurnEventHandler(
         closeInlineConfirmationCard(body, ui, event.requestId);
         queueRefresh();
         setStatusSafely(
-          event.approved ? "Approval sent" : "Action denied",
+          event.approved
+            ? "Approval sent"
+            : event.actionId === "timeout"
+              ? "Approval timed out; progress saved"
+              : "Action denied",
           "sending",
         );
         return;

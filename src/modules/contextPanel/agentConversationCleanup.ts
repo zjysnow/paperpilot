@@ -5,6 +5,7 @@ import { clearPersistedAgentToolResultHandles } from "../../agent/store/toolResu
 import { clearPersistedAgentEvidence } from "../../agent/context/cacheManagement";
 import { clearPersistedAgentCoverage } from "../../agent/context/coverageLedger";
 import { clearRememberedLocalDocumentPaths } from "../../agent/privacy/localDocumentPathRedaction";
+import { clearAgentRunTraces } from "../../agent/store/traceStore";
 
 export type AgentConversationCleanupDeps = {
   clearAgentToolCaches?: (conversationKey: number) => void;
@@ -22,6 +23,7 @@ export async function clearAgentConversationState(
     clearPersistedAgentToolResultHandles(conversationKey),
     clearPersistedAgentEvidence(conversationKey),
     clearPersistedAgentCoverage(conversationKey),
+    clearAgentRunTraces(conversationKey),
   ]);
 }
 

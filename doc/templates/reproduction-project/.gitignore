@@ -1,0 +1,13 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+data/
+outputs/
+checkpoints/
+wandb/
+mlruns/
+
+.DS_Store

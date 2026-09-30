@@ -1,7 +1,7 @@
 ---
 id: write-note
 description: Write a long-form reading or literature note for a specific paper, saved as a Zotero note or Markdown file. Use ONLY when the user explicitly asks to write, draft, or edit a note.
-version: 7
+version: 9
 contexts: any
 activation: auto
 match: /\b(create|make|write|draft|generate)\b.*\b(note|summary note|reading note|notes?)\b.*\b(for|from|about|on)\b.*\b(paper|article|this)\b/i
@@ -64,7 +64,15 @@ If unclear, default to Zotero note.
 
 ### Step 2 — Compose the note using the template below
 
-Look up `title` (the paper's full title), `citekey`, `doi`, `journal`, `year`, and **authors** from Zotero item metadata via `library_read({ sections:['metadata'] })`. Cite papers using **Pandoc citation syntax** `[@citekey]` **only when `citekey` is non-empty**. If `citekey` is missing or empty (common when Better BibTeX is not installed), reference papers in prose instead (`First-Author et al. (Year)`) and rely on the full citation in the `## References` section. **Never emit `[@]`** — an empty citation is a bug.
+Look up `title` (the paper's full title), `citekey`, `doi`, `journal`, `year`,
+`itemKey`, and **authors** from Zotero item metadata via
+`library_read({ sections:['metadata'] })`. Use `itemKey` for
+`{{zoteroItemKey}}`; do not substitute the numeric item ID or invent a key.
+Cite papers using **Pandoc citation syntax** `[@citekey]` **only when
+`citekey` is non-empty**. If `citekey` is missing or empty (common when Better
+BibTeX is not installed), reference papers in prose instead
+(`First-Author et al. (Year)`) and rely on the full citation in the
+`## References` section. **Never emit `[@]`** — an empty citation is a bug.
 
 For **Zotero notes** (`note_write`): omit the YAML frontmatter block entirely. Use only the heading and section structure.
 
@@ -76,7 +84,12 @@ For **file-based notes** (`file_io`): include the full template with YAML frontm
 
 Use this template **exactly**.
 
-**FRONTMATTER LOCK**: the 7 fields listed below (`title`, `citekey`, `doi`, `year`, `journal`, `created`, `tags`) are the COMPLETE AND EXCLUSIVE list. You are FORBIDDEN from adding any other field. Explicitly forbidden (non-exhaustive): `authors`, `note_type`, `figure`, `abstract`, `source`, `url`, `keywords`, `added`, `updated`, `status`, `rating`. If you want to record author names, figure labels, abstracts, or any other metadata, put them in the **body text** of the note, not in frontmatter. Do not invent new fields under any circumstance.
+**FRONTMATTER LOCK**: the 10 fields listed below (`title`, `citekey`, `doi`,
+`year`, `journal`, `zotero_item_key`, `status`, `project_path`, `created`,
+`tags`) are the COMPLETE AND EXCLUSIVE list for file-based paper notes. Do not
+add `authors`, `note_type`, `figure`, `abstract`, `source`, `url`, `keywords`,
+`added`, `updated`, `rating`, or any other field. Put other metadata in the
+body rather than inventing frontmatter fields.
 
 ```
 ---
@@ -85,6 +98,9 @@ citekey: "{{citekey}}"
 doi: "{{doi}}"
 year: {{year}}
 journal: "{{journal}}"
+zotero_item_key: "{{zoteroItemKey}}"
+status: reading
+project_path: ""
 created: {{created}}
 tags: [zotero, paper-note]
 ---
@@ -100,15 +116,29 @@ Brief overview of the paper's main contribution and what problem it addresses.
 ## Methodology
 Summary of the research methodology, experimental setup, or analytical approach.
 
+## Evidence and Open Questions
+### Confirmed
+- Claim supported by the paper.
+  - Evidence: section, page, figure/table, or a short source passage.
+
+### Inferred or Assumed
+- Clearly label any interpretation, missing implementation detail, or
+  reproduction choice that is not directly supported by the paper.
+
+### Unresolved
+- Open questions that require further reading, author code, or an experiment.
+
+## Reproduction
+- Decision: defer
+- Target result: not set
+- Success tolerance: not set
+- Constraints: data, license, compute, and implementation details to verify
+
 ## My Notes
 Personal thoughts, critiques, open questions, and connections to other work.
 
 ## References
 {{fullCitation}}
-
----
-
-Written by LLM-for-Zotero.
 ```
 
 ### Template for general notes
@@ -125,35 +155,96 @@ tags: [zotero]
 # {{noteTitle}}
 
 {{content}}
+```
 
+### Template for concept notes
+
+When the user explicitly asks for a concept note, create a file-based note
+under the configured `02-Concepts` folder only if it is within the configured
+notes directory. A concept note captures a reusable idea across papers; it
+must link to its supporting paper notes and must not restate a full paper
+summary.
+
+```
+---
+title: "{{conceptTitle}}"
+created: {{created}}
+tags: [concept-note]
 ---
 
-Written by LLM-for-Zotero.
+# {{conceptTitle}}
+
+## Definition
+What the concept means in this research context.
+
+## Supported By
+- [[{{paperNoteTitle}}]] — the evidence or result that supports this concept.
+
+## Contrasting Evidence and Limitations
+- Findings, conditions, or limitations that qualify the concept.
+
+## Open Questions
+- What remains uncertain or needs validation.
+
+## Related Concepts
+- [[{{relatedConceptTitle}}]]
 ```
 
 ### How to apply the template
 
 - For **paper notes**, `{{paperTitle}}` is **the full title of the paper itself** (e.g., `"A toolbox for representational similarity analysis"`), looked up from Zotero metadata via `library_read({ sections:['metadata'] })`. Use the exact same value in both the `title:` frontmatter field and the `# heading`.
+- For **concept notes**, `{{conceptTitle}}` is a concise reusable idea. Do not
+  create one from a single unsupported claim. Link each supporting paper note
+  in `## Supported By`; include contrasting evidence or limitations when they
+  are available.
 - For **general notes**, `{{noteTitle}}` is the review topic or user-provided title. Use the same value in both `title:` frontmatter and `# heading`.
 - **Filename and `title:` are independent fields.** The filename uses its own three-part pattern (see Step 4b) that MAY include the note subtopic and date; frontmatter `title:` never does. Never copy any part of the filename into `title:`.
 - Fill in `{{created}}` with today's date in YYYY-MM-DD format. This is when the note was created, not when the paper was published (that's the `year` field).
 - Use the current local date from the runtime platform section for `{{created}}` and filename `{date}`. Do not call `run_command` just to retrieve the date/time.
-- **Required fields that must always be present**: `title`, `created`, `tags`. Never omit these.
-- **Look-up fields**: `citekey`, `doi`, `journal`, `year`. If a value is genuinely missing in Zotero metadata, use an empty string (e.g., `doi: ""`) rather than omitting the key — keep the frontmatter shape consistent.
+- **Required fields that must always be present**: `title`, `status`,
+  `project_path`, `created`, and `tags`. `status` starts as `reading`;
+  `project_path` starts as an empty string until a reproduction project exists.
+- **Look-up fields**: `citekey`, `doi`, `journal`, `year`, and
+  `zotero_item_key`. If a value is genuinely missing from Zotero metadata, use
+  an empty string (for example, `doi: ""`) rather than omitting the key. Do
+  not invent a Zotero item key.
+- **Status vocabulary**: use exactly one of `inbox`, `reading`, `understood`,
+  `candidate`, `reproducing`, `reproduced`, `blocked`, or `archived`. New
+  paper notes start as `reading`. Use `blocked` only when a specific external
+  prerequisite prevents progress; record that prerequisite in
+  `## Reproduction`. Use `archived` only for intentionally inactive work.
+  The reproduction decision (`replicate`, `reimplement`, `audit`, or `defer`)
+  belongs in the `## Reproduction` body, not in `status`.
+- **Tag namespaces**: use stable, lowercase namespaces for any additional
+  tags: `domain/`, `method/`, `dataset/`, and `status/`. Do not add a
+  `status/...` tag that disagrees with the `status` frontmatter field.
+- **Evidence format**: every item under `### Confirmed` must include an
+  `Evidence:` child line naming a page, section, figure/table, or brief source
+  passage. Numerical claims require a source anchor; if one is unavailable,
+  put the claim under `### Inferred or Assumed` or `### Unresolved` instead.
+- When a project exists, set `project_path` only to the exact configured
+  paper-workspace path. Do not create the project or guess a path solely to
+  fill the frontmatter.
 - For **non-paper notes**: use the general template. Do not add paper-specific metadata fields (doi, journal, citekey, year).
 - **References section is mandatory for paper notes.** Replace `{{fullCitation}}` with a full human-readable citation for the paper the note is about — format: `Authors (Year). *Title*. Journal, Volume(Issue), Pages. DOI.` — using whatever subset of fields Zotero actually has. If a field is unknown, mark it in brackets (e.g., `[volume unknown]`) rather than omitting silently. When the note cites additional papers beyond the active one, list each as a separate bullet under `## References`.
-- **Footer is mandatory on every note** (paper or general, Zotero or file-based). End the note with a horizontal rule followed by `Written by LLM-for-Zotero.` on its own line, exactly as shown in the templates. For HTML Zotero notes, use `<hr/><p>Written by LLM-for-Zotero.</p>`.
 
 **Checklist before writing the note — verify each item:**
 
 1. `title:` value is the paper's full title from Zotero (paper notes) or the user's note title (general notes) — NOT the filename, NOT the figure/subtopic label, NOT the date.
-2. Frontmatter contains exactly the 7 keys shown above, in that order, and NO others.
-3. You did not add `authors`, `note_type`, `figure`, `abstract`, or any other field.
+2. File-based paper-note frontmatter contains exactly the 10 keys shown above,
+   in that order, and no others.
+3. You did not add `authors`, `note_type`, `figure`, `abstract`, or any other
+   field.
 4. `created:` is today's date in YYYY-MM-DD.
 5. `tags:` is present.
 6. You identified the `{notetitle}` subtopic (figure label, section name, topic) separately — it goes into the filename in Step 4b, never into `title:`.
-7. `## References` is populated with a full human-readable citation for the paper (or the first cited paper). No bare `[@]`, no empty brackets, no placeholder text.
-8. The note ends with the footer `---` then a blank line then `Written by LLM-for-Zotero.` (or the HTML equivalent for Zotero HTML notes).
+7. `## Evidence and Open Questions` separates confirmed facts from inferences,
+   assumptions, and unresolved details.
+8. Every confirmed claim has an `Evidence:` line; numerical claims have a
+   page, section, figure/table, or source-passage anchor.
+9. `## References` is populated with a full human-readable citation for the
+   paper (or the first cited paper). No bare `[@]`, no empty brackets, no
+   placeholder text.
 
 ### Step 3 — Include figures
 
@@ -318,7 +409,6 @@ Any placeholder the user writes (`{citekey}`, `{firstauthor}`, `{year}`, `{doi}`
 - **Never** output the full note text in chat. Always use `note_write` or `file_io`.
 - Use the note template above — frontmatter is locked to the 7 fields shown; do not add or remove fields.
 - Use `[@citekey]` Pandoc syntax inline **only when `citekey` is non-empty**. When `citekey` is missing/empty, reference in prose (`First-Author et al. (Year)`) and rely on the full citation in `## References`. **Never emit `[@]`.** Adapt citation syntax to the target format (e.g., `[cite:@citekey]` for Org-mode) when citekey exists.
-- **Every note ends with the footer** `---\n\nWritten by LLM-for-Zotero.` — no exceptions, no omissions, regardless of destination or format.
 - Use the native path separator provided in the runtime platform section. Never mix separators.
 - If the user has replaced this skill's managed block with their own customization (either by editing the block directly or by writing their own template outside the MANAGED markers), follow their customization instead of the defaults above.
 

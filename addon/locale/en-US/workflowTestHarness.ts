@@ -659,11 +659,7 @@ async function seedPanelStoredUserMessage(
     text,
     timestamp: Date.now(),
   };
-  await appendWorkflowStoredMessage(
-    "upstream",
-    conversationKey,
-    message,
-  );
+  await appendWorkflowStoredMessage("upstream", conversationKey, message);
   const existing = chatHistory.get(conversationKey) || [];
   chatHistory.set(conversationKey, [...existing, message]);
   loadedConversationKeys.add(conversationKey);
@@ -1421,11 +1417,7 @@ async function seedStandaloneUserMessage(
     text,
     timestamp: Date.now(),
   };
-  await appendWorkflowStoredMessage(
-    "upstream",
-    conversationKey,
-    message,
-  );
+  await appendWorkflowStoredMessage("upstream", conversationKey, message);
   chatHistory.set(conversationKey, [message]);
   loadedConversationKeys.add(conversationKey);
   refreshChat(contentArea, item);

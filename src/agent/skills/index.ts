@@ -25,6 +25,7 @@ import writeNoteRaw from "./write-note.md";
 import literatureReviewRaw from "./literature-review.md";
 import importCitedReferenceRaw from "./import-cited-reference.md";
 import paperReplicationRaw from "./paper-replication.md";
+import researchWorkflowRaw from "./research-workflow.md";
 import { resolveSkillRouting } from "./routing";
 
 export { matchesSkill, parseSkill } from "./skillLoader";
@@ -67,6 +68,7 @@ export const BUILTIN_SKILL_FILES: Record<string, string> = {
   "literature-review.md": literatureReviewRaw,
   "import-cited-reference.md": importCitedReferenceRaw,
   "paper-replication.md": paperReplicationRaw,
+  "research-workflow.md": researchWorkflowRaw,
 };
 
 /** Set of filenames that are built-in (shipped with the plugin). */

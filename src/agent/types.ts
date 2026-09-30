@@ -239,9 +239,9 @@ export type AgentPendingAction = {
   defaultActionId?: string;
   cancelActionId?: string;
   /**
-   * Requires a user decision even when the global mode is "allow all".
-   * Use for destructive changes, data disclosure to a model, shell execution,
-   * or actions whose scope and target require an explicit user choice.
+   * Indicates that the action normally warrants explicit attention. The
+   * global "allow all" mode still approves approval cards; review cards keep
+   * requiring input because they can carry user-selected content or choices.
    */
   requiresExplicitApproval?: boolean;
 };

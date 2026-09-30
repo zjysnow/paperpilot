@@ -4,6 +4,8 @@ const AGENT_APPROVAL_MODE_KEY = `${config.prefsPrefix}.agentApprovalMode`;
 
 export type AgentApprovalMode = "default" | "allow_all";
 
+export const DEFAULT_AGENT_APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
+
 type ZoteroPrefsLike = {
   get?: (key: string, global?: boolean) => unknown;
   set?: (key: string, value: unknown, global?: boolean) => void;

@@ -77,6 +77,10 @@ function adapter(
 function runtime(
   modelAdapter: AgentModelAdapter,
   tool?: AgentToolDefinition,
+  deps: Pick<
+    ConstructorParameters<typeof AgentRuntime>[0],
+    "setTimeoutFn" | "clearTimeoutFn"
+  > = {},
 ): AgentRuntime {
   const registry = new AgentToolRegistry();
   if (tool) registry.register(tool);
@@ -84,6 +88,7 @@ function runtime(
     registry,
     adapterFactory: () => modelAdapter,
     now: () => 1,
+    ...deps,
   });
 }
 
@@ -491,7 +496,7 @@ describe("AgentRuntime outcomes", function () {
     assert.equal(resolved, true);
   });
 
-  it("automatically approves non-review actions in allow-all mode", async function () {
+  it("automatically approves approval actions in allow-all mode", async function () {
     (
       globalThis as unknown as {
         Zotero: { Prefs: { set: (key: string, value: unknown) => void } };
@@ -559,7 +564,7 @@ describe("AgentRuntime outcomes", function () {
     assert.equal(confirmationRequested, false);
   });
 
-  it("requires explicit approval for protected decisions in allow-all mode", async function () {
+  it("automatically approves protected approval actions in allow-all mode", async function () {
     (
       globalThis as unknown as {
         Zotero: { Prefs: { set: (key: string, value: unknown) => void } };
@@ -618,12 +623,80 @@ describe("AgentRuntime outcomes", function () {
       onEvent: (event) => {
         if (event.type !== "confirmation_required") return;
         confirmationRequested = true;
-        runtimeInstance.resolveConfirmation(event.requestId, true);
       },
     });
 
     assert.equal(result.kind, "completed");
-    assert.equal(confirmationRequested, true);
+    assert.equal(confirmationRequested, false);
     assert.equal(executed, true);
+  });
+
+  it("denies timed-out approvals and records resumable progress", async function () {
+    const events: AgentEvent[] = [];
+    let timeoutDelay = 0;
+    const tool: AgentToolDefinition = {
+      spec: {
+        name: "write_test",
+        description: "test",
+        inputSchema: { type: "object" },
+        mutability: "write",
+        requiresConfirmation: true,
+      },
+      validate: () => ({ ok: true, value: {} }),
+      createPendingAction: async () => action(),
+      execute: async () => ({ ok: true }),
+    };
+    const steps: AgentModelStep[] = [
+      {
+        kind: "tool_calls",
+        calls: [{ id: "call-timeout", name: "write_test", arguments: {} }],
+        assistantMessage: {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            { id: "call-timeout", name: "write_test", arguments: {} },
+          ],
+        },
+      },
+      { kind: "final", text: "Saved progress; ask me to continue." },
+    ];
+
+    const result = await runtime(
+      adapter(async () => {
+        const step = steps.shift();
+        if (!step) throw new Error("Unexpected model step");
+        return step;
+      }),
+      tool,
+      {
+        setTimeoutFn: (callback, delayMs) => {
+          timeoutDelay = delayMs;
+          queueMicrotask(callback);
+          return 1 as unknown as ReturnType<typeof setTimeout>;
+        },
+        clearTimeoutFn: () => undefined,
+      },
+    ).runTurn({
+      request: request(),
+      onEvent: (event) => events.push(event),
+    });
+
+    assert.equal(result.kind, "completed");
+    assert.equal(timeoutDelay, 5 * 60 * 1000);
+    assert.ok(
+      events.some(
+        (event) =>
+          event.type === "confirmation_resolved" &&
+          event.approved === false &&
+          event.actionId === "timeout",
+      ),
+    );
+    assert.ok(
+      events.some(
+        (event) =>
+          event.type === "status" &&
+          /timed out and was denied.*Progress was saved/i.test(event.text),
+      ),
+    );
   });
 });

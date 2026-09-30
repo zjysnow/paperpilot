@@ -181,7 +181,7 @@ export function sanitizeRenderedMermaidSvgWithReason(
   }
 
   let safeSvg = normalizeSvgHtmlBreaks(trimSvgLeadingMetadata(svg));
-  if (!/^<svg\b[\s\S]*<\/svg>\s*$/i.test(safeSvg)) {
+  if (!/^<svg\b(?:(?!<\/?svg\b)[\s\S])*<\/svg>\s*$/i.test(safeSvg)) {
     return { ok: false, reason: "rendered output is not a complete SVG" };
   }
 

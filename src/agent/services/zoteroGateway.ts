@@ -79,6 +79,7 @@ export type EditableArticleMetadataPatch = Partial<
 
 export type EditableArticleMetadataSnapshot = {
   itemId: number;
+  itemKey: string;
   itemType: string;
   title: string;
   fields: Record<EditableArticleMetadataField, string>;
@@ -1214,6 +1215,9 @@ export class ZoteroGateway {
     }
     return {
       itemId: target.id,
+      itemKey: normalizeMetadataValue(
+        (target as unknown as { key?: unknown }).key,
+      ),
       itemType: getItemTypeName(target),
       title:
         normalizeMetadataValue(target.getDisplayTitle?.()) ||

@@ -101,7 +101,11 @@ async function callDifyChat(
     responseMode: "blocking",
   });
   if (response.conversation_id) {
-    setDifyConversationId(conversationKey, response.conversation_id, backend.id);
+    setDifyConversationId(
+      conversationKey,
+      response.conversation_id,
+      backend.id,
+    );
   }
   const answer = typeof response.answer === "string" ? response.answer : "";
   if (answer) onDelta(answer);

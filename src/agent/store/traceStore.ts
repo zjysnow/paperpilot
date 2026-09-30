@@ -19,6 +19,10 @@ const traceExportInFlight = new Map<string, Promise<void>>();
 
 type IOUtilsLike = {
   write?: (path: string, data: Uint8Array<ArrayBufferLike>) => Promise<unknown>;
+  remove?: (
+    path: string,
+    options?: { ignoreAbsent?: boolean },
+  ) => Promise<void>;
   makeDirectory?: (
     path: string,
     options?: { createAncestors?: boolean; ignoreExisting?: boolean },
@@ -29,6 +33,10 @@ type OSFileLike = {
   writeAtomic?: (
     path: string,
     data: Uint8Array<ArrayBufferLike>,
+  ) => Promise<void>;
+  remove?: (
+    path: string,
+    options?: { ignoreAbsent?: boolean },
   ) => Promise<void>;
   makeDir?: (
     path: string,
@@ -87,6 +95,20 @@ async function writeUtf8File(path: string, content: string): Promise<void> {
     return;
   }
   throw new Error("No file write API available for trace export");
+}
+
+async function removeFileIfPresent(path: string): Promise<void> {
+  const io = getIOUtils();
+  if (io?.remove) {
+    await io.remove(path, { ignoreAbsent: true });
+    return;
+  }
+  const osFile = getOSFile();
+  if (osFile?.remove) {
+    await osFile.remove(path, { ignoreAbsent: true });
+    return;
+  }
+  throw new Error("No file removal API available for trace export");
 }
 
 function getAgentTraceExportDir(): string {
@@ -174,6 +196,17 @@ function scheduleAgentRunTraceExport(runId: string, delayMs = 250): void {
   traceExportTimers.set(normalizedRunId, timer);
 }
 
+async function cancelAgentRunTraceExport(runId: string): Promise<void> {
+  const normalizedRunId = (runId || "").trim();
+  if (!normalizedRunId) return;
+  const timer = traceExportTimers.get(normalizedRunId);
+  if (typeof timer === "number") {
+    clearTimeout(timer);
+    traceExportTimers.delete(normalizedRunId);
+  }
+  await traceExportInFlight.get(normalizedRunId);
+}
+
 export async function initAgentTraceStore(): Promise<void> {
   await Zotero.DB.executeTransaction(async () => {
     await Zotero.DB.queryAsync(
@@ -252,6 +285,45 @@ export async function appendAgentRunEvent(
     [runId, seq, event.type, JSON.stringify(event), Date.now()],
   );
   scheduleAgentRunTraceExport(runId);
+}
+
+export async function clearAgentRunTraces(
+  conversationKey: number,
+): Promise<void> {
+  if (!Number.isSafeInteger(conversationKey) || conversationKey <= 0) return;
+  const runRows = (await Zotero.DB.queryAsync(
+    `SELECT run_id AS runId
+     FROM ${AGENT_RUNS_TABLE}
+     WHERE conversation_key = ?`,
+    [conversationKey],
+  )) as Array<{ runId?: unknown }> | undefined;
+  const runIds = Array.from(
+    new Set(
+      (runRows || [])
+        .map((row) => (typeof row.runId === "string" ? row.runId : ""))
+        .filter(Boolean),
+    ),
+  );
+  await Promise.all(runIds.map(cancelAgentRunTraceExport));
+  await Zotero.DB.executeTransaction(async () => {
+    await Zotero.DB.queryAsync(
+      `DELETE FROM ${AGENT_RUN_EVENTS_TABLE}
+       WHERE run_id IN (
+         SELECT run_id
+         FROM ${AGENT_RUNS_TABLE}
+         WHERE conversation_key = ?
+       )`,
+      [conversationKey],
+    );
+    await Zotero.DB.queryAsync(
+      `DELETE FROM ${AGENT_RUNS_TABLE}
+       WHERE conversation_key = ?`,
+      [conversationKey],
+    );
+  });
+  await Promise.all(
+    runIds.map((runId) => removeFileIfPresent(getAgentTraceExportPath(runId))),
+  );
 }
 
 export async function listAgentRunEvents(

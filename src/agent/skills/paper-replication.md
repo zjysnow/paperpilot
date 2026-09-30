@@ -78,8 +78,12 @@ relevant source/configuration files.
 3. Use `file_io` to create a project that is useful to run, not an empty
    scaffold. At minimum create:
    - `README.md` — quick start, expected outputs, and the next chat prompt.
+   - `docs/EVIDENCE.md` — paper-backed implementation facts with source
+     passages, plus clearly labeled inferences and assumptions.
    - `docs/REPRODUCTION_PLAN.md` — paper evidence, implementation mapping,
      assumptions, success criteria, and known gaps.
+   - `docs/DATA_REQUIREMENTS.md` — data acquisition, license, version,
+     expected files, and prerequisites.
    - `docs/REQUIREMENTS.md` — a user checklist for data access, licenses,
      credentials, hardware, software, and any decisions still needed.
    - `docs/DATA_CONTRACT.md` — the exact directory layout, filenames, file
@@ -88,6 +92,9 @@ relevant source/configuration files.
      project-relative folder where the user must place data.
    - `docs/EXPERIMENT_LOG.md` — dated experiment entries, commands, metrics,
      artifacts, and the next recommended action.
+   - `docs/EXPERIMENT_RESULTS.md` — the current evidence-backed comparison
+     between executed results and the paper's target result. Start it with a
+     pending-result section when no experiment has run.
    - `paperpilot-replication.json` — project state with `phase`, paper
      identity, paths, pending prerequisites, and the current next action.
    - at least one runnable implementation source file (not only documents or
@@ -126,9 +133,11 @@ relevant source/configuration files.
 When the user says prerequisites are ready, asks to continue, provides a log,
 or asks for the next experiment:
 
-1. Read `paperpilot-replication.json`, `docs/DATA_CONTRACT.md`,
-   `docs/EXPERIMENT_LOG.md`, and the relevant source/configuration files before
-   proposing changes. Use these project files as the source of truth for state.
+1. Read `paperpilot-replication.json`, `docs/EVIDENCE.md`,
+   `docs/DATA_CONTRACT.md`, `docs/DATA_REQUIREMENTS.md`,
+   `docs/EXPERIMENT_LOG.md`, `docs/EXPERIMENT_RESULTS.md`, and the relevant
+   source/configuration files before proposing changes. Use these project files
+   as the source of truth for state.
 2. Run `scripts/validate_data.<extension>` against the documented data folder
    before starting training. Check its exit status and output; do not infer
    validity from the user's statement alone. If validation fails, do not run

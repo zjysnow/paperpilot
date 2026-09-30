@@ -4,7 +4,6 @@
 
 node_modules
 
-package-lock.json
 tsconfig.tsbuildinfo
 prefs.d.ts
 i10n.d.ts

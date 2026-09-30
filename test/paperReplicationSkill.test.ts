@@ -10,6 +10,9 @@ describe("paper replication skill", function () {
     assert.equal(skill.id, "paper-replication");
     assert.equal(skill.activation, "both");
     assert.match(skill.instruction, /paperpilot-replication\.json/);
+    assert.match(skill.instruction, /EVIDENCE\.md/);
+    assert.match(skill.instruction, /DATA_REQUIREMENTS\.md/);
+    assert.match(skill.instruction, /EXPERIMENT_RESULTS\.md/);
     assert.match(skill.instruction, /EXPERIMENT_LOG\.md/);
   });
 

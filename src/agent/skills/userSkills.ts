@@ -702,9 +702,7 @@ export async function initUserSkills(): Promise<void> {
         );
         if (patched) {
           await io.write(filePath, encoder.encode(patched));
-          Zotero.debug?.(
-            `[Paper Pilot] Patched skill metadata: ${filename}`,
-          );
+          Zotero.debug?.(`[Paper Pilot] Patched skill metadata: ${filename}`);
         }
       } catch (err) {
         Zotero.debug?.(

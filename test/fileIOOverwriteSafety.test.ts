@@ -17,6 +17,34 @@ function context(): AgentToolContext {
 }
 
 describe("file I/O overwrite safety", function () {
+  it("rejects relative paths and bounds text reads", function () {
+    const tool = createFileIOTool();
+
+    for (const filePath of ["notes.md", "./notes.md", "../notes.md"]) {
+      const validated = tool.validate({
+        action: "read",
+        filePath,
+      });
+      assert.equal(validated.ok, false);
+    }
+
+    for (const filePath of [
+      "/workspace/notes.md",
+      "C:\\workspace\\notes.md",
+      "\\\\server\\share\\notes.md",
+    ]) {
+      const validated = tool.validate({
+        action: "read",
+        filePath,
+        length: 999_999,
+      });
+      assert.equal(validated.ok, true);
+      if (validated.ok) {
+        assert.equal(validated.value.length, 200_000);
+      }
+    }
+  });
+
   it("requires confirmation when a readable file exists despite a false exists result", async function () {
     const previous = (globalThis as { IOUtils?: unknown }).IOUtils;
     (globalThis as { IOUtils?: unknown }).IOUtils = {

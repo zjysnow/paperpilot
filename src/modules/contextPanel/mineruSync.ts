@@ -22,8 +22,7 @@ import { pdfTextCache, pdfTextLoadingTasks } from "./state";
 
 export const MINERU_SYNC_PACKAGE_KIND = "paperpilot/mineru-cache";
 export const MINERU_SYNC_PACKAGE_VERSION = 1;
-export const MINERU_SYNC_ATTACHMENT_TITLE_PREFIX =
-  "[LLM for Zotero] MinerU cache";
+export const MINERU_SYNC_ATTACHMENT_TITLE_PREFIX = "[Paper Pilot] MinerU cache";
 export const MINERU_SYNC_METADATA_FILE = "_llm_sync.json";
 export const MINERU_LOCAL_SYNC_STATE_FILE = "_llm_sync_state.json";
 export const MINERU_CACHE_VERSION = "mineru-cache-v1";

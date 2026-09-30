@@ -1,4 +1,5 @@
 import { getAgentRuntime } from "../../../agent";
+import { setAgentApprovalMode } from "../../../utils/agentApprovalConfig";
 import type {
   AgentPendingAction,
   AgentPendingField,
@@ -2354,6 +2355,24 @@ export function renderPendingActionCard(
     card.appendChild(pagedActions);
   }
 
+  if (!isPagedReviewCard) {
+    if (pending.action.mode !== "review") {
+      const allowAllButton = doc.createElement("button");
+      allowAllButton.type = "button";
+      allowAllButton.dataset.kind = "allow-all";
+      allowAllButton.className =
+        "llm-agent-hitl-btn llm-agent-hitl-btn-secondary";
+      allowAllButton.textContent = "Allow all";
+      allowAllButton.title =
+        "Approve this action and automatically approve later approval requests. Review cards that require choices will still ask for input.";
+      allowAllButton.addEventListener("click", () => {
+        setAgentApprovalMode("allow_all");
+        executeAction(activeActionId);
+      });
+      buttons.push(allowAllButton);
+      actionRow.appendChild(allowAllButton);
+    }
+  }
   if (!isPagedReviewCard && normalizedActions.cancelAction) {
     const cancelButton = doc.createElement("button");
     cancelButton.type = "button";

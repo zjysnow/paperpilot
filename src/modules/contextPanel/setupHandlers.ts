@@ -1242,7 +1242,7 @@ export function setupHandlers(
   let closeModelMenu = () => {
     setFloatingMenuOpen(modelMenu, MODEL_MENU_OPEN_CLASS, false);
   };
-  let closeApprovalMenu = () => {
+  const closeApprovalMenu = () => {
     setFloatingMenuOpen(approvalMenu, MODEL_MENU_OPEN_CLASS, false);
   };
   let openReasoningMenu: () => void;

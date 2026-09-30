@@ -121,7 +121,7 @@ export function getWorkspaceFolderPath(folderName: string): string {
 export function getPaperWorkspaceFolderPath(
   item: WorkspaceItem | null | undefined,
 ): string | null {
-  let folderName = "";
+  let folderName: string;
   try {
     folderName = String(item?.getField?.("shortTitle") || "").trim();
   } catch {

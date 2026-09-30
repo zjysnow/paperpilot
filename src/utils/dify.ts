@@ -271,12 +271,14 @@ export function resolveDifyChatBackend(
     );
     if (matched) return matched;
   }
-  return backends[0] || {
-    id: LEGACY_DIFY_BACKEND_ID,
-    baseUrl: DEFAULT_DIFY_BASE_URL,
-    apiKey: "",
-    user: "paperpilot",
-  };
+  return (
+    backends[0] || {
+      id: LEGACY_DIFY_BACKEND_ID,
+      baseUrl: DEFAULT_DIFY_BASE_URL,
+      apiKey: "",
+      user: "paperpilot",
+    }
+  );
 }
 
 function normalizeBaseUrl(value: unknown): string {
@@ -400,9 +402,7 @@ function normalizeBackend(
 
   return {
     id:
-      typeof raw.id === "string" && raw.id.trim()
-        ? raw.id.trim()
-        : fallbackId,
+      typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : fallbackId,
     ...(typeof raw.name === "string" && raw.name.trim()
       ? { name: raw.name.trim() }
       : {}),
@@ -435,7 +435,9 @@ function normalizeConfig(value: unknown): DifyConfig {
       ? (value as Record<string, unknown>)
       : {};
   const backends = Array.isArray(raw.backends)
-    ? raw.backends.map((backend) => normalizeBackend(backend, createDifyBackendId()))
+    ? raw.backends.map((backend) =>
+        normalizeBackend(backend, createDifyBackendId()),
+      )
     : undefined;
   return {
     ...legacyConfig,
@@ -465,8 +467,13 @@ export function setDifyConfig(value: DifyConfig): void {
   );
 }
 
-function buildConversationMapKey(conversationKey: number, backendId?: string): string {
-  return backendId ? `${backendId}:${conversationKey}` : String(conversationKey);
+function buildConversationMapKey(
+  conversationKey: number,
+  backendId?: string,
+): string {
+  return backendId
+    ? `${backendId}:${conversationKey}`
+    : String(conversationKey);
 }
 
 export function getDifyConversationId(
@@ -503,7 +510,8 @@ export function setDifyConversationId(
   } catch {
     // Keep an empty map when preferences contain invalid JSON.
   }
-  map[buildConversationMapKey(conversationKey, backendId)] = conversationId.trim();
+  map[buildConversationMapKey(conversationKey, backendId)] =
+    conversationId.trim();
   prefs.set(CONVERSATION_PREF_KEY, JSON.stringify(map), true);
 }
 

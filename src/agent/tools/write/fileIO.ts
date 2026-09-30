@@ -4,7 +4,11 @@
  */
 import type { AgentToolContext, AgentToolDefinition } from "../../types";
 import { ok, fail, validateObject } from "../shared";
-import { getLocalParentPath, joinLocalPath } from "../../../utils/localPath";
+import {
+  getLocalParentPath,
+  isAbsoluteLocalPath,
+  joinLocalPath,
+} from "../../../utils/localPath";
 import {
   getLocalPathBasename,
   parseNotesDirectoryWritePolicy,
@@ -81,6 +85,8 @@ const FILE_IO_CONTENTLESS_READ_ACTIONS = new Set(["access", "inspect"]);
 const FILE_IO_CANONICAL_EXAMPLES =
   "Use file_io({ action:'read', filePath:'/absolute/path.md' }) or " +
   "file_io({ action:'write', filePath:'/absolute/path.py', content:'...' }).";
+const DEFAULT_FILE_READ_LENGTH = 100_000;
+const MAX_FILE_READ_LENGTH = 200_000;
 
 function normalizeFileIOActionToken(value: string): string {
   let normalized = value.trim();
@@ -451,8 +457,7 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
           },
           length: {
             type: "number",
-            description:
-              "For action 'read': maximum characters to read. If omitted, reads the entire file from offset to end. Use with offset to read a specific character range.",
+            description: `For action 'read': maximum characters to read (default: ${DEFAULT_FILE_READ_LENGTH}, max: ${MAX_FILE_READ_LENGTH}). Use with offset to read a specific character range.`,
           },
         },
       },
@@ -542,6 +547,12 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
           `filePath is required: an absolute path to the file. Deprecated alias path is accepted for older prompts. ${FILE_IO_CANONICAL_EXAMPLES}`,
         );
       }
+      const filePath = rawFilePath.trim();
+      if (!isAbsoluteLocalPath(filePath)) {
+        return fail(
+          `filePath must be an absolute path. ${FILE_IO_CANONICAL_EXAMPLES}`,
+        );
+      }
       if (action !== "read" && action !== "write") {
         return fail(
           "action must be 'read' or 'write'. Example: file_io({ action:'read', filePath:'/absolute/path.md' })",
@@ -559,12 +570,17 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
           ? Math.floor(args.offset)
           : undefined;
       const length =
-        action === "read" && typeof args.length === "number" && args.length > 0
-          ? Math.floor(args.length)
+        action === "read"
+          ? Math.min(
+              typeof args.length === "number" && args.length > 0
+                ? Math.floor(args.length)
+                : DEFAULT_FILE_READ_LENGTH,
+              MAX_FILE_READ_LENGTH,
+            )
           : undefined;
       return ok<FileIOInput>({
         action,
-        filePath: rawFilePath.trim(),
+        filePath,
         content: action === "write" ? rawContent || "" : undefined,
         encoding,
         offset,
@@ -732,7 +748,10 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
         try {
           const raw = await readFile(input.filePath, input.encoding || "utf-8");
           const start = input.offset || 0;
-          const end = input.length ? start + input.length : raw.length;
+          const end = Math.min(
+            start + (input.length || DEFAULT_FILE_READ_LENGTH),
+            raw.length,
+          );
           const rawText = raw.slice(start, end);
           const text = isMineruFullMarkdownReadPath(input.filePath)
             ? stripMineruSourceImageEmbedsFromMarkdown(rawText)
@@ -745,6 +764,7 @@ export function createFileIOTool(): AgentToolDefinition<FileIOInput, unknown> {
               bytesRead: text.length,
               ...(start > 0 ? { offset: start } : {}),
               ...(text.length < raw.length ? { totalLength: raw.length } : {}),
+              ...(end < raw.length ? { nextOffset: end } : {}),
             },
           };
         } catch (error) {

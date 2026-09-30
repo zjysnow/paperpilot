@@ -1567,7 +1567,7 @@ function normalizeMermaidFlowchartLabelsInLine(line: string): string {
     },
   );
   const normalizedCurlyLabels = quotedNormalized.replace(
-    /(\b[A-Za-z][\w-]*\s*)\{(?!\{)([^\}\n]*[\s()?:;][^\}\n]*)\}/g,
+    /(\b[A-Za-z][\w-]*\s*)\{(?!\{)([^}\n]*[\s()?:;][^}\n]*)\}/g,
     (match, prefix: string, label: string) => {
       const normalizedLabel = normalizeMermaidLabelMarkdown(label);
       const escapedLabel = escapeMermaidQuotedLabel(normalizedLabel);

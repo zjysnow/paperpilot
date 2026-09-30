@@ -94,8 +94,7 @@ const OA_SELECT =
   "id,doi,display_name,authorships,publication_year,abstract_inverted_index,cited_by_count,open_access";
 const OA_MAILTO = "mailto=paperpilot@github.com";
 const OA_BASE = "https://api.openalex.org";
-const USER_AGENT =
-  "paperpilot/1.0 (https://github.com/zjysnow/paperpilot)";
+const USER_AGENT = "paperpilot/1.0 (https://github.com/zjysnow/paperpilot)";
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";

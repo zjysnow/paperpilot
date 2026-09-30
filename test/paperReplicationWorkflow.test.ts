@@ -129,7 +129,8 @@ test`),
         return input.command.includes("find")
           ? {
               exitCode: 128,
-              stderr: "fatal: not a git repository (or any of the parent directories): .git",
+              stderr:
+                "fatal: not a git repository (or any of the parent directories): .git",
             }
           : { exitCode: 0 };
       },

@@ -333,6 +333,14 @@ npm run test
 npm run build
 ```
 
+See the [runtime support matrix](doc/runtime-support-matrix.md) for the
+required Zotero platform smoke checks before releasing a build.
+
+For a practical Zotero, Obsidian, and VS Code setup, see
+[the research-workflow guide](doc/research-workflow-setup.md).
+Reusable [Obsidian dashboard and reproduction-project templates](doc/templates)
+are included for the first pilot.
+
 To start the development server:
 
 ```bash
