@@ -15,6 +15,7 @@ import {
 import { resolveActiveLibraryID } from "./modules/contextPanel/portalScope";
 import { invalidatePaperSearchCache } from "./modules/contextPanel/paperSearch";
 import { registerZoteroItemContextMenu } from "./modules/contextPanel/zoteroItemContextMenu";
+import { registerMainWindowEntry } from "./modules/contextPanel/mainWindowEntry";
 import { initChatStore } from "./utils/chatStore";
 import {
   migratePaperpilotDatabaseNamespace,
@@ -247,6 +248,9 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
 
   // Keyboard shortcut: Ctrl/Cmd+Shift+L
   const doc = win.document;
+  registerMainWindowEntry(doc, () => {
+    openStandaloneChat({ initialConversationMode: "global" });
+  });
   const keyset = doc.getElementById("mainKeyset");
   if (keyset) {
     const key = doc.createXULElement("key");
@@ -302,6 +306,10 @@ function onShutdown(): void {
   unregisterAllNoteEditingSelectionTracking();
   closeAllAddonDialogs();
   addon.data.standaloneWindow?.close();
+  for (const win of Zotero.getMainWindows()) {
+    win.document.getElementById("paperpilot-open-standalone")?.remove();
+    win.document.getElementById("paperpilot-key-standalone")?.remove();
+  }
   try {
     const { pauseBatchProcessing } = require("./modules/mineruBatchProcessor");
     pauseBatchProcessing();

@@ -13,6 +13,10 @@ This folder implements the reader/library side-panel chat experience.
 - `multiContextPlanner.ts`: adaptive budget-first context planning across multiple papers.
 - `notes.ts`: note export and assistant-response save flows.
 - `shortcuts.ts`: quick-action shortcut render/edit/reorder behavior.
+- `mainWindowEntry.ts`: library-toolbar entry opening standalone Library chat.
+- `paperSelectionDialog.ts`: single-paper mode of the existing `@` reference
+  selector, used when switching from Library chat without a paper target;
+  cancellation preserves the session.
 
 ## Shared Domain Helpers
 

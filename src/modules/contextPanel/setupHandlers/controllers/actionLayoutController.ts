@@ -16,6 +16,7 @@ type ActionLayoutMode = "icon" | "half" | "full";
 type ActionRevealState = {
   send: ActionLabelMode;
   reasoning: ActionLabelMode;
+  approval: ActionLabelMode;
   model: ModelLabelMode;
 };
 
@@ -28,6 +29,8 @@ type ActionLayoutControllerDeps = {
   modelSlot: HTMLDivElement | null;
   reasoningBtn: HTMLButtonElement | null;
   reasoningSlot: HTMLDivElement | null;
+  approvalBtn: HTMLButtonElement | null;
+  approvalSlot: HTMLDivElement | null;
   uploadBtn: HTMLButtonElement | null;
   selectTextBtn: HTMLButtonElement | null;
   screenshotBtn: HTMLButtonElement | null;
@@ -56,6 +59,8 @@ export function createActionLayoutController(
     modelSlot,
     reasoningBtn,
     reasoningSlot,
+    approvalBtn,
+    approvalSlot,
     uploadBtn,
     selectTextBtn,
     screenshotBtn,
@@ -114,6 +119,9 @@ export function createActionLayoutController(
       reasoningBtn?.textContent ||
       "off";
     const reasoningHint = reasoningBtn?.dataset.reasoningHint || "";
+    const approvalLabel =
+      approvalBtn?.dataset.approvalLabel || approvalBtn?.textContent || "";
+    const approvalHint = approvalBtn?.dataset.approvalHint || approvalLabel;
 
     const immediateAvailableWidth = (() => {
       const rowWidth = actionsRow?.clientWidth || 0;
@@ -204,7 +212,9 @@ export function createActionLayoutController(
         getComputedSizePx(style, "border-left-width") +
         getComputedSizePx(style, "border-right-width");
       const chevronAllowance =
-        button === modelBtn || button === reasoningBtn ? 16 : 0;
+        button === modelBtn || button === reasoningBtn || button === approvalBtn
+          ? 16
+          : 0;
       return Math.ceil(
         wrappedTextWidth + paddingWidth + borderWidth + chevronAllowance,
       );
@@ -285,6 +295,13 @@ export function createActionLayoutController(
         : ACTION_LAYOUT_DROPDOWN_ICON_WIDTH_PX;
     };
 
+    const getApprovalWidth = (mode: ActionLabelMode) => {
+      if (!approvalBtn) return 0;
+      return mode === "full"
+        ? getFullSlotRequiredWidth(approvalSlot, approvalBtn, approvalLabel)
+        : ACTION_LAYOUT_DROPDOWN_ICON_WIDTH_PX;
+    };
+
     const getSendWidth = (mode: ActionLabelMode) => {
       if (!sendBtn) return 0;
       if (mode === "icon") {
@@ -313,6 +330,7 @@ export function createActionLayoutController(
         selectTextBtn ? ACTION_LAYOUT_CONTEXT_ICON_WIDTH_PX : 0,
         screenshotBtn ? ACTION_LAYOUT_CONTEXT_ICON_WIDTH_PX : 0,
         getModelWidth(state.model),
+        getApprovalWidth(state.approval),
         getReasoningWidth(state.reasoning),
       ].filter((width) => width > 0);
       const leftGap = getElementGapPx(actionsLeft);
@@ -331,13 +349,16 @@ export function createActionLayoutController(
       if (
         state.send === "full" &&
         state.model !== "icon" &&
+        state.approval === "full" &&
         state.reasoning === "full"
       ) {
         return "full";
       }
       if (
         state.send === "full" &&
-        (state.model !== "icon" || state.reasoning === "full")
+        (state.model !== "icon" ||
+          state.approval === "full" ||
+          state.reasoning === "full")
       ) {
         return "half";
       }
@@ -370,6 +391,13 @@ export function createActionLayoutController(
       modelBtn.classList.toggle("paperpilotmodel-btn-wrap-2line", false);
       modelBtn.textContent = modelLabel;
       modelBtn.title = modelHint;
+
+      if (approvalBtn) {
+        approvalBtn.classList.remove("paperpilotapproval-btn-collapsed");
+        approvalSlot?.classList.remove("paperpilotapproval-dropdown-collapsed");
+        approvalBtn.textContent = approvalLabel;
+        approvalBtn.title = approvalHint;
+      }
 
       if (reasoningBtn) {
         reasoningBtn.classList.toggle(
@@ -448,33 +476,59 @@ export function createActionLayoutController(
         }
       }
 
+      if (approvalBtn) {
+        const approvalCollapsed = state.approval === "icon";
+        approvalBtn.classList.toggle(
+          "paperpilotapproval-btn-collapsed",
+          approvalCollapsed,
+        );
+        approvalSlot?.classList.toggle(
+          "paperpilotapproval-dropdown-collapsed",
+          approvalCollapsed,
+        );
+        approvalBtn.textContent = approvalCollapsed ? "" : approvalLabel;
+        approvalBtn.title = approvalHint;
+        approvalBtn.setAttribute("aria-label", approvalHint);
+      }
+
       setPanelActionLayoutMode(getPanelLayoutMode(state));
     };
 
     const fullState: ActionRevealState = {
       send: "full",
       reasoning: "full",
+      approval: "full",
       model: "full-single",
     };
-    const reasoningState: ActionRevealState = {
+    const modelCollapsedState: ActionRevealState = {
       send: "full",
       reasoning: "full",
+      approval: "full",
+      model: "icon",
+    };
+    const approvalCollapsedState: ActionRevealState = {
+      send: "full",
+      reasoning: "full",
+      approval: "icon",
       model: "icon",
     };
     const sendState: ActionRevealState = {
       send: "full",
       reasoning: "icon",
+      approval: "icon",
       model: "icon",
     };
     const iconOnlyState: ActionRevealState = {
       send: "icon",
       reasoning: "icon",
+      approval: "icon",
       model: "icon",
     };
 
     const candidateStates: ActionRevealState[] = [
       fullState,
-      reasoningState,
+      modelCollapsedState,
+      approvalCollapsedState,
       sendState,
       iconOnlyState,
     ];

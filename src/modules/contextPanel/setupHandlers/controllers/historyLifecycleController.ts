@@ -117,6 +117,7 @@ import {
   type ConversationRenameIdentity,
 } from "../../conversationRenameEligibility";
 import { primeHistoryNavigationMode } from "../../historyNavigationModeSync";
+import { showPaperSelectionDialog } from "../../paperSelectionDialog";
 
 type HistorySearchIndexFallbackStatus = Pick<
   ConversationSearchIndexResult,
@@ -176,6 +177,7 @@ export type HistoryLifecycleControllerDeps = {
   historyUndoBtn: HTMLButtonElement | null;
   topToast: HTMLElement | null;
   modeChipBtn: HTMLButtonElement | null;
+  onSwitchConversationMode?: (mode: "global" | "paper") => Promise<void>;
   getItem: () => Zotero.Item | null;
   setItem: (item: Zotero.Item | null) => void;
   getBasePaperItem: () => Zotero.Item | null;
@@ -1778,7 +1780,13 @@ export function createHistoryLifecycleController(
     if (!item) return false;
     const noteFocusItem = isNoteSession() ? item : null;
     persistDraftInputForCurrentConversation();
-    const paperItem = options?.paperItem || resolveCurrentPaperBaseItem();
+    const paperItem =
+      options?.paperItem ||
+      resolveCurrentPaperBaseItem() ||
+      (await showPaperSelectionDialog(
+        body.ownerDocument!,
+        getCurrentLibraryID(),
+      ));
     if (!paperItem) return false;
     setBasePaperItem(paperItem);
     const libraryID = getCurrentLibraryID();
@@ -3111,6 +3119,10 @@ export function createHistoryLifecycleController(
       e.preventDefault();
       e.stopPropagation();
       if (!item || isNoteSession()) return;
+      if (deps.onSwitchConversationMode) {
+        void deps.onSwitchConversationMode(isGlobalMode() ? "paper" : "global");
+        return;
+      }
       if (isGlobalMode()) {
         void switchPaperConversation();
         return;

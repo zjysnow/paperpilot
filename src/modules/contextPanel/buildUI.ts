@@ -998,7 +998,7 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
     buttonId: "paperpilotapproval-toggle",
     buttonClassName:
       "paperpilotshortcut-btn paperpilotaction-btn paperpilotaction-btn-secondary paperpilotapproval-btn",
-    buttonText: t("Approval: Default"),
+    buttonText: t("Default"),
     menuId: "paperpilotapproval-menu",
     menuClassName: "paperpilotmodel-menu paperpilotapproval-menu",
     disabled: !hasItem,

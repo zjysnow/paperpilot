@@ -379,6 +379,7 @@ export type ContextPreviewRenderMetrics = {
 };
 
 export type SetupHandlersHooks = {
+  onSwitchConversationMode?: (mode: "global" | "paper") => Promise<void>;
   onConversationHistoryChanged?: () => void;
   onDefaultContextRendered?: () => void;
   onContextPreviewRendered?: (metrics: ContextPreviewRenderMetrics) => void;
@@ -447,6 +448,7 @@ export function setupHandlers(
     modelSlot,
     modelMenu,
     approvalBtn,
+    approvalSlot,
     approvalMenu,
     reasoningBtn,
     runtimeModeBtn,
@@ -1364,6 +1366,8 @@ export function setupHandlers(
     modelSlot,
     reasoningBtn,
     reasoningSlot,
+    approvalBtn,
+    approvalSlot,
     uploadBtn,
     selectTextBtn,
     screenshotBtn,
@@ -3873,6 +3877,7 @@ export function setupHandlers(
     historyUndoBtn,
     topToast,
     modeChipBtn,
+    onSwitchConversationMode: hooks?.onSwitchConversationMode,
     getItem: () => item,
     setItem: (nextItem) => {
       item = nextItem as any;
@@ -4488,13 +4493,21 @@ export function setupHandlers(
   const updateApprovalButton = () => {
     if (!approvalBtn) return;
     const mode = getAgentApprovalMode();
-    const label = mode === "allow_all" ? "Allow all" : "Default";
-    approvalBtn.textContent = `Approval: ${label}`;
-    approvalBtn.title =
+    const label = t(mode === "allow_all" ? "Allow all" : "Default");
+    const hint = t(
       mode === "allow_all"
         ? "Approval mode: Allow all"
-        : "Approval mode: Default";
+        : "Approval mode: Default",
+    );
+    approvalBtn.dataset.approvalLabel = label;
+    approvalBtn.dataset.approvalHint = hint;
     approvalBtn.dataset.approvalMode = mode;
+    approvalBtn.title = hint;
+    approvalBtn.setAttribute("aria-label", hint);
+    if (!approvalBtn.classList.contains("paperpilotapproval-btn-collapsed")) {
+      approvalBtn.textContent = label;
+    }
+    scheduleResponsiveLayoutSync();
   };
 
   const rebuildApprovalMenu = () => {
@@ -4524,16 +4537,14 @@ export function setupHandlers(
       },
     ];
     for (const choice of choices) {
+      const label = t(choice.label);
       const option = createElement(
         body.ownerDocument as Document,
         "button",
         "paperpilotresponse-menu-item paperpilotapproval-option",
         {
           type: "button",
-          textContent:
-            currentMode === choice.mode
-              ? `\u2713 ${choice.label}`
-              : choice.label,
+          textContent: currentMode === choice.mode ? `\u2713 ${label}` : label,
           title: choice.title,
         },
       );

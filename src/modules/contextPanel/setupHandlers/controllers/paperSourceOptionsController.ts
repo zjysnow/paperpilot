@@ -397,7 +397,18 @@ export function buildPaperSourceOptions(
     ];
   }
 
-  const attachmentIds = parentItem.getAttachments?.() || [];
+  const attachmentIds = Array.from(
+    new Set(parentItem.getAttachments?.() || []),
+  );
+  const pdfAttachmentIds = attachmentIds.filter(
+    (id) =>
+      resolveContextAttachmentSupport(params.getItemById(id))?.kind === "pdf",
+  );
+  const activePdfAttachmentId = pdfAttachmentIds.includes(
+    params.paperContext.contextItemId,
+  )
+    ? params.paperContext.contextItemId
+    : pdfAttachmentIds[0];
   const options: PaperSourceOption[] = [];
   for (const attachmentId of attachmentIds) {
     const attachment = params.getItemById(attachmentId) || null;
@@ -405,6 +416,7 @@ export function buildPaperSourceOptions(
     const attachmentTitle = getAttachmentCardTitle(attachment);
     const attachmentSupport = resolveContextAttachmentSupport(attachment);
     if (attachmentSupport?.kind === "pdf") {
+      if (attachmentId !== activePdfAttachmentId) continue;
       const baseContext = buildPaperContextForChildAttachment(
         parentItem,
         attachment,

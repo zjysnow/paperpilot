@@ -27,6 +27,15 @@ const zhCN: Record<string, string> = {
   "Standalone note": "独立笔记",
   "Library chat": "文献库对话",
   "Paper chat": "论文对话",
+  "Open Paper Pilot in Library mode": "打开 Paper Pilot（文献库模式）",
+  "Select a paper": "选择一篇论文",
+  "Switch paper": "切换论文",
+  Default: "默认",
+  "Allow all": "全部允许",
+  "Approval mode: Default": "审批模式：默认",
+  "Approval mode: Allow all": "审批模式：全部允许",
+  "Search papers by title, author, or year": "按标题、作者或年份搜索论文",
+  "Failed to search papers. Please try again.": "搜索论文失败，请重试。",
   "Workspace Directory": "工作区目录",
   "Workspace Directory Path": "工作区目录路径",
   "VS Code Executable Path": "VS Code 执行文件路径",
@@ -972,6 +981,10 @@ export function getStandaloneLibraryChatStartPageHtml(): string {
       <div class="paperpilotstandalone-start-page">
         <div class="paperpilotstart-page-title">Paper Pilot Agent</div>
         <div class="paperpilotstart-page-subtitle">为你和你的文献库服务</div>
+        <div class="paperpilotstart-page-desc">
+          <p>在 Library 模式下搜索整个文献库，讨论研究方向、方法与原理，无需先选择论文。</p>
+          <p>切换到 Paper 模式可聚焦单篇论文；尚未选择论文时会弹出论文选择窗口。</p>
+        </div>
         <div class="paperpilotstart-page-recommendations">
           <div class="paperpilotstart-page-rec-title">推荐设置以获得最佳体验</div>
           <ol class="paperpilotstart-page-rec-list">
@@ -988,6 +1001,10 @@ export function getStandaloneLibraryChatStartPageHtml(): string {
     <div class="paperpilotstandalone-start-page">
       <div class="paperpilotstart-page-title">Paper Pilot Agent</div>
       <div class="paperpilotstart-page-subtitle">serve you and your library</div>
+      <div class="paperpilotstart-page-desc">
+        <p>Search your whole library and discuss research directions, methods, and principles in Library mode. No paper selection is required.</p>
+        <p>Switch to Paper mode to focus on one paper. If none is selected, a paper selector will open.</p>
+      </div>
       <div class="paperpilotstart-page-recommendations">
         <div class="paperpilotstart-page-rec-title">Recommended settings for the best experience</div>
         <ol class="paperpilotstart-page-rec-list">

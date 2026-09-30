@@ -89,6 +89,7 @@ import { resolveFreshConversationDraft } from "./freshConversationDraft";
 import { collapseDuplicateReusableConversationDrafts } from "./standaloneConversationResolution";
 
 import { showConversationRenameDialog } from "./conversationRenameDialog";
+import { showPaperSelectionDialog } from "./paperSelectionDialog";
 import {
   canCommitConversationRename,
   isConversationRenameEligible,
@@ -390,6 +391,7 @@ type StandaloneCreateConversationOptions = {
  */
 export function openStandaloneChat(options?: {
   initialItem?: Zotero.Item | null;
+  initialConversationMode?: "global" | "paper";
   initialConversationSystem?: ConversationSystem | null;
   initialRuntimeMode?: ChatRuntimeMode | null;
   sourceBody?: Element | null;
@@ -436,6 +438,7 @@ export function openStandaloneChat(options?: {
     sourceItemForResolution,
     {
       conversationSystem: sourceConversationSystem,
+      conversationMode: options?.initialConversationMode,
     },
   );
   let currentConversationSystem: ConversationSystem =
@@ -462,6 +465,7 @@ export function openStandaloneChat(options?: {
 
   const libraryID = initialLibraryID > 0 ? Math.floor(initialLibraryID) : 1;
   const initialMode: "open" | "paper" =
+    options?.initialConversationMode === "global" ||
     initialDisplayConversationKind === "global"
       ? "open"
       : initialDisplayConversationKind === "paper" && initialBasePaperItem
@@ -841,6 +845,18 @@ export function openStandaloneChat(options?: {
       iconNewChat.title = t("New chat");
       iconNewChat.textContent = "+";
 
+      const switchPaperButton = createElement(
+        doc,
+        "button",
+        "paperpilotstandalone-icon-btn paperpilotstandalone-icon-switch-paper",
+        {
+          type: "button",
+          title: t("Switch paper"),
+        },
+      );
+      switchPaperButton.setAttribute("aria-label", t("Switch paper"));
+      switchPaperButton.hidden = standaloneMode !== "paper";
+
       const iconSearch = doc.createElementNS(
         HTML_NS,
         "button",
@@ -915,6 +931,7 @@ export function openStandaloneChat(options?: {
       iconStrip.append(
         iconSidebarToggle,
         iconNewChat,
+        switchPaperButton,
         iconSearch,
         iconSkill,
         iconStripSpacer,
@@ -1271,6 +1288,7 @@ export function openStandaloneChat(options?: {
       // Mount chat UI into contentArea
       // -----------------------------------------------------------------------
       const updateContentTitle = () => {
+        switchPaperButton.hidden = standaloneMode !== "paper";
         if (standaloneMode === "paper" && currentBasePaperItem) {
           try {
             const title =
@@ -1396,6 +1414,8 @@ export function openStandaloneChat(options?: {
             scheduleStandaloneInputFit();
           };
           const chatHooks: SetupHandlersHooks = {
+            onSwitchConversationMode: (mode) =>
+              switchToMode(mode === "global" ? "open" : "paper"),
             onConversationHistoryChanged: () => {
               if (cancelled) return;
               scheduleStandaloneSidebarRender();
@@ -2972,9 +2992,12 @@ export function openStandaloneChat(options?: {
         return true;
       };
 
-      const switchToMode = async (mode: "open" | "paper") => {
+      const switchToMode = async (
+        mode: "open" | "paper",
+        options?: { selectPaper?: boolean },
+      ) => {
         try {
-          if (mode === standaloneMode) return;
+          if (mode === standaloneMode && !options?.selectPaper) return;
 
           if (mode === "open") {
             const rememberedItem = resolveRememberedGlobalPanelItem(
@@ -2993,11 +3016,34 @@ export function openStandaloneChat(options?: {
             currentRawContextItem ||
             currentBasePaperItem ||
             currentPaperItem;
-          const target = resolvePaperSwitchTarget(rawItem);
+          let target = resolvePaperSwitchTarget(
+            options?.selectPaper ? null : rawItem,
+          );
+          if (!target.paperItem) {
+            const mountGeneration = standaloneMountGeneration;
+            const selected = await showPaperSelectionDialog(
+              doc,
+              getCurrentLibraryScopeID(),
+            );
+            if (
+              !selected ||
+              cancelled ||
+              newWin.closed ||
+              mountGeneration !== standaloneMountGeneration
+            )
+              return;
+            target = resolvePaperSwitchTarget(selected);
+          }
           if (!target.paperItem) {
             showNoPaperChatSourceStatus();
             return;
           }
+          if (
+            options?.selectPaper &&
+            standaloneMode === "paper" &&
+            target.paperItem.id === currentBasePaperItem?.id
+          )
+            return;
           const mounted = mountRememberedStandalonePaperConversation({
             paperItem: target.paperItem,
             panelItem: target.panelItem,
@@ -3017,6 +3063,9 @@ export function openStandaloneChat(options?: {
       });
       openTab.addEventListener("click", () => {
         void switchToMode("open");
+      });
+      switchPaperButton.addEventListener("click", () => {
+        void switchToMode("paper", { selectPaper: true });
       });
 
       // Auto-collapse sidebar when window is narrow, respecting manual override.

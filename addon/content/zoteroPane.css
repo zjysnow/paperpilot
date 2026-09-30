@@ -904,6 +904,15 @@
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
 }
 
+.paperpilotstandalone-icon-switch-paper::before {
+  mask-image: url("icons/action-switch-paper.svg");
+  -webkit-mask-image: url("icons/action-switch-paper.svg");
+}
+
+.paperpilotstandalone-icon-switch-paper[hidden] {
+  display: none;
+}
+
 /* Sidebar toggle icon — panel-left */
 .paperpilotstandalone-topbar-toggle::before {
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Cline x1='9' y1='3' x2='9' y2='21'/%3E%3C/svg%3E");
@@ -1576,6 +1585,21 @@
 
 .paperpilotshortcut-edit-dialog {
   width: min(92vw, 420px);
+}
+
+.paperpilotpaper-selection-dialog {
+  width: min(92vw, 720px);
+}
+
+.paperpilotpaper-selection-dialog textarea {
+  margin-top: 12px;
+}
+
+.paperpilotpaper-selection-dialog .paperpilotpaper-picker {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  margin-top: 10px;
 }
 
 .paperpilotshortcut-edit-field {
@@ -9328,16 +9352,11 @@ label.paperpilotsearch-results-item:hover {
   max-width: calc(220px * var(--paperpilotfont-scale));
 }
 
-.paperpilotaction-slot.paperpilotreasoning-dropdown {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: calc(160px * var(--paperpilotfont-scale));
-}
-
+.paperpilotaction-slot.paperpilotreasoning-dropdown,
 .paperpilotaction-slot.paperpilotapproval-dropdown {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: calc(150px * var(--paperpilotfont-scale));
+  max-width: calc(160px * var(--paperpilotfont-scale));
 }
 
 .paperpilotaction-slot.paperpilotmodel-dropdown > button,
@@ -9353,7 +9372,8 @@ label.paperpilotsearch-results-item:hover {
   max-width: var(--paperpilotaction-dropdown-icon-width);
 }
 
-.paperpilotaction-slot.paperpilotreasoning-dropdown.paperpilotreasoning-dropdown-collapsed {
+.paperpilotaction-slot.paperpilotreasoning-dropdown.paperpilotreasoning-dropdown-collapsed,
+.paperpilotaction-slot.paperpilotapproval-dropdown.paperpilotapproval-dropdown-collapsed {
   flex: 0 0 auto;
   min-width: var(--paperpilotaction-dropdown-icon-width);
   max-width: var(--paperpilotaction-dropdown-icon-width);
@@ -9480,7 +9500,9 @@ label.paperpilotsearch-results-item:hover {
 .paperpilotaction-slot.paperpilotmodel-dropdown
   > .paperpilotmodel-btn.paperpilotmodel-btn-collapsed::before,
 .paperpilotaction-slot.paperpilotreasoning-dropdown
-  > .paperpilotreasoning-btn.paperpilotreasoning-btn-collapsed::before {
+  > .paperpilotreasoning-btn.paperpilotreasoning-btn-collapsed::before,
+.paperpilotaction-slot.paperpilotapproval-dropdown
+  > .paperpilotapproval-btn.paperpilotapproval-btn-collapsed::before {
   content: "";
   display: block;
   width: var(--paperpilotaction-icon-size);
@@ -9551,12 +9573,14 @@ label.paperpilotsearch-results-item:hover {
 .paperpilotupload-file-btn:hover:not(:disabled),
 .paperpilotmodel-btn:hover:not(:disabled),
 .paperpilotruntime-mode-btn:hover:not(:disabled),
+.paperpilotapproval-btn:hover:not(:disabled),
 .paperpilotreasoning-btn:hover:not(:disabled),
 .paperpilotselect-text-btn:focus-visible,
 .paperpilotscreenshot-btn:focus-visible,
 .paperpilotupload-file-btn:focus-visible,
 .paperpilotmodel-btn:focus-visible,
 .paperpilotruntime-mode-btn:focus-visible,
+.paperpilotapproval-btn:focus-visible,
 .paperpilotreasoning-btn:focus-visible {
   background: transparent;
   border-color: transparent;
@@ -9896,6 +9920,7 @@ label.paperpilotsearch-results-item:hover {
 /* Model / Reasoning toggles */
 .paperpilotmodel-btn,
 .paperpilotruntime-mode-btn,
+.paperpilotapproval-btn,
 .paperpilotreasoning-btn {
   font-size: var(--paperpilotaction-font-size);
   font-weight: 600;
@@ -9905,6 +9930,7 @@ label.paperpilotsearch-results-item:hover {
 
 .paperpilotmodel-btn,
 .paperpilotruntime-mode-btn,
+.paperpilotapproval-btn,
 .paperpilotreasoning-btn {
   width: auto;
   min-width: 0;
@@ -9926,6 +9952,7 @@ label.paperpilotsearch-results-item:hover {
 
 .paperpilotactions .paperpilotmodel-btn,
 .paperpilotactions .paperpilotruntime-mode-btn,
+.paperpilotactions .paperpilotapproval-btn,
 .paperpilotactions .paperpilotreasoning-btn {
   padding-top: 6px;
   padding-bottom: 6px;
@@ -9965,7 +9992,9 @@ label.paperpilotsearch-results-item:hover {
 }
 
 .paperpilotaction-slot.paperpilotreasoning-dropdown
-  > .paperpilotreasoning-btn.paperpilotreasoning-btn-collapsed {
+  > .paperpilotreasoning-btn.paperpilotreasoning-btn-collapsed,
+.paperpilotaction-slot.paperpilotapproval-dropdown
+  > .paperpilotapproval-btn.paperpilotapproval-btn-collapsed {
   width: var(--paperpilotaction-dropdown-icon-width);
   min-width: var(--paperpilotaction-dropdown-icon-width);
   max-width: var(--paperpilotaction-dropdown-icon-width);
@@ -9995,7 +10024,14 @@ label.paperpilotsearch-results-item:hover {
   -webkit-mask-image: url("icons/action-reasoning-brain.svg");
 }
 
+.paperpilotaction-slot.paperpilotapproval-dropdown
+  > .paperpilotapproval-btn.paperpilotapproval-btn-collapsed::before {
+  mask-image: url("icons/action-approval.svg");
+  -webkit-mask-image: url("icons/action-approval.svg");
+}
+
 .paperpilotmodel-btn::after,
+.paperpilotapproval-btn::after,
 .paperpilotreasoning-btn::after {
   content: "▾";
   position: static;
@@ -10023,7 +10059,8 @@ label.paperpilotsearch-results-item:hover {
   margin-left: 0;
 }
 
-.paperpilotreasoning-btn.paperpilotreasoning-btn-collapsed::after {
+.paperpilotreasoning-btn.paperpilotreasoning-btn-collapsed::after,
+.paperpilotapproval-btn.paperpilotapproval-btn-collapsed::after {
   display: block;
   right: 8px;
   position: absolute;

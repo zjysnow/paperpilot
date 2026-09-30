@@ -1,4 +1,5 @@
 import { createElement } from "../../../../utils/domHelpers";
+import { resolvePaperChatSourceItem } from "../../portalScope";
 import { t } from "../../../../utils/i18n";
 import {
   addZoteroItemsAsContext,
@@ -112,6 +113,8 @@ export function filterPaperPickerGroupsForTagView(
 }
 
 type PaperPickerControllerDeps = {
+  onSelectPaper?: (item: Zotero.Item) => void;
+  onClose?: () => void;
   body: Element;
   panelRoot: HTMLElement;
   inputBox: HTMLTextAreaElement;
@@ -226,6 +229,13 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
   };
 
   const getActiveAtToken = (): ActiveSlashToken | null => {
+    if (deps.onSelectPaper) {
+      return {
+        query: inputBox.value,
+        slashStart: 0,
+        caretEnd: inputBox.value.length,
+      };
+    }
     const caretEnd =
       typeof inputBox.selectionStart === "number"
         ? inputBox.selectionStart
@@ -250,6 +260,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
   };
 
   const consumeActiveAtToken = (): boolean => {
+    if (deps.onSelectPaper) return false;
     const token = getActiveAtToken();
     if (!token) return false;
     const beforeAt = inputBox.value.slice(0, token.slashStart);
@@ -262,6 +273,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
   };
 
   const consumeAtQueryOnly = (): boolean => {
+    if (deps.onSelectPaper) return false;
     const token = getActiveAtToken();
     if (!token || token.query.length === 0) return false;
     const beforeQuery = inputBox.value.slice(0, token.slashStart + 1);
@@ -288,6 +300,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     if (paperPickerList) {
       paperPickerList.innerHTML = "";
     }
+    deps.onClose?.();
   };
 
   function resolvePickerItemKind(
@@ -452,16 +465,31 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
   ): void => {
     setReferenceSelectorSearchResults(
       referenceSelectorState,
-      groups,
-      collections,
-      tags,
+      deps.onSelectPaper ? groups.filter(isSelectablePaperGroup) : groups,
+      deps.onSelectPaper ? [] : collections,
+      deps.onSelectPaper ? [] : tags,
     );
   };
+
+  const isSelectablePaperGroup = (group: PaperSearchGroupCandidate): boolean =>
+    Boolean(resolvePaperChatSourceItem(Zotero.Items.get(group.itemId) || null));
+
+  const filterPaperCollections = (
+    collections: PaperBrowseCollectionCandidate[],
+  ): PaperBrowseCollectionCandidate[] =>
+    collections.map((collection) => ({
+      ...collection,
+      papers: collection.papers.filter(isSelectablePaperGroup),
+      childCollections: filterPaperCollections(collection.childCollections),
+    }));
 
   const setPaperPickerCollections = (
     collections: PaperBrowseCollectionCandidate[],
   ): void => {
-    setReferenceSelectorCollections(referenceSelectorState, collections);
+    setReferenceSelectorCollections(
+      referenceSelectorState,
+      deps.onSelectPaper ? filterPaperCollections(collections) : collections,
+    );
   };
 
   const getPaperPickerRowAt = (index: number): PaperPickerRow | null =>
@@ -521,6 +549,14 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
 
   const positionPaperPickerForVisibleAnchor = () => {
     if (!paperPicker) return;
+    if (deps.onSelectPaper) {
+      const height = body.ownerDocument?.defaultView?.innerHeight || 800;
+      paperPicker.style.setProperty(
+        "--paperpilotpaper-picker-max-height",
+        `${Math.max(120, Math.min(600, height - 240))}px`,
+      );
+      return;
+    }
     positionPaperPickerForAnchor({
       body,
       panelRoot,
@@ -773,6 +809,20 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
   ): boolean => {
     const row = getPaperPickerRowAt(index);
     if (!row) return false;
+    if (
+      deps.onSelectPaper &&
+      (row.kind === "paper" || row.kind === "attachment")
+    ) {
+      const paper = resolvePaperChatSourceItem(
+        Zotero.Items.get(row.itemId) || null,
+      );
+      if (!paper) {
+        setStatus(t("Select a paper"), "warning");
+        return false;
+      }
+      deps.onSelectPaper(paper);
+      return true;
+    }
     if (row.kind === "collection") {
       if (referenceSelectorState.mode === "search") {
         return selectCollectionFromPickerUnified(row.collectionId);
@@ -949,6 +999,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     scope: PaperPickerFolderScope,
     label: string,
   ): HTMLButtonElement | null => {
+    if (deps.onSelectPaper) return null;
     if (typeof scope !== "number" || scope <= 0) return null;
     const selected = isPaperPickerFolderActionSelected(scope);
     const action = createElement(
@@ -1018,7 +1069,9 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
   > => panelLayout.captureRenderedPanelHeights();
 
   const fitPaperPickerPanelsToAvailableHeight = (): void =>
-    panelLayout.fitPanelsToAvailableHeight();
+    panelLayout.fitPanelsToAvailableHeight(
+      deps.onSelectPaper ? "references" : undefined,
+    );
 
   const applyPaperPickerPanelHeight = (
     panel: HTMLElement,
@@ -1304,6 +1357,7 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
     );
     action.type = "button";
     action.disabled = disabled;
+    if (deps.onSelectPaper) action.style.display = "none";
     action.addEventListener("mousedown", (event: Event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -1791,13 +1845,20 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       label: string,
       onAction?: () => boolean,
     ): void => {
+      const selectionRow = getPaperPickerRowAt(rowIndex);
+      if (
+        deps.onSelectPaper &&
+        selectionRow?.kind !== "paper" &&
+        selectionRow?.kind !== "attachment"
+      )
+        return;
       const action = createElement(
         ownerDoc,
         "button",
         "paperpilotpaper-picker-scope-action paperpilotpaper-picker-row-action paperpilotpaper-picker-cell-action",
         {
-          textContent: selected ? "✓" : "+",
-          title: label,
+          textContent: deps.onSelectPaper ? "→" : selected ? "✓" : "+",
+          title: deps.onSelectPaper ? t("Select a paper") : label,
         },
       );
       action.type = "button";
@@ -1805,7 +1866,8 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
         event.preventDefault();
         event.stopPropagation();
         referenceSelectorState.activeRowIndex = rowIndex;
-        if (onAction) onAction();
+        if (deps.onSelectPaper) selectPaperPickerRowAt(rowIndex);
+        else if (onAction) onAction();
         else selectPaperPickerRowAt(rowIndex);
       });
       action.addEventListener("click", (event: Event) => {
@@ -2211,14 +2273,21 @@ export function createPaperPickerController(deps: PaperPickerControllerDeps): {
       renderPaperPicker();
     };
     const win = body.ownerDocument?.defaultView;
+    const search = () => {
+      void runSearch().catch((error) => {
+        deps.log("LLM: paper picker search failed", error);
+        if (requestId !== paperPickerRequestSeq) return;
+        setStatus(t("Failed to search papers. Please try again."), "error");
+      });
+    };
     if (win) {
       paperPickerDebounceTimer = win.setTimeout(() => {
-        void runSearch();
+        search();
       }, 120);
     } else {
       paperPickerDebounceTimer =
         (setTimeout(() => {
-          void runSearch();
+          search();
         }, 120) as unknown as number) || 0;
     }
   };

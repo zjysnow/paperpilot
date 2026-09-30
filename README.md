@@ -20,6 +20,43 @@ local-first model and agent architecture.
 - Use the assistant in the Zotero reader or in a standalone window.
 - Parse PDFs with optional MinerU integration for tables, equations, and figures.
 
+## Standalone Library and Paper chat
+
+Click **Paper Pilot**, immediately to the right of **New Note** in the Zotero
+library toolbar, to open the standalone
+window in **Library** mode, even when no paper is selected. Library chat supports
+library-wide search and discussions about research directions, methods, and
+principles without binding the conversation to a single paper. Use Agent Mode
+with a tool-capable model for library search and evidence retrieval.
+
+Switch to **Paper** to focus on a specific paper. If no supported paper is
+selected or retained in the window, a floating single-paper selector opens.
+It reuses the `@` reference selector's folder, tag, and item panels in single-paper
+mode. Search by title, author, or year and click a paper to enter its chat. Cancel or Escape
+leaves the Library conversation unchanged. Switching modes restores the
+corresponding conversation rather than discarding its history.
+
+Click **Switch paper** in the left icon sidebar, below **New chat**, to choose
+another paper using the same selector. This button is shown only in Paper mode.
+The selected paper's remembered chat is restored; cancelling keeps the current
+paper and conversation unchanged.
+
+Approval and Reasoning Level use matching dropdown styles. When the chat area
+narrows, the model selector collapses first, followed by Approval (a shield with
+a checkmark), then Reasoning Level. Tooltips retain the current settings.
+Widening the window or embedded panel restores labels in reverse order.
+Approval labels show only **Default** or **Allow all**.
+
+The paper context's source menu shows MD, Text, and PDF options only for its
+active PDF, rather than repeating those modes for every PDF version attached
+to the paper. Other readable attachments, such as HTML snapshots, remain
+available. Use the `@` selector's attachment rows to choose a different PDF
+version.
+
+The existing reader pop-out and Ctrl/Cmd+Shift+L shortcut retain their
+context-aware opening behavior. If a standalone window is already open,
+the toolbar entry focuses it without resetting the active conversation.
+
 ## Model providers
 
 The Preferences page intentionally keeps the provider list small:
