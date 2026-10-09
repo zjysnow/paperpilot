@@ -68,6 +68,7 @@ export const ZOTERO_MCP_WRITE_TOOL_NAMES = [
   "attachment_update",
   "run_command",
   "file_io",
+  "paper_learning",
   "zotero_script",
   "undo_last_action",
 ] as const;
@@ -118,12 +119,14 @@ const RAW_PDF_RETRIEVAL_TOOL_NAMES = new Set([
 const RAW_PDF_HIDDEN_NATIVE_TOOL_NAMES = new Set([
   "run_command",
   "file_io",
+  "paper_learning",
   "zotero_script",
 ]);
 const RAW_PDF_HIDDEN_RETRIEVAL_TOOL_NAMES = new Set(["literature_search"]);
 const MCP_TOOLS_WITH_OWN_CONFIRMATION_POLICY = new Set([
   "run_command",
   "file_io",
+  "paper_learning",
   "zotero_script",
 ]);
 

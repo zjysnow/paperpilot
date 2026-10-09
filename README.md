@@ -180,22 +180,81 @@ For example:
 
 The built-in Skill IDs are:
 
-| Skill               | Typical use                                              |
-| ------------------- | -------------------------------------------------------- |
-| `simple-paper-qa`   | General questions and summaries about one paper          |
-| `evidence-based-qa` | Locate methods, parameters, results, and source passages |
-| `analyze-figures`   | Explain figures, tables, charts, and diagrams            |
-| `compare-papers`    | Compare selected papers or their methods and findings    |
-| `literature-review` | Produce a structured review or thematic synthesis        |
-| `library-analysis`  | Analyze a library or collection                          |
-| `write-note`        | Create a Zotero note or Markdown file note               |
-| `import-to-library` | Import cited papers or references into Zotero            |
-| `paper-replication` | Prepare and continue a local paper-replication project   |
+| Skill               | Typical use                                                    |
+| ------------------- | -------------------------------------------------------------- |
+| `simple-paper-qa`   | General questions and summaries about one paper                |
+| `evidence-based-qa` | Locate methods, parameters, results, and source passages       |
+| `analyze-figures`   | Explain figures, tables, charts, and diagrams                  |
+| `compare-papers`    | Compare selected papers or their methods and findings          |
+| `literature-review` | Produce a structured review or thematic synthesis              |
+| `library-analysis`  | Analyze a library or collection                                |
+| `write-note`        | Create a Zotero note or Markdown file note                     |
+| `import-to-library` | Import cited papers or references into Zotero                  |
+| `paper-replication` | Prepare and continue a local paper-replication project         |
+| `paper-guide`       | Explain a paper's mechanism, argument, evidence, and limits    |
+| `paper-tutor`       | Learn a selected paper topic and save/resume learning progress |
 
 Skills provide workflow instructions; registered Agent tools perform the actual
 operations. For example, `write-note` uses `paper_read` and `library_read` to
 collect evidence, then uses `note_write` for a Zotero note or `file_io` for a
 Markdown file.
+
+### Paper guides and focused tutoring
+
+Enable Agent Mode, select a paper and its readable attachment, then choose
+**Normal**, **Guide**, or **Tutor** beside the Agent toggle. The selection is
+saved per conversation and forces the corresponding learning Skill on each
+turn. Normal keeps lightweight Q&A and does not inherit an old Tutor session.
+Library conversations can use learning modes with exactly one paper context.
+The slash menu remains available; selecting a learning Skill also sets the mode:
+
+```text
+/paper-guide
+Explain this paper's central mechanism, evidence, assumptions, and limits.
+Show a connected diagram and state which sections were actually read.
+```
+
+Add an absolute `.html` destination to export a portable offline guide.
+The `paper_learning` tool validates the structured guide and literal evidence
+against the actual attachment, generates native quote citations, and saves
+one self-contained HTML file with SVG diagrams, MathML formulas, folded
+evidence, and copyable chapter-specific Tutor prompts. It needs neither
+Python nor a CDN. Original figure embedding and arbitrary interactive
+experiments are not part of this first version.
+
+```text
+/paper-tutor
+Help me understand why this formula is needed. Teach one point at a time.
+```
+
+Ask for a direct explanation, skip, or pause at any time. Choose **Normal** to
+exit the persistent learning mode. Each successfully completed learning turn
+automatically saves structured progress to Zotero's database. New conversations
+with the same paper/attachment restore its latest goal when entering Guide or
+Tutor; no JSON destination is needed.
+
+Optionally configure **Notes Directory** to your Obsidian Vault and enable
+**Automatically sync learning state to notes** in settings. This is a one-way
+Markdown projection, not the primary store. A stable note contains all learning
+goals; only its managed block changes. Manual content outside it is preserved.
+Edited managed blocks cause an explicit conflict, not an overwrite. Changing
+the destination requires renewed authorization. Sync failures leave database
+progress intact.
+
+JSON remains an explicit portable export/restore option:
+
+```text
+/paper-tutor
+Resume from /absolute/path/learning-progress.json.
+```
+
+An explicit JSON destination uses file approval and undo; reading a JSON record
+does not automatically import it into the database. Resume checks
+paper/attachment keys and the extracted source fingerprint;
+missing or changed source is reported rather than silently reused. Reading
+or saying "I understand" is not recorded as mastery. Writes use the normal
+approval and undo flow for file exports. See [learning workflow details](doc/paper-learning.md)
+for usage, contracts, and validation limits.
 
 ### Agent approval mode
 

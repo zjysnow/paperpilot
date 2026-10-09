@@ -686,9 +686,12 @@ export async function loadUserSkills(): Promise<AgentSkill[]> {
         continue;
       }
 
-      if (skill.id === "unknown" || skill.patterns.length === 0) {
+      if (
+        skill.id === "unknown" ||
+        (skill.activation !== "manual" && skill.patterns.length === 0)
+      ) {
         Zotero.debug?.(
-          `[Paper Pilot] Skipping invalid skill file (missing id or match patterns): ${filePath}`,
+          `[Paper Pilot] Skipping invalid skill file (missing id or required automatic match patterns): ${filePath}`,
         );
         continue;
       }

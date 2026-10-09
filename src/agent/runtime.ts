@@ -53,6 +53,54 @@ import {
 import { classifyWriteNoteDestination } from "./writeNoteDestination";
 import { detectSkillIntent } from "./model/skillClassifier";
 import { getAllSkills, getMatchedSkillIds } from "./skills";
+import { shouldContinuePaperTutor } from "./skills/tutorContinuity";
+import {
+  beginLearningTurn,
+  commitLearningCheckpoint,
+  discardLearningCheckpoint,
+  hasLearningCheckpoint,
+  learningSourceKey,
+  loadLearningNoteBinding,
+  loadLearningProgressBySourceKey,
+  saveLearningNoteBinding,
+  takeLearningNoteBinding,
+} from "./store/learningStore";
+import { synchronizeLearningNote } from "./services/learningNoteSync";
+import type { LearningProgress } from "./services/paperLearning";
+
+const learningNoteJobs = new Map<string, Promise<void>>();
+
+async function syncLearningNotes(
+  request: AgentRuntimeRequest,
+  progress: readonly LearningProgress[],
+): Promise<void> {
+  const binding = takeLearningNoteBinding(request);
+  const keys = new Set(
+    progress.map((entry) => learningSourceKey(entry.source)),
+  );
+  if (binding) keys.add(binding.sourceKey);
+  for (const key of keys) {
+    const operation = async () => {
+      const records = await loadLearningProgressBySourceKey(key);
+      const previous =
+        binding?.sourceKey === key
+          ? binding.binding
+          : await loadLearningNoteBinding(key);
+      const result = await synchronizeLearningNote(records, previous);
+      if (result) await saveLearningNoteBinding(key, result);
+    };
+    const job = (learningNoteJobs.get(key) || Promise.resolve()).then(
+      operation,
+      operation,
+    );
+    learningNoteJobs.set(key, job);
+    try {
+      await job;
+    } finally {
+      if (learningNoteJobs.get(key) === job) learningNoteJobs.delete(key);
+    }
+  }
+}
 import {
   buildAgentResourceContextPlan,
   commitAgentReadActivities,
@@ -515,6 +563,9 @@ function buildTranscriptUserMessage(
   return {
     role: "user",
     content: `User request:\n${request.userText || ""}`,
+    ...(request.forcedSkillIds?.length
+      ? { forcedSkillIds: [...request.forcedSkillIds] }
+      : {}),
   };
 }
 
@@ -944,6 +995,15 @@ export class AgentRuntime {
     signal?: AbortSignal;
   }): Promise<AgentRuntimeOutcome> {
     const request = params.request;
+    if (request.learningMode !== undefined) {
+      request.forcedSkillIds = (request.forcedSkillIds || []).filter(
+        (id) => id !== "paper-guide" && id !== "paper-tutor",
+      );
+      if (request.learningMode !== "normal")
+        request.forcedSkillIds.push(`paper-${request.learningMode}`);
+    }
+    const learningActive =
+      request.learningMode === "guide" || request.learningMode === "tutor";
     validateLocalPdfDocumentBatch({
       pdfPaperContexts: request.pdfPaperContexts,
       localDocuments: request.localDocuments,
@@ -953,6 +1013,7 @@ export class AgentRuntime {
       request.localDocuments,
     );
     try {
+      beginLearningTurn(request);
       const runId = createRunId();
       const adapter = this.adapterFactory(request);
       const adapterCapabilities = adapter.getCapabilities(request);
@@ -984,6 +1045,13 @@ export class AgentRuntime {
       };
 
       if (!adapter.supportsTools(request)) {
+        if (learningActive) {
+          const text =
+            "Learning mode requires a tool-capable Agent model; select another model or switch to Normal.";
+          await emit({ type: "final", text });
+          await finishAgentRun(runId, "failed", text);
+          return { kind: "failed", runId, text, usedFallback: false };
+        }
         const reason =
           "Agent tools unavailable for this model; used direct response instead.";
         await emit({
@@ -1102,11 +1170,54 @@ export class AgentRuntime {
       //      and emitted as trace events for UI visibility.
       // The resulting prompt package is reused across every model inference
       // inside the agent loop — no per-step classification cost.
+      if (
+        request.learningMode === undefined &&
+        shouldContinuePaperTutor(
+          transcriptSegment.messages,
+          request.forcedSkillIds,
+        ) &&
+        !/^[$/][A-Za-z0-9_-]+(?:\s|$)/.test(request.userText.trim())
+      ) {
+        request.forcedSkillIds = ["paper-tutor"];
+      }
       const classifiedSkillIds = await detectSkillIntent(
         request,
         getAllSkills(),
       );
       const matchedSkills = getMatchedSkillIds(request, classifiedSkillIds);
+      if (
+        learningActive &&
+        !matchedSkills.includes(`paper-${request.learningMode}`)
+      ) {
+        const text =
+          "The selected learning Skill is unavailable for this context. Select one paper or restore the Skill in settings.";
+        await emit({ type: "final", text });
+        await finishAgentRun(runId, "failed", text);
+        return { kind: "failed", runId, text, usedFallback: false };
+      }
+      if (
+        learningActive &&
+        !toolDefinitions.some((tool) => tool.spec.name === "paper_learning")
+      ) {
+        const text =
+          "Learning state storage is unavailable in this Agent context. Switch to Normal or select a supported paper context.";
+        await emit({ type: "final", text });
+        await finishAgentRun(runId, "failed", text);
+        return { kind: "failed", runId, text, usedFallback: false };
+      }
+      request.metadata = {
+        ...request.metadata,
+        learningUserAnswers: [
+          ...transcriptSegment.messages
+            .filter((message) => message.role === "user")
+            .map((message) =>
+              transcriptContentToPlainText(message.content)
+                .replace(/^User request:\s*/i, "")
+                .trim(),
+            ),
+          request.userText,
+        ],
+      };
       const requiresFileNoteWrite = isWriteNoteFileRequest(
         request,
         matchedSkills,
@@ -1332,8 +1443,36 @@ export class AgentRuntime {
         status: "completed" | "failed" = "completed",
         options: { emitFinalEvent?: boolean } = {},
       ): Promise<AgentRuntimeOutcome> => {
-        const redactedFinalText =
-          turnPathRedactor.redactTerminalText(finalText);
+        let redactedFinalText = turnPathRedactor.redactTerminalText(finalText);
+        if (
+          status === "completed" &&
+          hasLearningCheckpoint(request) &&
+          params.signal?.aborted
+        ) {
+          status = "failed";
+          redactedFinalText +=
+            "\n\nLearning progress was not saved because this turn was cancelled.";
+        }
+        if (status === "completed") {
+          let committed: LearningProgress[] = [];
+          try {
+            committed = await commitLearningCheckpoint(request);
+          } catch (error) {
+            status = "failed";
+            redactedFinalText += `\n\nLearning state could not be saved: ${error instanceof Error ? error.message : String(error)}`;
+          }
+          if (status === "completed") {
+            try {
+              await syncLearningNotes(request, committed);
+              if (committed.length)
+                await emit({ type: "status", text: "Learning state saved" });
+            } catch (error) {
+              const warning = `Learning state saved, but note synchronization failed: ${error instanceof Error ? error.message : String(error)}`;
+              redactedFinalText += `\n\n${warning}`;
+              await emit({ type: "status", text: warning });
+            }
+          }
+        }
         if (options.emitFinalEvent !== false) {
           await emit({
             type: "final",
@@ -2706,7 +2845,35 @@ export class AgentRuntime {
         messages.push(continuationMessage);
         newTranscriptMessages.push(continuationMessage);
       };
+      let learningResumeUsed = false;
+      let learningCheckpointCorrectionUsed = false;
       for (let round = 1; round <= totalRoundLimit; round += 1) {
+        if (learningActive && !learningResumeUsed) {
+          learningResumeUsed = true;
+          const call = buildSyntheticToolCall("paper_learning", {
+            mode: "resume",
+          });
+          const assistantMessage: AgentModelMessage = {
+            role: "assistant",
+            content: "",
+            tool_calls: [call],
+          };
+          messages.push(assistantMessage);
+          newTranscriptMessages.push(assistantMessage);
+          const result = await executeToolWorkflow(call, round, {
+            modelCallId: call.id,
+          });
+          const toolMessage: AgentModelMessage = {
+            role: "tool",
+            tool_call_id: call.id,
+            name: call.name,
+            content: stringifyToolDeliveryContent(
+              result.delivery?.content ?? result.toolResult.content,
+            ),
+          };
+          messages.push(toolMessage);
+          newTranscriptMessages.push(toolMessage);
+        }
         if (round === maxRounds + 1) {
           await createContinuationCheckpoint();
         }
@@ -2720,12 +2887,36 @@ export class AgentRuntime {
           );
         } catch (err) {
           if (err instanceof AgentPromptBudgetError) {
-            return completeRun(err.message, "failed");
+            return await completeRun(err.message, "failed");
           }
           throw err;
         }
         const { step, stepStreamedText } = stepResult;
         if (step.kind === "final") {
+          if (learningActive && !hasLearningCheckpoint(request)) {
+            await rollbackCommittedStreamedText(stepStreamedText);
+            if (!learningCheckpointCorrectionUsed) {
+              learningCheckpointCorrectionUsed = true;
+              const correction: AgentModelMessage = {
+                role: "user",
+                content:
+                  "Learning mode requires an automatic database checkpoint for this completed round. Call paper_learning with mode:'progress' and a source-grounded LearningProgress record, without filePath. Retain prior goals and statuses only when valid; new explained points remain explained_unverified unless a recorded substantive user answer supports assessment. Include actual coverage, gaps and nextEntry. Never fabricate an answer or paper evidence just to save. If the source cannot be read, state the storage blocker explicitly.",
+              };
+              messages.push(
+                step.assistantMessage ?? {
+                  role: "assistant",
+                  content: step.text || stepStreamedText,
+                },
+                correction,
+              );
+              newTranscriptMessages.push(correction);
+              continue;
+            }
+            return await completeRun(
+              `${step.text || stepStreamedText}\n\nLearning progress was not saved because no valid source-checked checkpoint was produced.`,
+              "failed",
+            );
+          }
           if (
             intent.requiresFullPaperRead &&
             hasPaperReadScope &&
@@ -2751,7 +2942,7 @@ export class AgentRuntime {
               );
               continue;
             }
-            return completeRun(
+            return await completeRun(
               "I could not complete the requested full-text read because the model did not call `paper_read({ mode:'full' })` after being corrected.",
               "failed",
             );
@@ -2787,7 +2978,7 @@ export class AgentRuntime {
             }
             const nickname = getNotesDirectoryNickname().trim();
             const targetLabel = nickname ? `${nickname} note` : "note";
-            return completeRun(
+            return await completeRun(
               `I could not complete the ${targetLabel} write because the model did not call \`file_io({ action:'write', filePath, content })\` after being corrected.`,
               "failed",
             );
@@ -2802,7 +2993,7 @@ export class AgentRuntime {
             await rollbackCommittedStreamedText(stepStreamedText);
             if (replicationWorkspaceApproval === "unknown") {
               if (!(await requestReplicationWorkspaceApproval())) {
-                return completeRun(
+                return await completeRun(
                   "Paper-replication project preparation was cancelled. No project files were created or changed.",
                 );
               }
@@ -2853,7 +3044,7 @@ export class AgentRuntime {
               );
               continue;
             }
-            return completeRun(
+            return await completeRun(
               "I could not prepare the paper-replication project because it did not complete the required workspace file write, runnable implementation source write, and successful Git commit after repeated corrections.",
               "failed",
             );
@@ -2869,7 +3060,7 @@ export class AgentRuntime {
             const preflight =
               await readPaperReplicationStateBeforeContinuation(round);
             if (preflight.stopRun) {
-              return completeRun(
+              return await completeRun(
                 preflight.finalText || currentAnswerText,
                 "completed",
               );
@@ -2937,12 +3128,12 @@ export class AgentRuntime {
               );
               continue;
             }
-            return completeRun(
+            return await completeRun(
               "I could not complete the paper-replication continuation because it did not read project state, validate the prepared data, and complete the required experiment/report actions after repeated corrections.",
               "failed",
             );
           }
-          return emitFinalStep(step, stepStreamedText);
+          return await emitFinalStep(step, stepStreamedText);
         }
 
         // The step returned tool_calls, not a final answer.  Any text the
@@ -2987,13 +3178,13 @@ export class AgentRuntime {
                 content: stopFinalText,
               });
             }
-            return completeRun(stopFinalText, "completed");
+            return await completeRun(stopFinalText, "completed");
           }
           if (consecutiveToolErrors >= 3) {
             const finalText =
               currentAnswerText ||
               "Agent stopped after repeated tool errors. Please adjust the request and try again.";
-            return completeRun(finalText, "failed");
+            return await completeRun(finalText, "failed");
           }
         }
       }
@@ -3001,8 +3192,9 @@ export class AgentRuntime {
       const finalText =
         currentAnswerText ||
         "Agent reached its bounded execution limit before producing a final answer. Progress was checkpointed; ask it to continue to resume from the completed work.";
-      return completeRun(finalText, "failed");
+      return await completeRun(finalText, "failed");
     } finally {
+      discardLearningCheckpoint(request);
       pathLease.release();
     }
   }

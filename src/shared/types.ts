@@ -4,6 +4,7 @@
  */
 
 export type SelectedTextSource = "pdf" | "model" | "note" | "note-edit";
+export type LearningMode = "normal" | "guide" | "tutor";
 
 export type ChatAttachmentCategory =
   "image" | "pdf" | "markdown" | "code" | "text" | "file";

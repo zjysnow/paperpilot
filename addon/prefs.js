@@ -19,6 +19,8 @@ pref("maxTokensTertiary", "4096");
 pref("temperatureQuaternary", "0.3");
 pref("maxTokensQuaternary", "4096");
 pref("enableAgentMode", false);
+pref("learningNoteSyncEnabled", false);
+pref("learningNoteSyncDirectory", "");
 pref("agentApprovalMode", "default");
 pref("enableSubagents", false);
 pref("contextCacheTelemetry", "");

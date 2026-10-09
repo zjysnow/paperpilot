@@ -22,6 +22,7 @@ import type {
 import type { ContextCachePlan } from "../contextCache/manager";
 
 export type AgentRequest = {
+  learningMode?: import("../shared/types").LearningMode;
   conversationKey: number;
   mode: "agent";
   userText: string;
@@ -499,6 +500,8 @@ export type AgentSystemMessage = {
 export type AgentUserMessage = {
   role: "user";
   content: string | AgentModelContentPart[];
+  /** Local transcript metadata; model adapters send only role/content. */
+  forcedSkillIds?: string[];
 };
 
 export type AgentAssistantMessage = {

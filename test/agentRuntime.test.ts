@@ -1,6 +1,14 @@
 import { strict as assert } from "node:assert";
 import { AgentRuntime } from "../src/agent/runtime";
 import { AgentToolRegistry } from "../src/agent/tools/registry";
+import {
+  BUILTIN_SKILL_FILES,
+  getAllSkills,
+  setUserSkills,
+} from "../src/agent/skills";
+import { parseSkill } from "../src/agent/skills/skillLoader";
+import { clearAgentTranscript } from "../src/agent/store/transcriptStore";
+import { buildAgentInitialMessages } from "../src/agent/model/messageBuilder";
 import { createFileIOTool } from "../src/agent/tools/write/fileIO";
 import type {
   AgentModelCapabilities,
@@ -132,6 +140,109 @@ describe("AgentRuntime outcomes", function () {
       text: "done",
       usedFallback: false,
     });
+  });
+
+  it("gives explicitly selected learning workflows system-level priority over lightweight defaults", async function () {
+    const previousSkills = getAllSkills();
+    setUserSkills([
+      parseSkill(BUILTIN_SKILL_FILES["paper-guide.md"]),
+      parseSkill(BUILTIN_SKILL_FILES["paper-tutor.md"]),
+    ]);
+    try {
+      for (const id of ["paper-guide", "paper-tutor"]) {
+        const messages = await buildAgentInitialMessages(
+          {
+            ...request(),
+            userText: "这篇论文讲的什么",
+            forcedSkillIds: [id],
+          },
+          [],
+          [id],
+        );
+        const systemText = messages
+          .filter((message) => message.role === "system")
+          .map((message) => message.content)
+          .join("\n");
+        assert.match(systemText, new RegExp(`### Skill: ${id}`));
+        assert.match(
+          systemText,
+          /explicit workflow selection is part of the user's request/i,
+        );
+        assert.match(
+          systemText,
+          /ordinary paper questions without an active workflow/i,
+        );
+        const currentUserMessage = messages[messages.length - 1];
+        assert.equal(currentUserMessage.role, "user");
+        assert.match(
+          String(currentUserMessage.content),
+          /User request:\n这篇论文讲的什么$/,
+        );
+        assert.doesNotMatch(
+          String(currentUserMessage.content),
+          /### Skill: paper-/,
+        );
+      }
+      const ordinary = await buildAgentInitialMessages(
+        { ...request(), userText: "这篇论文讲的什么" },
+        [],
+        [],
+      );
+      assert.equal(
+        ordinary.some((message) =>
+          String(message.content).includes("### Skill: paper-"),
+        ),
+        false,
+      );
+    } finally {
+      setUserSkills(previousSkills);
+    }
+  });
+
+  it("persists menu-selected Tutor activation across turns and ends it on another Skill", async function () {
+    const previousSkills = getAllSkills();
+    setUserSkills([
+      parseSkill(BUILTIN_SKILL_FILES["paper-tutor.md"]),
+      parseSkill(BUILTIN_SKILL_FILES["paper-guide.md"]),
+    ]);
+    const agent = runtime(
+      adapter(async () => ({ kind: "final", text: "done" })),
+    );
+    const turn = (userText: string, forcedSkillIds?: string[]) => ({
+      ...request(),
+      conversationKey: 90909,
+      userText,
+      forcedSkillIds,
+    });
+    try {
+      const initial = await agent.runTurn({
+        request: turn("Teach the mechanism.", ["paper-tutor"]),
+      });
+      assert.equal(initial.kind, "completed");
+      const answer = turn("The projection step.");
+      assert.equal(
+        (await agent.runTurn({ request: answer })).kind,
+        "completed",
+      );
+      assert.deepEqual(answer.forcedSkillIds, ["paper-tutor"]);
+      assert.equal(
+        (
+          await agent.runTurn({
+            request: turn("Create a guide.", ["paper-guide"]),
+          })
+        ).kind,
+        "completed",
+      );
+      const ordinary = turn("Explain a limitation.");
+      assert.equal(
+        (await agent.runTurn({ request: ordinary })).kind,
+        "completed",
+      );
+      assert.equal(ordinary.forcedSkillIds, undefined);
+    } finally {
+      setUserSkills(previousSkills);
+      await clearAgentTranscript(90909);
+    }
   });
 
   it("returns a failed outcome after repeated tool errors", async function () {

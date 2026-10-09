@@ -23,6 +23,57 @@ describe("Paper Pilot namespace workflows in Zotero", function () {
     await getWorkflowApi().reset();
   });
 
+  it("loads manual learning Skills and selects them from the real /paper- menu", async function () {
+    const api = getWorkflowApi();
+    await api.reset();
+    const key = "extensions.zotero.paperpilot.enableAgentMode";
+    const previousMode = Zotero.Prefs.get(key, true);
+    const fixture = await api.createPaperWithPdfFixture({
+      title: "Learning Skill menu fixture",
+      pdfTitle: "Learning PDF",
+      pages: [
+        "The method transforms the input into an intermediate representation.",
+      ],
+    });
+    try {
+      Zotero.Prefs.set(key, true, true);
+      const panel = await api.renderPanelForItem(fixture.parentItemId);
+      for (const skillId of ["paper-guide", "paper-tutor"]) {
+        const menu = await api.exercisePanelSkillSlashMenu(
+          panel.panelId,
+          "/paper-",
+          skillId,
+        );
+        expect(menu.loadedSkillIds).to.include.members([
+          "paper-guide",
+          "paper-tutor",
+        ]);
+        expect(menu.renderedSkillIds).to.include.members([
+          "paper-guide",
+          "paper-tutor",
+          "paper-replication",
+        ]);
+        const sent = await api.ask(
+          panel.panelId,
+          "Explain the central mechanism.",
+        );
+        expect(sent.forcedSkillIds).to.deep.equal([skillId]);
+        expect(sent.question).to.equal("Explain the central mechanism.");
+      }
+    } catch (error) {
+      debug(`Learning Skill menu workflow failed: ${String(error)}`);
+      throw error;
+    } finally {
+      if (previousMode === undefined) {
+        Zotero.Prefs.clear(key, true);
+      } else {
+        Zotero.Prefs.set(key, previousMode, true);
+      }
+      await api.reset();
+      await api.cleanupFixture(fixture);
+    }
+  });
+
   it("starts with the Paper Pilot namespace and a ready workflow API", async function () {
     expect(Zotero.PaperPilot.data.initialized).to.equal(true);
     const rows = (await Zotero.DB.queryAsync(
@@ -35,6 +86,91 @@ describe("Paper Pilot namespace workflows in Zotero", function () {
     )) as Array<{ name: string }>;
     expect(rows).to.have.length(3);
     expect(getWorkflowApi().renderPanelForItem).to.be.a("function");
+  });
+
+  it("persists real Guide/Tutor selections and clears them in Normal mode", async function () {
+    const api = getWorkflowApi();
+    await api.reset();
+    const key = "extensions.zotero.paperpilot.enableAgentMode";
+    const previous = Zotero.Prefs.get(key, true);
+    const fixture = await api.createPaperWithPdfFixture({
+      title: "Persistent learning mode fixture",
+      pdfTitle: "Learning PDF",
+      pages: ["Input becomes an intermediate representation."],
+    });
+    try {
+      Zotero.Prefs.set(key, true, true);
+      const panel = await api.renderPanelForItem(fixture.parentItemId);
+      for (const mode of ["guide", "tutor"] as const) {
+        expect(await api.selectPanelLearningMode(panel.panelId, mode)).to.equal(
+          mode,
+        );
+        const geometry = api.measurePanelLearningControls(panel.panelId);
+        expect(geometry.modeFontSize).to.equal(geometry.agentFontSize);
+        expect(geometry.modeFontWeight).to.equal("400");
+        expect(geometry.modeAppearance).to.equal("none");
+        expect(geometry.heightDifference).to.be.at.most(1);
+        expect(geometry.topDifference).to.be.at.most(1);
+        expect(geometry.overflows).to.equal(false);
+        for (let turn = 0; turn < 2; turn++) {
+          const sent = await api.ask(panel.panelId, "Explain the mechanism.");
+          expect(sent.learningMode).to.equal(mode);
+          expect(sent.forcedSkillIds).to.deep.equal([`paper-${mode}`]);
+        }
+        expect(
+          await api.selectPanelLearningMode(panel.panelId, mode, true),
+        ).to.equal(mode);
+      }
+      await api.selectPanelLearningMode(panel.panelId, "normal");
+      const sent = await api.ask(panel.panelId, "Ordinary question.");
+      expect(sent.learningMode).to.equal("normal");
+      expect(sent.forcedSkillIds || []).to.deep.equal([]);
+      await api.startNewPanelConversation(panel.panelId);
+      expect(
+        await api.selectPanelLearningMode(panel.panelId, "normal", true),
+      ).to.equal("normal");
+    } catch (error) {
+      debug(`Learning selector workflow failed: ${String(error)}`);
+      throw error;
+    } finally {
+      if (previous === undefined) Zotero.Prefs.clear(key, true);
+      else Zotero.Prefs.set(key, previous, true);
+      await api.reset();
+      await api.cleanupFixture(fixture);
+    }
+  });
+
+  it("commits real PDF learning state and synchronizes Markdown without overwriting manual edits", async function () {
+    this.timeout(60000);
+    const api = getWorkflowApi();
+    await api.reset();
+    const fixture = await api.createPaperWithPdfFixture({
+      title: "Learning persistence fixture",
+      pdfTitle: "Mechanism PDF",
+      pages: [
+        "Input is transformed into an intermediate representation. The next stage uses the representation to produce the output.",
+      ],
+    });
+    try {
+      const panel = await api.renderPanelForItem(fixture.parentItemId);
+      expect(
+        await api.exerciseLearningPersistence(
+          panel.panelId,
+          fixture.pdfAttachmentId,
+        ),
+      ).to.deep.equal({
+        restored: true,
+        manualPreserved: true,
+        conflictReported: true,
+        databaseAdvanced: true,
+      });
+    } catch (error) {
+      debug(`Learning persistence workflow failed: ${String(error)}`);
+      throw error;
+    } finally {
+      await api.reset();
+      await api.cleanupFixture(fixture);
+    }
   });
 
   it("migrates data and unique indexes using Zotero's actual database transaction API", async function () {

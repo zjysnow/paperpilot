@@ -7205,6 +7205,50 @@ label.paperpilotsearch-results-item:hover {
   cursor: default;
 }
 
+.paperpilotlearning-mode-select {
+  appearance: none;
+  order: -999;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-height: 26px;
+  margin: 0;
+  padding: 3px 25px 3px 10px;
+  border: 1px solid var(--stroke-secondary);
+  border-radius: 999px;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m3 4.5 3 3 3-3' fill='none' stroke='%2381858f' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  color: var(--fill-secondary);
+  font-family: inherit;
+  font-size: var(--paperpilotfs-12);
+  font-weight: 400;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.paperpilotlearning-mode-select:hover:not(:disabled) {
+  border-color: var(--stroke-primary);
+  color: var(--fill-primary);
+  background-color: var(--material-background);
+}
+
+.paperpilotlearning-mode-select:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.paperpilotlearning-mode-select:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.paperpilotlearning-mode-select option {
+  background-color: var(--material-background);
+  color: var(--fill-primary);
+}
+
 #paperpilotruntime-mode-toggle.paperpilotruntime-mode-static {
   cursor: default;
   border-color: var(--stroke-secondary);

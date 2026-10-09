@@ -13,6 +13,19 @@
 // ── Chinese (Simplified) translation map ────────────────────────────────────
 
 const zhCN: Record<string, string> = {
+  "Learning mode": "学习模式",
+  Normal: "普通",
+  Guide: "导览",
+  Tutor: "导师",
+  "Select a paper to use Guide or Tutor": "选择一篇论文后使用导览或导师模式",
+  "Failed to load learning mode": "加载学习模式失败",
+  "Failed to save learning mode": "保存学习模式失败",
+  "Automatically sync learning progress to notes": "自动将学习进度同步到笔记",
+  "Learning note sync failed": "学习笔记同步失败",
+  "Learning note sync enabled": "已授权自动同步学习笔记",
+  "Learning note sync disabled": "已关闭学习笔记自动同步",
+  "Authorize automatic updates to PaperPilot's learning blocks in the configured Notes Directory and target folder. Manual content is preserved. Re-enable this option after changing the directory. Learning state stays in the database when sync is disabled.":
+    "授权 PaperPilot 自动更新笔记目录及目标文件夹中的学习区块，保留手写内容。更改目录后需要重新开启授权。关闭同步时，学习状态仍保存到数据库。",
   // ── Shortcut actions ────────────────────────────────────────────────────
   Summarize: "摘要",
   "Key Points": "要点",

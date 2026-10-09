@@ -1,6 +1,12 @@
 import { createElement } from "../../utils/domHelpers";
 import { t } from "../../utils/i18n";
 import {
+  getCachedLearningMode,
+  loadLearningMode,
+  setLearningMode,
+  type LearningMode,
+} from "../../agent/store/learningStore";
+import {
   getAgentApprovalMode,
   setAgentApprovalMode,
   type AgentApprovalMode,
@@ -685,6 +691,68 @@ export function setupHandlers(
       noteKind: noteSession?.noteKind || null,
     });
   };
+  const learningModeSelect = body.querySelector(
+    "#paperpilotlearning-mode",
+  ) as HTMLSelectElement | null;
+  let learningModeSave: Promise<void> | null = null;
+  let learningModeLoadedKey: number | undefined;
+  let isLearningPaperAvailable = () => isPaperMode() && !isNoteSession();
+  const updateLearningModeControl = () => {
+    if (!learningModeSelect || !item) return;
+    const key = getConversationKey(item);
+    learningModeSelect.style.display =
+      getCurrentRuntimeMode() === "agent" ? "" : "none";
+    learningModeSelect.value = getCachedLearningMode(key);
+    const available = isLearningPaperAvailable();
+    const options =
+      learningModeSelect.querySelectorAll<HTMLOptionElement>("option");
+    for (let index = 0; index < options.length; index++) {
+      const option = options.item(index);
+      if (option) option.disabled = option.value !== "normal" && !available;
+    }
+    learningModeSelect.title = available
+      ? t("Learning mode")
+      : t("Select a paper to use Guide or Tutor");
+    learningModeSelect.disabled =
+      Boolean(learningModeSave) || learningModeLoadedKey !== key;
+    void loadLearningMode(key)
+      .then((mode) => {
+        if (!item || getConversationKey(item) !== key) return;
+        learningModeLoadedKey = key;
+        learningModeSelect.value = mode;
+        learningModeSelect.disabled = Boolean(learningModeSave);
+      })
+      .catch((error: unknown) => {
+        ztoolkit.log("Paper Pilot: Failed to load learning mode", error);
+        if (status)
+          setStatus(status, t("Failed to load learning mode"), "error");
+      });
+  };
+  const changeLearningMode = async (
+    mode: LearningMode,
+    clearSelection = true,
+  ) => {
+    if (!item) return;
+    const operation = setLearningMode(getConversationKey(item), mode);
+    learningModeSave = operation;
+    updateLearningModeControl();
+    try {
+      await operation;
+      if (clearSelection) clearForcedSkill();
+      for (const sync of activeContextPanelStateSync.values()) sync();
+    } finally {
+      if (learningModeSave === operation) learningModeSave = null;
+      updateLearningModeControl();
+    }
+  };
+  learningModeSelect?.addEventListener("change", () => {
+    const value = learningModeSelect.value;
+    if (value !== "normal" && value !== "guide" && value !== "tutor") return;
+    void changeLearningMode(value).catch((error: unknown) => {
+      ztoolkit.log("Paper Pilot: Failed to save learning mode", error);
+      if (status) setStatus(status, t("Failed to save learning mode"), "error");
+    });
+  });
   const updateRuntimeModeButton = () => {
     if (!runtimeModeBtn) return;
     const indicator = runtimeModeBtn.querySelector(
@@ -699,6 +767,7 @@ export function setupHandlers(
     const agentFeatureEnabled = getAgentModeEnabled();
     const shouldHide = !agentFeatureEnabled;
     runtimeModeBtn.style.display = shouldHide ? "none" : "";
+    updateLearningModeControl();
     if (shouldHide) {
       panelRoot.dataset.runtimeMode = "chat";
       return;
@@ -732,6 +801,7 @@ export function setupHandlers(
     );
     runtimeModeBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
     panelRoot.dataset.runtimeMode = mode;
+    updateLearningModeControl();
   };
   const setCurrentRuntimeMode = (mode: ChatRuntimeMode) => {
     if (!item) {
@@ -3732,6 +3802,11 @@ export function setupHandlers(
     updateImagePreview();
     updateSelectedTextPreview();
   };
+  isLearningPaperAvailable = () =>
+    Boolean(item) &&
+    !isNoteSession() &&
+    getAllEffectivePaperContexts(item!).length === 1;
+  updateLearningModeControl();
   activeContextPanelStateSync.set(body, syncConversationPanelState);
   const runPanelStateRefreshNow = () => {
     const previousHeight = measureContextPreviewHeight();
@@ -4815,6 +4890,17 @@ export function setupHandlers(
       shouldRenderDynamicSlashMenuForCurrentConversation,
     shouldRenderSkillSlashMenu:
       shouldRenderSkillSlashMenuForCurrentConversation,
+    onSkillSelected: (id) => {
+      if (id !== "paper-guide" && id !== "paper-tutor") return;
+      void changeLearningMode(
+        id === "paper-guide" ? "guide" : "tutor",
+        false,
+      ).catch((error: unknown) => {
+        ztoolkit.log("Paper Pilot: Failed to select learning mode", error);
+        if (status)
+          setStatus(status, t("Failed to save learning mode"), "error");
+      });
+    },
     getCurrentRuntimeMode,
     setCurrentRuntimeMode,
     getCurrentLibraryID,
@@ -5158,6 +5244,20 @@ export function setupHandlers(
     getLatestEditablePair,
     editLatestUserMessageAndRetry,
     sendQuestion: async (opts) => {
+      if (learningModeSave) await learningModeSave;
+      opts.learningMode =
+        getCurrentRuntimeMode() === "agent"
+          ? await loadLearningMode(
+              opts.conversationKey ?? getConversationKey(opts.item),
+            )
+          : undefined;
+      if (opts.learningMode !== undefined) {
+        opts.forcedSkillIds = (opts.forcedSkillIds || []).filter(
+          (id) => id !== "paper-guide" && id !== "paper-tutor",
+        );
+        if (opts.learningMode !== "normal")
+          opts.forcedSkillIds.push(`paper-${opts.learningMode}`);
+      }
       const workflowTestSendInterceptor = getWorkflowTestSendInterceptor();
       if (workflowTestSendInterceptor) {
         const continueToModelBoundary = await workflowTestSendInterceptor(opts);

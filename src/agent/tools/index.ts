@@ -29,6 +29,7 @@ import { createManageAttachmentsTool } from "./write/manageAttachments";
 import { createRunCommandTool } from "./write/runCommand";
 import { createImportLocalFilesTool } from "./write/importLocalFiles";
 import { createFileIOTool } from "./write/fileIO";
+import { createPaperLearningTool } from "./write/paperLearning";
 import { createZoteroScriptTool } from "./write/zoteroScript";
 import { PdfPageService } from "../services/pdfPageService";
 import { PdfFigureExtractionService } from "../services/pdfFigureExtractionService";
@@ -508,6 +509,7 @@ export function createBuiltInToolRegistry(
   );
   registry.register(undoLastAction);
   registry.register(markToolTier(fileIO, "advanced"));
+  registry.register(createPaperLearningTool(deps));
   registry.register(markToolTier(runCommand, "advanced"));
   registry.register(markToolTier(zoteroScript, "advanced"));
   registry.register(createToolResultReadTool());

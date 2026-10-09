@@ -637,6 +637,23 @@ function buildUI(body: Element, item?: Zotero.Item | null) {
   );
   runtimeModeBtn.append(runtimeModeIndicator, runtimeModeLabel);
   contextPreviews.appendChild(runtimeModeBtn);
+  const learningModeSelect = doc.createElement("select") as HTMLSelectElement;
+  learningModeSelect.id = "paperpilotlearning-mode";
+  learningModeSelect.className = "paperpilotlearning-mode-select";
+  learningModeSelect.setAttribute("aria-label", t("Learning mode"));
+  learningModeSelect.title = t("Learning mode");
+  learningModeSelect.style.display = "none";
+  for (const [value, label] of [
+    ["normal", "Normal"],
+    ["guide", "Guide"],
+    ["tutor", "Tutor"],
+  ]) {
+    const option = doc.createElement("option") as HTMLOptionElement;
+    option.value = value;
+    option.textContent = t(label);
+    learningModeSelect.appendChild(option);
+  }
+  contextPreviews.appendChild(learningModeSelect);
   const selectedContextList = createElement(
     doc,
     "div",

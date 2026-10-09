@@ -14,6 +14,7 @@ import type {
   AgentRuntimeOutcome,
   AgentRuntimeRequest,
 } from "../../../agent/types";
+import { loadLearningMode } from "../../../agent/store/learningStore";
 import {
   resolveConversationBaseItem,
   resolveDisplayConversationKind,
@@ -1179,6 +1180,7 @@ function refreshAssistantMessageTimestampForPersistence(
 
 export async function sendAgentTurn(
   opts: {
+    learningMode?: import("../../../shared/types").LearningMode;
     body: Element;
     item: Zotero.Item;
     contextSource?: ResolvedContextSource | null;
@@ -1531,6 +1533,8 @@ export async function sendAgentTurn(
     history: llmHistory,
   });
   const agentRuntime = deps.getAgentRuntime();
+  runtimeRequest.learningMode =
+    opts.learningMode ?? (await loadLearningMode(conversationKey));
   const capabilities = agentRuntime.getCapabilities(runtimeRequest);
   if (!capabilities.toolCalls) {
     const fallback = await agentRuntime.runTurn({
@@ -1982,6 +1986,7 @@ export async function retryAgentTurn(
     effectiveRequestConfig,
     history: historyForLLM,
   });
+  runtimeRequest.learningMode = await loadLearningMode(conversationKey);
 
   let assistantPersisted = false;
   const persistAssistantOnce = async () => {

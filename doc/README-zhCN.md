@@ -7,6 +7,22 @@
 
 [English](../README.md) | [简体中文](./README-zhCN.md) | [Français](./README-frFR.md)
 
+## Paper Pilot 论文导览与导师模式
+
+启用 Agent 后，在旁边选择 **Normal / Guide / Tutor**，每个会话独立保存
+选择并固定调用对应学习 Skill；切回 Normal 恢复普通问答。Guide 提供研究
+问题、机制/论证图、关键证据与限制；Tutor 逐点教学，支持直接解释、跳过、
+暂停。`/paper-guide`、`/paper-tutor` 菜单入口仍可使用。
+
+成功完成的学习回合自动将结构化进度保存到 Zotero 数据库；相同论文及附件
+的新会话进入学习模式后自动恢复，无需设置 JSON 路径。可在设置的 Notes
+Directory 指向 Obsidian Vault，并明确启用学习状态自动同步：只更新 Markdown
+托管区块，保留区块外手写内容；冲突或同步失败会提示，数据库进度不丢失。
+
+HTML 导览、JSON 进度仍可按需导出，沿用审批与撤销；恢复核对论文、附件及
+原文指纹，不把“已讲解”当成“已掌握”。JSON 不是日常学习的必需文件。
+详见 [论文学习工作流](./paper-learning.md)。
+
 - 开发指南
   - [📖 插件开发文档](https://zotero-chinese.com/plugin-dev-guide/) (中文版，尚不完善)
   - [📖 Zotero 7 插件开发文档](https://www.zotero.org/support/dev/zotero_7_for_developers)

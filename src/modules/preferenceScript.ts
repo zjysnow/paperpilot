@@ -1,6 +1,10 @@
 import { config } from "../../package.json";
 import { t } from "../utils/i18n";
 import {
+  isLearningNoteSyncEnabled,
+  setLearningNoteSyncEnabled,
+} from "../utils/learningNoteSyncConfig";
+import {
   DEFAULT_MAX_TOKENS,
   DEFAULT_SYSTEM_PROMPT,
   DEFAULT_TEMPERATURE,
@@ -2675,6 +2679,37 @@ export async function registerPrefsScripts(_window: Window | undefined | null) {
     const notesDirNicknameInput = doc.querySelector(
       `#${config.addonRef}-notes-dir-nickname`,
     ) as HTMLInputElement | null;
+    const learningNoteSyncInput = doc.querySelector(
+      `#${config.addonRef}-learning-note-sync`,
+    ) as HTMLInputElement | null;
+    const learningNoteSyncStatus = doc.querySelector(
+      `#${config.addonRef}-learning-note-sync-status`,
+    ) as HTMLSpanElement | null;
+    if (learningNoteSyncInput) {
+      learningNoteSyncInput.checked = isLearningNoteSyncEnabled();
+      learningNoteSyncInput.addEventListener("change", () => {
+        try {
+          setLearningNoteSyncEnabled(learningNoteSyncInput.checked);
+          if (learningNoteSyncStatus) {
+            learningNoteSyncStatus.textContent = learningNoteSyncInput.checked
+              ? t("Learning note sync enabled")
+              : t("Learning note sync disabled");
+            learningNoteSyncStatus.style.color = "var(--fill-secondary, #888)";
+          }
+        } catch (error) {
+          learningNoteSyncInput.checked = isLearningNoteSyncEnabled();
+          ztoolkit.log(
+            "Paper Pilot: Failed to authorize learning note sync",
+            error,
+          );
+          if (learningNoteSyncStatus) {
+            learningNoteSyncStatus.textContent =
+              error instanceof Error ? error.message : String(error);
+            learningNoteSyncStatus.style.color = "#dc2626";
+          }
+        }
+      });
+    }
     const notesDirPathInput = doc.querySelector(
       `#${config.addonRef}-obsidian-vault-path`,
     ) as HTMLInputElement | null;

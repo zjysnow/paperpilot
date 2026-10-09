@@ -218,6 +218,34 @@ export type WorkflowTestApi = {
     panelId: string,
     text: string,
   ) => Promise<WorkflowTestDraftRefreshDiagnostics>;
+  exercisePanelSkillSlashMenu: (
+    panelId: string,
+    query: string,
+    skillId: string,
+  ) => Promise<{ loadedSkillIds: string[]; renderedSkillIds: string[] }>;
+  selectPanelLearningMode: (
+    panelId: string,
+    mode: import("../../shared/types").LearningMode,
+    reload?: boolean,
+  ) => Promise<string>;
+  measurePanelLearningControls: (panelId: string) => {
+    modeFontSize: string;
+    agentFontSize: string;
+    modeFontWeight: string;
+    modeAppearance: string;
+    heightDifference: number;
+    topDifference: number;
+    overflows: boolean;
+  };
+  exerciseLearningPersistence: (
+    panelId: string,
+    attachmentId: number,
+  ) => Promise<{
+    restored: boolean;
+    manualPreserved: boolean;
+    conflictReported: boolean;
+    databaseAdvanced: boolean;
+  }>;
   seedPanelStoredUserMessage: (
     panelId: string,
     text: string,

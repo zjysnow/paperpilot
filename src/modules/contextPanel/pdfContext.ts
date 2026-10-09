@@ -1151,7 +1151,7 @@ function normalizeEvidenceText(value: string): string {
   return sanitizePdfText(value).replace(/\s+/g, " ").trim();
 }
 
-function buildPdfSourceFingerprint(
+export function buildPdfSourceFingerprint(
   sourceText: string,
   sourceType?: PdfContext["sourceType"],
 ): string {

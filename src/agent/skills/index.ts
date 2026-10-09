@@ -26,6 +26,8 @@ import literatureReviewRaw from "./literature-review.md";
 import importCitedReferenceRaw from "./import-cited-reference.md";
 import paperReplicationRaw from "./paper-replication.md";
 import researchWorkflowRaw from "./research-workflow.md";
+import paperGuideRaw from "./paper-guide.md";
+import paperTutorRaw from "./paper-tutor.md";
 import { resolveSkillRouting } from "./routing";
 
 export { matchesSkill, parseSkill } from "./skillLoader";
@@ -69,6 +71,8 @@ export const BUILTIN_SKILL_FILES: Record<string, string> = {
   "import-cited-reference.md": importCitedReferenceRaw,
   "paper-replication.md": paperReplicationRaw,
   "research-workflow.md": researchWorkflowRaw,
+  "paper-guide.md": paperGuideRaw,
+  "paper-tutor.md": paperTutorRaw,
 };
 
 /** Set of filenames that are built-in (shipped with the plugin). */
@@ -126,7 +130,10 @@ export function getAllSkills(): AgentSkill[] {
  */
 export function getMatchedSkillIds(
   request: SkillRoutingRequest &
-    Pick<import("../types").AgentRuntimeRequest, "forcedSkillIds">,
+    Pick<
+      import("../types").AgentRuntimeRequest,
+      "forcedSkillIds" | "learningMode"
+    >,
   classifiedIds?: ReadonlyArray<string>,
 ): string[] {
   return resolveSkillRouting(request, getAllSkills(), classifiedIds)

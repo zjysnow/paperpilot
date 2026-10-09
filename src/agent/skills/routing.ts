@@ -311,7 +311,8 @@ function shouldSuppressAutomaticSkill(params: {
 }
 
 export function resolveSkillRouting(
-  request: SkillRoutingRequest & Pick<AgentRuntimeRequest, "forcedSkillIds">,
+  request: SkillRoutingRequest &
+    Pick<AgentRuntimeRequest, "forcedSkillIds" | "learningMode">,
   skills: ReadonlyArray<AgentSkill>,
   classifiedIds?: ReadonlyArray<string>,
 ): SkillRoutingResolution {
@@ -349,8 +350,25 @@ export function resolveSkillRouting(
       ? matchedSkillIds.filter((id) => id !== SIMPLE_PAPER_QA_SKILL_ID)
       : matchedSkillIds;
 
+  const modeSkillIds = withoutRedundantSimplePaperQa.filter((id) => {
+    if (id !== "paper-guide" && id !== "paper-tutor") return true;
+    if (request.learningMode === undefined) return true;
+    return id === `paper-${request.learningMode}`;
+  });
+  const hasLearningSkill = modeSkillIds.some(
+    (id) => id === "paper-guide" || id === "paper-tutor",
+  );
+  const resolvedSkillIds = hasLearningSkill
+    ? modeSkillIds.filter(
+        (id) =>
+          forcedIds.has(id) ||
+          (id !== SIMPLE_PAPER_QA_SKILL_ID &&
+            id !== EVIDENCE_BASED_QA_SKILL_ID),
+      )
+    : modeSkillIds;
+
   return {
-    matchedSkillIds: withoutRedundantSimplePaperQa,
+    matchedSkillIds: resolvedSkillIds,
     explicitSkillIds: Array.from(forcedIds).filter((skillId) =>
       hasSkill(skills, skillId),
     ),

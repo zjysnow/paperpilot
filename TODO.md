@@ -173,3 +173,145 @@ documented support matrix, or clearly identifies untested platforms.
 
 Validated with `npm ci --ignore-scripts --no-audit --no-fund`,
 `npm run lint:check`, `npm run check:cycles`, and `npm test`.
+
+## Paper learning workflow — inspired by PaperUnfold
+
+Design reference: [PaperUnfold](https://github.com/Kstheme/PaperUnfold).
+Reuse Paper Pilot's paper tools, quote anchors, Skills, file approvals, and
+undo support. Do not replace ordinary lightweight Q&A or introduce a second
+PDF/OCR pipeline. The implementation is native TypeScript, not a dependency
+on PaperUnfold's Python helpers.
+
+### [x] P0 — Add a mechanism-complete paper guide
+
+**Work:** Add an explicit `paper-guide` Skill, a structured guide contract,
+and validated export. Explain the problem, central steps or inferences,
+intermediate artifacts, evidence, conditions, and limitations. Adapt the
+visual to method, empirical, or theoretical research. Distinguish author
+claims, inference, background, and analogy.
+
+**Acceptance criteria:** Claims reference supplied evidence; quoted evidence
+is checked against the selected attachment's extracted text and uses native
+quote citations. A guide records actual reading coverage and missing material.
+Ordinary summary requests retain the existing Q&A workflow.
+
+**Status:** Implemented as a manual `paper-guide` Skill, typed guide validation,
+literal attachment-source checking, and native quote citation generation.
+The chat guide reuses Mermaid; offline export uses explicit SVG relationships.
+Instruction v3 retains the default six-part guide for generic questions and
+adds mandatory automatic database checkpoints.
+Current-turn system guidance gives its mechanism/evidence requirements priority
+over ordinary one-overview defaults; regression tests cover prompt priority and
+upgrades of unmodified seeded Skills. This does not certify real-model output
+quality; the real-paper release evaluation below remains required.
+
+### [x] P1 — Add focused tutoring and portable learning progress
+
+**Work:** Add an explicit `paper-tutor` Skill with one-point-at-a-time feedback,
+direct-explanation/skip/pause controls, and a versioned progress record.
+Track explained-unverified, partial, and narrowly demonstrated understanding.
+
+**Acceptance criteria:** Progress can be saved and resumed across conversations.
+Resume checks paper/attachment identity and extracted-source fingerprint;
+missing or changed source fails explicitly without upgrading mastery.
+Partial/mastered entries require an answer and assessment, not just a status.
+Explicit file exports use existing approval and undo behavior.
+
+**Status:** Implemented as a manual `paper-tutor` Skill and `paper_learning`
+progress/resume operations. Fixed Tutor mode persists per conversation until
+Normal is selected; direct explanation, skipping, and pausing remain supported.
+Records carry native paper/attachment keys and the extracted-source fingerprint.
+
+### [x] P1 — Add persistent UI modes and database-first learning state
+
+**Work:** Add Normal/Guide/Tutor selection beside the Agent toggle, persist it
+per conversation, and force the corresponding Skill without repeated commands.
+Keep structured learning state separate from already-persisted chat transcripts.
+
+**Acceptance criteria:** Send/retry honor mode; Normal stops Tutor inheritance.
+Successful turns commit source-checked checkpoints transactionally; failed or
+cancelled turns do not. Restore across conversations/model changes without a
+JSON path. Reject concurrent goal overwrites and changed sources explicitly.
+
+**Status:** Implemented modes, database tables, automatic restore/checkpoint
+enforcement, revision checks, and focused lifecycle regressions. JSON remains
+optional portable export/restore rather than the authoritative store.
+
+### [x] P1 — Optionally project learning state into Obsidian notes
+
+**Work:** Reuse Notes Directory with explicit opt-in; write one stable Markdown
+note per paper/attachment containing all learning goals.
+
+**Acceptance criteria:** Preserve manual regions, reject managed-block edits
+and untrusted collisions, require reauthorization after directory changes,
+write atomically, and retain DB state with an explicit warning on sync failure.
+Existing-note binding requires approval; do not guess by title or parse notes
+back into authoritative state.
+
+**Status:** Implemented opt-in settings, stable managed blocks, conflict
+detection, atomic synchronization, and configuration/I/O regressions. Native
+Zotero tests additionally verify real SQLite/PDF/Markdown creation and updates,
+manual-region preservation, conflicts without lost DB state, and cross-chat
+restore using a scripted model adapter.
+
+### [x] P1 — Export a portable offline HTML guide
+
+**Work:** Render structured guides with connected SVG diagrams, formula
+rendering, folded evidence, and chapter-specific Tutor prompts. Embed the
+structured record in the HTML so export does not require a second file.
+
+**Acceptance criteria:** No CDN or external font dependency; model text is
+escaped, graph endpoints are validated, and evidence links reveal their
+target. Export errors do not report a saved guide.
+
+**Status:** Implemented in TypeScript with embedded MathML and SVG, folded
+native evidence, the structured JSON record, and copyable chapter Tutor prompts.
+Original figure embedding and arbitrary interactive experiments are not shipped.
+
+### [ ] P2 — Add native chapter-to-Tutor actions
+
+**Work:** Replace copyable chapter prompts with a native action that binds
+the paper, selected topic, and learning goal to the compose box.
+
+**Acceptance criteria:** Switching or cancelling preserves the current
+conversation and never silently changes the selected paper.
+
+### [ ] P2 — Add bounded interactive mechanism demonstrations
+
+**Work:** Start with an independently tested softmax-temperature example;
+add other mechanisms only with explicit assumptions and source-grounded
+explanations. Do not promise arbitrary generated experiments.
+
+**Acceptance criteria:** Numerical outputs are tested, invented inputs are
+labeled as teaching examples, and unsupported mechanisms remain diagrams.
+
+### [x] Validate and document the learning workflow
+
+**Work:** Cover contracts, source mismatch, graph references, file approvals,
+offline rendering, and Skill routing. Document English and Chinese usage.
+Use representative method, empirical, and theoretical fixtures.
+
+**Acceptance criteria:** Targeted unit tests, type checking, lint, and build
+pass. Real Zotero/browser checks are recorded separately from static tests;
+neither successful export nor a learning record proves learning gains.
+
+**Status:** Added contract, tool persistence/approval/undo, source mismatch,
+Skill routing/continuity, and MCP exposure tests plus
+[English/Chinese usage documentation](doc/paper-learning.md).
+Browser checks on generated HTML verify MathML layout, evidence expansion
+(including repeated links), a chapter Tutor prompt, a 390px viewport, and
+zero external resource loads. Existing Zotero namespace integration tests
+pass. Runtime-loader regressions cover seeding/loading patternless manual
+Skills while preserving customizations and intentional deletions. A real
+Zotero workflow checks `/paper-` menu visibility, selection of both learning
+Skills, and the submitted `forcedSkillIds`; Agent-runtime regressions cover
+menu-selected Tutor continuation and switching to another Skill. These
+checks are not an end-to-end real-model learning evaluation.
+
+### [ ] Release check — evaluate learning with real papers in Zotero
+
+Use one method, empirical, and theoretical paper with the configured model.
+Verify explanation fidelity, actual coverage reporting, Tutor feedback,
+pause/save/new-conversation resume, and changed-attachment failure in Zotero.
+Record the model/runtime and sources. This operational quality check remains
+separate from automated contract tests and synthetic browser fixtures.

@@ -412,6 +412,7 @@ export type ZoteroTabsState = {
 import type { ReasoningConfig as LLMReasoningConfig } from "../../utils/llmClient";
 
 export type SendQuestionOptions = {
+  learningMode?: import("../../shared/types").LearningMode;
   body: Element;
   item: Zotero.Item;
   /** Resolved panel/source context selected by compose UI. */

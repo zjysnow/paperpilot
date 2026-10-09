@@ -19,7 +19,7 @@ import { isMalformedToolArgumentsDiagnostic } from "../../toolArgumentDiagnostic
 import { stripMineruSourceImageEmbedsFromMarkdown } from "../../../modules/contextPanel/mineruCache";
 import { collectRequestPaperContexts } from "../requestPaperContexts";
 
-type FileIOInput = {
+export type FileIOInput = {
   action: "read" | "write";
   filePath: string;
   content?: string;
@@ -374,7 +374,7 @@ async function readFile(filePath: string, encoding: string): Promise<string> {
   throw new Error("File I/O is not available in this Zotero environment");
 }
 
-async function fileExistsForWriteConfirmation(
+export async function fileExistsForWriteConfirmation(
   filePath: string,
 ): Promise<boolean | null> {
   const exists = await fileExists(filePath);

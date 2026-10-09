@@ -633,6 +633,12 @@ export async function buildAgentInitialMessages(
   } = {},
 ): Promise<AgentModelMessage[]> {
   const memoryBlock = await buildAgentMemoryBlock(request.conversationKey);
+  const learningSkillIds: string[] = matchedSkillIds.filter(
+    (id) => id === "paper-guide" || id === "paper-tutor",
+  );
+  const learningGuidanceBlock = buildTurnGuidanceBlock(
+    collectSkillGuidanceInstructions(request, learningSkillIds),
+  );
   const autoReadInstruction = buildAutoReadInstruction(request);
   const workflowParityInstructions = [
     buildFigureMineruInstruction(request, matchedSkillIds),
@@ -644,7 +650,10 @@ export async function buildAgentInitialMessages(
     autoReadInstruction,
     ...workflowParityInstructions,
     ...collectToolGuidanceInstructions(request, tools),
-    ...collectSkillGuidanceInstructions(request, matchedSkillIds),
+    ...collectSkillGuidanceInstructions(
+      request,
+      matchedSkillIds.filter((id) => !learningSkillIds.includes(id)),
+    ),
   ]);
   const coverageBlock = buildAgentCoverageContextBlock({
     conversationKey: request.conversationKey,
@@ -702,6 +711,9 @@ export async function buildAgentInitialMessages(
     ...(options.transcriptMessages?.length
       ? options.transcriptMessages
       : normalizeHistoryMessages(request)),
+    ...(learningGuidanceBlock
+      ? [{ role: "system" as const, content: learningGuidanceBlock }]
+      : []),
     buildUserMessage(request, resourceContextPlan, {
       coverageBlock,
       memoryBlock,

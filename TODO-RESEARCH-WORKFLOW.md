@@ -150,6 +150,13 @@ unanchored numerical claims must be marked as inferred or unresolved.
 Generating and reviewing notes for the user's own library remains an
 operational task.
 
+**Learning support:** The explicit `paper-guide` and `paper-tutor` Skills now
+support mechanism/argument guides, focused teaching, and source-checked
+progress save/resume. Offline guides use the `paper_learning` tool; these
+learning artifacts complement, rather than replace, reviewed paper notes.
+See [usage and validation limits](doc/paper-learning.md) and the
+[learning feature backlog](TODO.md#paper-learning-workflow--inspired-by-paperunfold).
+
 ### [ ] Convert repeated findings into concept notes
 
 **Work**

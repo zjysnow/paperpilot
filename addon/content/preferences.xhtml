@@ -1108,6 +1108,28 @@
               skill files directly.
             </html:span>
 
+            <html:label style="display: flex; align-items: center; gap: 6px">
+              <html:input
+                id="__addonRef__-learning-note-sync"
+                type="checkbox"
+              ></html:input>
+              <html:span
+                >Automatically sync learning progress to notes</html:span
+              >
+            </html:label>
+            <html:span
+              style="font-size: 11px; color: var(--fill-secondary, #888)"
+            >
+              Authorize automatic updates to PaperPilot's learning blocks in the
+              configured Notes Directory and target folder. Manual content is
+              preserved. Re-enable this option after changing the directory.
+              Learning state stays in the database when sync is disabled.
+            </html:span>
+            <html:span
+              id="__addonRef__-learning-note-sync-status"
+              style="font-size: 11px"
+            ></html:span>
+
             <!-- Nickname -->
             <html:div style="display: flex; flex-direction: column; gap: 2px">
               <html:label

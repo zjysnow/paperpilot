@@ -62,6 +62,20 @@ import {
 } from "./workflowTestHooks";
 import { dispatchZoteroItemsAsContext } from "./zoteroItemContextMenu";
 import { appendMessage } from "../../utils/chatStore";
+import { getAgentApi, initAgentSubsystem } from "../../agent";
+import { getAllSkills } from "../../agent/skills";
+import { AgentRuntime } from "../../agent/runtime";
+import { AgentToolRegistry } from "../../agent/tools/registry";
+import type { AgentRuntimeRequest } from "../../agent/types";
+import type { LearningProgress } from "../../agent/services/paperLearning";
+import {
+  clearLearningModeCache,
+  learningSourceKey,
+  loadLearningMode,
+  loadLearningNoteBinding,
+  loadLearningProgressForPaper,
+} from "../../agent/store/learningStore";
+import { setLearningNoteSyncEnabled } from "../../utils/learningNoteSyncConfig";
 
 import {
   ensureMarkedReaderSelectionTrackingListener,
@@ -71,7 +85,7 @@ import {
 import { config } from "./constants";
 import { collectReaderSelectionDocuments } from "./readerSelection";
 import { getReaderContextPanelForTab } from "./readerPopupPanelRouting";
-import type { ConversationSystem } from "../../shared/types";
+import type { ConversationSystem, LearningMode } from "../../shared/types";
 type RuntimeConversationSystem = ConversationSystem;
 
 import {
@@ -657,6 +671,7 @@ async function seedPanelStoredUserMessage(
   if (!conversationKey) {
     throw new Error("Workflow panel has no active conversation key");
   }
+
   const message = {
     role: "user" as const,
     text,
@@ -670,6 +685,364 @@ async function seedPanelStoredUserMessage(
   refreshChat(panel.body, item);
   await Zotero.Promise.delay(100);
   return getDiagnostics(panelId);
+}
+
+async function exercisePanelSkillSlashMenu(
+  panelId: string,
+  query: string,
+  skillId: string,
+): Promise<{ loadedSkillIds: string[]; renderedSkillIds: string[] }> {
+  assertWorkflowTestEnabled();
+  await initAgentSubsystem();
+  const panel = getPanel(panelId);
+  if (
+    panel.body.querySelector<HTMLElement>("#paperpilot-main")?.dataset
+      .runtimeMode !== "agent"
+  ) {
+    dispatchWorkflowClick(
+      panel.body,
+      "#paperpilotruntime-mode-toggle",
+      "Agent mode toggle",
+    );
+  }
+  const input =
+    panel.body.querySelector<HTMLTextAreaElement>("#paperpilotinput");
+  if (!input) throw new Error("Workflow test input box was not rendered");
+  input.value = query;
+  input.focus();
+  input.setSelectionRange(query.length, query.length);
+  const eventCtor = panel.body.ownerDocument.defaultView?.Event ?? Event;
+  input.dispatchEvent(new eventCtor("input", { bubbles: true }));
+  await Zotero.Promise.delay(100);
+  const nodes = panel.body.querySelectorAll<HTMLButtonElement>(
+    "button[data-slash-skill-item]",
+  );
+  const buttons: HTMLButtonElement[] = [];
+  for (let index = 0; index < nodes.length; index++) {
+    const button = nodes.item(index);
+    if (button) buttons.push(button);
+  }
+  const idOf = (button: HTMLButtonElement) =>
+    button.querySelector(".paperpilotaction-picker-title")?.textContent || "";
+  const renderedSkillIds = buttons.map(idOf);
+  const selected = buttons.find((button) => idOf(button) === skillId);
+  if (!selected) {
+    throw new Error(
+      `Skill ${skillId} is missing from ${query} menu: ${renderedSkillIds.join(", ")}; loaded: ${getAllSkills()
+        .map((skill) => skill.id)
+        .join(", ")}`,
+    );
+  }
+  selected.click();
+  return {
+    loadedSkillIds: getAllSkills().map((skill) => skill.id),
+    renderedSkillIds,
+  };
+}
+
+async function selectPanelLearningMode(
+  panelId: string,
+  mode: LearningMode,
+  reload = false,
+): Promise<string> {
+  assertWorkflowTestEnabled();
+  const panel = getPanel(panelId);
+  if (reload) {
+    clearLearningModeCache();
+    activeContextPanelStateSync.get(panel.body)?.();
+  }
+  if (
+    panel.body.querySelector<HTMLElement>("#paperpilot-main")?.dataset
+      .runtimeMode !== "agent"
+  ) {
+    dispatchWorkflowClick(
+      panel.body,
+      "#paperpilotruntime-mode-toggle",
+      "Agent mode toggle",
+    );
+  }
+  const select = panel.body.querySelector<HTMLSelectElement>(
+    "#paperpilotlearning-mode",
+  );
+  if (!select) throw new Error("Learning mode selector was not rendered");
+  for (let attempt = 0; select.disabled && attempt < 100; attempt++) {
+    await Zotero.Promise.delay(20);
+  }
+  if (select.disabled || select.style.display === "none")
+    throw new Error("Learning mode selector is unavailable");
+  if (reload) return select.value;
+  if (
+    select.querySelector<HTMLOptionElement>(`option[value="${mode}"]`)?.disabled
+  ) {
+    throw new Error(`Learning mode ${mode} is unavailable in this context`);
+  }
+  select.value = mode;
+  const eventCtor = panel.body.ownerDocument.defaultView?.Event ?? Event;
+  select.dispatchEvent(new eventCtor("change", { bubbles: true }));
+  for (let attempt = 0; attempt < 100; attempt++) {
+    await Zotero.Promise.delay(20);
+    if (
+      !select.disabled &&
+      (await loadLearningMode(getConversationKey(panel.item))) === mode
+    )
+      return select.value;
+  }
+  throw new Error(`Learning mode ${mode} was not persisted`);
+}
+
+async function exerciseLearningPersistence(
+  panelId: string,
+  attachmentId: number,
+): ReturnType<WorkflowTestApi["exerciseLearningPersistence"]> {
+  assertWorkflowTestEnabled();
+  await initAgentSubsystem();
+  const panel = getPanel(panelId);
+  const item = panel.item;
+  const tool = getAgentApi().getToolDefinition("paper_learning");
+  if (!tool) throw new Error("The actual learning tool is unavailable");
+  const io = (
+    globalThis as {
+      IOUtils?: {
+        readUTF8(path: string): Promise<string>;
+        write(path: string, bytes: Uint8Array): Promise<unknown>;
+        remove(path: string): Promise<void>;
+      };
+    }
+  ).IOUtils;
+  if (!io) throw new Error("Actual Zotero IOUtils is unavailable");
+  const keys = [
+    "obsidianVaultPath",
+    "obsidianTargetFolder",
+    "learningNoteSyncEnabled",
+    "learningNoteSyncDirectory",
+  ].map((key) => `extensions.zotero.paperpilot.${key}`);
+  const previous = keys.map((key) => Zotero.Prefs.get(key, true));
+  const folderName = `paperpilot-learning-workflow-${Date.now()}`;
+  const tempDirectory = Zotero.getTempDirectory().clone();
+  tempDirectory.normalize();
+  const directory = `${tempDirectory.path.replace(/[\\/]+$/u, "")}/${folderName}`;
+  let filePath: string | undefined;
+  let sourceKey: string | undefined;
+  const conversationKeys = [getConversationKey(item)];
+  try {
+    Zotero.Prefs.set(keys[0], tempDirectory.path, true);
+    Zotero.Prefs.set(keys[1], folderName, true);
+    setLearningNoteSyncEnabled(true);
+    const record: LearningProgress = {
+      version: 1,
+      source: {
+        itemId: item.id,
+        contextItemId: attachmentId,
+        title: String(item.getField("title")),
+        coverage: "Synthetic mechanism passage",
+        missing: [],
+      },
+      target: "Understand the intermediate representation",
+      location: "Mechanism passage",
+      explained: ["Input is transformed into an intermediate representation."],
+      understanding: [
+        {
+          point: "Representation",
+          status: "explained_unverified",
+          answer: "",
+          reason: "No substantive user answer yet.",
+        },
+      ],
+      gaps: ["Why the next stage needs this representation"],
+      nextEntry: "Trace first",
+    };
+    let restored = false;
+    const runRound = async (nextEntry: string, expectResume = false) => {
+      const registry = new AgentToolRegistry();
+      registry.register(tool);
+      let step = 0;
+      const runtime = new AgentRuntime({
+        registry,
+        adapterFactory: () => ({
+          getCapabilities: () => ({
+            streaming: false,
+            toolCalls: true,
+            fileInputs: false,
+            multimodal: false,
+            reasoning: false,
+          }),
+          supportsTools: () => true,
+          async runStep(params) {
+            if (++step === 1) {
+              if (expectResume) {
+                restored = params.messages.some(
+                  (message) =>
+                    message.role === "tool" &&
+                    String(message.content).includes("Trace third"),
+                );
+              }
+              const call = {
+                id: `checkpoint-${Date.now()}`,
+                name: "paper_learning",
+                arguments: {
+                  mode: "progress",
+                  record: { ...record, nextEntry },
+                },
+              };
+              return {
+                kind: "tool_calls",
+                calls: [call],
+                assistantMessage: {
+                  role: "assistant",
+                  content: "",
+                  tool_calls: [call],
+                },
+              };
+            }
+            return {
+              kind: "final",
+              text: "Source-grounded teaching completed.",
+            };
+          },
+        }),
+      });
+      const request: AgentRuntimeRequest = {
+        mode: "agent",
+        learningMode: "tutor",
+        conversationKey: getConversationKey(panel.item),
+        item,
+        activeItemId: item.id,
+        libraryID: item.libraryID,
+        userText: "Explain the intermediate representation.",
+        selectedPaperContexts: [
+          {
+            itemId: item.id,
+            contextItemId: attachmentId,
+            title: record.source.title,
+          },
+        ],
+      };
+      const result = await runtime.runTurn({
+        request,
+        onEvent(event) {
+          if (event.type === "confirmation_required")
+            throw new Error(
+              "Automatic database checkpoints unexpectedly requested approval",
+            );
+        },
+      });
+      if (result.kind !== "completed")
+        throw new Error(
+          `Actual learning round failed: ${result.kind === "fallback" ? result.reason : result.text}`,
+        );
+      return result;
+    };
+    const firstRound = await runRound("Trace first");
+    const saved = (
+      await loadLearningProgressForPaper(item.id, attachmentId)
+    )[0];
+    if (!saved?.source.fingerprint)
+      throw new Error("Actual PDF source identity was not persisted");
+    sourceKey = learningSourceKey(saved.source);
+    const binding = await loadLearningNoteBinding(sourceKey);
+    if (!binding)
+      throw new Error(
+        `Actual Markdown synchronization did not create a binding: ${firstRound.text}`,
+      );
+    filePath = binding.filePath;
+    const initial = await io.readUTF8(filePath);
+    const prefix = "Manual introduction.\n\n";
+    const suffix = "\n\nManual conclusion.\n";
+    await io.write(
+      filePath,
+      new TextEncoder().encode(prefix + initial + suffix),
+    );
+    await runRound("Trace second");
+    const updated = await io.readUTF8(filePath);
+    const manualPreserved =
+      updated.startsWith(prefix) &&
+      updated.endsWith(suffix) &&
+      updated.includes("Trace second") &&
+      !updated.includes("Trace first");
+    const edited = updated.replace("Trace second", "Manual managed-block edit");
+    await io.write(filePath, new TextEncoder().encode(edited));
+    const conflicted = await runRound("Trace third");
+    const conflictReported =
+      conflicted.text.includes("note synchronization failed") &&
+      (await io.readUTF8(filePath)) === edited;
+    const latest = (
+      await loadLearningProgressForPaper(item.id, attachmentId)
+    )[0];
+    const databaseAdvanced =
+      latest?.nextEntry === "Trace third" &&
+      latest.source.fingerprint === saved.source.fingerprint &&
+      latest.understanding[0].status === "explained_unverified";
+    await seedPanelStoredUserMessage(
+      panelId,
+      "Completed learning integration round.",
+    );
+    const newConversation = await startNewPanelConversation(panelId);
+    if (!newConversation.conversationKey)
+      throw new Error("New learning conversation was not created");
+    conversationKeys.push(newConversation.conversationKey);
+    await runRound("Trace third", true);
+    return { restored, manualPreserved, conflictReported, databaseAdvanced };
+  } finally {
+    for (let index = 0; index < keys.length; index++) {
+      const value = previous[index];
+      if (value === undefined) Zotero.Prefs.clear(keys[index], true);
+      else Zotero.Prefs.set(keys[index], value, true);
+    }
+    await Zotero.DB.queryAsync(
+      "DELETE FROM paperpilot_learning_progress WHERE item_id = ? AND attachment_id = ?",
+      [item.id, attachmentId],
+    );
+    if (sourceKey)
+      await Zotero.DB.queryAsync(
+        "DELETE FROM paperpilot_learning_notes WHERE source_key = ?",
+        [sourceKey],
+      );
+    for (const key of conversationKeys)
+      await Zotero.DB.queryAsync(
+        "DELETE FROM paperpilot_learning_modes WHERE conversation_key = ?",
+        [key],
+      );
+    clearLearningModeCache();
+    if (filePath) await io.remove(filePath);
+    await removePathIfPossible(directory);
+  }
+}
+
+function measurePanelLearningControls(
+  panelId: string,
+): ReturnType<WorkflowTestApi["measurePanelLearningControls"]> {
+  assertWorkflowTestEnabled();
+  const panel = getPanel(panelId);
+  const select = panel.body.querySelector<HTMLElement>(
+    "#paperpilotlearning-mode",
+  );
+  const agent = panel.body.querySelector<HTMLElement>(
+    "#paperpilotruntime-mode-toggle",
+  );
+  const container = panel.body.querySelector<HTMLElement>(
+    "#paperpilotcontext-previews",
+  );
+  const view = panel.body.ownerDocument.defaultView;
+  if (!select || !agent || !container || !view)
+    throw new Error("Learning controls were not rendered");
+  const modeStyle = view.getComputedStyle(select);
+  const agentStyle = view.getComputedStyle(agent);
+  if (!modeStyle || !agentStyle)
+    throw new Error("Learning control styles are unavailable");
+  const modeRect = select.getBoundingClientRect();
+  const agentRect = agent.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  return {
+    modeFontSize: modeStyle.fontSize,
+    agentFontSize: agentStyle.fontSize,
+    modeFontWeight: modeStyle.fontWeight,
+    modeAppearance: modeStyle.getPropertyValue("appearance"),
+    heightDifference: Math.abs(modeRect.height - agentRect.height),
+    topDifference: Math.abs(modeRect.top - agentRect.top),
+    overflows:
+      modeRect.right > containerRect.right + 1 ||
+      modeRect.left < containerRect.left - 1,
+  };
 }
 
 async function selectNoteEditorText(
@@ -2206,6 +2579,10 @@ export function installWorkflowTestHarness(targetAddon: {
     togglePanelConversationMode,
     exerciseDuplicatePanelSetup,
     exercisePanelDraftStateRefresh,
+    exercisePanelSkillSlashMenu,
+    selectPanelLearningMode,
+    measurePanelLearningControls,
+    exerciseLearningPersistence,
     seedPanelStoredUserMessage,
     clickPanelSystemToggle,
     clickPanelSystemTogglesRapidly,

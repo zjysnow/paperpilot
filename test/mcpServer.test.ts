@@ -19,6 +19,7 @@ describe("Zotero MCP server", function () {
   const previousZotero = (globalThis as Record<string, unknown>).Zotero;
   const preferences = new Map<string, unknown>();
   const registry = new AgentToolRegistry();
+  let learningExecutions = 0;
 
   before(function () {
     (globalThis as Record<string, unknown>).Zotero = {
@@ -63,6 +64,32 @@ describe("Zotero MCP server", function () {
     };
     registry.register(searchTool);
     registry.register(writeTool);
+    registry.register({
+      spec: {
+        name: "paper_learning",
+        description: "Save or resume a learning record",
+        inputSchema: { type: "object" },
+        mutability: "write",
+        requiresConfirmation: true,
+        tier: "advanced",
+      },
+      validate: (args) => ({
+        ok: true,
+        value: args as { mode: "progress" | "resume" },
+      }),
+      shouldRequireConfirmation: (input) => input.mode !== "resume",
+      createPendingAction: () => ({
+        toolName: "paper_learning",
+        title: "Save progress",
+        confirmLabel: "Save",
+        cancelLabel: "Cancel",
+        fields: [],
+      }),
+      execute: async () => {
+        learningExecutions += 1;
+        return { content: { resumed: true } };
+      },
+    });
     registerMcpServer({
       toolRegistry: registry,
       zoteroGateway: {} as never,
@@ -157,6 +184,75 @@ describe("Zotero MCP server", function () {
       );
       const result = response.result as { isError?: boolean };
       assert.equal(result.isError, true);
+    } finally {
+      scope.clear();
+    }
+  });
+
+  it("exposes learning for text scopes, permits resume, and gates learning writes", async function () {
+    const scope = registerScopedZoteroMcpScope({
+      profileSignature: "profile-a",
+      conversationKey: 9,
+      libraryID: 42,
+    });
+    try {
+      const listed = parseJsonRpcResponse(
+        await invoke("tools/list", undefined, scope.token),
+      ).result as { tools: Array<{ name: string }> };
+      assert.ok(listed.tools.some((tool) => tool.name === "paper_learning"));
+      const before = learningExecutions;
+      const denied = parseJsonRpcResponse(
+        await invoke(
+          "tools/call",
+          { name: "paper_learning", arguments: { mode: "progress" } },
+          scope.token,
+        ),
+      ).result as { isError?: boolean };
+      assert.equal(denied.isError, true);
+      assert.equal(learningExecutions, before);
+      const resumed = parseJsonRpcResponse(
+        await invoke(
+          "tools/call",
+          { name: "paper_learning", arguments: { mode: "resume" } },
+          scope.token,
+        ),
+      ).result as { isError?: boolean };
+      assert.notEqual(resumed.isError, true);
+      assert.equal(learningExecutions, before + 1);
+    } finally {
+      scope.clear();
+    }
+  });
+
+  it("hides and rejects learning filesystem access in direct-PDF scopes", async function () {
+    const scope = registerScopedZoteroMcpScope({
+      profileSignature: "profile-a",
+      conversationKey: 10,
+      libraryID: 42,
+      pdfPaperContexts: [
+        {
+          itemId: 12,
+          contextItemId: 34,
+          title: "Raw paper",
+          contentSourceMode: "pdf",
+        },
+      ],
+    });
+    try {
+      const listed = parseJsonRpcResponse(
+        await invoke("tools/list", undefined, scope.token),
+      ).result as { tools: Array<{ name: string }> };
+      assert.ok(!listed.tools.some((tool) => tool.name === "paper_learning"));
+      const before = learningExecutions;
+      const blocked = parseJsonRpcResponse(
+        await invoke(
+          "tools/call",
+          { name: "paper_learning", arguments: { mode: "resume" } },
+          scope.token,
+        ),
+      ).result as { isError?: boolean };
+      assert.equal(blocked.isError, true);
+      assert.equal(learningExecutions, before);
     } finally {
       scope.clear();
     }

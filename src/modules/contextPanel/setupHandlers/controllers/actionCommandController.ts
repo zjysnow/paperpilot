@@ -113,6 +113,7 @@ type ActionCommandControllerDeps = {
   persistDraftInputForCurrentConversation: () => void;
   shouldRenderDynamicSlashMenu: () => boolean;
   shouldRenderSkillSlashMenu: () => boolean;
+  onSkillSelected?: (id: string) => void;
   getCurrentRuntimeMode: () => string;
   setCurrentRuntimeMode: (mode: "chat" | "agent") => void;
   getCurrentLibraryID: () => number;
@@ -1381,6 +1382,7 @@ export function createActionCommandController(
     clearForcedSkill();
     clearCommandChip();
     forcedSkillId = skill.id;
+    deps.onSkillSelected?.(skill.id);
     if (deps.getCurrentRuntimeMode() !== "agent" && getAgentModeEnabled()) {
       deps.setCurrentRuntimeMode("agent");
     }

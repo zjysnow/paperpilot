@@ -8282,6 +8282,7 @@ async function retryLatestAgentResponse(
 }
 
 async function sendAgentQuestion(opts: {
+  learningMode?: import("../../shared/types").LearningMode;
   body: Element;
   item: Zotero.Item;
   contextSource?: ResolvedContextSource | null;
@@ -8394,6 +8395,7 @@ export async function sendQuestion(
         : runtimeMode;
   if (effectiveRuntimeMode === "agent" && !skipAgentDispatch) {
     await sendAgentQuestion({
+      learningMode: opts.learningMode,
       body,
       item,
       contextSource: opts.contextSource,

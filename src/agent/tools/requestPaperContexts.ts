@@ -53,3 +53,19 @@ export function collectRequestPaperContexts(
   for (const entry of request.pinnedPaperContexts || []) push(entry);
   return out;
 }
+
+export function resolveLearningPaperContext(
+  request: AgentRuntimeRequest,
+): PaperContextRef {
+  const contexts = collectRequestPaperContexts(request);
+  const activeId =
+    request.item?.parentItemID || request.item?.id || request.activeItemId;
+  const active = contexts.find(
+    (entry) => entry.itemId === activeId || entry.contextItemId === activeId,
+  );
+  if (active) return active;
+  if (contexts.length === 1) return contexts[0];
+  throw new Error(
+    "Select one active paper and readable attachment for learning",
+  );
+}
