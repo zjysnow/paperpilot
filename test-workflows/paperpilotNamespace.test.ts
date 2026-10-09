@@ -109,8 +109,13 @@ describe("Paper Pilot namespace workflows in Zotero", function () {
         expect(geometry.modeFontSize).to.equal(geometry.agentFontSize);
         expect(geometry.modeFontWeight).to.equal("400");
         expect(geometry.modeAppearance).to.equal("none");
-        expect(geometry.heightDifference).to.be.at.most(1);
-        expect(geometry.topDifference).to.be.at.most(1);
+        expect(
+          geometry.heightDifference,
+          JSON.stringify(geometry),
+        ).to.be.at.most(1);
+        expect(geometry.topDifference, JSON.stringify(geometry)).to.be.at.most(
+          1,
+        );
         expect(geometry.overflows).to.equal(false);
         for (let turn = 0; turn < 2; turn++) {
           const sent = await api.ask(panel.panelId, "Explain the mechanism.");

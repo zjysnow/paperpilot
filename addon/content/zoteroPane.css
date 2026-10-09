@@ -7212,6 +7212,7 @@ label.paperpilotsearch-results-item:hover {
   box-sizing: border-box;
   max-width: 100%;
   min-height: 26px;
+  height: max(26px, calc(var(--paperpilotfs-12) * 1.2 + 8px));
   margin: 0;
   padding: 3px 25px 3px 10px;
   border: 1px solid var(--stroke-secondary);
